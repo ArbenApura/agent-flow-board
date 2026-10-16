@@ -59,15 +59,23 @@
 	async function mark(key: string, to: 'done' | 'open' | 'waived', why?: string) {
 		pending[key] = to;
 		try {
-			const r = await api<{ statusChanges?: { to: string }[] }>(env.org, `/items/${ref}/record`, {
-				body: { marks: [{ key, mark: to, ...(why ? { reason: why } : {}) }] },
-				key: newKey()
-			});
-			const moved = r.statusChanges?.at(-1);
-			if (moved) toast.info(`Status moved to ${moved.to.toLowerCase()}.`);
+			await toast.promise(
+				api<{ statusChanges?: { to: string }[] }>(env.org, `/items/${ref}/record`, {
+					body: { marks: [{ key, mark: to, ...(why ? { reason: why } : {}) }] },
+					key: newKey()
+				}),
+				{
+					loading: 'Saving the step...',
+					success: (r) => {
+						const moved = r.statusChanges?.at(-1);
+						return moved ? `Step saved. Status moved to ${moved.to.toLowerCase()}.` : 'Step saved.';
+					},
+					error: (e) => (e instanceof ApiError ? e.message : 'That change was not saved.')
+				}
+			);
 			await env.onchanged();
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'That change was not saved.');
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			delete pending[key];
 		}

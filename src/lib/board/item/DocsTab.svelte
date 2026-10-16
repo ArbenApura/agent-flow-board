@@ -58,17 +58,28 @@
 		error = '';
 		busy = true;
 		try {
-			await api(env.org, `/items/${detail.item.ref}/sections/${target}`, {
-				method: 'PUT',
-				body: {
-					title: title.trim(),
-					body,
-					...(editing.isNew ? {} : { expectVersion: editing.version })
-				},
-				key: newKey()
-			});
+			await toast.promise(
+				api(env.org, `/items/${detail.item.ref}/sections/${target}`, {
+					method: 'PUT',
+					body: {
+						title: title.trim(),
+						body,
+						...(editing.isNew ? {} : { expectVersion: editing.version })
+					},
+					key: newKey()
+				}),
+				{
+					loading: 'Saving the section...',
+					success: 'Saved.',
+					error: (e) =>
+						e instanceof ApiError && e.code === 'STALE_VERSION'
+							? 'Someone changed this section first.'
+							: e instanceof ApiError
+								? e.message
+								: 'That was not saved.'
+				}
+			);
 			editing = null;
-			toast.success('Saved.');
 			await env.onchanged();
 		} catch (e) {
 			if (e instanceof ApiError && e.code === 'STALE_VERSION') {

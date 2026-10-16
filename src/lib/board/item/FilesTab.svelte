@@ -38,20 +38,26 @@
 		if (!file) return;
 		busy = true;
 		try {
-			await upload(env.org, `/items/${detail.item.ref}/attachments`, file, {
-				filename: file.name,
-				caption: caption.trim() || file.name,
-				kind: 'file'
-			});
+			await toast.promise(
+				upload(env.org, `/items/${detail.item.ref}/attachments`, file, {
+					filename: file.name,
+					caption: caption.trim() || file.name,
+					kind: 'file'
+				}),
+				{
+					loading: `Attaching ${file.name}...`,
+					success: 'File attached. It is private until someone makes it public.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The file was not attached.')
+				}
+			);
 			caption = '';
 			if (input) {
 				input.value = '';
 				input.dispatchEvent(new Event('change'));
 			}
-			toast.success('File attached. It is private until someone makes it public.');
 			await env.onchanged();
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The file was not attached.');
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			busy = false;
 		}
@@ -76,11 +82,14 @@
 		)
 			return;
 		try {
-			await api(env.org, `/attachments/${id}`, { method: 'DELETE' });
-			toast.success('Moved to the trash.');
+			await toast.promise(api(env.org, `/attachments/${id}`, { method: 'DELETE' }), {
+				loading: 'Removing the file...',
+				success: 'Moved to the trash.',
+				error: (e) => (e instanceof ApiError ? e.message : 'The file was not removed.')
+			});
 			await env.onchanged();
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The file was not removed.');
+		} catch {
+			// The promise toast already shows the failure
 		}
 	}
 </script>

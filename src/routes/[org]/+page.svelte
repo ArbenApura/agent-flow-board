@@ -11,6 +11,8 @@
 	import Badge from '#lib/ui/Badge.svelte';
 	import Card from '#lib/ui/Card.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
+	// -- DEP-COMPONENTS -- //
+	import Users from '@lucide/svelte/icons/users';
 
 	// -- REQUIRED PROPS -- //
 
@@ -81,9 +83,13 @@
 		</ul>
 	{/if}
 
-	<section class="flex flex-col gap-2">
-		<h2 class="text-lg font-semibold">Members</h2>
-		<Card padded={false}>
+	<section aria-label="Members">
+		<Card
+			padded={false}
+			icon={Users}
+			title="Members"
+			description="Everyone who can open this organisation."
+		>
 			<ul>
 				{#each data.members as m (m.userId)}
 					<li

@@ -23,6 +23,14 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
+	// -- DEP-COMPONENTS -- //
+	import User from '@lucide/svelte/icons/user';
+	import KeyRound from '@lucide/svelte/icons/key-round';
+	import MonitorSmartphone from '@lucide/svelte/icons/monitor-smartphone';
+	import Plug from '@lucide/svelte/icons/plug';
+	import Palette from '@lucide/svelte/icons/palette';
+	import ShieldCheck from '@lucide/svelte/icons/shield-check';
+	import Bell from '@lucide/svelte/icons/bell';
 
 	// -- REQUIRED PROPS -- //
 
@@ -105,6 +113,27 @@
 		...own
 	});
 
+	/** One server action as a promise toast; a refusal shows its own message and stays until dismissed. */
+	async function runAction(
+		name: string,
+		body: Record<string, string>,
+		loading: string,
+		success: string
+	) {
+		try {
+			await toast.promise(
+				postAction(name, body).then((r) => {
+					if (!r.ok) throw new Error(r.message);
+					return r;
+				}),
+				{ loading, success, error: (e) => (e instanceof Error ? e.message : 'That did not work.') }
+			);
+			await invalidateAll();
+		} catch {
+			// The promise toast already shows the failure
+		}
+	}
+
 	async function endSession(token: string) {
 		if (
 			!(await askConfirm({
@@ -114,11 +143,7 @@
 			}))
 		)
 			return;
-		const r = await postAction('revoke', { token });
-		if (r.ok) {
-			toast.success('Session ended.');
-			await invalidateAll();
-		} else toast.error(r.message);
+		await runAction('revoke', { token }, 'Ending the session...', 'Session ended.');
 	}
 
 	async function endOthers() {
@@ -130,11 +155,12 @@
 			}))
 		)
 			return;
-		const r = await postAction('revokeOthers', {});
-		if (r.ok) {
-			toast.success('Every other session was ended.');
-			await invalidateAll();
-		} else toast.error(r.message);
+		await runAction(
+			'revokeOthers',
+			{},
+			'Ending the other sessions...',
+			'Every other session was ended.'
+		);
 	}
 
 	async function revokeTool(org: string, id: string) {
@@ -147,11 +173,14 @@
 		)
 			return;
 		try {
-			await api(org, `/tokens/${id}`, { method: 'DELETE' });
-			toast.success('Revoked. That tool stops working now.');
+			await toast.promise(api(org, `/tokens/${id}`, { method: 'DELETE' }), {
+				loading: 'Revoking...',
+				success: 'Revoked. That tool stops working now.',
+				error: (e) => (e instanceof ApiError ? e.message : 'It could not be revoked.')
+			});
 			await invalidateAll();
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'It could not be revoked.');
+		} catch {
+			// The promise toast already shows the failure
 		}
 	}
 </script>
@@ -168,6 +197,7 @@
 	<SettingsShell>
 		<Section
 			id="profile"
+			icon={User}
 			title="Profile"
 			text="The name people see next to your changes."
 			dirty={dirty.profile}
@@ -182,6 +212,7 @@
 
 		<Section
 			id="signin"
+			icon={KeyRound}
 			title="How you sign in"
 			text="Your methods, and your password."
 			dirty={dirty.password}
@@ -223,6 +254,7 @@
 
 		<Section
 			id="sessions"
+			icon={MonitorSmartphone}
 			title="Where you are signed in"
 			text="End a session you do not recognise. It stops working at once."
 		>
@@ -257,6 +289,7 @@
 
 		<Section
 			id="tools"
+			icon={Plug}
 			title="Connected tools and tokens"
 			text="The coding tools and tokens that act as you. Revoke one and it stops at once."
 		>
@@ -296,6 +329,7 @@
 
 		<Section
 			id="appearance"
+			icon={Palette}
 			title="Appearance"
 			text="Light, dark or the setting of your device, and an accent colour of your own."
 			dirty={dirty.appearance}
@@ -323,6 +357,7 @@
 
 		<Section
 			id="checks"
+			icon={ShieldCheck}
 			title="Browser checks"
 			text="Where you want checks to run by default."
 			dirty={dirty.checks}
@@ -342,6 +377,7 @@
 
 		<Section
 			id="notifications"
+			icon={Bell}
 			title="Email notifications"
 			text="What this server may email you about."
 			dirty={dirty.notifications}

@@ -12,6 +12,12 @@
 	import Badge from '#lib/ui/Badge.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import Sparkline from '#lib/ui/Sparkline.svelte';
+	import Card from '#lib/ui/Card.svelte';
+	// -- DEP-COMPONENTS -- //
+	import GitCommitHorizontal from '@lucide/svelte/icons/git-commit-horizontal';
+	import GitCompare from '@lucide/svelte/icons/git-compare';
+	import Hourglass from '@lucide/svelte/icons/hourglass';
+	import Moon from '@lucide/svelte/icons/moon';
 
 	// -- REQUIRED PROPS -- //
 
@@ -26,10 +32,14 @@
 	const tiles = $derived(
 		h
 			? [
-					{ label: 'Unrecorded commits', count: h.unrecordedCommits.length },
-					{ label: 'Stale claims', count: h.staleClaims.length },
-					{ label: 'Quiet items', count: h.quietItems.length },
-					{ label: 'Drift', count: h.drift.length }
+					{
+						label: 'Unrecorded commits',
+						icon: GitCommitHorizontal,
+						count: h.unrecordedCommits.length
+					},
+					{ label: 'Stale claims', icon: Hourglass, count: h.staleClaims.length },
+					{ label: 'Quiet items', icon: Moon, count: h.quietItems.length },
+					{ label: 'Drift', icon: GitCompare, count: h.drift.length }
 				]
 			: []
 	);
@@ -58,34 +68,41 @@
 		<ul class="grid grid-cols-2 gap-4 lg:grid-cols-4" data-testid="health-tiles">
 			{#each tiles as t (t.label)}
 				<li
-					class="flex flex-col gap-1 rounded-xl border border-line bg-surface p-5 shadow-[var(--elev-1)]"
+					class="flex items-center gap-4 rounded-xl border border-line bg-surface p-5 shadow-[var(--elev-1)]"
 					data-card
 				>
 					<span
 						class={cn(
-							'text-2xl font-semibold tabular-nums',
-							t.count ? 'text-warning' : 'text-success'
-						)}>{t.count}</span
+							'inline-flex size-11 shrink-0 items-center justify-center rounded-xl',
+							t.count ? 'bg-warning-soft text-warning' : 'bg-success-soft text-success'
+						)}
+						aria-hidden="true"><t.icon size={22} /></span
 					>
-					<span class="text-sm text-muted">{t.label}</span>
+					<span class="flex min-w-0 flex-col">
+						<span
+							class={cn(
+								'text-2xl leading-tight font-semibold tabular-nums',
+								t.count ? 'text-warning' : 'text-success'
+							)}>{t.count}</span
+						>
+						<span class="text-sm break-words text-muted">{t.label}</span>
+					</span>
 				</li>
 			{/each}
 		</ul>
 	{/if}
 
 	{#if h}
-		<section
-			class="flex flex-col gap-2 rounded-xl border border-line bg-surface p-5 shadow-[var(--elev-1)]"
-			aria-label="Changes per day"
-			data-testid="activity-spark"
-		>
-			<h2 class="text-lg font-semibold">Changes per day, last 14 days</h2>
+		<Card role="region" aria-label="Changes per day" data-testid="activity-spark">
+			{#snippet header()}
+				<h2 class="text-lg font-semibold">Changes per day, last 14 days</h2>
+			{/snippet}
 			<Sparkline
 				values={data.daily.map((d) => d.count)}
 				labels={data.daily.map((d) => d.day)}
 				label="Changes per day"
 			/>
-		</section>
+		</Card>
 	{/if}
 
 	{#if !h}

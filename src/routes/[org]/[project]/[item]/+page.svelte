@@ -181,17 +181,29 @@
 		if (!d) return;
 		busy = true;
 		try {
-			await api(org, `/items/${d.item.ref}`, { method: 'DELETE' });
-			toast.success(`${d.item.ref} is in the trash for 30 days.`, {
-				label: 'Undo',
-				run: async () => {
-					await api(org, `/items/${d!.item.ref}/restore`, { method: 'POST', body: {} });
-					toast.success('Restored.');
+			const ref = d.item.ref;
+			await toast.promise(api(org, `/items/${ref}`, { method: 'DELETE' }), {
+				loading: `Moving ${ref} to the trash...`,
+				success: `${ref} is in the trash for 30 days.`,
+				error: (e) => (e instanceof ApiError ? e.message : 'The item was not moved.'),
+				action: {
+					label: 'Undo',
+					run: async () => {
+						try {
+							await toast.promise(api(org, `/items/${ref}/restore`, { method: 'POST', body: {} }), {
+								loading: 'Restoring...',
+								success: 'Restored.',
+								error: 'It was not restored.'
+							});
+						} catch {
+							// The promise toast already shows the failure
+						}
+					}
 				}
 			});
 			await goto(`/${org}/${d.project.key}`);
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The item was not moved.');
+		} catch {
+			// The promise toast already shows the failure
 			trashing = false;
 		} finally {
 			busy = false;

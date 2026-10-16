@@ -186,10 +186,15 @@
 		measuring = true;
 		measureNote = '';
 		try {
-			const r = await api<{ unavailable: boolean; reason: string | null }>(
-				org,
-				`${base}/scale/measure`,
-				{ body: {} }
+			const r = await toast.promise(
+				api<{ unavailable: boolean; reason: string | null }>(org, `${base}/scale/measure`, {
+					body: {}
+				}),
+				{
+					loading: 'Asking for a measure...',
+					success: (r) => (r.unavailable ? 'That target is not available.' : 'Measure requested.'),
+					error: (e) => (e instanceof ApiError ? e.message : 'The measure was not asked for.')
+				}
 			);
 			measureNote = r.unavailable
 				? (r.reason ?? 'That target is not available.')
@@ -205,8 +210,8 @@
 					}
 				}
 			}
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The measure was not asked for.');
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			measuring = false;
 		}

@@ -31,21 +31,27 @@
 
 	async function restoreFile(id: string, name: string) {
 		try {
-			await api(org, `/attachments/${id}/restore`, { method: 'POST', body: {} });
-			toast.success(`${name} is back.`);
+			await toast.promise(api(org, `/attachments/${id}/restore`, { method: 'POST', body: {} }), {
+				loading: `Restoring ${name}...`,
+				success: `${name} is back.`,
+				error: (e) => (e instanceof ApiError ? e.message : 'The file was not restored.')
+			});
 			await invalidate('afb:project');
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The file was not restored.');
+		} catch {
+			// The promise toast already shows the failure
 		}
 	}
 
 	async function restore(ref: string) {
 		try {
-			await api(org, `/items/${ref}/restore`, { method: 'POST', body: {} });
-			toast.success(`${ref} is back.`);
+			await toast.promise(api(org, `/items/${ref}/restore`, { method: 'POST', body: {} }), {
+				loading: `Restoring ${ref}...`,
+				success: `${ref} is back.`,
+				error: (e) => (e instanceof ApiError ? e.message : 'The item was not restored.')
+			});
 			await invalidate('afb:project');
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The item was not restored.');
+		} catch {
+			// The promise toast already shows the failure
 		}
 	}
 </script>

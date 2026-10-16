@@ -116,24 +116,30 @@
 	async function saveCheck(key: string) {
 		busy = `save-${key}`;
 		try {
-			await api(env.org, `/items/${detail.item.ref}/browser-checks`, {
-				method: 'PUT',
-				body: {
-					key,
-					script,
-					requiredTarget: required,
-					pinnedTarget: pinned || null,
-					coveredPaths: paths
-						.split('\n')
-						.map((p) => p.trim())
-						.filter(Boolean)
+			await toast.promise(
+				api(env.org, `/items/${detail.item.ref}/browser-checks`, {
+					method: 'PUT',
+					body: {
+						key,
+						script,
+						requiredTarget: required,
+						pinnedTarget: pinned || null,
+						coveredPaths: paths
+							.split('\n')
+							.map((p) => p.trim())
+							.filter(Boolean)
+					}
+				}),
+				{
+					loading: 'Saving the check...',
+					success: 'Browser check saved.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The check was not saved.')
 				}
-			});
+			);
 			editing = null;
-			toast.success('Browser check saved.');
 			await load();
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The check was not saved.');
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			busy = '';
 		}
@@ -150,11 +156,17 @@
 			return;
 		busy = `remove-${key}`;
 		try {
-			await api(env.org, `/items/${detail.item.ref}/browser-checks/${key}`, { method: 'DELETE' });
-			toast.success('Browser check removed.');
+			await toast.promise(
+				api(env.org, `/items/${detail.item.ref}/browser-checks/${key}`, { method: 'DELETE' }),
+				{
+					loading: 'Removing the check...',
+					success: 'Browser check removed.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The check was not removed.')
+				}
+			);
 			await load();
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The check was not removed.');
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			busy = '';
 		}
@@ -163,23 +175,30 @@
 	async function run(key: string, chosen?: string) {
 		busy = `run-${key}`;
 		try {
-			const asked = await api<{
-				unavailable: boolean;
-				offer: string[];
-				run: { reason: string | null };
-			}>(env.org, `/items/${detail.item.ref}/browser-checks/runs`, {
-				body: {
-					key,
-					target: (chosen ?? target[key]) || undefined,
-					step: stepFor[key] || undefined
+			const asked = await toast.promise(
+				api<{
+					unavailable: boolean;
+					offer: string[];
+					run: { reason: string | null };
+				}>(env.org, `/items/${detail.item.ref}/browser-checks/runs`, {
+					body: {
+						key,
+						target: (chosen ?? target[key]) || undefined,
+						step: stepFor[key] || undefined
+					}
+				}),
+				{
+					loading: 'Asking for a run...',
+					success: (r) => (r.unavailable ? 'That target is not available.' : 'Run requested.'),
+					error: (e) => (e instanceof ApiError ? e.message : 'The run was not asked for.')
 				}
-			});
+			);
 			notice[key] = asked.unavailable
 				? { text: asked.run.reason ?? 'That target is not available.', offer: asked.offer }
 				: { text: '', offer: [] };
 			await load();
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The run was not asked for.');
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			busy = '';
 		}

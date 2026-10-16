@@ -61,17 +61,18 @@ test('a popover closes on an outside click and on Escape', async ({ page }) => {
 
 test('toasts appear, a success fades and an error stays until dismissed', async ({ page }) => {
 	await page.getByRole('button', { name: 'Error toast' }).click();
-	const err = page.getByRole('alert').filter({ hasText: 'Could not save' });
+	const err = page.locator('[data-sonner-toast]').filter({ hasText: 'Could not save' });
 	await expect(err).toBeVisible();
 	await page.getByRole('button', { name: 'Success toast' }).click();
 	// A pointer resting on a notice keeps it open, so it is moved away to let the notice fade
 	await page.mouse.move(0, 0);
-	const ok = page.getByRole('status').filter({ hasText: 'Saved' });
+	const ok = page.locator('[data-sonner-toast]').filter({ hasText: 'Saved' });
 	await expect(ok).toBeVisible();
 	// A notice with an Undo button stays 10 seconds so it can be used
 	await expect(ok).toBeHidden({ timeout: 15000 });
 	await expect(err).toBeVisible();
-	await err.getByRole('button', { name: 'Dismiss' }).click();
+	await err.hover();
+	await err.getByRole('button', { name: 'Close toast' }).click();
 	await expect(err).toBeHidden();
 });
 

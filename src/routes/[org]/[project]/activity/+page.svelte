@@ -36,11 +36,17 @@
 		)
 			return;
 		try {
-			await api(org, `/sessions/${data.sessionId}/undo`, { method: 'POST', body: {} });
-			toast.success('Everything that session changed is undone.');
+			await toast.promise(
+				api(org, `/sessions/${data.sessionId}/undo`, { method: 'POST', body: {} }),
+				{
+					loading: 'Undoing the session...',
+					success: 'Everything that session changed is undone.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The session could not be undone.')
+				}
+			);
 			await invalidate('afb:project');
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The session could not be undone.');
+		} catch {
+			// The promise toast already shows the failure
 		}
 	}
 </script>

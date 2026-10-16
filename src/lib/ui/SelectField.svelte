@@ -15,6 +15,7 @@
 		error,
 		placeholder,
 		onchange,
+		disabled = false,
 		class: extra
 	}: {
 		label: string;
@@ -24,13 +25,14 @@
 		error?: string;
 		placeholder?: string;
 		onchange?: (value: string) => void;
+		disabled?: boolean;
 		class?: string;
 	} = $props();
 </script>
 
-<div class={cn('flex flex-col gap-1', extra)}>
-	<span class="text-xs font-medium text-muted">{label}</span>
-	<Select {options} bind:value {label} {placeholder} {onchange} invalid={!!error} />
+<div class={cn('flex flex-col gap-1.5', extra)}>
+	<span class="text-xs font-medium text-ink">{label}</span>
+	<Select {options} bind:value {label} {placeholder} {onchange} {disabled} invalid={!!error} />
 	{#if error}
 		<p role="alert" class="text-xs text-danger">{error}</p>
 	{:else if hint}

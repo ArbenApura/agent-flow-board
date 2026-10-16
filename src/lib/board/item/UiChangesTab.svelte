@@ -127,12 +127,18 @@
 		busy = 'save';
 		message = '';
 		try {
-			await api(env.org, `/items/${detail.item.ref}/ui-changes`, {
-				method: 'PUT',
-				body: { markdown }
-			});
+			await toast.promise(
+				api(env.org, `/items/${detail.item.ref}/ui-changes`, {
+					method: 'PUT',
+					body: { markdown }
+				}),
+				{
+					loading: 'Saving the table...',
+					success: 'UI changes saved.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The table was not saved.')
+				}
+			);
 			editing = false;
-			toast.success('UI changes saved.');
 			await load();
 		} catch (e) {
 			message = e instanceof ApiError ? e.message : 'The table was not saved.';

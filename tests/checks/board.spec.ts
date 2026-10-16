@@ -191,7 +191,7 @@ test('M6 undo restores a deleted item from the trash and from the activity log',
 		.first()
 		.getByTestId('undo')
 		.click();
-	await expect(page.getByText('Undone.')).toBeVisible();
+	await expect(page.getByText('Undone.', { exact: true })).toBeVisible();
 	expect((await page.request.get(`${ACME}/items/${made.ref}`)).status()).toBe(200);
 	await ctx.close();
 });

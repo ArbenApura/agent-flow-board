@@ -22,6 +22,7 @@
 		title,
 		subtitle,
 		icon: Icon = KeyRound,
+		note = 'Your connection is encrypted and your password is never shown to anyone.',
 		children,
 		footer
 	}: {
@@ -30,6 +31,8 @@
 		/** The badge icon at the top of the card, which says what this page is for. */
 		icon?: Component<{ size?: number; class?: string }>;
 		children: Snippet;
+		/** The quiet line at the bottom of the card. Pages that have no password say something that fits them. */
+		note?: string;
 		/** A line under the card, for the link to the other page. */
 		footer?: Snippet;
 	} = $props();
@@ -122,7 +125,7 @@
 	</aside>
 
 	<div class="relative flex flex-col items-center justify-center px-4 py-10">
-		<div class="relative flex w-full max-w-[440px] flex-col gap-5">
+		<div class="relative flex w-full max-w-[440px] flex-col gap-5 xl:max-w-[480px]">
 			<div class="flex items-center gap-2.5 text-lg font-semibold lg:hidden">
 				<Mark size={28} />
 				<span>agent-flow-board</span>
@@ -136,7 +139,7 @@
 				></div>
 				<div class="p-8 max-sm:p-5">
 					<span
-						class="mb-5 inline-flex size-12 items-center justify-center rounded-xl bg-accent-soft text-accent-text ring-8 ring-accent-soft/50"
+						class="mb-5 inline-flex size-12 items-center justify-center rounded-xl bg-accent-soft text-accent-text ring-8 ring-accent-soft/50 [@media(max-height:720px)]:hidden"
 						aria-hidden="true"
 					>
 						<Icon size={22} />
@@ -148,10 +151,10 @@
 					{@render children()}
 				</div>
 				<div
-					class="flex items-center gap-2 border-t border-line bg-raised/60 px-8 py-3 text-xs text-muted max-sm:px-5"
+					class="flex items-center gap-2 border-t border-line bg-raised/60 px-8 py-3 text-xs text-muted max-sm:px-5 [@media(max-height:720px)]:hidden"
 				>
 					<ShieldCheck size={14} class="shrink-0" aria-hidden="true" />
-					Your connection is encrypted and your password is never shown to anyone.
+					{note}
 				</div>
 			</div>
 			{#if footer}<p class="text-center text-sm text-muted">{@render footer()}</p>{/if}

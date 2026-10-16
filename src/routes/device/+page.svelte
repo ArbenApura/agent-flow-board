@@ -64,6 +64,7 @@
 
 <AuthShell
 	title="Approve a tool"
+	note="Approving gives that tool your access until you revoke it in Your settings."
 	subtitle="Type the code your tool shows. Never approve a code you did not just start yourself."
 >
 	{#if form && 'step' in form && form.step === 'done'}

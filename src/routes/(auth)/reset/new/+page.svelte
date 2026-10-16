@@ -7,6 +7,7 @@
 	import Notice from '#lib/ui/Notice.svelte';
 	import AuthShell from '#lib/ui/AuthShell.svelte';
 	import Button from '#lib/ui/Button.svelte';
+	import PasswordStrength from '#lib/ui/PasswordStrength.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	// -- DEP-COMPONENTS -- //
 	import Lock from '@lucide/svelte/icons/lock';
@@ -55,9 +56,10 @@
 				required
 				minlength={data.minPassword}
 				bind:value={password}
-				hint={`At least ${data.minPassword} characters.`}
+				hint={password ? undefined : `At least ${data.minPassword} characters.`}
 				error={form?.message}
 			/>
+			<PasswordStrength value={password} min={data.minPassword} class="-mt-1" />
 			<Button type="submit" variant="primary" loading={busy} class="h-11 w-full"
 				>Save password</Button
 			>

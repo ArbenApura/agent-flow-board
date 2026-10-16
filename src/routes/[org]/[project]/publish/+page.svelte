@@ -12,6 +12,7 @@
 	import { ago } from '#lib/board/status.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
+	import Card from '#lib/ui/Card.svelte';
 	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
@@ -54,6 +55,12 @@
 
 	// -- FUNCTIONS -- //
 
+	/** A failed call already set the inline message; this turns it into a rejection for the promise toast. */
+	function settled<T>(result: T | null): T {
+		if (result === null) throw new Error('The call failed.');
+		return result;
+	}
+
 	async function call(path: string, init: { method?: string; body?: unknown } = {}) {
 		error = '';
 		busy = true;
@@ -84,20 +91,49 @@
 	}
 
 	async function connect(repo: string, installation: string) {
-		const done = await call('/link', {
-			method: 'PUT',
-			body: { installationId: installation, repo }
-		});
-		if (done) toast.success(`Connected to ${repo}.`);
+		try {
+			await toast.promise(
+				call('/link', { method: 'PUT', body: { installationId: installation, repo } }).then(
+					settled
+				),
+				{
+					loading: `Connecting to ${repo}...`,
+					success: `Connected to ${repo}.`,
+					error: () => error || 'That did not work.'
+				}
+			);
+		} catch {
+			// The promise toast and the inline message already show the failure
+		}
 	}
 
 	async function publishNow() {
-		const done = await call('', { body: {} });
-		if (!done) return;
-		const r = done.run;
-		if (r.state === 'done') toast.success(r.message ?? 'Published.');
-		else if (r.state === 'pending') toast.info('GitHub asked to slow down. Trying again shortly.');
-		else if (r.state === 'failed') error = r.error ?? 'The publish failed.';
+		try {
+			await toast.promise(
+				call('', { body: {} })
+					.then(settled)
+					.then((j) => {
+						// A failed run is a failure: the error toast stays and the message shows inline too
+						if (j.run.state === 'failed') {
+							error = j.run.error ?? 'The publish failed.';
+							throw new Error(error);
+						}
+						return j;
+					}),
+				{
+					loading: 'Publishing...',
+					success: (j) =>
+						j.run.state === 'done'
+							? (j.run.message ?? 'Published.')
+							: j.run.state === 'pending'
+								? 'GitHub asked to slow down. Trying again shortly.'
+								: 'The publish did not finish.',
+					error: () => error || 'The publish failed.'
+				}
+			);
+		} catch {
+			// The promise toast and the inline message already show the failure
+		}
 	}
 
 	async function publishLater() {
@@ -108,13 +144,19 @@
 		}
 		busy = true;
 		try {
-			await api(org, `/projects/${key}/publish`, {
-				body: { runAt: new Date(laterAt).toISOString() },
-				key: newKey()
-			});
+			await toast.promise(
+				api(org, `/projects/${key}/publish`, {
+					body: { runAt: new Date(laterAt).toISOString() },
+					key: newKey()
+				}),
+				{
+					loading: 'Scheduling...',
+					success: 'Scheduled. You can cancel it until it starts.',
+					error: (e) => (e instanceof ApiError ? e.message : 'That did not work.')
+				}
+			);
 			laterOpen = false;
 			laterAt = '';
-			toast.success('Scheduled. You can cancel it until it starts.');
 			await invalidate('afb:project');
 		} catch (e) {
 			laterError = e instanceof ApiError ? e.message : 'That did not work.';
@@ -125,17 +167,27 @@
 
 	async function cancel(id: string) {
 		try {
-			await api(org, `/publish-runs/${id}/cancel`, { method: 'POST', body: {} });
-			toast.success('Cancelled.');
+			await toast.promise(api(org, `/publish-runs/${id}/cancel`, { method: 'POST', body: {} }), {
+				loading: 'Cancelling...',
+				success: 'Cancelled.',
+				error: (e) => (e instanceof ApiError ? e.message : 'It could not be cancelled.')
+			});
 			await invalidate('afb:project');
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'It could not be cancelled.');
+		} catch {
+			// The promise toast already shows the failure
 		}
 	}
 
 	async function disconnect() {
-		const done = await call('/link', { method: 'DELETE' });
-		if (done) toast.success('Disconnected.');
+		try {
+			await toast.promise(call('/link', { method: 'DELETE' }).then(settled), {
+				loading: 'Disconnecting...',
+				success: 'Disconnected.',
+				error: () => error || 'That did not work.'
+			});
+		} catch {
+			// The promise toast and the inline message already show the failure
+		}
 	}
 
 	const sha = (s: string | null) => (s ? s.slice(0, 7) : '');
@@ -163,72 +215,78 @@
 				text="An admin or owner can connect a GitHub repository to publish this project."
 			/>
 		{:else}
-			<section
-				class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
-				data-card
-			>
-				<h2 class="text-lg font-semibold">Connect a repository</h2>
-				{#if data.repos.length}
-					<p class="text-sm text-muted">Pick the repository to publish into.</p>
-					<ul class="rounded-lg border border-line" data-testid="repo-list">
-						{#each data.repos as r (r.fullName)}
-							<li
-								class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-								data-row
-							>
-								<span class="min-w-0 flex-1 truncate text-sm font-medium">{r.fullName}</span>
-								<Badge tone={r.private ? 'neutral' : 'warning'}
-									>{r.private ? 'private' : 'public'}</Badge
+			<Card data-testid="connect-card">
+				{#snippet header()}
+					<GitBranch size={18} class="text-muted" aria-hidden="true" />
+					<h2 class="text-lg font-semibold">Connect a repository</h2>
+				{/snippet}
+				<div class="flex flex-col gap-3">
+					{#if data.repos.length}
+						<p class="text-sm text-muted">Pick the repository to publish into.</p>
+						<ul class="rounded-lg border border-line" data-testid="repo-list">
+							{#each data.repos as r (r.fullName)}
+								<li
+									class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
+									data-row
 								>
-								<Button
-									size="sm"
-									variant="primary"
-									disabled={busy}
-									onclick={() => connect(r.fullName, data.installation ?? '')}>Connect</Button
+									<span class="min-w-0 flex-1 truncate text-sm font-medium">{r.fullName}</span>
+									<Badge tone={r.private ? 'neutral' : 'warning'}
+										>{r.private ? 'private' : 'public'}</Badge
+									>
+									<Button
+										size="sm"
+										variant="primary"
+										disabled={busy}
+										onclick={() => connect(r.fullName, data.installation ?? '')}>Connect</Button
+									>
+								</li>
+							{/each}
+						</ul>
+					{:else}
+						{#if data.repoError}<p class="text-sm text-danger" role="alert">
+								{data.repoError}
+							</p>{/if}
+						{#if data.canInstall}
+							<p class="text-sm text-muted">
+								Install the GitHub App on the repository you want, then come back here to pick it.
+							</p>
+							<div>
+								<Button variant="primary" href={`/github/install?org=${org}&project=${key}`}
+									>Install the GitHub App</Button
 								>
-							</li>
-						{/each}
-					</ul>
-				{:else}
-					{#if data.repoError}<p class="text-sm text-danger" role="alert">{data.repoError}</p>{/if}
-					{#if data.canInstall}
-						<p class="text-sm text-muted">
-							Install the GitHub App on the repository you want, then come back here to pick it.
-						</p>
-						<div>
-							<Button variant="primary" href={`/github/install?org=${org}&project=${key}`}
-								>Install the GitHub App</Button
-							>
-						</div>
-					{/if}
-					<form
-						class="flex flex-wrap items-end gap-2"
-						onsubmit={(e) => {
-							e.preventDefault();
-							void connect(repoName.trim(), installationId.trim());
-						}}
-					>
-						<TextField
-							label="Installation number"
-							bind:value={installationId}
-							class="w-44"
-							data-testid="installation-id"
-							required
-						/>
-						<TextField
-							label="Repository, written owner/name"
-							bind:value={repoName}
-							class="min-w-56 flex-1"
-							data-testid="repo-name"
-							required
-						/>
-						<Button type="submit" variant="primary" loading={busy} data-testid="connect-repo"
-							>Connect</Button
+							</div>
+						{/if}
+						<form
+							class="flex flex-wrap items-end gap-2"
+							onsubmit={(e) => {
+								e.preventDefault();
+								void connect(repoName.trim(), installationId.trim());
+							}}
 						>
-					</form>
-				{/if}
-				{#if error}<p class="text-sm text-danger" role="alert">{error}</p>{/if}
-			</section>
+							<TextField
+								label="Installation number"
+								placeholder="For example 12345678"
+								bind:value={installationId}
+								class="w-44"
+								data-testid="installation-id"
+								required
+							/>
+							<TextField
+								label="Repository, written owner/name"
+								placeholder="For example acme/plans"
+								bind:value={repoName}
+								class="min-w-56 flex-1"
+								data-testid="repo-name"
+								required
+							/>
+							<Button type="submit" variant="primary" loading={busy} data-testid="connect-repo"
+								>Connect</Button
+							>
+						</form>
+					{/if}
+					{#if error}<p class="text-sm text-danger" role="alert">{error}</p>{/if}
+				</div>
+			</Card>
 		{/if}
 	{:else}
 		<section

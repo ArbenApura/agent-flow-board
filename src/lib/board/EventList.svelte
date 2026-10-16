@@ -59,27 +59,40 @@
 		unsupported: 'That kind of change cannot be undone.'
 	};
 
+	/** The server refused the undo with a reason we can say in plain words. */
+	class Refusal extends Error {}
+
 	async function undo(row: Row, force = false) {
 		busy = true;
 		try {
-			const r = await api<{ ok: boolean; reason?: string }>(org, `/events/${row.id}/undo`, {
-				body: { force },
-				key: newKey()
-			});
+			const r = await toast.promise(
+				api<{ ok: boolean; reason?: string }>(org, `/events/${row.id}/undo`, {
+					body: { force },
+					key: newKey()
+				}).then((r) => {
+					// A conflict is not a failure: the person decides below whether to overwrite
+					if (!r.ok && !(r.reason === 'conflict' && !force))
+						throw new Refusal(WHY[r.reason ?? ''] ?? 'That could not be undone.');
+					return r;
+				}),
+				{
+					loading: 'Undoing...',
+					// A conflict takes the loading toast away: the dialog below asks what to do
+					success: (r) => (r.ok ? 'Undone.' : null),
+					error: (e) =>
+						e instanceof ApiError || e instanceof Refusal ? e.message : 'That could not be undone.'
+				}
+			);
 			if (r.ok) {
-				toast.success('Undone.');
 				confirming = null;
 				await onchanged();
-			} else if (r.reason === 'conflict' && !force) {
+			} else {
 				// The thing changed again since, so the person decides whether to overwrite it
 				confirming = row;
-			} else {
-				confirming = null;
-				toast.error(WHY[r.reason ?? ''] ?? 'That could not be undone.');
 			}
-		} catch (e) {
+		} catch {
 			confirming = null;
-			toast.error(e instanceof ApiError ? e.message : 'That could not be undone.');
+			// The promise toast already shows the failure
 		} finally {
 			busy = false;
 		}

@@ -24,14 +24,21 @@
 	async function post() {
 		busy = true;
 		try {
-			await api(env.org, `/items/${detail.item.ref}/comments`, {
-				body: { body: text.trim() },
-				key: newKey()
-			});
+			await toast.promise(
+				api(env.org, `/items/${detail.item.ref}/comments`, {
+					body: { body: text.trim() },
+					key: newKey()
+				}),
+				{
+					loading: 'Posting...',
+					success: 'Comment posted.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The comment was not posted.')
+				}
+			);
 			text = '';
 			await env.onchanged();
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The comment was not posted.');
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			busy = false;
 		}

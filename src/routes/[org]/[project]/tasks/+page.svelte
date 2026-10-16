@@ -65,10 +65,17 @@
 	async function setStatus(id: string, status: string) {
 		pending[id] = status;
 		try {
-			await api(org, `/tasks/${id}`, { method: 'PATCH', body: { status }, key: newKey() });
+			await toast.promise(
+				api(org, `/tasks/${id}`, { method: 'PATCH', body: { status }, key: newKey() }),
+				{
+					loading: 'Updating the task...',
+					success: 'Task updated.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The task was not changed.')
+				}
+			);
 			await invalidate('afb:project');
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The task was not changed.');
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			delete pending[id];
 		}

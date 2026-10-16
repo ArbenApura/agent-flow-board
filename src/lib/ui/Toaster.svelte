@@ -1,67 +1,22 @@
 <script lang="ts">
-	// -- MODULES -- //
-	import { toast, toasts } from '#lib/ui/toast.svelte.js';
-	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
-	import CircleCheck from '@lucide/svelte/icons/circle-check';
-	import Info from '@lucide/svelte/icons/info';
-	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
-	import CircleAlert from '@lucide/svelte/icons/circle-alert';
-	import X from '@lucide/svelte/icons/x';
-
-	// -- CONSTANTS -- //
-
-	const TONE = {
-		success: { icon: CircleCheck, text: 'text-success' },
-		info: { icon: Info, text: 'text-info' },
-		warning: { icon: TriangleAlert, text: 'text-warning' },
-		danger: { icon: CircleAlert, text: 'text-danger' }
-	};
+	import { Toaster } from 'svelte-sonner';
 </script>
 
-<!-- ONE TOASTER FOR THE WHOLE APP, MOUNTED IN THE ROOT LAYOUT ONLY -->
-<div
-	class="pointer-events-none fixed right-4 bottom-4 z-[4000] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2 max-sm:right-4 max-sm:left-4 max-sm:w-auto"
-	aria-live="polite"
-	aria-relevant="additions"
->
-	{#each toasts.items as t (t.id)}
-		{@const Icon = TONE[t.tone].icon}
-		<div
-			role={t.tone === 'danger' ? 'alert' : 'status'}
-			onmouseenter={() => toasts.hold(t.id)}
-			onmouseleave={() => toasts.release(t.id)}
-			onfocusin={() => toasts.hold(t.id)}
-			onfocusout={() => toasts.release(t.id)}
-			class="pointer-events-auto flex items-start gap-3 rounded-lg border border-line bg-surface p-3 text-sm text-ink shadow-[var(--shadow-pop)]"
-		>
-			<Icon size={20} class={cn('mt-px shrink-0', TONE[t.tone].text)} aria-hidden="true" />
-			<p class="min-w-0 flex-1">{t.text}</p>
-			{#if t.action}
-				<button
-					type="button"
-					class="cursor-pointer rounded-md px-2 py-1 font-medium text-accent-text hover:bg-raised"
-					onclick={async () => {
-						toasts.dismiss(t.id);
-						// A failed action says so, instead of vanishing with the notice
-						try {
-							await t.action?.run();
-						} catch {
-							toast.error('That did not work.');
-						}
-					}}
-				>
-					{t.action.label}
-				</button>
-			{/if}
-			<button
-				type="button"
-				aria-label="Dismiss"
-				class="relative inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded text-muted before:absolute before:-inset-2.5 before:content-[''] hover:text-ink"
-				onclick={() => toasts.dismiss(t.id)}
-			>
-				<X size={14} />
-			</button>
-		</div>
-	{/each}
-</div>
+<!-- ONE TOASTER FOR THE WHOLE APP, MOUNTED IN THE ROOT LAYOUT ONLY. SONNER READS THE TOKENS THROUGH ITS OWN VARIABLES, SO BOTH MODES FOLLOW data-mode -->
+<Toaster
+	position="bottom-right"
+	closeButton
+	visibleToasts={4}
+	offset="16px"
+	mobileOffset="16px"
+	class="z-[4000] [--border-radius:8px] [--error-bg:var(--surface)] [--error-border:var(--line)] [--error-text:var(--danger)] [--info-bg:var(--surface)] [--info-border:var(--line)] [--info-text:var(--info)] [--normal-bg:var(--surface)] [--normal-border:var(--line)] [--normal-text:var(--ink)] [--success-bg:var(--surface)] [--success-border:var(--line)] [--success-text:var(--success)] [--warning-bg:var(--surface)] [--warning-border:var(--line)] [--warning-text:var(--warning)]"
+	toastOptions={{
+		class: 'font-sans text-sm shadow-[var(--shadow-pop)]',
+		classes: {
+			title: '!text-ink',
+			actionButton: '!bg-accent !text-accent-ink',
+			closeButton: '!bg-surface !text-muted !border-line'
+		}
+	}}
+/>

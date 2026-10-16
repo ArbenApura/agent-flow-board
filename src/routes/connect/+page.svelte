@@ -6,6 +6,7 @@
 	// -- MODULES -- //
 	import Notice from '#lib/ui/Notice.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -17,6 +18,10 @@
 	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
+	// -- DEP-COMPONENTS -- //
+	import KeyRound from '@lucide/svelte/icons/key-round';
+	import MonitorSmartphone from '@lucide/svelte/icons/monitor-smartphone';
+	import Plug from '@lucide/svelte/icons/plug';
 
 	// -- REQUIRED PROPS -- //
 
@@ -77,23 +82,25 @@
 		<a href="/" class="text-sm text-accent-text hover:underline">All organisations</a>
 	</header>
 
-	<div>
-		<h1 class="text-xl font-semibold tracking-tight sm:text-2xl">Connect a tool</h1>
-		<p class="text-sm text-muted">
-			Pick the tool you work in. Most sign you in through your browser.
-		</p>
-		{#if data.org && data.orgs.length > 1}
-			<!-- A tool connects to one organisation, so which one is always said, with a way to pick another -->
-			<p class="mt-2 text-sm" data-testid="connect-org">
-				For <strong>{data.org.name}</strong>.
-				{#each data.orgs.filter((o) => o.id !== data.org!.id) as o (o.id)}
-					<a class="ml-2 text-accent-text hover:underline" href={`/connect?org=${o.slug}`}
-						>Use {o.name} instead</a
-					>
-				{/each}
-			</p>
-		{/if}
-	</div>
+	<PageHeader
+		title="Connect a tool"
+		context="Pick the tool you work in. Most sign you in through your browser."
+		class="my-0"
+	>
+		{#snippet actions()}
+			{#if data.org && data.orgs.length > 1}
+				<!-- A tool connects to one organisation, so which one is always said, with a way to pick another -->
+				<p class="text-sm" data-testid="connect-org">
+					For <strong>{data.org.name}</strong>.
+					{#each data.orgs.filter((o) => o.id !== data.org!.id) as o (o.id)}
+						<a class="ml-2 text-accent-text hover:underline" href={`/connect?org=${o.slug}`}
+							>Use {o.name} instead</a
+						>
+					{/each}
+				</p>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
 	{#if !data.org}
 		<Card padded={false}
@@ -106,8 +113,12 @@
 			</EmptyState></Card
 		>
 	{:else}
-		<Card data-testid="connect-snippets">
-			{#snippet header()}<h2 class="text-lg font-semibold">Add it to your tool</h2>{/snippet}
+		<Card
+			data-testid="connect-snippets"
+			icon={Plug}
+			title="Add it to your tool"
+			description="Paste one line into the tool you use."
+		>
 			<div
 				class="-mx-1 mb-4 flex [scrollbar-width:none]! gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-line [&::-webkit-scrollbar]:hidden"
 				role="tablist"
@@ -144,10 +155,13 @@
 			</div>
 		</Card>
 
-		<Card padded={false} data-testid="connected-apps">
-			{#snippet header()}<h2 class="text-lg font-semibold">
-					Connected apps in {data.org.name}
-				</h2>{/snippet}
+		<Card
+			padded={false}
+			data-testid="connected-apps"
+			icon={MonitorSmartphone}
+			title={`Connected apps in ${data.org.name}`}
+			description="Tools that can read and write here right now."
+		>
 			{#if data.connections.length === 0}
 				<EmptyState
 					title="Nothing is connected yet"
@@ -191,12 +205,16 @@
 			{/if}
 		</Card>
 
-		<Card data-testid="token-form">
-			{#snippet header()}<h2 class="text-lg font-semibold">Personal access token</h2>{/snippet}
+		<Card
+			data-testid="token-form"
+			icon={KeyRound}
+			title="Personal access token"
+			description="For scripts and tools that cannot sign in through a browser."
+		>
 			<p class="mb-3 text-sm text-muted">
-				For scripts and tools that cannot sign in through a browser. The token is shown once. It
-				lasts at most 90 days and never holds more than your role ({ROLE_LABEL[data.org.role]})
-				allows.
+				The token is shown once. It lasts at most 90 days and never holds more than your role ({ROLE_LABEL[
+					data.org.role
+				]}) allows.
 			</p>
 			{#if created}
 				<div

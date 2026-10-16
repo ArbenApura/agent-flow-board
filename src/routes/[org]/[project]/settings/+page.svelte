@@ -16,9 +16,18 @@
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import Select from '#lib/ui/Select.svelte';
+	import SelectField from '#lib/ui/SelectField.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
 	import TagInput from '#lib/ui/TagInput.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	// -- DEP-COMPONENTS -- //
+	import Settings from '@lucide/svelte/icons/settings';
+	import Layers from '@lucide/svelte/icons/layers';
+	import Bot from '@lucide/svelte/icons/bot';
+	import GitBranch from '@lucide/svelte/icons/git-branch';
+	import Activity from '@lucide/svelte/icons/activity';
+	import Image from '@lucide/svelte/icons/image';
+	import Download from '@lucide/svelte/icons/download';
 
 	// -- REQUIRED PROPS -- //
 
@@ -180,6 +189,7 @@
 		{:else}
 			<Section
 				id="general"
+				icon={Settings}
 				title="General"
 				text="The name and colour tag people see in the project list."
 				dirty={dirty.general}
@@ -197,8 +207,9 @@
 					data-testid="project-name-input"
 				/>
 				<div class="text-xs text-muted">Its key is {p.key} and does not change.</div>
-				<Select
+				<SelectField
 					label="Colour tag"
+					hint="A small dot beside the project name in the project list."
 					value={tag}
 					options={TAGS.map((t) => ({ value: t, label: t === '' ? 'No colour' : t }))}
 					onchange={(v) => (tag = v)}
@@ -215,6 +226,7 @@
 
 			<Section
 				id="streams"
+				icon={Layers}
 				title="Streams and scopes"
 				text="The groups items are filed under, for example features with the scopes core and routes."
 				dirty={dirty.streams}
@@ -253,6 +265,7 @@
 
 			<Section
 				id="agents"
+				icon={Bot}
 				title="Agents and closing"
 				text="Whether an agent may set an item to COMPLETED. Off keeps closing for people."
 				dirty={dirty.agents}
@@ -272,6 +285,7 @@
 
 			<Section
 				id="publishing"
+				icon={GitBranch}
 				title="GitHub publishing"
 				text="A readable reference copy of this project in a repository. It is not a backup."
 				dirty={dirty.publish}
@@ -364,6 +378,7 @@
 
 			<Section
 				id="tracking"
+				icon={Activity}
 				title="Tracking"
 				text="When an item in progress with no activity counts as quiet on the health page."
 				dirty={dirty.tracking}
@@ -388,6 +403,7 @@
 
 			<Section
 				id="shots"
+				icon={Image}
 				title="UI shots"
 				text="The themes a screen is shot in, and the pages new screens are compared with."
 				dirty={dirty.shots}
@@ -445,6 +461,7 @@
 
 			<Section
 				id="export"
+				icon={Download}
 				title="Export"
 				text="Download this project's public items. Private items are never included."
 			>

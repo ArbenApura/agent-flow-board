@@ -43,6 +43,7 @@
 	import Archive from '@lucide/svelte/icons/archive';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash from '@lucide/svelte/icons/trash';
+	import Settings from '@lucide/svelte/icons/settings';
 
 	// -- CONSTANTS -- //
 
@@ -237,8 +238,43 @@
 			<Button onclick={() => toast.error('Could not save. The connection dropped.')}
 				>Error toast</Button
 			>
+			<Button
+				onclick={() =>
+					void toast
+						.promise(new Promise((done) => setTimeout(done, 1500)), {
+							loading: 'Saving...',
+							success: 'Saved.',
+							error: 'Could not save.'
+						})
+						.catch(() => {})}>Promise toast</Button
+			>
+			<Button
+				onclick={() =>
+					void toast
+						.promise(new Promise((_, refuse) => setTimeout(() => refuse(new Error('no')), 1500)), {
+							loading: 'Saving...',
+							success: 'Saved.',
+							error: 'You are not allowed to do that.'
+						})
+						.catch(() => {})}>Refused promise toast</Button
+			>
 		</div>
 	</Card>
+
+	<div class="grid gap-6 sm:grid-cols-2" data-testid="g-card-variants">
+		<Card
+			icon={Settings}
+			title="Icon header"
+			description="A title, one line, and an icon that says what it is."
+		>
+			<p class="text-sm text-muted">The body of the card.</p>
+			{#snippet footer()}<Button variant="primary">Save</Button>{/snippet}
+		</Card>
+		<Card tone="danger" icon={Trash} title="Danger zone" description="This cannot be undone.">
+			<p class="text-sm text-muted">Removing it deletes everything inside.</p>
+			{#snippet footer()}<Button>Remove</Button>{/snippet}
+		</Card>
+	</div>
 
 	<Card>
 		{#snippet header()}<h2 class="text-lg font-semibold">Background treatments</h2>{/snippet}

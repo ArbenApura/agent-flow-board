@@ -27,6 +27,15 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
+	// -- DEP-COMPONENTS -- //
+	import Settings from '@lucide/svelte/icons/settings';
+	import Palette from '@lucide/svelte/icons/palette';
+	import Users from '@lucide/svelte/icons/users';
+	import FolderKanban from '@lucide/svelte/icons/folder-kanban';
+	import Mail from '@lucide/svelte/icons/mail';
+	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
+	import Gauge from '@lucide/svelte/icons/gauge';
+	import ScrollText from '@lucide/svelte/icons/scroll-text';
 
 	// -- REQUIRED PROPS -- //
 
@@ -109,12 +118,14 @@
 
 	async function act(run: () => Promise<unknown>, ok: string) {
 		try {
-			await run();
-			toast.success(ok);
+			await toast.promise(run(), {
+				loading: 'Working on it...',
+				success: ok,
+				error: (e) => (e instanceof ApiError ? e.message : 'That did not work.')
+			});
 			await invalidateAll();
-		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'That did not work.');
-			// A control that was changed on screen shows what is saved again
+		} catch {
+			// The promise toast already shows the failure. A control that was changed on screen shows what is saved again
 			rev++;
 		}
 	}
@@ -214,6 +225,7 @@
 	<SettingsShell>
 		<Section
 			id="general"
+			icon={Settings}
 			title="Name"
 			text="The name people see at the top of every page."
 			dirty={dirty.general}
@@ -234,6 +246,7 @@
 
 		<Section
 			id="palette"
+			icon={Palette}
 			title="Colour and logo"
 			text="The accent colour of buttons, links and progress for everyone in this organisation. Dark mode follows."
 			dirty={dirty.palette}
@@ -275,6 +288,7 @@
 
 		<Section
 			id="members"
+			icon={Users}
 			title="Members and roles"
 			text="Who is in this organisation and what they may do. Changes apply at once."
 		>
@@ -350,6 +364,7 @@
 
 		<Section
 			id="projects"
+			icon={FolderKanban}
 			title="Projects"
 			text="Each project has its own plans, settings and repository."
 		>
@@ -401,6 +416,7 @@
 
 		<Section
 			id="email"
+			icon={Mail}
 			title="Email sending"
 			text="How this server sends invitations, sign in codes and alerts."
 		>
@@ -450,6 +466,7 @@
 		{#if can}
 			<Section
 				id="backups"
+				icon={DatabaseBackup}
 				title="Backups"
 				text="A nightly encrypted copy of this organisation, kept apart from the app. A copy on GitHub is a reference, not a backup."
 			>
@@ -492,6 +509,7 @@
 
 			<Section
 				id="limits"
+				icon={Gauge}
 				title="Security limits"
 				text="How long access tokens may live, and whether guests may be invited."
 				dirty={dirty.limits}
@@ -516,6 +534,7 @@
 
 			<Section
 				id="audit"
+				icon={ScrollText}
 				title="Audit log"
 				text="Everything that changed in this organisation, newest first."
 			>

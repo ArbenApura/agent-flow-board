@@ -49,7 +49,8 @@
 <!-- A SPARKLINE BUILT BY HAND AS INLINE SVG. THE NUMBERS ARE IN THE TITLE FOR A SCREEN READER -->
 <svg
 	viewBox={`0 0 ${W} ${H}`}
-	class={cn('h-12 w-full text-accent', extra)}
+	preserveAspectRatio="none"
+	class={cn('h-16 w-full text-accent', extra)}
 	role="img"
 	aria-label={summary}
 	data-testid="sparkline"
@@ -62,13 +63,19 @@
 		stroke-width="2"
 		stroke-linejoin="round"
 		stroke-linecap="round"
+		vector-effect="non-scaling-stroke"
 	/>
 	{#if points.length}
-		<circle
-			cx={points[points.length - 1][0]}
-			cy={points[points.length - 1][1]}
-			r="3"
-			fill="currentColor"
+		<!-- THE END DOT IS A ZERO LENGTH ROUND LINE, SO IT STAYS ROUND WHEN THE SVG IS STRETCHED -->
+		<line
+			x1={points[points.length - 1][0]}
+			y1={points[points.length - 1][1]}
+			x2={points[points.length - 1][0] + 0.01}
+			y2={points[points.length - 1][1]}
+			stroke="currentColor"
+			stroke-width="7"
+			stroke-linecap="round"
+			vector-effect="non-scaling-stroke"
 		/>
 	{/if}
 </svg>

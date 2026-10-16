@@ -16,6 +16,7 @@
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	// -- DEP-COMPONENTS -- //
+	import Building2 from '@lucide/svelte/icons/building-2';
 	import Plus from '@lucide/svelte/icons/plus';
 
 	// -- REQUIRED PROPS -- //
@@ -77,8 +78,11 @@
 				title="You are not in an organisation yet"
 				text="Create one, or open an invitation link from your email."
 			/>
-			<Card>
-				{#snippet header()}<h2 class="text-lg font-semibold">New organisation</h2>{/snippet}
+			<Card
+				icon={Building2}
+				title="New organisation"
+				description="Your team and its projects live here."
+			>
 				{@render orgForm()}
 			</Card>
 		</div>
