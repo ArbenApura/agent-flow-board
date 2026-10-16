@@ -27,7 +27,24 @@
 			try {
 				var seg = location.pathname.split('/')[1] || '';
 				var auth = /^(sign-in|sign-up|verify|reset|invite|device|oauth|connect)$/.test(seg);
-				document.documentElement.setAttribute('data-boot', auth ? 'auth' : 'app');
+				document.documentElement.setAttribute(
+					'data-boot',
+					auth ? 'auth' : seg === '' ? 'home' : 'app'
+				);
+				// THE SIDEBAR OF AN ORGANISATION IS A SLIM RAIL UNTIL THE POINTER IS ON IT
+				document.documentElement.setAttribute('data-side', 'collapsed');
+				// AN ORGANISATION'S OWN PAGE (ONE SEGMENT) DRAWS THE SHAPE IT HAD LAST TIME, THE FIRST PROJECT PROMPT OR THE PROJECT CARDS
+				if (seg !== '' && !auth && location.pathname.replace(/\/+$/, '').split('/').length === 2)
+					document.documentElement.setAttribute(
+						'data-org',
+						localStorage.getItem('afb-org:' + seg) || 'cards'
+					);
+				// THE HOME PAGE DRAWS THE SHAPE IT HAD LAST TIME, A ROW OF ORGANISATIONS OR THE FIRST ORGANISATION FORM
+				if (seg === '')
+					document.documentElement.setAttribute(
+						'data-home',
+						localStorage.getItem('afb-home') || 'orgs'
+					);
 				var css = localStorage.getItem('afb-palette:' + seg);
 				if (css) {
 					var st = document.createElement('style');
@@ -44,6 +61,87 @@
 	<body data-sveltekit-preload-data="hover">
 		<!-- THE BOOT SKELETON. DRAWN IN CSS FROM THE TOKENS WITH NO SCRIPT, AND REMOVED WHEN THE APP MOUNTS -->
 		<div id="afb-boot" aria-hidden="true">
+			<div class="boot-home">
+				<div class="boot-home-head">
+					<span class="boot-home-brand"
+						><span class="boot-dot" style="width: 32px; height: 32px"></span
+						><span class="boot-line" style="width: 150px"></span></span
+					><span class="boot-line" style="width: 130px"></span>
+				</div>
+				<div class="boot-band">
+					<div class="boot-stack" style="gap: 16px">
+						<span class="bk" style="width: 200px; height: 26px"></span>
+						<span class="bk" style="width: 380px; height: 14px"></span>
+					</div>
+				</div>
+				<div class="boot-home-orgs">
+					<div class="boot-row boot-org-sk" style="height: 88px">
+						<span class="bk" style="width: 40px; height: 40px; border-radius: 50%"></span>
+						<div class="boot-stack">
+							<span class="bk" style="width: 130px; height: 16px"></span>
+							<span class="bk" style="width: 80px; height: 12px"></span>
+						</div>
+						<span
+							class="bk"
+							style="width: 52px; height: 22px; border-radius: 999px; margin-left: auto"
+						></span>
+					</div>
+					<div class="boot-row boot-org-sk" style="height: 88px">
+						<span class="bk" style="width: 40px; height: 40px; border-radius: 50%"></span>
+						<div class="boot-stack">
+							<span class="bk" style="width: 130px; height: 16px"></span>
+							<span class="bk" style="width: 80px; height: 12px"></span>
+						</div>
+						<span
+							class="bk"
+							style="width: 52px; height: 22px; border-radius: 999px; margin-left: auto"
+						></span>
+					</div>
+					<div class="boot-row boot-org-sk" style="height: 88px">
+						<span class="bk" style="width: 40px; height: 40px; border-radius: 50%"></span>
+						<div class="boot-stack">
+							<span class="bk" style="width: 130px; height: 16px"></span>
+							<span class="bk" style="width: 80px; height: 12px"></span>
+						</div>
+						<span
+							class="bk"
+							style="width: 52px; height: 22px; border-radius: 999px; margin-left: auto"
+						></span>
+					</div>
+				</div>
+				<div class="boot-home-first">
+					<div class="boot-half boot-half-left">
+						<span class="bk" style="width: 90px; height: 12px"></span>
+						<span class="bk" style="width: 260px; height: 26px"></span>
+						<span class="bk" style="width: 200px; height: 14px"></span>
+						<div class="boot-stack" style="gap: 28px; margin-top: 28px">
+							<div class="boot-pane-row" style="padding: 0">
+								<span class="bk" style="width: 36px; height: 36px; border-radius: 50%"></span>
+								<div class="boot-stack">
+									<span class="bk" style="width: 150px; height: 14px"></span>
+									<span class="bk" style="width: 190px; height: 12px"></span>
+								</div>
+							</div>
+							<div class="boot-pane-row" style="padding: 0">
+								<span class="bk" style="width: 36px; height: 36px; border-radius: 50%"></span>
+								<div class="boot-stack">
+									<span class="bk" style="width: 110px; height: 14px"></span>
+									<span class="bk" style="width: 210px; height: 12px"></span>
+								</div>
+							</div>
+						</div>
+					</div>
+					<div class="boot-half">
+						<span class="bk" style="width: 190px; height: 20px"></span>
+						<span class="bk" style="width: 100%; height: 44px; margin-top: 12px"></span>
+						<span class="bk" style="width: 100%; height: 44px"></span>
+						<span
+							class="bk"
+							style="width: 100%; height: 44px; border-radius: 10px; margin-top: 8px"
+						></span>
+					</div>
+				</div>
+			</div>
 			<div class="boot-aside"></div>
 			<div class="boot-card">
 				<span class="boot-sk" style="width: 48px; height: 48px; border-radius: 12px"></span>
@@ -55,14 +153,138 @@
 				<span class="boot-sk boot-field"></span>
 				<span class="boot-sk boot-field" style="height: 44px; margin-top: 24px"></span>
 			</div>
-			<div class="boot-bar">
-				<span class="boot-dot"></span><span class="boot-line" style="width: 96px"></span>
+			<div class="boot-side">
+				<div class="boot-side-head">
+					<span class="boot-dot"></span><span class="boot-line" style="width: 110px"></span>
+				</div>
+				<div class="boot-side-body">
+					<span class="bk boot-side-active" style="height: 36px; border-radius: 8px"></span>
+					<div class="boot-stack boot-side-projects" style="gap: 4px">
+						<span
+							class="bk boot-side-label"
+							style="width: 64px; height: 12px; margin: 0 10px 8px"
+						></span>
+						<span class="bk" style="height: 36px; border-radius: 8px"></span>
+						<span class="bk" style="height: 36px; border-radius: 8px"></span>
+						<span class="bk" style="height: 36px; border-radius: 8px"></span>
+					</div>
+					<div class="boot-stack" style="gap: 4px; margin-top: auto">
+						<span class="bk" style="height: 36px; border-radius: 8px"></span>
+						<span class="bk" style="height: 36px; border-radius: 8px"></span>
+						<span class="bk" style="height: 36px; border-radius: 8px"></span>
+					</div>
+				</div>
+				<div class="boot-side-foot">
+					<span class="bk" style="height: 40px; border-radius: 8px"></span>
+				</div>
 			</div>
-			<div class="boot-body">
-				<div class="boot-band"></div>
-				<div class="boot-row"></div>
-				<div class="boot-row"></div>
-				<div class="boot-row"></div>
+			<div class="boot-main">
+				<div class="boot-bar">
+					<span class="boot-line boot-bar-crumb" style="width: 170px"></span>
+					<span class="boot-search"></span><span class="boot-avatar"></span>
+				</div>
+
+				<div class="boot-body">
+					<div class="boot-band">
+						<div class="boot-stack" style="gap: 16px">
+							<span class="bk" style="width: 140px; height: 26px"></span>
+							<span class="bk" style="width: 340px; height: 14px"></span>
+						</div>
+						<span class="bk" style="width: 148px; height: 40px; border-radius: 10px"></span>
+					</div>
+					<div class="boot-row"></div>
+					<div class="boot-row"></div>
+					<div class="boot-row"></div>
+					<div class="boot-org-empty">
+						<div
+							class="boot-pane"
+							style="align-items: center; justify-content: center; padding-top: 24px"
+						>
+							<div style="display: flex; gap: 12px; align-items: flex-end">
+								<span class="bk" style="width: 62px; height: 92px; border-radius: 10px"></span>
+								<span class="bk" style="width: 62px; height: 104px; border-radius: 10px"></span>
+							</div>
+							<span class="bk" style="width: 200px; height: 18px; margin-top: 48px"></span>
+							<span class="bk" style="width: 440px; height: 13px; margin-top: 16px"></span>
+							<span class="bk" style="width: 90px; height: 13px; margin-top: 10px"></span>
+							<span
+								class="bk"
+								style="width: 147px; height: 40px; border-radius: 10px; margin-top: 18px"
+							></span>
+						</div>
+						<div class="boot-pane">
+							<div class="boot-pane-head" style="min-height: 72px">
+								<span class="bk" style="width: 36px; height: 36px; border-radius: 10px"></span>
+								<div class="boot-stack" style="gap: 8px">
+									<span class="bk" style="width: 90px; height: 16px"></span>
+									<span class="bk" style="width: 250px; height: 12px"></span>
+								</div>
+							</div>
+							<div class="boot-pane-row">
+								<span class="bk" style="width: 32px; height: 32px; border-radius: 50%"></span>
+								<div class="boot-stack" style="gap: 8px">
+									<span class="bk" style="width: 110px; height: 14px"></span>
+									<span class="bk" style="width: 190px; height: 12px"></span>
+								</div>
+								<span
+									class="bk"
+									style="width: 52px; height: 22px; border-radius: 999px; margin-left: auto"
+								></span>
+							</div>
+						</div>
+					</div>
+					<div class="boot-org-cards">
+						<div class="boot-org-grid">
+							<div class="boot-row boot-card-sk">
+								<div class="boot-pane-row" style="padding: 0; gap: 8px">
+									<span class="bk" style="width: 10px; height: 10px; border-radius: 50%"></span>
+									<span class="bk" style="width: 44px; height: 12px"></span>
+								</div>
+								<span class="bk" style="width: 62%; height: 16px"></span>
+								<span class="bk" style="width: 100%; height: 8px; border-radius: 999px"></span>
+								<span class="bk" style="width: 40%; height: 12px"></span>
+							</div>
+							<div class="boot-row boot-card-sk">
+								<div class="boot-pane-row" style="padding: 0; gap: 8px">
+									<span class="bk" style="width: 10px; height: 10px; border-radius: 50%"></span>
+									<span class="bk" style="width: 44px; height: 12px"></span>
+								</div>
+								<span class="bk" style="width: 62%; height: 16px"></span>
+								<span class="bk" style="width: 100%; height: 8px; border-radius: 999px"></span>
+								<span class="bk" style="width: 40%; height: 12px"></span>
+							</div>
+							<div class="boot-row boot-card-sk">
+								<div class="boot-pane-row" style="padding: 0; gap: 8px">
+									<span class="bk" style="width: 10px; height: 10px; border-radius: 50%"></span>
+									<span class="bk" style="width: 44px; height: 12px"></span>
+								</div>
+								<span class="bk" style="width: 62%; height: 16px"></span>
+								<span class="bk" style="width: 100%; height: 8px; border-radius: 999px"></span>
+								<span class="bk" style="width: 40%; height: 12px"></span>
+							</div>
+						</div>
+						<div class="boot-pane" style="height: 260px">
+							<div class="boot-pane-head" style="min-height: 72px">
+								<span class="bk" style="width: 36px; height: 36px; border-radius: 10px"></span>
+								<div class="boot-stack" style="gap: 8px">
+									<span class="bk" style="width: 90px; height: 16px"></span>
+									<span class="bk" style="width: 250px; height: 12px"></span>
+								</div>
+							</div>
+							<div class="boot-pane-row">
+								<span class="bk" style="width: 32px; height: 32px; border-radius: 50%"></span>
+								<div class="boot-stack" style="gap: 8px">
+									<span class="bk" style="width: 110px; height: 14px"></span>
+									<span class="bk" style="width: 190px; height: 12px"></span>
+								</div>
+								<span
+									class="bk"
+									style="width: 52px; height: 22px; border-radius: 999px; margin-left: auto"
+								></span>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 		<div style="display: contents">%sveltekit.body%</div>

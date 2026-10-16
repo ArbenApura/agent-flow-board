@@ -6,16 +6,15 @@
 	// -- MODULES -- //
 	import { tagDot } from '#lib/board/status.js';
 	import { cn } from '#lib/ui/cn.js';
-	import Avatar from '#lib/ui/Avatar.svelte';
 	import Button from '#lib/ui/Button.svelte';
+	import AppSidebar from '#lib/board/AppSidebar.svelte';
+	import Avatar from '#lib/ui/Avatar.svelte';
 	import Mark from '#lib/ui/Mark.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import Popover from '#lib/ui/Popover.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import RouteSkeleton from '#lib/ui/RouteSkeleton.svelte';
 	// -- DEP-COMPONENTS -- //
-	import ChevronDown from '@lucide/svelte/icons/chevron-down';
-	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 	import Settings from '@lucide/svelte/icons/settings';
 	import Menu from '@lucide/svelte/icons/menu';
 	import Search from '@lucide/svelte/icons/search';
@@ -30,8 +29,6 @@
 	// -- STATES -- //
 
 	let drawer = $state(false);
-	let switcher = $state(false);
-	let more = $state(false);
 	/** A quiet shadow under the bar once the page has scrolled. */
 	let scrolled = $state(false);
 	let account = $state(false);
@@ -64,7 +61,26 @@
 				]
 			: []
 	);
-	const tabs = $derived([...primary, ...secondary]);
+	const tabs = $derived<{ href: string; label: string; exact?: boolean }[]>([
+		...primary,
+		...secondary
+	]);
+	// Where the person is, shown in the top bar: the open project and its page, or the name of the screen
+	const crumbs = $derived.by(() => {
+		const path = page.url.pathname;
+		if (current) {
+			const tab = tabs.find((t) => (t.exact ? path === t.href : path.startsWith(t.href)));
+			return [
+				{ label: current.name, href: `${base}/${current.key}` },
+				...(tab && !tab.exact ? [{ label: tab.label, href: tab.href }] : [])
+			];
+		}
+		if (path === base) return [{ label: 'Projects', href: base }];
+		if (path.startsWith(`${base}/settings`))
+			return [{ label: 'Organisation settings', href: path }];
+		if (path.startsWith(`${base}/search`)) return [{ label: 'Search', href: path }];
+		return [{ label: data.org.name, href: base }];
+	});
 
 	// -- FUNCTIONS -- //
 
@@ -93,221 +109,152 @@
 <svelte:head><title>{data.org.name}</title></svelte:head>
 <svelte:window onkeydown={onShortcut} onscroll={() => (scrolled = window.scrollY > 4)} />
 
-<div class="flex min-h-dvh flex-col">
-	<header
-		class={cn(
-			'sticky top-0 z-30 border-b border-line bg-bar backdrop-blur-md transition-shadow duration-150',
-			scrolled && 'shadow-[var(--elev-2)]'
-		)}
-	>
-		<PageFrame testid="nav-frame">
-			<div class="flex h-16 items-center gap-3">
-				<Button
-					variant="ghost"
-					iconOnly
-					class="md:hidden"
-					aria-label="Open the menu"
-					data-testid="menu-button"
-					onclick={() => (drawer = true)}
-				>
-					<Menu size={20} />
-				</Button>
-				<a href={base} class="flex min-w-0 items-center gap-2.5 text-base font-semibold text-ink">
-					{#if data.org.logo}
-						<img
-							src={data.org.logo}
-							alt=""
-							class="size-7 rounded-md object-contain"
-							data-testid="org-logo"
-						/>
-					{:else}
-						<Mark size={28} />
-					{/if}
-					<span class="truncate max-sm:max-w-[28vw]" data-testid="org-name">{data.org.name}</span>
-				</a>
+<div class="min-h-dvh md:flex">
+	<AppSidebar org={data.org} projects={data.projects} {current} me={data.me} {tabs} {base} />
 
-				{#if data.projects.length}
-					<span class="text-muted max-md:hidden" aria-hidden="true">/</span>
-					<div class="max-md:hidden">
-						<Popover bind:open={switcher} placement="bottom-start" role="dialog" label="Projects">
-							{#snippet trigger({ props, toggle })}
-								<Button
-									variant="ghost"
-									size="sm"
-									onclick={toggle}
-									data-testid="project-switcher"
-									{...props}
-								>
-									{#if current}
-										<span class={cn('size-2 rounded-full', tagDot(current.colourTag))}></span>
-										{current.key}
-									{:else}
-										Projects
-									{/if}
-									<ChevronDown size={14} />
-								</Button>
-							{/snippet}
-							{#snippet children({ close })}
-								<ul class="min-w-64 p-1" data-testid="project-list">
-									{#each data.projects as p (p.id)}
-										<li>
-											<a
-												href={`${base}/${p.key}`}
-												onclick={close}
-												class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
-												aria-current={p.key === current?.key ? 'page' : undefined}
-											>
-												<span class={cn('size-2 rounded-full', tagDot(p.colourTag))}></span>
-												<span class="font-mono text-xs text-muted">{p.key}</span>
-												<span class="truncate">{p.name}</span>
-											</a>
-										</li>
-									{/each}
-								</ul>
-							{/snippet}
-						</Popover>
-					</div>
-				{/if}
+	<div class="flex min-w-0 flex-1 flex-col">
+		<!-- THE TOP BAR. WHERE THE PERSON IS, SEARCH AND THE ACCOUNT -->
+		<header
+			class={cn(
+				'sticky top-0 z-30 border-b border-line bg-bar backdrop-blur-md transition-shadow duration-150',
+				scrolled && 'shadow-[var(--elev-2)]'
+			)}
+		>
+			<PageFrame testid="nav-frame">
+				<div class="flex h-14 items-center gap-2 md:h-16 md:gap-3">
+					<Button
+						variant="ghost"
+						iconOnly
+						class="md:hidden"
+						aria-label="Open the menu"
+						data-testid="menu-button"
+						onclick={() => (drawer = true)}
+					>
+						<Menu size={20} />
+					</Button>
+					<a
+						href={base}
+						class="flex min-w-0 items-center gap-2.5 text-base font-semibold text-ink md:hidden"
+					>
+						{#if data.org.logo}
+							<img src={data.org.logo} alt="" class="size-6 rounded-md object-contain" />
+						{:else}
+							<Mark size={24} />
+						{/if}
+						<span class="truncate max-sm:max-w-[34vw]">{data.org.name}</span>
+					</a>
+					<nav
+						class="flex min-w-0 items-center gap-2 text-sm max-md:hidden"
+						aria-label="Breadcrumb"
+					>
+						{#each crumbs as c, i (c.href)}
+							{#if i > 0}<span class="text-muted" aria-hidden="true">/</span>{/if}
+							<a
+								href={c.href}
+								aria-current={i === crumbs.length - 1 ? 'page' : undefined}
+								class={cn(
+									'truncate',
+									i === crumbs.length - 1 ? 'font-semibold text-ink' : 'text-muted hover:text-ink'
+								)}>{c.label}</a
+							>
+						{/each}
+					</nav>
 
-				<nav class="ml-3 flex h-full items-stretch gap-1 max-md:hidden" aria-label="Project">
-					{#each primary as t (t.href)}
-						<a
-							href={t.href}
-							aria-current={active(t) ? 'page' : undefined}
-							class={cn(
-								'flex items-center border-b-2 border-transparent px-3 text-sm text-muted hover:text-ink',
-								active(t) && 'border-accent font-medium text-ink'
-							)}>{t.label}</a
+					<div class="ml-auto flex items-center gap-2">
+						<Button
+							variant="secondary"
+							href={`${base}/search`}
+							aria-label="Search"
+							data-testid="search-link-bar"
+							onclick={(e: MouseEvent) => {
+								// A plain click opens the palette. A modified click or no JavaScript still goes to the search page
+								if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+								e.preventDefault();
+								void openPalette();
+							}}
+							class="text-muted max-md:size-10 max-md:px-0 md:w-52 md:justify-start"
 						>
-					{/each}
-					{#if secondary.length}
-						<div class="flex items-center">
-							<Popover bind:open={more} placement="bottom-start" role="dialog" label="More pages">
+							<Search size={18} />
+							<span class="max-md:hidden">Search</span>
+							<kbd
+								class="ml-auto rounded border border-line px-1.5 text-xs text-muted max-md:hidden"
+								>/</kbd
+							>
+						</Button>
+						<div class="max-md:hidden">
+							<Popover bind:open={account} placement="bottom-end" role="dialog" label="Account">
 								{#snippet trigger({ props, toggle })}
-									<Button
-										variant="ghost"
-										size="sm"
+									<button
+										type="button"
 										onclick={toggle}
-										aria-label="More pages"
-										data-testid="nav-more"
+										aria-label="Account menu"
+										data-testid="account-menu"
+										class="cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
 										{...props}
 									>
-										<Ellipsis size={20} strokeWidth={3} />
-									</Button>
+										<Avatar name={data.me.name || data.me.email} size={32} />
+									</button>
 								{/snippet}
 								{#snippet children({ close })}
-									<ul class="min-w-48 p-1">
-										{#each secondary as t (t.href)}
+									<div class="min-w-64 p-1">
+										<div class="border-b border-line px-2.5 pt-2 pb-3">
+											<p class="truncate text-sm font-medium text-ink">{data.me.name}</p>
+											<p class="truncate text-xs text-muted">{data.me.email}</p>
+										</div>
+										<ul class="py-1">
 											<li>
 												<a
-													href={t.href}
+													href="/settings"
 													onclick={close}
-													aria-current={active(t) ? 'page' : undefined}
-													class="flex min-h-10 items-center rounded-md px-2.5 text-sm text-ink hover:bg-raised aria-[current=page]:font-medium aria-[current=page]:text-accent-text"
-													>{t.label}</a
+													data-testid="account-settings-link"
+													class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
+													><CircleUser size={18} class="text-muted" /> Your account settings</a
 												>
 											</li>
-										{/each}
-									</ul>
+											<li>
+												<a
+													href={`${base}/settings`}
+													onclick={close}
+													data-testid="org-settings-link"
+													class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
+													><Settings size={18} class="text-muted" /> Organisation settings</a
+												>
+											</li>
+											<li>
+												<a
+													href={`/connect?org=${data.org.slug}`}
+													onclick={close}
+													class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
+													><Plug size={18} class="text-muted" /> Connect a tool</a
+												>
+											</li>
+										</ul>
+										<form method="POST" action="/sign-out" class="border-t border-line pt-1">
+											<button
+												type="submit"
+												class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
+											>
+												<LogOut size={18} class="text-muted" /> Sign out
+											</button>
+										</form>
+									</div>
 								{/snippet}
 							</Popover>
 						</div>
-					{/if}
-				</nav>
-
-				<div class="ml-auto flex items-center gap-2">
-					<Button
-						variant="secondary"
-						href={`${base}/search`}
-						aria-label="Search"
-						data-testid="search-link"
-						onclick={(e: MouseEvent) => {
-							// A plain click opens the palette. A modified click or no JavaScript still goes to the search page
-							if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
-							e.preventDefault();
-							void openPalette();
-						}}
-						class="text-muted max-md:size-10 max-md:px-0 md:w-52 md:justify-start"
-					>
-						<Search size={18} />
-						<span class="max-md:hidden">Search</span>
-						<kbd class="ml-auto rounded border border-line px-1.5 text-xs text-muted max-md:hidden"
-							>/</kbd
-						>
-					</Button>
-					<div class="max-md:hidden">
-						<Popover bind:open={account} placement="bottom-end" role="dialog" label="Account">
-							{#snippet trigger({ props, toggle })}
-								<button
-									type="button"
-									onclick={toggle}
-									aria-label="Account menu"
-									data-testid="account-menu"
-									class="cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-									{...props}
-								>
-									<Avatar name={data.me.name || data.me.email} size={32} />
-								</button>
-							{/snippet}
-							{#snippet children({ close })}
-								<div class="min-w-64 p-1">
-									<div class="border-b border-line px-2.5 pt-2 pb-3">
-										<p class="truncate text-sm font-medium text-ink">{data.me.name}</p>
-										<p class="truncate text-xs text-muted">{data.me.email}</p>
-									</div>
-									<ul class="py-1">
-										<li>
-											<a
-												href="/settings"
-												onclick={close}
-												data-testid="account-settings-link"
-												class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
-												><CircleUser size={18} class="text-muted" /> Your account settings</a
-											>
-										</li>
-										<li>
-											<a
-												href={`${base}/settings`}
-												onclick={close}
-												data-testid="org-settings-link"
-												class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
-												><Settings size={18} class="text-muted" /> Organisation settings</a
-											>
-										</li>
-										<li>
-											<a
-												href={`/connect?org=${data.org.slug}`}
-												onclick={close}
-												class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
-												><Plug size={18} class="text-muted" /> Connect a tool</a
-											>
-										</li>
-									</ul>
-									<form method="POST" action="/sign-out" class="border-t border-line pt-1">
-										<button
-											type="submit"
-											class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
-										>
-											<LogOut size={18} class="text-muted" /> Sign out
-										</button>
-									</form>
-								</div>
-							{/snippet}
-						</Popover>
 					</div>
 				</div>
-			</div>
-		</PageFrame>
-	</header>
+			</PageFrame>
+		</header>
 
-	<main class="flex-1">
-		<!-- ANOTHER SCREEN IS LOADING, SO ITS SKELETON REPLACES THE OLD PAGE AT ONCE. A CHANGE OF FILTER OR TAB ON THE SAME SCREEN KEEPS THE PAGE -->
-		{#if navigating.to && navigating.to.route.id !== navigating.from?.route.id && navigating.to.url.pathname.startsWith(`/${data.org.slug}`)}
-			<RouteSkeleton routeId={navigating.to.route.id} />
-		{:else}
-			{@render pageContent()}
-		{/if}
-	</main>
+		<main class="flex-1">
+			<!-- ANOTHER SCREEN IS LOADING, SO ITS SKELETON REPLACES THE OLD PAGE AT ONCE. A CHANGE OF FILTER OR TAB ON THE SAME SCREEN KEEPS THE PAGE -->
+			{#if navigating.to && navigating.to.route.id !== navigating.from?.route.id && navigating.to.url.pathname.startsWith(`/${data.org.slug}`)}
+				<RouteSkeleton routeId={navigating.to.route.id} />
+			{:else}
+				{@render pageContent()}
+			{/if}
+		</main>
+	</div>
 </div>
 
 <!-- THE MENU ON A PHONE. PROJECTS, THEN THE PAGES OF THE PROJECT, THEN ACCOUNT ACTIONS -->

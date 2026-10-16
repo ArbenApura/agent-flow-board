@@ -1,4 +1,7 @@
 @import 'tailwindcss';
+
+/* THE SIDEBAR IS A SLIM RAIL THAT OPENS ON HOVER OR FOCUS, OR WHILE ITS ACCOUNT MENU IS OPEN. USE side-collapsed:hidden FOR THE RAIL STATE */
+@custom-variant side-collapsed (:where(.group\/side:not(:hover, :focus-within, [data-pinned='true'])) &);
 @import './lib/theme/tokens.css';
 
 /* HAPR BRAND FONTS, SELF-HOSTED. POPPINS FOR TEXT, BRICOLAGE GROTESQUE (VARIABLE) FOR HEADINGS AND BOLD TEXT. GEIST MONO STAYS FOR IDS, HASHES AND CODE */
@@ -340,8 +343,9 @@ html[data-boot='app'] #afb-boot {
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	height: 64px;
-	padding: 0 32px;
+	height: 56px;
+	/* THE BAR CONTENT LINES UP WITH THE PAGE, NOT THE WINDOW EDGE */
+	padding: 0 max(32px, calc((100% - 1216px) / 2));
 	border-bottom: 1px solid var(--line);
 	background: var(--surface);
 }
@@ -370,7 +374,12 @@ html[data-boot='app'] #afb-boot {
 	gap: 16px;
 }
 .boot-band {
-	height: 96px;
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	height: 105px;
+	padding: 20px 24px;
 	background: var(--band);
 	border: 1px solid var(--line);
 	border-radius: 16px;
@@ -379,6 +388,7 @@ html[data-boot='app'] #afb-boot {
 	height: 56px;
 }
 @media (prefers-reduced-motion: no-preference) {
+	.bk,
 	.boot-row,
 	.boot-line {
 		animation: afb-pulse 1.4s ease-in-out infinite;
@@ -409,6 +419,170 @@ html[data-boot='app'] #afb-boot {
 	}
 }
 
+/* THE SIDEBAR OF AN ORGANISATION. A DESKTOP SHOWS IT AND NO TOP BAR, A PHONE SHOWS THE SLIM TOP BAR. IT FOLLOWS THE OPEN OR COLLAPSED CHOICE */
+.boot-side {
+	display: none;
+}
+@media (min-width: 768px) {
+	.boot-bar {
+		height: 64px;
+	}
+	html[data-boot='app'] .boot-side {
+		position: fixed;
+		inset: 0 auto 0 0;
+		display: flex;
+		flex-direction: column;
+		width: 256px;
+		border-right: 1px solid var(--line);
+		background: var(--surface);
+	}
+	html[data-boot='app'][data-side='collapsed'] .boot-side {
+		width: 64px;
+	}
+	html[data-boot='app'] .boot-main {
+		margin-left: 256px;
+	}
+	html[data-boot='app'][data-side='collapsed'] .boot-main {
+		margin-left: 64px;
+	}
+	html[data-side='collapsed'] .boot-side-label,
+	html[data-side='collapsed'] .boot-side-head .boot-line {
+		display: none;
+	}
+	html[data-side='collapsed'] .boot-side-head {
+		justify-content: center;
+		padding: 0;
+	}
+}
+.boot-side-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	height: 65px;
+	padding: 0 18px;
+	border-bottom: 1px solid var(--line);
+}
+.boot-side-active {
+	background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+html[data-org='empty'] .boot-side-projects {
+	display: none;
+}
+.boot-side-foot {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 12px;
+	border-top: 1px solid var(--line);
+}
+.boot-side-body {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 16px;
+	padding: 12px;
+}
+
+/* THE ORGANISATION BAR HAS A SEARCH BOX AND AN AVATAR ON THE RIGHT, AND THE DASHBOARD DRAWS ITS LAST SHAPE */
+.boot-search {
+	width: 208px;
+	height: 40px;
+	margin-left: auto;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--surface);
+}
+.boot-avatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	background: var(--accent-soft);
+}
+.boot-org-empty,
+.boot-org-cards {
+	display: none;
+}
+/* THE BLOCKS INSIDE THE PLACEHOLDER, A SOFT TINT OF THE TEXT COLOUR SO THEY READ IN LIGHT AND DARK */
+.bk {
+	display: block;
+	flex: none;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--ink) 9%, transparent);
+}
+.boot-stack {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+.boot-pane-head,
+.boot-pane-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 16px;
+}
+.boot-pane-head {
+	border-bottom: 1px solid var(--line);
+}
+.boot-card-sk {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 16px;
+	border: 1px solid var(--line);
+	background: var(--surface);
+}
+.boot-pane {
+	display: flex;
+	flex-direction: column;
+	height: 467px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+	background: var(--surface);
+}
+html[data-org] .boot-body {
+	gap: 24px;
+}
+html[data-org] .boot-body > .boot-row {
+	display: none;
+}
+html[data-org='empty'] .boot-org-empty {
+	display: grid;
+	grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+	gap: 24px;
+	margin-top: 24px;
+}
+html[data-org='cards'] .boot-org-cards {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+	margin-top: 24px;
+}
+.boot-org-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 12px;
+}
+@media (max-width: 1023px) {
+	.boot-org-grid {
+		grid-template-columns: 1fr 1fr;
+	}
+	html[data-org='empty'] .boot-org-empty {
+		grid-template-columns: 1fr;
+	}
+}
+@media (max-width: 639px) {
+	.boot-bar {
+		padding: 0 16px;
+	}
+	.boot-search {
+		display: none;
+	}
+	.boot-org-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
 /* THE SIGN IN PAGES SHOW A CARD IN PLACE OF THE BAR AND THE LIST WHILE THE APP MOUNTS */
 html[data-boot='auth'] #afb-boot {
 	display: block;
@@ -418,8 +592,106 @@ html[data-boot='auth'] .boot-body {
 	display: none;
 }
 .boot-card,
-.boot-aside {
+.boot-aside,
+.boot-home {
 	display: none;
+}
+/* THE HOME PAGE SHOWS ITS OWN SHAPE, THE LOGO ROW, THE BAND AND EITHER THE ORGANISATION CARDS OR THE FIRST ORGANISATION PANEL */
+html[data-boot='home'] #afb-boot {
+	display: block;
+}
+html[data-boot='home'] .boot-bar,
+html[data-boot='home'] .boot-body,
+html[data-boot='home'] .boot-card,
+html[data-boot='home'] .boot-aside {
+	display: none;
+}
+html[data-boot='home'] .boot-home {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+	max-width: 1280px;
+	margin: 0 auto;
+	padding: 24px 32px;
+}
+.boot-home-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 32px;
+}
+.boot-home-brand {
+	display: inline-flex;
+	align-items: center;
+	gap: 12px;
+}
+.boot-home-orgs {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 16px;
+}
+.boot-org-sk {
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	padding: 0 20px;
+	border: 1px solid var(--line);
+	background: var(--surface);
+}
+.boot-half {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 14px;
+	padding: 32px;
+}
+.boot-half-left {
+	gap: 12px;
+	background: var(--raised);
+	border-right: 1px solid var(--line);
+	border-radius: 16px 0 0 16px;
+}
+.boot-home-first {
+	display: none;
+	height: 470px;
+	width: min(980px, 100%);
+	margin: auto;
+	border: 1px solid var(--line);
+	border-radius: 16px;
+	background: var(--surface);
+}
+html[data-home='empty'] .boot-home {
+	min-height: 100dvh;
+}
+html[data-home='empty'] .boot-band,
+html[data-home='empty'] .boot-home-orgs {
+	display: none;
+}
+html[data-home='empty'] .boot-home-first {
+	display: grid;
+	grid-template-columns: 5fr 6fr;
+}
+@media (max-width: 767px) {
+	html[data-home='empty'] .boot-home-first {
+		grid-template-columns: 1fr;
+		height: auto;
+	}
+	.boot-half-left {
+		display: none;
+	}
+}
+@media (max-width: 1023px) {
+	.boot-home-orgs {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+@media (max-width: 639px) {
+	html[data-boot='home'] .boot-home {
+		padding: 24px 16px;
+	}
+	.boot-home-orgs {
+		grid-template-columns: 1fr;
+	}
 }
 html[data-boot='auth'] .boot-card {
 	display: flex;

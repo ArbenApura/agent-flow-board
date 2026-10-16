@@ -3,25 +3,43 @@
 	import type { PageProps } from './$types';
 	// -- DEP-MODULES -- //
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
+	import { onMount } from 'svelte';
 	// -- MODULES -- //
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
-	import Card from '#lib/ui/Card.svelte';
-	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import Logo from '#lib/ui/Logo.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	// -- DEP-COMPONENTS -- //
 	import Building2 from '@lucide/svelte/icons/building-2';
+	import FolderKanban from '@lucide/svelte/icons/folder-kanban';
+	import Plug from '@lucide/svelte/icons/plug';
 	import Plus from '@lucide/svelte/icons/plus';
 
 	// -- REQUIRED PROPS -- //
 
 	let { data, form }: PageProps = $props();
+
+	// -- CONSTANTS -- //
+
+	const NEXT_STEPS = [
+		{
+			icon: Building2,
+			title: 'Create your organisation',
+			text: 'A home for your team and its work.'
+		},
+		{
+			icon: FolderKanban,
+			title: 'Add a project',
+			text: 'Plans, steps and checks live in projects.'
+		},
+		{ icon: Plug, title: 'Connect your agents', text: 'They record progress as they work.' }
+	];
 
 	// -- STATES -- //
 
@@ -40,11 +58,22 @@
 			.replace(/^-+|-+$/g, '')
 			.slice(0, 38);
 	}
+
+	// -- LIFECYCLES -- //
+
+	// Remember the shape of this page, so the loading placeholder draws the same one next time
+	onMount(() => {
+		try {
+			localStorage.setItem('afb-home', data.orgs.length ? 'orgs' : 'empty');
+		} catch {
+			/* Storage can be blocked, the placeholder falls back to a row of cards */
+		}
+	});
 </script>
 
 <svelte:head><title>Your organisations</title></svelte:head>
 
-<PageFrame tag="main" class="pb-12">
+<PageFrame tag="main" class={data.orgs.length ? 'pb-12' : 'flex min-h-dvh flex-col pb-12'}>
 	<div class="flex items-center justify-between gap-3 pt-6">
 		<Logo size={32} class="text-base" />
 		<form method="POST" action="/sign-out" class="flex items-center gap-3">
@@ -55,34 +84,79 @@
 		</form>
 	</div>
 
-	<PageHeader
-		title="Your organisations"
-		context={`Hello ${data.user.name}. Pick an organisation or start a new one.`}
-		testid="home-title"
-	>
-		{#snippet actions()}
-			{#if data.orgs.length}
-				<Button variant="primary" onclick={() => (creating = true)} data-testid="new-org">
-					<Plus size={16} /> New organisation
-				</Button>
-			{/if}
-		{/snippet}
-	</PageHeader>
+	{#if data.orgs.length}
+		<PageHeader
+			title="Your organisations"
+			context={`Hello ${data.user.name}. Pick an organisation or start a new one.`}
+			testid="home-title"
+		>
+			{#snippet actions()}
+				{#if data.orgs.length}
+					<Button variant="primary" onclick={() => (creating = true)} data-testid="new-org">
+						<Plus size={16} /> New organisation
+					</Button>
+				{/if}
+			{/snippet}
+		</PageHeader>
+	{/if}
 
 	{#if data.orgs.length === 0}
-		<div class="grid gap-6 md:grid-cols-2">
-			<EmptyState
-				kind="welcome"
-				title="You are not in an organisation yet"
-				text="Create one, or open an invitation link from your email."
-			/>
-			<Card
-				icon={Building2}
-				title="New organisation"
-				description="Your team and its projects live here."
+		<!-- THE FIRST VISIT. ONE CARD IN TWO PANES. ON THE LEFT A WELCOME AND THE THREE STEPS AHEAD, ON THE RIGHT THE FORM FOR THE FIRST STEP, BOTH THE SAME HEIGHT -->
+		<div class="flex flex-1 items-center py-8">
+			<div
+				class="mx-auto grid w-full max-w-[980px] overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--elev-2)] md:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]"
+				data-card
 			>
-				{@render orgForm()}
-			</Card>
+				<div
+					class="flex flex-col justify-between gap-10 border-b border-line bg-gradient-to-br from-accent-soft/60 via-raised/40 to-surface p-8 max-sm:p-5 md:border-r md:border-b-0"
+				>
+					<div class="flex flex-col gap-2">
+						<p class="text-xs font-medium tracking-wide text-accent-text uppercase">
+							Welcome, {data.user.name.split(' ')[0]}
+						</p>
+						<h1
+							class="font-display text-2xl font-semibold tracking-tight text-ink"
+							data-testid="home-title"
+						>
+							Set up your first organisation
+						</h1>
+						<p class="text-sm text-muted">It takes a minute. Here is what comes next.</p>
+					</div>
+					<ol class="flex flex-col">
+						{#each NEXT_STEPS as step, i (step.title)}
+							<li class="relative flex gap-4 pb-6 last:pb-0">
+								{#if i < NEXT_STEPS.length - 1}
+									<span class="absolute top-9 bottom-1 left-[17px] w-px bg-line" aria-hidden="true"
+									></span>
+								{/if}
+								<span
+									class="relative inline-flex size-9 shrink-0 items-center justify-center rounded-full border {i ===
+									0
+										? 'border-accent bg-accent text-accent-ink'
+										: 'border-line bg-surface text-muted'}"
+									aria-hidden="true"><step.icon size={16} /></span
+								>
+								<span class="flex flex-col pt-0.5">
+									<span class="text-sm font-semibold {i === 0 ? 'text-ink' : 'text-muted'}"
+										>{step.title}</span
+									>
+									<span class="text-sm text-muted">{step.text}</span>
+								</span>
+							</li>
+						{/each}
+					</ol>
+					<p class="text-sm text-muted">
+						Have an invitation? Open the link from your email instead.
+					</p>
+				</div>
+				<div class="flex flex-col justify-center gap-6 p-8 max-sm:p-5">
+					<div class="flex flex-col gap-1">
+						<h2 class="font-display text-lg font-semibold text-ink">Create your organisation</h2>
+						<p class="text-sm text-muted">Your team and its projects live here.</p>
+					</div>
+					{@render orgForm()}
+				</div>
+			</div>
 		</div>
 	{:else}
 		<ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -135,10 +209,13 @@
 			label="Address"
 			name="slug"
 			bind:value={slug}
+			placeholder="acme"
 			required
-			hint="Lowercase letters, digits and dashes. It becomes part of every link."
+			hint={`Your link will be ${page.url.host}/${slug || 'acme'}. Lowercase letters, digits and dashes.`}
 			error={form?.message}
 		/>
-		<div><Button type="submit" variant="primary" loading={busy}>Create organisation</Button></div>
+		<Button type="submit" variant="primary" loading={busy} class="h-11 w-full"
+			>Create organisation</Button
+		>
 	</form>
 {/snippet}

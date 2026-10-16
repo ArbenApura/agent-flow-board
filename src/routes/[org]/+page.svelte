@@ -2,6 +2,7 @@
 	// -- DEP-TYPES -- //
 	import type { PageProps } from './$types';
 	// -- MODULES -- //
+	import { onMount } from 'svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { STATUSES, tagDot } from '#lib/board/status.js';
@@ -9,9 +10,11 @@
 	import { cn } from '#lib/ui/cn.js';
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
+	import Button from '#lib/ui/Button.svelte';
 	import Card from '#lib/ui/Card.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	// -- DEP-COMPONENTS -- //
+	import Plus from '@lucide/svelte/icons/plus';
 	import Users from '@lucide/svelte/icons/users';
 
 	// -- REQUIRED PROPS -- //
@@ -29,20 +32,62 @@
 		'ON HOLD': 'bg-muted',
 		COMPLETED: 'bg-success'
 	};
+
+	// -- REACTIVE STATES -- //
+
+	// Owners and admins create projects, in the Projects tab of the settings
+	const canCreate = $derived(data.org.role === 'owner' || data.org.role === 'admin');
+	const newProjectHref = $derived(`/${data.org.slug}/settings?tab=projects`);
+
+	// -- LIFECYCLES -- //
+
+	// Remember the shape of this page, so the loading placeholder draws the same one next time
+	onMount(() => {
+		try {
+			localStorage.setItem(`afb-org:${data.org.slug}`, data.overview.length ? 'cards' : 'empty');
+		} catch {
+			/* Storage can be blocked, the placeholder falls back to project cards */
+		}
+	});
 </script>
 
 <svelte:head><title>{data.org.name}</title></svelte:head>
 
 <PageFrame class="flex flex-col gap-6 pb-12">
-	<PageHeader title="Projects" context={`You are ${ROLE_LABEL[data.org.role]} here.`} />
+	<PageHeader
+		title="Projects"
+		context={`Where your team and your agents keep their plans. You are ${ROLE_LABEL[data.org.role]} here.`}
+	>
+		{#snippet actions()}
+			{#if canCreate}
+				<Button variant="primary" href={newProjectHref} data-testid="new-project">
+					<Plus size={16} /> New project
+				</Button>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
 	{#if data.overview.length === 0}
-		<Card>
-			<EmptyState
-				title="No projects yet"
-				text="An admin creates the first project. Once it exists, plans from your tools and your team show up here."
-			/>
-		</Card>
+		<!-- NO PROJECTS YET. THE FIRST STEP ON THE LEFT AND THE PEOPLE WHO CAN SEE IT ON THE RIGHT, BOTH THE SAME HEIGHT, SO NOTHING SITS ALONE AT THE BOTTOM -->
+		<div class="grid items-stretch gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+			<Card class="flex items-center justify-center">
+				<EmptyState
+					title={canCreate ? 'Create your first project' : 'No projects yet'}
+					text={canCreate
+						? 'A project keeps the plans from your tools and your team in one place.'
+						: 'An admin creates the first project. Once it exists, plans from your tools and your team show up here.'}
+				>
+					{#snippet action()}
+						{#if canCreate}
+							<Button variant="primary" href={newProjectHref}>
+								<Plus size={16} /> New project
+							</Button>
+						{/if}
+					{/snippet}
+				</EmptyState>
+			</Card>
+			{@render members()}
+		</div>
 	{:else}
 		<ul
 			class="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
@@ -83,8 +128,15 @@
 		</ul>
 	{/if}
 
-	<section aria-label="Members">
+	{#if data.overview.length > 0}
+		{@render members()}
+	{/if}
+</PageFrame>
+
+{#snippet members()}
+	<section aria-label="Members" class="flex">
 		<Card
+			class="w-full"
 			padded={false}
 			icon={Users}
 			title="Members"
@@ -109,4 +161,4 @@
 			</ul>
 		</Card>
 	</section>
-</PageFrame>
+{/snippet}
