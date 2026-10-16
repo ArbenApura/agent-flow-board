@@ -15,10 +15,28 @@
 	aria-hidden="true"
 	class={extra}
 >
-	<circle cx="6" cy="22" r="3" fill="var(--accent)" />
-	<circle cx="14" cy="10" r="3" fill="var(--accent)" />
-	<path d="M8.2 19.8L11.8 12.2" stroke="var(--accent)" stroke-width="2" />
-	<path d="M17.2 11.6c3 .8 4.6 3.4 5.6 6.2" stroke="var(--accent)" stroke-width="2" />
-	<circle cx="24" cy="21" r="6.5" fill="var(--accent)" />
-	<path d="M21 21l2.2 2.2L27.2 19" stroke="var(--accent-ink)" stroke-width="2.2" />
+	<circle class="mk-node mk-n1" cx="6" cy="22" r="3" fill="var(--accent)" />
+	<circle class="mk-node mk-n2" cx="14" cy="10" r="3" fill="var(--accent)" />
+	<path
+		class="mk-line"
+		pathLength="1"
+		d="M8.2 19.8L11.8 12.2"
+		stroke="var(--accent)"
+		stroke-width="2"
+	/>
+	<path
+		class="mk-line mk-l2"
+		pathLength="1"
+		d="M17.2 11.6c3 .8 4.6 3.4 5.6 6.2"
+		stroke="var(--accent)"
+		stroke-width="2"
+	/>
+	<circle class="mk-node mk-n3" cx="24" cy="21" r="6.5" fill="var(--accent)" />
+	<path
+		class="mk-tick"
+		pathLength="1"
+		d="M21 21l2.2 2.2L27.2 19"
+		stroke="var(--accent-ink)"
+		stroke-width="2.2"
+	/>
 </svg>

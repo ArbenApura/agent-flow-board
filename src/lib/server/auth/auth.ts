@@ -42,7 +42,7 @@ export function createAuth(deps: { handle: DbHandle; mailer: Mailer; config: Aut
 	const secure = config.baseUrl.startsWith('https://');
 
 	return betterAuth({
-		appName: 'agent-flow-board',
+		appName: 'Agent Flow Board',
 		baseURL: config.baseUrl,
 		secret: config.secret,
 		database: drizzleAdapter(db, {

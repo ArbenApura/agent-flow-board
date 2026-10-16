@@ -13,7 +13,7 @@
 	import Card from '#lib/ui/Card.svelte';
 	import Checkbox from '#lib/ui/Checkbox.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
-	import Mark from '#lib/ui/Mark.svelte';
+	import Logo from '#lib/ui/Logo.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
@@ -78,7 +78,7 @@
 
 <PageFrame tag="main" class="flex flex-col gap-6 py-8 pb-12">
 	<header class="flex items-center justify-between gap-3">
-		<a href="/" class="flex items-center gap-2 font-bold"><Mark size={24} /> agent-flow-board</a>
+		<a href="/" class="text-base"><Logo size={30} /></a>
 		<a href="/" class="text-sm text-accent-text hover:underline">All organisations</a>
 	</header>
 

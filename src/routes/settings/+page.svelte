@@ -16,7 +16,7 @@
 	import { applyMode, type ModeChoice } from '#lib/theme/mode.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
-	import Mark from '#lib/ui/Mark.svelte';
+	import Logo from '#lib/ui/Logo.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
@@ -189,7 +189,7 @@
 
 <PageFrame tag="main" class="pb-12">
 	<header class="flex items-center justify-between gap-3 pt-6">
-		<a href="/" class="flex items-center gap-2 font-bold"><Mark size={24} /> agent-flow-board</a>
+		<a href="/" class="text-base"><Logo size={30} /></a>
 		<a class="text-sm text-accent-text hover:underline" href="/">All organisations</a>
 	</header>
 	<PageHeader title="Your settings" context="Each section saves on its own." />

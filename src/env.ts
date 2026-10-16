@@ -82,7 +82,7 @@ export const variables = defineEnvVars({
 	},
 	EMAIL_FROM: {
 		description: 'The From address of every email, for example board@example.com.',
-		schema: (value) => optional(value) ?? 'agent-flow-board <board@localhost>'
+		schema: (value) => optional(value) ?? 'Agent Flow Board <board@localhost>'
 	},
 	RESEND_API_KEY: {
 		description: 'Resend API key when EMAIL_PROVIDER is resend.',

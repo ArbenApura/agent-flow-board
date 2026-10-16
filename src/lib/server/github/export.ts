@@ -360,7 +360,7 @@ export function renderExport(data: Awaited<ReturnType<typeof loadPublishable>>):
 		[
 			`# ${line(proj.name)} (${proj.key})`,
 			'',
-			'A reference copy written by agent-flow-board. Edit the plans in the app, not here: the next publish replaces these files.',
+			'A reference copy written by Agent Flow Board. Edit the plans in the app, not here: the next publish replaces these files.',
 			'',
 			`${data.items.length} public item${data.items.length === 1 ? '' : 's'}.`,
 			'',

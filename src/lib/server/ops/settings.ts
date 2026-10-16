@@ -282,7 +282,7 @@ export async function sendTestEmail(ctx: Ctx, to: string) {
 	if (!mailer) throw new OpError('INVALID', 'This server has no way to send email.');
 	await mailer.send({
 		to,
-		subject: 'A test email from agent-flow-board',
+		subject: 'A test email from Agent Flow Board',
 		text: 'If you can read this, sending email works.',
 		html: '<p>If you can read this, sending email works.</p>',
 		tag: 'test'

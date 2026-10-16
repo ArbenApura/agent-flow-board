@@ -3,8 +3,7 @@
 	import type { Component, Snippet } from 'svelte';
 	// -- MODULES -- //
 	import Badge from '#lib/ui/Badge.svelte';
-	import Mark from '#lib/ui/Mark.svelte';
-	import ProgressRing from '#lib/ui/ProgressRing.svelte';
+	import Logo from '#lib/ui/Logo.svelte';
 	import Texture from '#lib/ui/Texture.svelte';
 	// -- DEP-COMPONENTS -- //
 	import Bot from '@lucide/svelte/icons/bot';
@@ -44,6 +43,12 @@
 		{ icon: Users, title: 'One plan for the team', text: 'The same steps, progress and checks' },
 		{ icon: GitBranch, title: 'Yours to keep', text: 'Publish plans to your own GitHub repository' }
 	];
+	const MESSAGES = [
+		'An agent is working on step 1, phase 1',
+		'An agent is working on step 2, phase 1',
+		'An agent is working on step 3, phase 1',
+		'Phase 1 is done and waiting for review'
+	];
 	const STEPS = [
 		{ text: 'Write the saved cards table', done: true },
 		{ text: 'Charge a saved card at checkout', done: true },
@@ -52,20 +57,19 @@
 </script>
 
 <!-- THE SHARED FRAME OF EVERY SIGN IN PAGE. A BRAND PANEL ON A WIDE SCREEN, THE FORM CARD, ONE LINE UNDER IT -->
-<main class="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+<main class="grid min-h-dvh lg:grid-cols-2">
 	<aside
-		class="relative hidden flex-col justify-between gap-10 overflow-hidden border-r border-line bg-raised/50 p-12 lg:flex"
+		class="auth-aside relative hidden grid-rows-[1fr_auto_1fr] justify-items-center overflow-hidden border-r border-line bg-raised/50 px-8 py-12 lg:grid"
 		aria-hidden="true"
 	>
-		<Texture kinds={['aurora', 'grid']} contained />
-		<div class="relative flex items-center gap-2.5 text-lg font-semibold">
-			<Mark size={32} />
-			<span>agent-flow-board</span>
+		<div class="absolute inset-0"><Texture kinds={['aurora', 'grid']} contained /></div>
+		<div class="relative w-full max-w-[440px] self-start xl:max-w-[480px]">
+			<Logo size={36} class="text-xl" />
 		</div>
 
-		<div class="relative flex flex-col gap-10">
-			<!-- A SMALL PICTURE OF THE PRODUCT. A PLAN CARD WITH ITS RING, ITS STEPS AND AN AGENT AT WORK, A SECOND CARD BEHIND IT FOR DEPTH -->
-			<div class="relative max-w-sm">
+		<div class="relative flex w-full max-w-[440px] flex-col gap-10 xl:max-w-[480px]">
+			<!-- A SMALL PICTURE OF THE PRODUCT, PLAYING A LOOP. A PLAN CARD WITH ITS RING, ITS STEPS AND AN AGENT AT WORK, A SECOND CARD BEHIND IT FOR DEPTH. THE STILL STATE (REDUCED MOTION) IS 2 OF 3 STEPS DONE -->
+			<div class="auth-rise relative pb-3" style="--d: 150">
 				<div
 					class="absolute inset-x-4 -bottom-3 h-full rounded-2xl border border-line bg-surface/60 shadow-[var(--elev-1)]"
 				></div>
@@ -73,7 +77,31 @@
 					class="relative flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5 shadow-[var(--elev-2)]"
 				>
 					<div class="flex items-center gap-3">
-						<ProgressRing value={66} label="Example progress" size={36} />
+						<span class="relative inline-flex size-9 shrink-0 items-center justify-center">
+							<svg width="36" height="36" viewBox="0 0 36 36" class="-rotate-90">
+								<circle
+									cx="18"
+									cy="18"
+									r="16"
+									fill="none"
+									stroke="var(--raised)"
+									stroke-width="4"
+								/>
+								<circle
+									class="hero-ring"
+									cx="18"
+									cy="18"
+									r="16"
+									fill="none"
+									stroke="var(--info)"
+									stroke-width="4"
+									stroke-linecap="round"
+								/>
+							</svg>
+							<span
+								class="hero-n absolute text-[11px] leading-none font-semibold text-ink tabular-nums"
+							></span>
+						</span>
 						<div class="min-w-0 flex-1">
 							<p class="font-mono text-xs text-muted">CKT-12</p>
 							<p class="truncate text-sm font-semibold text-ink">Saved cards at checkout</p>
@@ -81,33 +109,47 @@
 						<Badge tone="running" dot>in progress</Badge>
 					</div>
 					<ul class="flex flex-col gap-2">
-						{#each STEPS as s (s.text)}
-							<li class="flex items-center gap-2.5 text-sm {s.done ? 'text-muted' : 'text-ink'}">
-								{#if s.done}
-									<CircleCheck size={18} class="shrink-0 text-accent" />
-								{:else}
-									<Circle size={18} class="shrink-0 text-muted" />
-								{/if}
-								<span class={s.done ? 'line-through' : ''}>{s.text}</span>
+						{#each STEPS as s, i (s.text)}
+							<li class="flex items-center gap-2.5 text-sm">
+								<span class="relative size-[18px] shrink-0">
+									<Circle size={18} class="absolute inset-0 text-muted" />
+									{#if i === 2}
+										<span class="hero-work absolute -inset-1 rounded-full border-2 border-accent/40"
+										></span>
+									{/if}
+									<span class="hero-chk-{i + 1} absolute inset-0">
+										<CircleCheck size={18} class="text-accent" />
+									</span>
+								</span>
+								<span class="hero-lab-{i + 1} relative"
+									>{s.text}<span class="hero-str hero-str-{i + 1}"></span></span
+								>
 							</li>
 						{/each}
 					</ul>
 					<div
-						class="flex items-center gap-2 rounded-lg bg-accent-soft px-3 py-2 text-xs text-accent-text"
+						class="hero-bar flex items-center gap-2 rounded-lg bg-accent-soft px-3 py-2 text-xs text-accent-text"
 					>
-						<Bot size={16} class="shrink-0" />
-						<span>An agent is working on step 3, phase 1</span>
+						<Bot size={16} class="hero-bot shrink-0" />
+						<span class="grid">
+							{#each MESSAGES as m, i (m)}
+								<span class="hero-msg hero-msg-{i + 1}">{m}</span>
+							{/each}
+						</span>
 					</div>
 				</div>
 			</div>
 
 			<div class="flex flex-col gap-5">
-				<div class="max-w-[22ch] text-2xl font-semibold tracking-tight">
+				<div
+					class="auth-rise max-w-[22ch] font-display text-2xl font-semibold tracking-tight"
+					style="--d: 300"
+				>
 					One plan your team and your agents both keep.
 				</div>
 				<ul class="flex flex-col gap-4">
-					{#each POINTS as p (p.title)}
-						<li class="flex items-start gap-3">
+					{#each POINTS as p, i (p.title)}
+						<li class="auth-rise flex items-start gap-3" style="--d: {450 + i * 130}">
 							<span
 								class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-accent-text shadow-[var(--elev-1)]"
 								><p.icon size={18} /></span
@@ -121,15 +163,14 @@
 				</ul>
 			</div>
 		</div>
-		<p class="relative text-xs text-muted">Light and dark, built for readable plans.</p>
+		<p class="relative w-full max-w-[440px] self-end text-xs text-muted xl:max-w-[480px]">
+			Light and dark, built for readable plans.
+		</p>
 	</aside>
 
 	<div class="relative flex flex-col items-center justify-center px-4 py-10">
 		<div class="relative flex w-full max-w-[440px] flex-col gap-5 xl:max-w-[480px]">
-			<div class="flex items-center gap-2.5 text-lg font-semibold lg:hidden">
-				<Mark size={28} />
-				<span>agent-flow-board</span>
-			</div>
+			<Logo size={32} class="text-lg lg:hidden" />
 			<!-- THE CARD. AN ACCENT EDGE ON TOP, A BADGE THAT SAYS WHAT THE PAGE IS FOR, THE FORM, AND A QUIET SECURITY LINE AT THE BOTTOM -->
 			<div
 				class="relative overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--elev-2)]"

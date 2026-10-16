@@ -11,7 +11,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import Card from '#lib/ui/Card.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
-	import Mark from '#lib/ui/Mark.svelte';
+	import Logo from '#lib/ui/Logo.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
@@ -46,9 +46,7 @@
 
 <PageFrame tag="main" class="pb-12">
 	<div class="flex items-center justify-between gap-3 pt-6">
-		<div class="flex items-center gap-2.5 text-base font-semibold">
-			<Mark size={28} /> agent-flow-board
-		</div>
+		<Logo size={32} class="text-base" />
 		<form method="POST" action="/sign-out" class="flex items-center gap-3">
 			<span class="text-sm text-muted max-sm:hidden" data-testid="signed-in-as"
 				>{data.user.email}</span

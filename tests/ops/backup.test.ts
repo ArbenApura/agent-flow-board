@@ -79,7 +79,7 @@ describe('the encrypted archive', () => {
 		expect(() => readArchive(archive.subarray(0, archive.length - 5), KEY)).toThrow(BackupError);
 		expect(() =>
 			readArchive(Buffer.from('not a backup at all, just some text bytes'), KEY)
-		).toThrow(/not an agent-flow-board backup/);
+		).toThrow(/not an Agent Flow Board backup/);
 		expect(() => writeArchive(frames, 'short')).toThrow(/32 characters/);
 		// Several blocks: dropping the last one, or swapping two, is caught
 		const big: Frame[] = [

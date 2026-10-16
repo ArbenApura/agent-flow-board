@@ -1,11 +1,22 @@
 @import 'tailwindcss';
 @import './lib/theme/tokens.css';
 
-/* SELF-HOSTED INTER, VARIABLE FILES, LATIN FIRST (ADR-016). GEIST MONO STAYS FOR IDS, HASHES AND CODE */
+/* HAPR BRAND FONTS, SELF-HOSTED. POPPINS FOR TEXT, BRICOLAGE GROTESQUE (VARIABLE) FOR HEADINGS AND BOLD TEXT. GEIST MONO STAYS FOR IDS, HASHES AND CODE */
 @font-face {
-	font-family: 'Inter';
-	src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
-	font-weight: 100 900;
+	font-family: 'Poppins';
+	src: url('/fonts/poppins-0b1fcab42c.woff2') format('woff2');
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+		U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+		U+A720-A7FF;
+}
+@font-face {
+	font-family: 'Poppins';
+	src: url('/fonts/poppins-7d93459d86.woff2') format('woff2');
+	font-weight: 400;
 	font-style: normal;
 	font-display: swap;
 	unicode-range:
@@ -13,15 +24,88 @@
 		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-	font-family: 'Inter';
-	src: url('/fonts/inter-latin-ext-wght-normal.woff2') format('woff2-variations');
-	font-weight: 100 900;
+	font-family: 'Poppins';
+	src: url('/fonts/poppins-af5fda16a1.woff2') format('woff2');
+	font-weight: 500;
 	font-style: normal;
 	font-display: swap;
 	unicode-range:
 		U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
-		U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+		U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
 		U+A720-A7FF;
+}
+@font-face {
+	font-family: 'Poppins';
+	src: url('/fonts/poppins-cd36de204a.woff2') format('woff2');
+	font-weight: 500;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+	font-family: 'Poppins';
+	src: url('/fonts/poppins-bb1f2d582e.woff2') format('woff2');
+	font-weight: 600;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+		U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+		U+A720-A7FF;
+}
+@font-face {
+	font-family: 'Poppins';
+	src: url('/fonts/poppins-f4e80d9dfd.woff2') format('woff2');
+	font-weight: 600;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+	font-family: 'Poppins';
+	src: url('/fonts/poppins-ccfd87f69e.woff2') format('woff2');
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+		U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+		U+A720-A7FF;
+}
+@font-face {
+	font-family: 'Poppins';
+	src: url('/fonts/poppins-9338e65fc0.woff2') format('woff2');
+	font-weight: 700;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+	font-family: 'Bricolage Grotesque';
+	src: url('/fonts/bricolagegrotesque-fdb6b064da.woff2') format('woff2');
+	font-weight: 400 800;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+		U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+		U+A720-A7FF;
+}
+@font-face {
+	font-family: 'Bricolage Grotesque';
+	src: url('/fonts/bricolagegrotesque-40c2cb34af.woff2') format('woff2');
+	font-weight: 400 800;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
 	font-family: 'Geist Mono';
@@ -46,12 +130,12 @@
 }
 /* SIZE-ADJUSTED FALLBACKS SO THE SWAP DOES NOT MOVE THE LAYOUT */
 @font-face {
-	font-family: 'Inter Fallback';
+	font-family: 'Poppins Fallback';
 	src: local('Arial');
-	size-adjust: 107%;
-	ascent-override: 90%;
-	descent-override: 22%;
-	line-gap-override: 0%;
+	size-adjust: 112%;
+	ascent-override: 93%;
+	descent-override: 31%;
+	line-gap-override: 8%;
 }
 @font-face {
 	font-family: 'Geist Mono Fallback';
@@ -63,22 +147,28 @@
 }
 
 @theme {
-	--font-sans: 'Inter', 'Inter Fallback', system-ui, sans-serif;
+	--font-sans: 'Poppins', 'Poppins Fallback', system-ui, sans-serif;
+	--font-display: 'Bricolage Grotesque', 'Poppins Fallback', system-ui, sans-serif;
 	--font-mono: 'Geist Mono', 'Geist Mono Fallback', ui-monospace, monospace;
 }
 
 html {
 	font-family: var(--font-sans);
-	font-optical-sizing: auto;
-	/* Inter's own contextual alternates and a slightly tighter fit at text sizes */
-	font-feature-settings:
-		'calt' 1,
-		'cv05' 1,
-		'ss03' 1;
 	-webkit-font-smoothing: antialiased;
 	text-rendering: optimizeLegibility;
 }
 
+/* HEADINGS AND BOLD TEXT USE BRICOLAGE GROTESQUE, THE REST IS POPPINS (HAPR BRAND) */
+h1,
+h2,
+h3,
+h4,
+.font-semibold,
+.font-bold,
+b,
+strong {
+	font-family: var(--font-display);
+}
 h1,
 h2,
 h3 {
@@ -327,16 +417,549 @@ html[data-boot='auth'] .boot-bar,
 html[data-boot='auth'] .boot-body {
 	display: none;
 }
-.boot-card {
+.boot-card,
+.boot-aside {
 	display: none;
 }
 html[data-boot='auth'] .boot-card {
-	display: block;
+	display: flex;
+	flex-direction: column;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	translate: -50% -50%;
 	width: min(440px, calc(100vw - 32px));
-	height: 380px;
-	margin: 20vh auto 0;
+	padding: 32px;
 	border: 1px solid var(--line);
+	border-top: 4px solid var(--accent);
 	border-radius: 16px;
 	background: var(--surface);
 	box-shadow: var(--elev-2);
+}
+html[data-boot='auth'] .boot-sk {
+	display: block;
+	border-radius: 8px;
+	background: var(--raised);
+}
+html[data-boot='auth'] .boot-field {
+	width: 100%;
+	height: 44px;
+	margin-top: 8px;
+	border: 1px solid var(--line);
+}
+@media (min-width: 1024px) {
+	/* THE SAME SPLIT AS THE REAL PAGE, A QUIET PANEL ON THE LEFT AND THE CARD CENTRED IN THE RIGHT HALF */
+	html[data-boot='auth'] .boot-aside {
+		display: block;
+		position: absolute;
+		inset: 0 50% 0 0;
+		border-right: 1px solid var(--line);
+		background: var(--raised);
+		opacity: 0.5;
+	}
+	html[data-boot='auth'] .boot-card {
+		left: 75%;
+	}
+}
+@media (prefers-reduced-motion: no-preference) {
+	html[data-boot='auth'] .boot-sk {
+		animation: afb-pulse 1.4s ease-in-out infinite;
+	}
+}
+
+/* THE SIGN IN PANEL (AuthShell). EVERYTHING HERE IS DECORATIVE. THE DEFAULT RULES DRAW THE FINAL STATE, SO REDUCED MOTION SHOWS A STILL PICTURE, AND THE ANIMATIONS ONLY RUN UNDER NO PREFERENCE */
+@property --afb-n {
+	syntax: '<integer>';
+	inherits: false;
+	initial-value: 66;
+}
+.hero-n {
+	counter-reset: afb-n var(--afb-n);
+}
+.hero-n::after {
+	content: counter(afb-n);
+}
+.hero-ring {
+	stroke-dasharray: 100.53;
+	stroke-dashoffset: 34.2;
+}
+.hero-chk-1,
+.hero-chk-2,
+.hero-str-1,
+.hero-str-2 {
+	opacity: 1;
+}
+.hero-chk-3 {
+	opacity: 0;
+}
+.hero-str {
+	position: absolute;
+	left: 0;
+	top: 50%;
+	width: 100%;
+	height: 1px;
+	background: currentColor;
+	transform-origin: left;
+}
+.hero-str-3 {
+	transform: scaleX(0);
+}
+.hero-lab-1,
+.hero-lab-2 {
+	color: var(--muted);
+}
+.hero-lab-3 {
+	color: var(--ink);
+}
+.hero-work {
+	opacity: 0;
+}
+.hero-msg {
+	grid-area: 1 / 1;
+	opacity: 0;
+}
+.hero-msg-3 {
+	opacity: 1;
+}
+.hero-bar {
+	position: relative;
+	overflow: hidden;
+}
+.hero-bar::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(100deg, transparent 30%, var(--glow) 50%, transparent 70%);
+	transform: translateX(-100%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	/* THE PANEL SETTLES IN, PIECE BY PIECE */
+	.auth-rise {
+		animation: afb-rise 600ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+		animation-delay: calc(var(--d, 0) * 1ms);
+	}
+	.auth-aside .tex-aurora {
+		animation: afb-drift 18s ease-in-out infinite alternate;
+	}
+
+	/* THE PLAN CARD PLAYS A 12 SECOND LOOP. STEPS TICK OFF ONE BY ONE, THE RING FILLS, THE AGENT MOVES ON, THEN IT RESETS */
+	.hero-ring {
+		animation: afb-ring 12s ease-in-out 600ms infinite;
+	}
+	.hero-n {
+		animation: afb-count 12s ease-in-out 600ms infinite;
+	}
+	.hero-chk-1 {
+		animation: afb-chk-1 12s ease-out 600ms infinite;
+	}
+	.hero-chk-2 {
+		animation: afb-chk-2 12s ease-out 600ms infinite;
+	}
+	.hero-chk-3 {
+		animation: afb-chk-3 12s ease-out 600ms infinite;
+	}
+	.hero-str-1 {
+		animation: afb-str-1 12s ease-out 600ms infinite;
+	}
+	.hero-str-2 {
+		animation: afb-str-2 12s ease-out 600ms infinite;
+	}
+	.hero-str-3 {
+		animation: afb-str-3 12s ease-out 600ms infinite;
+	}
+	.hero-lab-1 {
+		animation: afb-lab-1 12s ease-out 600ms infinite;
+	}
+	.hero-lab-2 {
+		animation: afb-lab-2 12s ease-out 600ms infinite;
+	}
+	.hero-lab-3 {
+		animation: afb-lab-3 12s ease-out 600ms infinite;
+	}
+	.hero-work {
+		animation: afb-work 12s ease-in-out 600ms infinite;
+	}
+	.hero-msg-1 {
+		animation: afb-msg-1 12s ease-in-out 600ms infinite;
+	}
+	.hero-msg-2 {
+		animation: afb-msg-2 12s ease-in-out 600ms infinite;
+	}
+	.hero-msg-3 {
+		animation: afb-msg-3 12s ease-in-out 600ms infinite;
+	}
+	.hero-msg-4 {
+		animation: afb-msg-4 12s ease-in-out 600ms infinite;
+	}
+	.hero-bar::after {
+		animation: afb-sheen 2.6s ease-in-out infinite;
+	}
+	.hero-bot {
+		animation: afb-bob 1.6s ease-in-out infinite;
+	}
+
+	/* THE LOGO DRAWS ITSELF ON LOAD, THEN THE WAVE UNDER FLOW BREATHES */
+	.logo-live .mk-node {
+		animation: afb-pop 480ms cubic-bezier(0.3, 1.6, 0.5, 1) both;
+	}
+	.logo-live .mk-n2 {
+		animation-delay: 140ms;
+	}
+	.logo-live .mk-n3 {
+		animation-delay: 480ms;
+	}
+	.logo-live .mk-line {
+		stroke-dasharray: 1;
+		animation: afb-draw 420ms ease-out both;
+		animation-delay: 220ms;
+	}
+	.logo-live .mk-l2 {
+		animation-delay: 360ms;
+	}
+	.logo-live .mk-tick {
+		stroke-dasharray: 1;
+		animation: afb-draw 320ms ease-out 760ms both;
+	}
+	.logo-live .logo-word {
+		animation: afb-rise 500ms ease-out 300ms both;
+	}
+	.logo-live .logo-flow {
+		background-size: 200% 100%;
+		animation: afb-shift 4s ease-in-out infinite alternate;
+	}
+	.logo-live .logo-wave path {
+		stroke-dasharray: 1;
+		animation: afb-draw 700ms ease-out 700ms both;
+	}
+	.logo-live .logo-wave {
+		transform-origin: center;
+		animation: afb-sway 3.2s ease-in-out 1.4s infinite alternate;
+	}
+}
+@keyframes afb-drift {
+	to {
+		transform: translate3d(2.5%, 2%, 0) scale(1.08);
+	}
+}
+@keyframes afb-ring {
+	0%,
+	7% {
+		stroke-dashoffset: 100.53;
+	}
+	12%,
+	20% {
+		stroke-dashoffset: 67.4;
+	}
+	25%,
+	34% {
+		stroke-dashoffset: 34.2;
+	}
+	40%,
+	90% {
+		stroke-dashoffset: 0;
+	}
+	96%,
+	100% {
+		stroke-dashoffset: 100.53;
+	}
+}
+@keyframes afb-count {
+	0%,
+	7% {
+		--afb-n: 0;
+	}
+	12%,
+	20% {
+		--afb-n: 33;
+	}
+	25%,
+	34% {
+		--afb-n: 66;
+	}
+	40%,
+	90% {
+		--afb-n: 100;
+	}
+	96%,
+	100% {
+		--afb-n: 0;
+	}
+}
+@keyframes afb-chk-1 {
+	0%,
+	6% {
+		opacity: 0;
+		transform: scale(0.4);
+	}
+	9% {
+		opacity: 1;
+		transform: scale(1.2);
+	}
+	11%,
+	90% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	96%,
+	100% {
+		opacity: 0;
+		transform: scale(0.4);
+	}
+}
+@keyframes afb-chk-2 {
+	0%,
+	19% {
+		opacity: 0;
+		transform: scale(0.4);
+	}
+	22% {
+		opacity: 1;
+		transform: scale(1.2);
+	}
+	24%,
+	90% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	96%,
+	100% {
+		opacity: 0;
+		transform: scale(0.4);
+	}
+}
+@keyframes afb-chk-3 {
+	0%,
+	35% {
+		opacity: 0;
+		transform: scale(0.4);
+	}
+	38% {
+		opacity: 1;
+		transform: scale(1.2);
+	}
+	40%,
+	90% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	96%,
+	100% {
+		opacity: 0;
+		transform: scale(0.4);
+	}
+}
+@keyframes afb-str-1 {
+	0%,
+	6% {
+		transform: scaleX(0);
+	}
+	11%,
+	90% {
+		transform: scaleX(1);
+	}
+	96%,
+	100% {
+		transform: scaleX(0);
+	}
+}
+@keyframes afb-str-2 {
+	0%,
+	19% {
+		transform: scaleX(0);
+	}
+	24%,
+	90% {
+		transform: scaleX(1);
+	}
+	96%,
+	100% {
+		transform: scaleX(0);
+	}
+}
+@keyframes afb-str-3 {
+	0%,
+	35% {
+		transform: scaleX(0);
+	}
+	40%,
+	90% {
+		transform: scaleX(1);
+	}
+	96%,
+	100% {
+		transform: scaleX(0);
+	}
+}
+@keyframes afb-lab-1 {
+	0%,
+	6% {
+		color: var(--ink);
+	}
+	11%,
+	90% {
+		color: var(--muted);
+	}
+	96%,
+	100% {
+		color: var(--ink);
+	}
+}
+@keyframes afb-lab-2 {
+	0%,
+	19% {
+		color: var(--ink);
+	}
+	24%,
+	90% {
+		color: var(--muted);
+	}
+	96%,
+	100% {
+		color: var(--ink);
+	}
+}
+@keyframes afb-lab-3 {
+	0%,
+	35% {
+		color: var(--ink);
+	}
+	40%,
+	90% {
+		color: var(--muted);
+	}
+	96%,
+	100% {
+		color: var(--ink);
+	}
+}
+@keyframes afb-work {
+	0%,
+	21% {
+		opacity: 0;
+		transform: scale(0.8);
+	}
+	25%,
+	35% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	38%,
+	100% {
+		opacity: 0;
+		transform: scale(1.5);
+	}
+}
+@keyframes afb-msg-1 {
+	0%,
+	1% {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	3%,
+	9% {
+		opacity: 1;
+		transform: none;
+	}
+	11%,
+	100% {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+}
+@keyframes afb-msg-2 {
+	0%,
+	11% {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	13%,
+	21% {
+		opacity: 1;
+		transform: none;
+	}
+	23%,
+	100% {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+}
+@keyframes afb-msg-3 {
+	0%,
+	23% {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	25%,
+	37% {
+		opacity: 1;
+		transform: none;
+	}
+	39%,
+	100% {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+}
+@keyframes afb-msg-4 {
+	0%,
+	39% {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	41%,
+	89% {
+		opacity: 1;
+		transform: none;
+	}
+	92%,
+	100% {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+}
+@keyframes afb-sheen {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(100%);
+	}
+}
+@keyframes afb-bob {
+	50% {
+		transform: translateY(-2px) rotate(-6deg);
+	}
+}
+@keyframes afb-pop {
+	from {
+		opacity: 0;
+		transform: scale(0);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+@keyframes afb-draw {
+	from {
+		stroke-dashoffset: 1;
+	}
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+@keyframes afb-shift {
+	to {
+		background-position: 100% 0;
+	}
+}
+@keyframes afb-sway {
+	to {
+		transform: scaleY(1.6);
+	}
+}
+.mk-node {
+	transform-box: fill-box;
+	transform-origin: center;
 }

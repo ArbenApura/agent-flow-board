@@ -72,7 +72,7 @@ export function buildOpenApi(baseUrl: string) {
 	return {
 		openapi: '3.1.0',
 		info: {
-			title: 'agent-flow-board API',
+			title: 'Agent Flow Board API',
 			version: '1.0.0',
 			description:
 				'Every endpoint calls the same operations layer as the web app and the MCP server.'

@@ -82,7 +82,7 @@ export function writeArchive(frames: Frame[], secret: string): Buffer {
 export function readArchive(archive: Uint8Array, secret: string): Frame[] {
 	const buf = Buffer.from(archive);
 	if (buf.length < MAGIC.length + 17 || !buf.subarray(0, MAGIC.length).equals(MAGIC))
-		throw new BackupError('This is not an agent-flow-board backup.');
+		throw new BackupError('This is not an Agent Flow Board backup.');
 	if (buf[MAGIC.length] !== VERSION)
 		throw new BackupError('This backup was made by a newer version.');
 	const salt = buf.subarray(MAGIC.length + 1, MAGIC.length + 17);
