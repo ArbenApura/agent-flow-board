@@ -29,6 +29,7 @@ Checks run against `yarn build && yarn preview`, never the dev server (`tests/ru
 
 - Light and dark mode both exist. Every colour is a token read from `src/lib/theme/` as a CSS variable (`bg-[var(--surface)]`, `text-[var(--ink)]`, `border-[var(--line)]`). The mode is `data-mode="light|dark"` on `<html>`.
 - Never write a literal colour (`#fff`, `rgb()`, `hsl()`, `bg-[#2563eb]`, `bg-white`, `text-black`) in a component. eslint refuses it (`afb/no-literal-colours`). The token files and the palette generator are the only places hex values live.
+- The accent comes from the organisation palette only. A person chooses light or dark (top bar switch and Personal settings), never an accent colour.
 - Never use the `dark:` variant. A token already changes with the mode.
 - Danger, warning, success and info are fixed tokens, never replaced by an org palette. A status never uses the accent, and the accent never carries a status.
 - Text on a tinted surface uses the matching ink token (`--accent-text` on `--accent-soft`). Every pair must pass AA; the palette generator enforces it.

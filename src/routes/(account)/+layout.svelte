@@ -12,6 +12,7 @@
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import Popover from '#lib/ui/Popover.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
+	import ThemeToggle from '#lib/ui/ThemeToggle.svelte';
 	// -- DEP-COMPONENTS -- //
 	import Building2 from '@lucide/svelte/icons/building-2';
 	import CircleUser from '@lucide/svelte/icons/circle-user';
@@ -82,48 +83,57 @@
 						<span class="truncate font-semibold text-ink" aria-current="page">{crumb}</span>
 					</nav>
 
-					<div class="ml-auto flex items-center gap-2 max-md:hidden">
-						<Popover bind:open={account} placement="bottom-end" role="dialog" label="Account">
-							{#snippet trigger({ props, toggle })}
-								<button
-									type="button"
-									onclick={toggle}
-									aria-label="Account menu"
-									data-testid="account-menu"
-									class="cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-									{...props}
-								>
-									<Avatar name={data.me.name || data.me.email} size={32} />
-								</button>
-							{/snippet}
-							{#snippet children({ close })}
-								<div class="min-w-64 p-1">
-									<div class="border-b border-line px-2.5 pt-2 pb-3">
-										<p class="truncate text-sm font-medium text-ink">{data.me.name}</p>
-										<p class="truncate text-xs text-muted">{data.me.email}</p>
-									</div>
-									<ul class="py-1">
-										<li>
-											<a
-												href="/settings"
-												onclick={close}
-												data-testid="account-settings-link"
-												class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
-												><CircleUser size={18} class="text-muted" /> Your account settings</a
+					<div class="ml-auto flex items-center gap-2">
+						<ThemeToggle />
+						<div class="max-md:hidden">
+							<Popover
+								bind:open={account}
+								placement="bottom-end"
+								role="dialog"
+								label="Account"
+								offset={12}
+							>
+								{#snippet trigger({ props, toggle })}
+									<button
+										type="button"
+										onclick={toggle}
+										aria-label="Account menu"
+										data-testid="account-menu"
+										class="cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+										{...props}
+									>
+										<Avatar name={data.me.name || data.me.email} size={32} />
+									</button>
+								{/snippet}
+								{#snippet children({ close })}
+									<div class="min-w-64 p-1">
+										<div class="border-b border-line px-2.5 pt-2 pb-3">
+											<p class="truncate text-sm font-medium text-ink">{data.me.name}</p>
+											<p class="truncate text-xs text-muted">{data.me.email}</p>
+										</div>
+										<ul class="py-1">
+											<li>
+												<a
+													href="/settings"
+													onclick={close}
+													data-testid="account-settings-link"
+													class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
+													><CircleUser size={18} class="text-muted" /> Your account settings</a
+												>
+											</li>
+										</ul>
+										<form method="POST" action="/sign-out" class="border-t border-line pt-1">
+											<button
+												type="submit"
+												class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
 											>
-										</li>
-									</ul>
-									<form method="POST" action="/sign-out" class="border-t border-line pt-1">
-										<button
-											type="submit"
-											class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
-										>
-											<LogOut size={18} class="text-muted" /> Sign out
-										</button>
-									</form>
-								</div>
-							{/snippet}
-						</Popover>
+												<LogOut size={18} class="text-muted" /> Sign out
+											</button>
+										</form>
+									</div>
+								{/snippet}
+							</Popover>
+						</div>
 					</div>
 				</div>
 			</PageFrame>

@@ -18,12 +18,12 @@
 
 	// -- REQUIRED PROPS -- //
 
-	let { data, children }: LayoutProps = $props();
+	let { children }: LayoutProps = $props();
 
 	// -- REACTIVE STATES -- //
 
-	// The org palette first, then the person's own accent over it, so a personal choice wins
-	const css = $derived(styleFor(page.data.orgPalette, data.personalPalette));
+	// The accent colour comes from the organisation only. A person chooses light or dark, never a colour
+	const css = $derived(styleFor(page.data.orgPalette));
 
 	// -- FUNCTIONS -- //
 

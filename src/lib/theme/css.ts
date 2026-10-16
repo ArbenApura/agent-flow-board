@@ -1,4 +1,4 @@
-// THE STYLE RULES AN ORG PALETTE AND A PERSONAL ACCENT BECOME (SPEC 11)
+// THE STYLE RULES AN ORG PALETTE BECOMES (SPEC 11)
 // The values come from the palette generator and are checked once more here, so only a six digit colour can ever reach a page.
 
 // -- TYPES -- //
@@ -44,6 +44,6 @@ export function paletteCss(p: OrgPalette | null | undefined): string {
 	return `${light ? `html:root,html[data-mode='light']{${light}}` : ''}${dark ? `html[data-mode='dark']{${dark}}` : ''}`;
 }
 
-/** The org palette first, then a personal accent over it, so a person's own choice wins. */
+/** The palettes in order, a later one over an earlier one. The app passes the organisation's palette only. */
 export const styleFor = (...palettes: (OrgPalette | null | undefined)[]): string =>
 	palettes.map(paletteCss).join('');

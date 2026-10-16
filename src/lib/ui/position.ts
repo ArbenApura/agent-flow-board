@@ -18,11 +18,12 @@ export function place(
 	anchor: Box,
 	panel: { width: number; height: number },
 	viewport: { width: number; height: number },
-	preferred: Placement = 'bottom-start'
+	preferred: Placement = 'bottom-start',
+	gap: number = GAP
 ): Placed {
 	const wantsTop = preferred.startsWith('top');
-	const roomBelow = viewport.height - (anchor.top + anchor.height) - GAP - MARGIN;
-	const roomAbove = anchor.top - GAP - MARGIN;
+	const roomBelow = viewport.height - (anchor.top + anchor.height) - gap - MARGIN;
+	const roomAbove = anchor.top - gap - MARGIN;
 	// Flip when the preferred side is too small and the other side fits better
 	const top = wantsTop
 		? !(roomAbove < panel.height && roomBelow > roomAbove)
@@ -39,7 +40,7 @@ export function place(
 				? anchor.left + anchor.width / 2 - panel.width / 2
 				: anchor.left;
 	x = Math.min(Math.max(MARGIN, x), Math.max(MARGIN, viewport.width - panel.width - MARGIN));
-	const y = top ? anchor.top - panel.height - GAP : anchor.top + anchor.height + GAP;
+	const y = top ? anchor.top - panel.height - gap : anchor.top + anchor.height + gap;
 	return {
 		x,
 		y: Math.max(MARGIN, y),

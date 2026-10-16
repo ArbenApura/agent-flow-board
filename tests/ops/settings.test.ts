@@ -63,7 +63,7 @@ describe('palette styles', () => {
 		]);
 	});
 
-	it('only six digit colours can reach a page, and a personal accent comes after the org palette', () => {
+	it('only six digit colours can reach a page, and a later palette comes after an earlier one', () => {
 		expect(paletteCss(null)).toBe('');
 		expect(
 			paletteCss({

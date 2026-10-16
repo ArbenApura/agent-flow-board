@@ -62,7 +62,6 @@ export const load: PageServerLoad = async ({ locals, request, url, depends }) =>
 		tools,
 		prefs: {
 			themeMode: parseMode(p?.themeMode),
-			accent: p?.accent ?? null,
 			checkTarget: p?.checkTarget ?? '',
 			notifications: {
 				backupAlerts:
@@ -134,11 +133,6 @@ export const actions: Actions = {
 		const user = requireUser(locals, '/settings');
 		const f = await request.formData();
 		const themeMode = parseMode(String(f.get('themeMode') ?? ''));
-		const accentRaw = String(f.get('accent') ?? '')
-			.trim()
-			.toLowerCase();
-		if (accentRaw && !/^#[0-9a-f]{6}$/.test(accentRaw))
-			return fail(400, { message: 'Use a six digit colour that starts with a hash.' });
 		const checkTarget = String(f.get('checkTarget') ?? '');
 		if (checkTarget && !TARGETS.includes(checkTarget))
 			return fail(400, { message: 'Pick dev, preview or deployed.' });
@@ -149,7 +143,6 @@ export const actions: Actions = {
 		const values = {
 			userId: user.id,
 			themeMode,
-			accent: accentRaw || null,
 			checkTarget: checkTarget || null,
 			notifications
 		};

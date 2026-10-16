@@ -14,6 +14,7 @@
 	import Popover from '#lib/ui/Popover.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import RouteSkeleton from '#lib/ui/RouteSkeleton.svelte';
+	import ThemeToggle from '#lib/ui/ThemeToggle.svelte';
 	// -- DEP-COMPONENTS -- //
 	import Settings from '@lucide/svelte/icons/settings';
 	import Menu from '@lucide/svelte/icons/menu';
@@ -181,8 +182,15 @@
 								>/</kbd
 							>
 						</Button>
+						<ThemeToggle />
 						<div class="max-md:hidden">
-							<Popover bind:open={account} placement="bottom-end" role="dialog" label="Account">
+							<Popover
+								bind:open={account}
+								placement="bottom-end"
+								role="dialog"
+								label="Account"
+								offset={12}
+							>
 								{#snippet trigger({ props, toggle })}
 									<button
 										type="button"

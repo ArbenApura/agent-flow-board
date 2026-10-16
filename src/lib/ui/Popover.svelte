@@ -20,6 +20,7 @@
 		matchWidth = false,
 		role = 'dialog',
 		label,
+		offset,
 		class: extra
 	}: {
 		open?: boolean;
@@ -30,6 +31,8 @@
 		matchWidth?: boolean;
 		role?: 'dialog' | 'menu' | 'listbox';
 		label?: string;
+		/** Gap in px between the control and the panel. Defaults to the shared position gap. */
+		offset?: number;
 		class?: string;
 	} = $props();
 
@@ -71,7 +74,8 @@
 			a,
 			{ width: matchWidth ? a.width : p.width, height: p.height },
 			{ width: innerWidth, height: innerHeight },
-			placement
+			placement,
+			offset
 		);
 		pos = { x: placed.x, y: placed.y };
 	}

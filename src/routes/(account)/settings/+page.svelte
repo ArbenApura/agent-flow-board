@@ -10,10 +10,10 @@
 	import { ApiError, api } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import { createFollower } from '#lib/settings/follow.js';
-	import PalettePicker from '#lib/settings/PalettePicker.svelte';
 	import { postAction } from '#lib/settings/post.js';
 	import Section from '#lib/settings/Section.svelte';
-	import { applyMode, type ModeChoice } from '#lib/theme/mode.js';
+	import { live, setLiveMode } from '#lib/theme/live.svelte.js';
+	import type { ResolvedMode } from '#lib/theme/mode.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
@@ -53,8 +53,6 @@
 	let name = $state('');
 	let current = $state('');
 	let next = $state('');
-	let mode = $state<ModeChoice>('system');
-	let accent = $state<string | null>(null);
 	let target = $state('');
 	let backupAlerts = $state(true);
 	let publishPaused = $state(true);
@@ -66,7 +64,6 @@
 	const dirty = $derived({
 		profile: name.trim() !== data.me.name,
 		password: current !== '' && next !== '',
-		appearance: mode !== prefs.themeMode || (accent ?? null) !== (prefs.accent ?? null),
 		checks: target !== prefs.checkTarget,
 		notifications:
 			backupAlerts !== prefs.notifications.backupAlerts ||
@@ -80,8 +77,6 @@
 	const follow = createFollower();
 	$effect(() => {
 		follow('name', data.me.name, (v) => (name = v));
-		follow('mode', prefs.themeMode, (v) => (mode = v));
-		follow('accent', prefs.accent, (v) => (accent = v));
 		follow('target', prefs.checkTarget, (v) => (target = v));
 		follow('backupAlerts', prefs.notifications.backupAlerts, (v) => (backupAlerts = v));
 		follow('publishPaused', prefs.notifications.publishPaused, (v) => (publishPaused = v));
@@ -104,8 +99,7 @@
 
 	/** The preferences are one row, so a section sends its own fields and the saved values of the others. */
 	const prefsFields = (own: Record<string, string>) => ({
-		themeMode: prefs.themeMode,
-		accent: prefs.accent ?? '',
+		themeMode: live.mode,
 		checkTarget: prefs.checkTarget,
 		...(prefs.notifications.backupAlerts ? { backupAlerts: 'on' } : {}),
 		...(prefs.notifications.publishPaused ? { publishPaused: 'on' } : {}),
@@ -325,28 +319,20 @@
 		<Section
 			id="appearance"
 			icon={Palette}
-			title="Appearance"
-			text="Light, dark or the setting of your device, and an accent colour of your own."
-			dirty={dirty.appearance}
-			saving={st('appearance').saving}
-			saved={st('appearance').saved}
-			error={st('appearance').error}
-			onsave={() =>
-				run('appearance', 'prefs', prefsFields({ themeMode: mode, accent: accent ?? '' }))}
+			title="My appearance"
+			text="Light or dark, only for you. It switches and saves as you pick, and the switch in the top bar does the same."
 		>
 			<SegmentedControl
 				label="Theme"
-				bind:value={mode}
+				value={live.mode}
 				options={[
 					{ value: 'light', label: 'Light' },
-					{ value: 'dark', label: 'Dark' },
-					{ value: 'system', label: 'System' }
+					{ value: 'dark', label: 'Dark' }
 				]}
-				onchange={(v) => applyMode(v as ModeChoice)}
+				onchange={(v) => setLiveMode(v as ResolvedMode)}
 			/>
-			<PalettePicker bind:value={accent} label="Your accent colour" />
 			<div class="text-xs text-muted">
-				Your own accent replaces the organisation's colour for you only.
+				The accent colour comes from the organisation. An admin sets it in Organisation settings.
 			</div>
 		</Section>
 
