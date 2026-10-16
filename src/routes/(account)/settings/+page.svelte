@@ -11,17 +11,27 @@
 	import { ago } from '#lib/board/status.js';
 	import { createFollower } from '#lib/settings/follow.js';
 	import { postAction } from '#lib/settings/post.js';
+	import { parseDevice } from '#lib/board/device.js';
+	import { daysUntil, formatUtcDate } from '#lib/board/when.js';
+	import IdentityHeader from '#lib/settings/IdentityHeader.svelte';
+	import ModePreview from '#lib/settings/ModePreview.svelte';
 	import Section from '#lib/settings/Section.svelte';
+	import SettingsRow from '#lib/settings/SettingsRow.svelte';
 	import { live, setLiveMode } from '#lib/theme/live.svelte.js';
 	import type { ResolvedMode } from '#lib/theme/mode.js';
+	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
-	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
+	import EmptyState from '#lib/ui/EmptyState.svelte';
+	import GoogleLogo from '#lib/ui/GoogleLogo.svelte';
+	import PasswordStrength from '#lib/ui/PasswordStrength.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import { cn } from '#lib/ui/cn.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
+	import OrgTile from '#lib/board/OrgTile.svelte';
 	// -- DEP-COMPONENTS -- //
 	import User from '@lucide/svelte/icons/user';
 	import KeyRound from '@lucide/svelte/icons/key-round';
@@ -30,6 +40,10 @@
 	import Palette from '@lucide/svelte/icons/palette';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import Bell from '@lucide/svelte/icons/bell';
+	import Check from '@lucide/svelte/icons/check';
+	import Monitor from '@lucide/svelte/icons/monitor';
+	import Smartphone from '@lucide/svelte/icons/smartphone';
+	import Tablet from '@lucide/svelte/icons/tablet';
 
 	// -- REQUIRED PROPS -- //
 
@@ -48,6 +62,12 @@
 		{ value: 'deployed', label: 'Deployed site' }
 	];
 
+	const MODES: { value: ResolvedMode; label: string }[] = [
+		{ value: 'light', label: 'Light' },
+		{ value: 'dark', label: 'Dark' }
+	];
+	const DEVICE_ICON = { desktop: Monitor, phone: Smartphone, tablet: Tablet } as const;
+
 	// -- STATES -- //
 
 	let name = $state('');
@@ -61,6 +81,7 @@
 	// -- REACTIVE STATES -- //
 
 	const prefs = $derived(data.prefs);
+	const orgCount = $derived(data.orgs.length);
 	const dirty = $derived({
 		profile: name.trim() !== data.me.name,
 		password: current !== '' && next !== '',
@@ -82,19 +103,64 @@
 		follow('publishPaused', prefs.notifications.publishPaused, (v) => (publishPaused = v));
 	});
 
+	/** The logo of the organisation a token belongs to, from the list the layout already loaded. */
+	const logoOf = (slug: string) => data.orgs.find((o) => o.slug === slug)?.logo ?? null;
+	/** The accent of the organisation a token belongs to, so its tile shows that organisation's colour. */
+	const paletteOf = (slug: string) => data.orgs.find((o) => o.slug === slug)?.palette ?? null;
+
+	/** When a token stops working, in words. Inside a week it turns into a warning. */
+	function expiry(at: string | Date) {
+		const days = daysUntil(at);
+		if (days <= 0) return { text: 'expires today', soon: true };
+		if (days <= 7) return { text: `expires in ${days} ${days === 1 ? 'day' : 'days'}`, soon: true };
+		return { text: `expires ${formatUtcDate(at)}`, soon: false };
+	}
+
+	// Arrow keys move the choice between the two previews, as in a native radio group
+	function onModeKey(e: KeyboardEvent) {
+		if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+		e.preventDefault();
+		const next: ResolvedMode = live.mode === 'light' ? 'dark' : 'light';
+		setLiveMode(next);
+		const radios = (e.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLElement>(
+			'[role=radio]'
+		);
+		radios?.[next === 'light' ? 0 : 1]?.focus();
+	}
+
+	/** Saves one section. The toast wraps the raw write, so a refusal rejects it and no success toast shows; the section keeps its inline status. */
 	async function run(
 		id: string,
 		action: string,
 		fields: Record<string, string>,
+		ok: string,
 		after?: () => void
 	) {
 		status[id] = { saving: true, saved: false, error: '' };
-		const r = await postAction(action, fields);
-		if (r.ok) {
-			after?.();
-			await invalidateAll();
-			status[id] = { saving: false, saved: true, error: '' };
-		} else status[id] = { saving: false, saved: false, error: r.message };
+		try {
+			await toast.promise(
+				postAction(action, fields).then((r) => {
+					if (!r.ok) throw new Error(r.message);
+					return r;
+				}),
+				{
+					id: `save-${id}`,
+					loading: 'Saving...',
+					success: ok,
+					error: (e) => (e instanceof Error ? e.message : 'That was not saved.')
+				}
+			);
+		} catch (e) {
+			status[id] = {
+				saving: false,
+				saved: false,
+				error: e instanceof Error ? e.message : 'That was not saved.'
+			};
+			return;
+		}
+		after?.();
+		await invalidateAll();
+		status[id] = { saving: false, saved: true, error: '' };
 	}
 
 	/** The preferences are one row, so a section sends its own fields and the saved values of the others. */
@@ -184,24 +250,35 @@
 	<PageHeader title="Your settings" context="Each section saves on its own." />
 
 	<SettingsShell>
+		<!-- YOU -->
 		<Section
 			id="profile"
 			icon={User}
+			group="You"
 			title="Profile"
 			text="The name people see next to your changes."
 			dirty={dirty.profile}
 			saving={st('profile').saving}
 			saved={st('profile').saved}
 			error={st('profile').error}
-			onsave={() => run('profile', 'profile', { name: name.trim() })}
+			onsave={() => run('profile', 'profile', { name: name.trim() }, 'Name saved.')}
 		>
+			<IdentityHeader title={data.me.name} subtitle={data.me.email}>
+				{#snippet lead()}<Avatar name={data.me.name} size={40} />{/snippet}
+				<Badge
+					>Member of {orgCount}
+					{orgCount === 1 ? 'organisation' : 'organisations'}</Badge
+				>
+			</IdentityHeader>
 			<TextField label="Your name" bind:value={name} data-testid="profile-name" />
 			<div class="text-xs text-muted">Signed in as {data.me.email}</div>
 		</Section>
 
+		<!-- SECURITY -->
 		<Section
 			id="signin"
 			icon={KeyRound}
+			group="Security"
 			title="How you sign in"
 			text="Your methods, and your password."
 			dirty={dirty.password}
@@ -210,14 +287,32 @@
 			error={st('signin').error}
 			saveLabel="Change password"
 			onsave={() =>
-				run('signin', 'password', { current, next }, () => {
+				run('signin', 'password', { current, next }, 'Password changed.', () => {
 					current = '';
 					next = '';
 				})}
 		>
-			<div class="flex flex-wrap gap-2">
-				{#each data.methods as m (m)}<Badge tone="info">{METHOD_LABEL[m] ?? m}</Badge>{/each}
-			</div>
+			<ul class="overflow-hidden rounded-lg border border-line" data-testid="method-list">
+				{#each data.methods as m (m)}
+					<SettingsRow>
+						{#snippet lead()}
+							<span
+								class="inline-flex size-8 items-center justify-center rounded-md border border-line bg-surface text-muted"
+								aria-hidden="true"
+							>
+								{#if m === 'google'}<GoogleLogo />{:else}<KeyRound size={16} />{/if}
+							</span>
+						{/snippet}
+						<span class="block font-medium text-ink">{METHOD_LABEL[m] ?? m}</span>
+						<span class="block text-xs text-muted">
+							{m === 'credential'
+								? 'Your email address and a password'
+								: 'Sign in with your Google account'}
+						</span>
+						{#snippet trail()}<Badge tone="success" dot>Connected</Badge>{/snippet}
+					</SettingsRow>
+				{/each}
+			</ul>
 			{#if data.methods.includes('credential')}
 				<TextField
 					label="Current password"
@@ -234,6 +329,7 @@
 					hint="At least 10 characters. Changing it signs you out everywhere else."
 					data-testid="password-new"
 				/>
+				<PasswordStrength value={next} />
 			{:else}
 				<div class="text-sm text-muted">
 					You sign in with Google, so there is no password to change here.
@@ -244,27 +340,36 @@
 		<Section
 			id="sessions"
 			icon={MonitorSmartphone}
+			group="Security"
 			title="Where you are signed in"
 			text="End a session you do not recognise. It stops working at once."
 		>
-			<ul class="rounded-lg border border-line" data-testid="session-list">
+			<ul class="overflow-hidden rounded-lg border border-line" data-testid="session-list">
 				{#each data.sessions as s (s.token)}
-					<li
-						class="flex min-h-12 flex-wrap items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-						data-item
-						data-testid="session"
-					>
-						<span class="min-w-0 flex-1 text-sm">
-							<span class="block truncate">{s.userAgent || 'A browser'}</span>
-							<span class="block text-xs text-muted">{s.ipAddress}, started {ago(s.createdAt)}</span
+					{@const device = parseDevice(s.userAgent)}
+					{@const DeviceIcon = DEVICE_ICON[device.kind]}
+					<SettingsRow data-testid="session">
+						{#snippet lead()}
+							<span
+								class="inline-flex size-8 items-center justify-center rounded-md border border-line bg-surface text-muted"
+								aria-hidden="true"><DeviceIcon size={16} /></span
 							>
-						</span>
-						{#if s.current}
-							<Badge tone="success">this one</Badge>
-						{:else}
-							<Button size="sm" variant="ghost" onclick={() => endSession(s.token)}>End it</Button>
-						{/if}
-					</li>
+						{/snippet}
+						<span class="block truncate font-medium text-ink" title={s.userAgent || undefined}
+							>{device.name}</span
+						>
+						<span class="block truncate text-xs text-muted"
+							>{s.ipAddress || 'Unknown place'}, started {ago(s.createdAt)}</span
+						>
+						{#snippet trail()}
+							{#if s.current}
+								<Badge tone="success" dot>This device</Badge>
+							{:else}
+								<Button size="sm" variant="ghost" onclick={() => endSession(s.token)}>End it</Button
+								>
+							{/if}
+						{/snippet}
+					</SettingsRow>
 				{/each}
 			</ul>
 			{#if data.sessions.length > 1}
@@ -279,33 +384,39 @@
 		<Section
 			id="tools"
 			icon={Plug}
-			title="Connected tools and tokens"
+			group="Security"
+			title="Tools and tokens"
 			text="The coding tools and tokens that act as you. Revoke one and it stops at once."
 		>
 			{#if data.tools.length === 0}
-				<div class="text-sm text-muted">
-					No tool is connected. <a class="text-accent-text hover:underline" href="/connect"
-						>Connect one.</a
-					>
-				</div>
+				<EmptyState
+					kind="inbox"
+					title="No tool is connected"
+					text="A coding tool you connect shows up here, and you can cut it off at any time."
+				>
+					{#snippet action()}<Button href="/connect">Connect a tool</Button>{/snippet}
+				</EmptyState>
 			{:else}
-				<ul class="rounded-lg border border-line" data-testid="tool-list">
+				<ul class="overflow-hidden rounded-lg border border-line" data-testid="tool-list">
 					{#each data.tools as t (t.id)}
-						<li
-							class="flex min-h-12 flex-wrap items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-							data-item
-							data-testid="tool"
-						>
-							<span class="min-w-0 flex-1 text-sm">
-								{t.name}
-								<span class="text-xs text-muted"
-									>{t.orgName}, {t.kind}, expires {ago(t.expiresAt)}</span
-								>
-							</span>
-							<Button size="sm" variant="ghost" onclick={() => revokeTool(t.org, t.id)}
-								>Revoke</Button
+						{@const left = expiry(t.expiresAt)}
+						<SettingsRow data-testid="tool">
+							{#snippet lead()}<OrgTile
+									name={t.orgName}
+									logo={logoOf(t.org)}
+									palette={paletteOf(t.org)}
+								/>{/snippet}
+							<span class="block truncate font-medium text-ink">{t.name}</span>
+							<span class="block truncate text-xs text-muted"
+								>{t.orgName}, <span class={cn(left.soon && 'text-warning')}>{left.text}</span></span
 							>
-						</li>
+							{#snippet trail()}
+								<Badge>{t.kind}</Badge>
+								<Button size="sm" variant="ghost" onclick={() => revokeTool(t.org, t.id)}
+									>Revoke</Button
+								>
+							{/snippet}
+						</SettingsRow>
 					{/each}
 				</ul>
 				<div>
@@ -316,21 +427,44 @@
 			{/if}
 		</Section>
 
+		<!-- PREFERENCES -->
 		<Section
 			id="appearance"
 			icon={Palette}
+			group="Preferences"
 			title="My appearance"
 			text="Light or dark, only for you. It switches and saves as you pick, and the switch in the top bar does the same."
 		>
-			<SegmentedControl
-				label="Theme"
-				value={live.mode}
-				options={[
-					{ value: 'light', label: 'Light' },
-					{ value: 'dark', label: 'Dark' }
-				]}
-				onchange={(v) => setLiveMode(v as ResolvedMode)}
-			/>
+			<!-- EACH CHOICE IS A SMALL DRAWING OF THE APP IN THAT MODE. THE CHECKED ONE FOLLOWS THE LIVE MODE, SO THE TOP BAR SWITCH MOVES IT TOO -->
+			<div role="radiogroup" aria-label="Theme" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+				{#each MODES as m (m.value)}
+					{@const chosen = live.mode === m.value}
+					<button
+						type="button"
+						role="radio"
+						aria-checked={chosen}
+						aria-label={m.label}
+						tabindex={chosen ? 0 : -1}
+						onclick={() => setLiveMode(m.value)}
+						onkeydown={onModeKey}
+						class={cn(
+							'flex min-h-11 cursor-pointer flex-col gap-2 rounded-xl border p-2 text-left focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+							chosen ? 'border-accent bg-accent-soft' : 'border-line bg-surface hover:border-muted'
+						)}
+					>
+						<ModePreview mode={m.value} />
+						<span
+							class={cn(
+								'flex items-center justify-between px-1 text-sm font-medium',
+								chosen ? 'text-accent-text' : 'text-ink'
+							)}
+						>
+							{m.label}
+							{#if chosen}<Check size={16} aria-hidden="true" />{/if}
+						</span>
+					</button>
+				{/each}
+			</div>
 			<div class="text-xs text-muted">
 				The accent colour comes from the organisation. An admin sets it in Organisation settings.
 			</div>
@@ -339,13 +473,15 @@
 		<Section
 			id="checks"
 			icon={ShieldCheck}
+			group="Preferences"
 			title="Browser checks"
 			text="Where you want checks to run by default."
 			dirty={dirty.checks}
 			saving={st('checks').saving}
 			saved={st('checks').saved}
 			error={st('checks').error}
-			onsave={() => run('checks', 'prefs', prefsFields({ checkTarget: target }))}
+			onsave={() =>
+				run('checks', 'prefs', prefsFields({ checkTarget: target }), 'Check setting saved.')}
 		>
 			<Select
 				label="Run checks on"
@@ -359,6 +495,7 @@
 		<Section
 			id="notifications"
 			icon={Bell}
+			group="Preferences"
 			title="Email notifications"
 			text="What this server may email you about."
 			dirty={dirty.notifications}
@@ -372,19 +509,22 @@
 					prefsFields({
 						...(backupAlerts ? { backupAlerts: 'on' } : { backupAlerts: '' }),
 						...(publishPaused ? { publishPaused: 'on' } : { publishPaused: '' })
-					})
+					}),
+					'Email settings saved.'
 				)}
 		>
-			<Switch
-				label="Backup problems"
-				hint="When a nightly backup fails or is late, for organisations you own."
-				bind:checked={backupAlerts}
-			/>
-			<Switch
-				label="Publishing paused"
-				hint="When automatic publishing stops after repeated failures, for projects you manage."
-				bind:checked={publishPaused}
-			/>
+			<div class="divide-y divide-line rounded-lg border border-line px-3">
+				<Switch
+					label="Backup problems"
+					hint="When a nightly backup fails or is late, for organisations you own."
+					bind:checked={backupAlerts}
+				/>
+				<Switch
+					label="Publishing paused"
+					hint="When automatic publishing stops after repeated failures, for projects you manage."
+					bind:checked={publishPaused}
+				/>
+			</div>
 		</Section>
 	</SettingsShell>
 </PageFrame>

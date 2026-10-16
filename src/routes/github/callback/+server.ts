@@ -32,12 +32,16 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		handle,
 		{ orgId: state.orgId, projectId: state.projectId, userId: user.id },
 		async (tx) => {
-			const [o] = await tx.select({ slug: org.slug }).from(org).where(eq(org.id, state.orgId));
+			const [o] = await tx
+				.select({ slug: org.slug, deletedAt: org.deletedAt })
+				.from(org)
+				.where(eq(org.id, state.orgId));
 			const [p] = await tx
 				.select({ key: project.key })
 				.from(project)
 				.where(eq(project.id, state.projectId));
-			if (!o || !p) return null;
+			// An org scheduled for deletion takes no new installation
+			if (!o || o.deletedAt || !p) return null;
 			// An installation belongs to one org. Another org that already holds it keeps it.
 			const [held] = await tx
 				.select()

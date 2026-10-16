@@ -94,10 +94,16 @@
 		void load();
 	});
 
-	async function act(id: string, run: () => Promise<unknown>, after?: () => void) {
+	async function act(id: string, run: () => Promise<unknown>, ok: string, after?: () => void) {
 		status[id] = { saving: true, saved: false, error: '' };
 		try {
-			await run();
+			// The toast wraps the raw write, so a refusal rejects it and no success toast shows
+			await toast.promise(run(), {
+				id: `checks-${id}`,
+				loading: 'Saving...',
+				success: ok,
+				error: (e) => (e instanceof ApiError ? e.message : 'That was not saved.')
+			});
 			after?.();
 			await load();
 			status[id] = { saving: false, saved: true, error: '' };
@@ -111,10 +117,14 @@
 	}
 
 	const saveTarget = () =>
-		act('checks-target', async () => {
-			await api(org, base, { method: 'PATCH', body: { defaultTarget: target }, key: newKey() });
-			await invalidate('afb:settings');
-		});
+		act(
+			'checks-target',
+			async () => {
+				await api(org, base, { method: 'PATCH', body: { defaultTarget: target }, key: newKey() });
+				await invalidate('afb:settings');
+			},
+			'Default target saved.'
+		);
 
 	const saveEnv = () =>
 		act(
@@ -131,6 +141,7 @@
 						versionPath: envVersion.trim() || null
 					}
 				}),
+			'Environment saved.',
 			() => {
 				envName = '';
 				envUrl = '';
@@ -149,8 +160,10 @@
 			}))
 		)
 			return;
-		await act('environments', () =>
-			api(org, `${base}/environments/${encodeURIComponent(name)}`, { method: 'DELETE' })
+		await act(
+			'environments',
+			() => api(org, `${base}/environments/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+			'Environment removed.'
 		);
 	};
 
@@ -162,6 +175,7 @@
 					method: 'PUT',
 					body: { name: accName.trim(), email: accEmail.trim(), password: accPassword }
 				}),
+			'Test account saved.',
 			() => {
 				accEmail = '';
 				accPassword = '';
@@ -177,8 +191,10 @@
 			}))
 		)
 			return;
-		await act('accounts', () =>
-			api(org, `${base}/accounts/${encodeURIComponent(name)}`, { method: 'DELETE' })
+		await act(
+			'accounts',
+			() => api(org, `${base}/accounts/${encodeURIComponent(name)}`, { method: 'DELETE' }),
+			'Test account removed.'
 		);
 	};
 

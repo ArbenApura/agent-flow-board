@@ -19,7 +19,7 @@
 
 <!-- THE LIGHT AND DARK SWITCH OF THE TOP BAR. IT SHOWS THE MODE YOU WOULD SWITCH TO -->
 <Button
-	variant="ghost"
+	variant="secondary"
 	iconOnly
 	aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
 	data-testid="theme-toggle"

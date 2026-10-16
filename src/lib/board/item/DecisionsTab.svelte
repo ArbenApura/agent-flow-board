@@ -9,6 +9,7 @@
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import TextArea from '#lib/ui/TextArea.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
 	import Plus from '@lucide/svelte/icons/plus';
 
@@ -45,6 +46,8 @@
 						: { kind, title: title.trim(), answer: answer.trim(), source: source.trim() },
 				key: newKey()
 			});
+			// The refusal shows in the dialog, so only the success is a toast
+			toast.success('Decision saved.');
 			adding = false;
 			title = body = answer = source = '';
 			await env.onchanged();

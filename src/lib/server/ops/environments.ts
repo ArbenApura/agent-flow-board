@@ -11,7 +11,7 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { appendEvent } from '../db/events';
-import { checkRun, environment, project, runner, secret, uiShotRun } from '../db/schema';
+import { checkRun, environment, org, project, runner, secret, uiShotRun } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { OpError, requireCap, run } from './context';
 import { actorFields } from './items';
@@ -397,6 +397,9 @@ export async function authenticateRunner(
 			.from(runner)
 			.where(eq(runner.tokenHash, hashOf(presented)));
 		if (!r || r.orgId !== orgId) return null;
+		// A runner of an org scheduled for deletion stops working until the org is restored
+		const [o] = await tx.select({ deletedAt: org.deletedAt }).from(org).where(eq(org.id, orgId));
+		if (!o || o.deletedAt) return null;
 		await tx
 			.update(runner)
 			.set({ lastSeenAt: sql`now()` })
@@ -468,6 +471,8 @@ export async function authenticateRunKey(
 		if (want.length !== got.length || !timingSafeEqual(want, got)) return null;
 		const [r] = await tx.select().from(runner).where(eq(runner.id, row.runnerId));
 		if (!r || r.orgId !== orgId) return null;
+		const [o] = await tx.select({ deletedAt: org.deletedAt }).from(org).where(eq(org.id, orgId));
+		if (!o || o.deletedAt) return null;
 		return {
 			runnerId: r.id,
 			orgId,

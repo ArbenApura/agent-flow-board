@@ -6,7 +6,10 @@ import { toast as sonner } from 'svelte-sonner';
 // -- TYPES -- //
 
 export type ToastAction = { label: string; run: () => void | Promise<void> };
+export type ToastKind = 'success' | 'info' | 'warning' | 'error';
 export type PromiseText<T> = {
+	/** A stable id per kind of action, so a repeated failure replaces the earlier toast instead of stacking. */
+	id?: string;
 	loading: string;
 	/** A text, or null to take the loading toast away (the person is shown something else, such as a dialog). */
 	success: string | ((value: T) => string | null);
@@ -50,7 +53,7 @@ export const toast = {
 		sonner.error(text, { duration: STAY, action: actionOf(action) }),
 	/** One toast for the whole life of a request: loading, then success (fades) or error (stays). Resolves or rejects like the promise. */
 	promise: <T>(work: Promise<T> | (() => Promise<T>), text: PromiseText<T>): Promise<T> => {
-		const id = sonner.loading(text.loading, { duration: STAY });
+		const id = sonner.loading(text.loading, { id: text.id, duration: STAY });
 		// A function that throws before it returns a promise is a rejection too, so the loading toast never sticks
 		const run = typeof work === 'function' ? Promise.resolve().then(work) : work;
 		return run.then(
@@ -74,5 +77,11 @@ export const toast = {
 			}
 		);
 	},
+	/** A loading toast for work the caller settles itself (a form submit). It has a finite life, so a lost callback never leaves it on screen for ever. */
+	loading: (text: string, options: { id?: string; duration?: number } = {}) =>
+		sonner.loading(text, { id: options.id, duration: options.duration ?? STAY }),
+	/** Turns the toast with this id into its final kind: success and info fade, warning and error stay. */
+	settle: (id: string | number, kind: ToastKind, text: string) =>
+		sonner[kind](text, { id, duration: kind === 'success' || kind === 'info' ? FADE_MS : STAY }),
 	dismiss: (id?: string | number) => sonner.dismiss(id)
 };

@@ -151,12 +151,24 @@
 		busy = 'run';
 		message = '';
 		try {
-			const r = await api<{ unavailable: boolean; reason: string | null }>(
-				env.org,
-				`/items/${detail.item.ref}/ui-shots`,
-				{ body: { target } }
+			const r = await toast.promise(
+				api<{ unavailable: boolean; reason: string | null }>(
+					env.org,
+					`/items/${detail.item.ref}/ui-shots`,
+					{ body: { target } }
+				),
+				{
+					id: 'ui-shots-run',
+					loading: 'Asking for a run...',
+					// An unavailable target is a warning, shown below, so the loading toast is only taken away
+					success: (r) => (r.unavailable ? null : 'Run requested.'),
+					error: (e) => (e instanceof ApiError ? e.message : 'The run was not asked for.')
+				}
 			);
-			if (r.unavailable) message = r.reason ?? 'That target is not available.';
+			if (r.unavailable) {
+				message = r.reason ?? 'That target is not available.';
+				toast.warning(message);
+			}
 			await load();
 		} catch (e) {
 			message = e instanceof ApiError ? e.message : 'The run was not asked for.';

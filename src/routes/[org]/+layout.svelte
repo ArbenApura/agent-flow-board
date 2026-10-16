@@ -15,6 +15,7 @@
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import RouteSkeleton from '#lib/ui/RouteSkeleton.svelte';
 	import ThemeToggle from '#lib/ui/ThemeToggle.svelte';
+	import { signOut } from '#lib/ui/signOut.js';
 	// -- DEP-COMPONENTS -- //
 	import Settings from '@lucide/svelte/icons/settings';
 	import Menu from '@lucide/svelte/icons/menu';
@@ -200,7 +201,7 @@
 										class="cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
 										{...props}
 									>
-										<Avatar name={data.me.name || data.me.email} size={32} />
+										<Avatar name={data.me.name || data.me.email} size={40} />
 									</button>
 								{/snippet}
 								{#snippet children({ close })}
@@ -237,7 +238,12 @@
 												>
 											</li>
 										</ul>
-										<form method="POST" action="/sign-out" class="border-t border-line pt-1">
+										<form
+											method="POST"
+											action="/sign-out"
+											onsubmit={signOut}
+											class="border-t border-line pt-1"
+										>
 											<button
 												type="submit"
 												class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
@@ -324,7 +330,7 @@
 				>
 			</li>
 		</ul>
-		<form method="POST" action="/sign-out" class="border-t border-line pt-2">
+		<form method="POST" action="/sign-out" onsubmit={signOut} class="border-t border-line pt-2">
 			<Button type="submit" variant="ghost" class="w-full justify-start">
 				<LogOut size={16} /> Sign out
 			</Button>

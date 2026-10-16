@@ -8,6 +8,7 @@
 	import AuthShell from '#lib/ui/AuthShell.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
+	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 
 	// -- REQUIRED PROPS -- //
 
@@ -50,7 +51,17 @@
 				Use {data.invite.email} so the invitation matches.
 			</p>
 		{:else}
-			<form method="POST" action="?/accept" use:enhance class="mt-4">
+			<form
+				method="POST"
+				action="?/accept"
+				use:enhance={toastEnhance({
+					id: 'accept-invite',
+					loading: 'Joining...',
+					success: 'Invitation accepted.',
+					inline: true
+				})}
+				class="mt-4"
+			>
 				<Button type="submit" variant="primary" class="w-full">Join {data.invite.orgName}</Button>
 			</form>
 			<p class="mt-3 text-xs text-muted">You are signed in as {data.person.email}.</p>

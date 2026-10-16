@@ -7,6 +7,7 @@
 	import AuthShell from '#lib/ui/AuthShell.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 	// -- DEP-COMPONENTS -- //
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import Mail from '@lucide/svelte/icons/mail';
@@ -40,13 +41,15 @@
 		<form
 			method="POST"
 			class="flex flex-col gap-3"
-			use:enhance={() => {
-				busy = true;
-				return async ({ update }) => {
-					await update({ reset: false });
-					busy = false;
-				};
-			}}
+			use:enhance={toastEnhance({
+				id: 'reset-request',
+				loading: 'Sending the link...',
+				// Fixed text: the answer is the same whether or not the account exists
+				success: 'If that address has an account, a link is on its way.',
+				inline: true,
+				onStart: () => (busy = true),
+				onDone: () => (busy = false)
+			})}
 		>
 			<TextField
 				icon={Mail}

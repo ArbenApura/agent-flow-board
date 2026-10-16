@@ -9,6 +9,7 @@
 	import GoogleLogo from '#lib/ui/GoogleLogo.svelte';
 	import PasswordStrength from '#lib/ui/PasswordStrength.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 	// -- DEP-COMPONENTS -- //
 	import Lock from '@lucide/svelte/icons/lock';
 	import Mail from '@lucide/svelte/icons/mail';
@@ -45,13 +46,14 @@
 		method="POST"
 		action="?/register"
 		class="flex flex-col gap-3"
-		use:enhance={() => {
-			busy = true;
-			return async ({ update }) => {
-				await update({ reset: false });
-				busy = false;
-			};
-		}}
+		use:enhance={toastEnhance({
+			id: 'sign-up',
+			loading: 'Creating your account...',
+			success: 'Account created.',
+			inline: true,
+			onStart: () => (busy = true),
+			onDone: () => (busy = false)
+		})}
 	>
 		<input type="hidden" name="next" value={data.next} />
 		<TextField
@@ -102,7 +104,15 @@
 		<div class="my-5 flex items-center gap-3 text-xs text-muted">
 			<span class="h-px flex-1 bg-line"></span>or<span class="h-px flex-1 bg-line"></span>
 		</div>
-		<form method="POST" action="?/google" use:enhance>
+		<form
+			method="POST"
+			action="?/google"
+			use:enhance={toastEnhance({
+				id: 'google-sign-up',
+				loading: 'Opening Google...',
+				success: null
+			})}
+		>
 			<input type="hidden" name="next" value={data.next} />
 			<Button type="submit" class="h-11 w-full"><GoogleLogo /> Continue with Google</Button>
 		</form>

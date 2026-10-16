@@ -13,6 +13,7 @@
 	import Popover from '#lib/ui/Popover.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import ThemeToggle from '#lib/ui/ThemeToggle.svelte';
+	import { signOut } from '#lib/ui/signOut.js';
 	// -- DEP-COMPONENTS -- //
 	import Building2 from '@lucide/svelte/icons/building-2';
 	import CircleUser from '@lucide/svelte/icons/circle-user';
@@ -34,6 +35,8 @@
 
 	// -- REACTIVE STATES -- //
 
+	// An organisation scheduled for deletion is reached from the organisations list only
+	const liveOrgs = $derived(data.orgs.filter((o) => !o.deleted));
 	// Where the person is, shown in the top bar
 	const crumb = $derived(
 		page.url.pathname.startsWith('/connect')
@@ -47,7 +50,7 @@
 <svelte:window onscroll={() => (scrolled = window.scrollY > 4)} />
 
 <div class="min-h-dvh md:flex">
-	<AccountSidebar orgs={data.orgs} me={data.me} />
+	<AccountSidebar orgs={liveOrgs} me={data.me} />
 
 	<div class="flex min-w-0 flex-1 flex-col">
 		<!-- THE TOP BAR. THE MENU ON A PHONE, WHERE THE PERSON IS, AND THE ACCOUNT -->
@@ -102,7 +105,7 @@
 										class="cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
 										{...props}
 									>
-										<Avatar name={data.me.name || data.me.email} size={32} />
+										<Avatar name={data.me.name || data.me.email} size={40} />
 									</button>
 								{/snippet}
 								{#snippet children({ close })}
@@ -122,7 +125,12 @@
 												>
 											</li>
 										</ul>
-										<form method="POST" action="/sign-out" class="border-t border-line pt-1">
+										<form
+											method="POST"
+											action="/sign-out"
+											onsubmit={signOut}
+											class="border-t border-line pt-1"
+										>
 											<button
 												type="submit"
 												class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
@@ -157,7 +165,7 @@
 					><Building2 size={18} /> Organisations</a
 				>
 			</li>
-			{#each data.orgs as o (o.id)}
+			{#each liveOrgs as o (o.id)}
 				<li>
 					<a
 						href={`/${o.slug}`}
@@ -186,7 +194,7 @@
 				>
 			</li>
 		</ul>
-		<form method="POST" action="/sign-out" class="border-t border-line pt-2">
+		<form method="POST" action="/sign-out" onsubmit={signOut} class="border-t border-line pt-2">
 			<Button type="submit" variant="ghost" class="w-full justify-start">
 				<LogOut size={16} /> Sign out
 			</Button>

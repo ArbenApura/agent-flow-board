@@ -8,12 +8,13 @@
 	// -- MODULES -- //
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
-	import Avatar from '#lib/ui/Avatar.svelte';
+	import OrgTile from '#lib/board/OrgTile.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 	// -- DEP-COMPONENTS -- //
 	import Building2 from '@lucide/svelte/icons/building-2';
 	import FolderKanban from '@lucide/svelte/icons/folder-kanban';
@@ -152,16 +153,20 @@
 			{#each data.orgs as o (o.id)}
 				<li>
 					<a
-						href={`/${o.slug}`}
+						href={o.deleted ? `/deleted/${o.slug}` : `/${o.slug}`}
 						data-card
 						class="flex items-center gap-4 rounded-xl border border-line bg-surface p-5 shadow-[var(--elev-1)] transition-colors hover:border-muted"
 					>
-						<Avatar name={o.name} size={40} kind="agent" />
+						<OrgTile name={o.name} logo={o.logo} palette={o.palette} size={40} />
 						<span class="flex min-w-0 flex-1 flex-col gap-1">
 							<span class="truncate text-base font-medium">{o.name}</span>
 							<span class="text-sm text-muted">/{o.slug}</span>
 						</span>
-						<Badge>{ROLE_LABEL[o.role]}</Badge>
+						{#if o.deleted}
+							<Badge tone="warning">Scheduled for deletion</Badge>
+						{:else}
+							<Badge>{ROLE_LABEL[o.role]}</Badge>
+						{/if}
 					</a>
 				</li>
 			{/each}
@@ -178,13 +183,14 @@
 		method="POST"
 		action="?/createOrg"
 		class="flex flex-col gap-4"
-		use:enhance={() => {
-			busy = true;
-			return async ({ update }) => {
-				await update({ reset: false });
-				busy = false;
-			};
-		}}
+		use:enhance={toastEnhance({
+			id: 'create-org',
+			loading: 'Creating the organisation...',
+			success: 'Organisation created.',
+			inline: true,
+			onStart: () => (busy = true),
+			onDone: () => (busy = false)
+		})}
 	>
 		<TextField
 			label="Organisation name"

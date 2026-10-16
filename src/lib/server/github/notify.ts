@@ -21,7 +21,7 @@ export async function notifyPublishPaused(
 ): Promise<number> {
 	const info = await withTenant(deps.handle, { orgId }, async (tx) => {
 		const [o] = await tx
-			.select({ slug: org.slug, name: org.name })
+			.select({ slug: org.slug, name: org.name, deletedAt: org.deletedAt })
 			.from(org)
 			.where(eq(org.id, orgId));
 		const [p] = await tx
@@ -35,7 +35,8 @@ export async function notifyPublishPaused(
 			.where(and(eq(member.orgId, orgId), inArray(member.role, ['owner', 'admin'])));
 		return { o, p, people };
 	});
-	if (!info.o || !info.p) return 0;
+	// Nobody is told about an org that is scheduled for deletion
+	if (!info.o || info.o.deletedAt || !info.p) return 0;
 	const link = `${deps.baseUrl}/${info.o.slug}/${info.p.key}/settings`;
 	let sent = 0;
 	for (const person of info.people) {

@@ -20,6 +20,7 @@
 	import Switch from '#lib/ui/Switch.svelte';
 	import TagInput from '#lib/ui/TagInput.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
 	import Settings from '@lucide/svelte/icons/settings';
 	import Layers from '@lucide/svelte/icons/layers';
@@ -152,17 +153,24 @@
 	async function save(id: string, path: string, body: Record<string, unknown>, method = 'PATCH') {
 		status[id] = { saving: true, saved: false, error: '' };
 		try {
-			await api(org, path, { method, body, key: newKey() });
-			await invalidate('afb:settings');
-			await invalidate('afb:project');
-			status[id] = { saving: false, saved: true, error: '' };
+			// The toast wraps the raw write, so a refusal rejects it and no success toast shows
+			await toast.promise(api(org, path, { method, body, key: newKey() }), {
+				id: `save-${id}`,
+				loading: 'Saving...',
+				success: 'Saved.',
+				error: (e) => (e instanceof ApiError ? e.message : 'That was not saved.')
+			});
 		} catch (e) {
 			status[id] = {
 				saving: false,
 				saved: false,
 				error: e instanceof ApiError ? e.message : 'That was not saved.'
 			};
+			return;
 		}
+		await invalidate('afb:settings');
+		await invalidate('afb:project');
+		status[id] = { saving: false, saved: true, error: '' };
 	}
 
 	const patchProject = (id: string, body: Record<string, unknown>) =>

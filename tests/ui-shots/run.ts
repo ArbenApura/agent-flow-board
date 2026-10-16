@@ -1,5 +1,5 @@
 // UI SHOTS (ADR-032): THE PRODUCT'S OWN SHOTS MODE, RUN OVER THIS REPO'S "UI changes" TABLE ON THE BUILD PREVIEW
-// It opens each row's pages read only (every write is aborted), measures the levels against design/scale.json and the sibling
+// It opens each row's pages read only (every write is aborted), measures the levels against tests/ui-shots/scale.json and the sibling
 // pages, and writes JPEG pictures plus index.json to .afb/ui-shots/<run>/. The same collecting code runs for a run asked for on a
 // board (packages/runner/src/collect.ts); only where the rows come from and where the pictures go differ.
 // USAGE: yarn run ui-shots [--rows tests/ui-shots/ui-changes.md] [--base http://localhost:5180] [--only /sign-in] [--no-server]
@@ -70,9 +70,9 @@ async function ensureServer() {
 	throw new Error('The build preview did not start.');
 }
 
-/** design/scale.json as the scale the shared flag code reads: one entry per level for a width. */
+/** tests/ui-shots/scale.json as the scale the shared flag code reads: one entry per level for a width. */
 function scaleFor(viewport: number): ScaleLevels {
-	const file = JSON.parse(readFileSync(resolve(root, 'design/scale.json'), 'utf8')) as {
+	const file = JSON.parse(readFileSync(resolve(root, 'tests/ui-shots/scale.json'), 'utf8')) as {
 		levels: Record<string, Record<'desktop' | 'phone', Record<string, number | number[]>>>;
 	};
 	const out: ScaleLevels = {};

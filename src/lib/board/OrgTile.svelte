@@ -1,39 +1,39 @@
 <script lang="ts">
+	// -- TYPES -- //
+	import type { OrgPalette } from '#lib/server/db/schema/core.js';
 	// -- MODULES -- //
+	import { tileStyle } from '#lib/theme/css.js';
 	import { cn } from '#lib/ui/cn.js';
 
 	// -- REQUIRED PROPS -- //
 
 	let {
 		name,
-		slug,
 		logo,
+		palette,
 		size = 24
 	}: {
 		name: string;
-		slug: string;
 		logo?: string | null;
-		size?: 20 | 24;
+		/** The accent of this organisation. Without one the tile uses the page accent. */
+		palette?: OrgPalette | null;
+		size?: 20 | 24 | 40;
 	} = $props();
 
 	// -- CONSTANTS -- //
 
-	// Four tints from the theme, so two organisations side by side rarely look alike. Whole class names, Tailwind builds only those
-	const TINTS = [
-		'border-accent/30 bg-accent/12 text-accent-text',
-		'border-info/30 bg-info/12 text-info',
-		'border-success/30 bg-success/12 text-success',
-		'border-warning/30 bg-warning/12 text-warning'
-	];
+	// Whole class names, Tailwind builds only those. 40 is for the header of a settings page, the same box as an Avatar of 40
+	const DIMS = {
+		20: { box: 'size-5', text: 'text-[9px]', radius: 'rounded-md' },
+		24: { box: 'size-6', text: 'text-[10px]', radius: 'rounded-md' },
+		40: { box: 'size-10', text: 'text-sm', radius: 'rounded-lg' }
+	} as const;
+
+	// The tile picks the light or dark value of the organisation accent, and falls back to the page accent when it has no palette
+	const TINT =
+		'border-[color-mix(in_oklab,var(--tile-accent)_30%,transparent)] bg-(--tile-accent-soft) text-(--tile-accent-text) [--tile-accent-soft:var(--tile-accent-soft-light,var(--accent-soft))] [--tile-accent-text:var(--tile-accent-text-light,var(--accent-text))] [--tile-accent:var(--tile-accent-light,var(--accent))] in-data-[mode=dark]:[--tile-accent-soft:var(--tile-accent-soft-dark,var(--accent-soft))] in-data-[mode=dark]:[--tile-accent-text:var(--tile-accent-text-dark,var(--accent-text))] in-data-[mode=dark]:[--tile-accent:var(--tile-accent-dark,var(--accent))]';
 
 	// -- FUNCTIONS -- //
-
-	/** A steady pick from the address, so an organisation keeps its colour everywhere. */
-	function tintOf(value: string) {
-		let h = 0;
-		for (const ch of value) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-		return TINTS[h % TINTS.length];
-	}
 
 	/** Two capital letters: the first letters of the first two words, or the first two letters of a single word. */
 	function initialsOf(value: string) {
@@ -45,18 +45,17 @@
 
 <!-- THE MARK OF AN ORGANISATION. ITS LOGO WHEN IT HAS ONE, OTHERWISE TWO CAPITAL LETTERS ON A TINT THAT STAYS THE SAME EVERYWHERE -->
 {#if logo}
-	<img
-		src={logo}
-		alt=""
-		class={cn('shrink-0 rounded-md object-contain', size === 20 ? 'size-5' : 'size-6')}
-	/>
+	<img src={logo} alt="" class={cn('shrink-0 object-contain', DIMS[size].box, DIMS[size].radius)} />
 {:else}
 	<span
 		class={cn(
-			'inline-flex shrink-0 items-center justify-center rounded-md border font-semibold',
-			size === 20 ? 'size-5 text-[9px]' : 'size-6 text-[10px]',
-			tintOf(slug)
+			'inline-flex shrink-0 items-center justify-center border font-semibold',
+			DIMS[size].box,
+			DIMS[size].text,
+			DIMS[size].radius,
+			TINT
 		)}
+		style={tileStyle(palette) || undefined}
 		aria-hidden="true">{initialsOf(name)}</span
 	>
 {/if}

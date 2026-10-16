@@ -4,10 +4,8 @@
 	// -- ENVS -- //
 	import { page } from '$app/state';
 	// -- MODULES -- //
-	import { KEY, LABEL } from '#lib/board/sidebar-classes.js';
-	import { tagDot } from '#lib/board/status.js';
+	import { LABEL } from '#lib/board/sidebar-classes.js';
 	import { cn } from '#lib/ui/cn.js';
-	import SidebarHeading from '#lib/board/SidebarHeading.svelte';
 	import SidebarRow from '#lib/board/SidebarRow.svelte';
 	import SidebarShell from '#lib/board/SidebarShell.svelte';
 	// -- DEP-COMPONENTS -- //
@@ -64,6 +62,10 @@
 
 	// -- FUNCTIONS -- //
 
+	// A project whose name is only its key is shown once, not twice
+	const sameName = (p: { key: string; name: string }) =>
+		p.key.trim().toLowerCase() === p.name.trim().toLowerCase();
+
 	const active = (t: { href: string; exact?: boolean }) =>
 		t.exact ? page.url.pathname === t.href : page.url.pathname.startsWith(t.href);
 </script>
@@ -75,8 +77,11 @@
 	</nav>
 
 	{#if projects.length}
-		<nav class="flex flex-col gap-1" aria-label="Projects" data-testid="project-list">
-			<SidebarHeading label="Projects" />
+		<nav
+			class="flex flex-col gap-1 border-t border-line pt-4"
+			aria-label="Projects"
+			data-testid="project-list"
+		>
 			{#each projects as p (p.id)}
 				{@const open = p.key === current?.key}
 				<a
@@ -88,14 +93,22 @@
 						open && 'font-medium text-ink'
 					)}
 				>
-					<span class={cn('size-2 shrink-0 rounded-full', tagDot(p.colourTag))}></span>
-					<span class={KEY}>{p.key}</span>
-					<span class={LABEL}>{p.name}</span>
+					<!-- EVERY PROJECT SHOWS A SMALL TILE WITH ITS KEY, SO THE SLIM RAIL NAMES IT TOO. -->
+					<span
+						class={cn(
+							'-ml-[3px] flex size-6 shrink-0 items-center justify-center rounded-md bg-raised font-mono text-xs font-medium text-muted uppercase',
+							open && 'text-ink'
+						)}
+						aria-hidden="true"
+					>
+						{p.key.slice(0, 2)}
+					</span>
+					<span class={LABEL}>{sameName(p) ? p.key : p.name}</span>
 				</a>
 				{#if open && tabs.length}
 					<ul
 						class={cn(
-							'mb-1 ml-[18px] flex flex-col gap-0.5 border-l border-line pl-2 transition-[margin,padding,border-color] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none',
+							'mt-0.5 mb-2 ml-[20px] flex flex-col gap-0.5 border-l border-line pl-2 transition-[margin,padding,border-color] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none',
 							'side-collapsed:ml-0 side-collapsed:border-transparent side-collapsed:pl-0'
 						)}
 					>

@@ -7,7 +7,7 @@ A standalone multi-project team board for agent-driven flow plans. SvelteKit (Sv
 - Never run `git push` unless the user asks. Never commit unless the user asks. All work stays in the local working tree.
 - Work on the checked out branch (`git branch --show-current`). Never create or switch branches unless told to.
 - Never add co-author trailers or AI attribution to a commit message.
-- Never delete `node_modules`, `.git` or the `design/` folder when cleaning up. Delete only the exact files you made.
+- Never delete `node_modules` or `.git` when cleaning up. Delete only the exact files you made.
 - Package manager is Yarn 4 (`.yarnrc.yml`, `nodeLinker: node-modules`, the program is `.yarn/releases/yarn-4.18.1.cjs`), never `npm` or `pnpm`. Commit `yarn.lock`. Never commit `package-lock.json` or `pnpm-lock.yaml`.
 
 ## Local development
@@ -38,11 +38,11 @@ Checks run against `yarn build && yarn preview`, never the dev server (`tests/ru
 
 ## Design fit (read before any visible change)
 
-The scale is `design/tokens.md`. The mockups are `design/brand-exploration.html` and `design/screens.html`. The look, the fonts, the logo, the cards, the motion and what was tried and dropped are in `DESIGN.md` at the root. Read it before changing any screen.
+The scale, the colour tokens and the layout rules are in `DESIGN.md` at the root. There are no mockup files. The look, the fonts, the logo, the cards, the motion and what was tried and dropped are there too. Read it before changing any screen.
 
 1. Match the nearest sibling page. Name 1 to 3 pages a person visits next to the new screen and copy their sizes and spacing level by level.
 2. Never larger than a sibling at the same level. For emphasis use weight or colour from the tokens, not size.
-3. Invent no new size. Use the values in `design/tokens.md`. A new pixel value needs a reason written in the plan.
+3. Invent no new size. Use the values in `DESIGN.md`. A new pixel value needs a reason written in the plan.
 4. One primary action per view, at the `button-primary` size. Everything else is a plain button or a link.
 5. Reuse before inventing. The component library in `src/lib/ui/` comes first. A second kind of dialog, tab bar or card is a design finding.
 6. Labels are plain questions or actions a person understands without help. Every form field states its own font size explicitly, and labels, fields and the submit button of one form share it. A money or limit answer shows a live worked example before saving.

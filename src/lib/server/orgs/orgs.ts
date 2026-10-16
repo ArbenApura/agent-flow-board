@@ -5,18 +5,31 @@ import type { DbHandle, Tx } from '../db/client';
 import type { Role } from './roles';
 // -- DEP-MODULES -- //
 import { randomUUID } from 'node:crypto';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { apiToken, member, org, project, projectMember, runner, user } from '../db/schema';
+import {
+	apiToken,
+	attachment,
+	item,
+	member,
+	org,
+	orgDeletionLog,
+	project,
+	projectMember,
+	runner,
+	user
+} from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { orgInsert } from '../db/zod';
+import { purgeAt, sameOrgName } from './deletion';
 import { canAssignRole, canRemove, effectiveProjectRole } from './roles';
 
 // -- TYPES -- //
 
 export class OrgError extends Error {
 	constructor(
-		readonly code: 'FORBIDDEN' | 'LAST_OWNER' | 'NOT_FOUND' | 'SLUG_TAKEN' | 'INVALID',
+		readonly code:
+			'FORBIDDEN' | 'LAST_OWNER' | 'NOT_FOUND' | 'SLUG_TAKEN' | 'INVALID' | 'ORG_LOCKED',
 		message: string
 	) {
 		super(message);
@@ -51,7 +64,8 @@ export const RESERVED_SLUGS = new Set([
 	'static',
 	'fonts',
 	'favicon',
-	'robots'
+	'robots',
+	'deleted'
 ]);
 
 // -- FUNCTIONS -- //
@@ -90,11 +104,22 @@ export async function createOrg(
 	}
 }
 
-/** The orgs a person belongs to, with their role in each. Found through their own memberships, before any org is chosen. */
+/**
+ * The orgs a person belongs to, with their role in each. Found through their own memberships, before any org is chosen.
+ * An org scheduled for deletion is listed with `deletedAt` set, so the owner can still reach its restore page.
+ */
 export async function listMyOrgs(handle: DbHandle, userId: string) {
 	return withTenant(handle, { userId }, (tx) =>
 		tx
-			.select({ id: org.id, name: org.name, slug: org.slug, role: member.role, logo: org.logo })
+			.select({
+				id: org.id,
+				name: org.name,
+				slug: org.slug,
+				role: member.role,
+				logo: org.logo,
+				palette: org.palette,
+				deletedAt: org.deletedAt
+			})
 			.from(member)
 			.innerJoin(org, eq(org.id, member.orgId))
 			.where(eq(member.userId, userId))
@@ -102,8 +127,14 @@ export async function listMyOrgs(handle: DbHandle, userId: string) {
 	);
 }
 
-/** Resolves an org URL slug to the org, only when the person is a member. */
+/** Resolves an org URL slug to the org, only when the person is a member. An org scheduled for deletion is not found. */
 export async function orgForSlug(handle: DbHandle, slug: string, userId: string) {
+	const found = await orgForSlugIncludingDeleted(handle, slug, userId);
+	return found && !found.deletedAt ? found : null;
+}
+
+/** The same lookup, but an org scheduled for deletion is returned too. Only the locked page and the restore verb use it. */
+export async function orgForSlugIncludingDeleted(handle: DbHandle, slug: string, userId: string) {
 	return withTenant(handle, { orgSlug: slug, userId }, async (tx) => {
 		const [row] = await tx
 			.select({
@@ -112,7 +143,9 @@ export async function orgForSlug(handle: DbHandle, slug: string, userId: string)
 				slug: org.slug,
 				role: member.role,
 				logo: org.logo,
-				palette: org.palette
+				palette: org.palette,
+				deletedAt: org.deletedAt,
+				purgeStartedAt: org.purgeStartedAt
 			})
 			.from(org)
 			.innerJoin(member, and(eq(member.orgId, org.id), eq(member.userId, userId)))
@@ -312,5 +345,129 @@ export async function projectRole(
 			.from(projectMember)
 			.where(and(eq(projectMember.projectId, projectId), eq(projectMember.userId, userId)));
 		return effectiveProjectRole(m.role, o?.role ?? null);
+	});
+}
+
+// -- DELETING AN ORGANISATION (FLOW-20261017-0007) -- //
+
+export type OrgDeletionSummary = { projects: number; items: number; files: number };
+
+/** Reads the owner's live role inside the open transaction. Only an Owner may delete or restore. */
+async function requireOwner(tx: Tx, orgId: string, actorId: string): Promise<string> {
+	const [row] = await tx
+		.select({ role: member.role, name: user.name })
+		.from(member)
+		.innerJoin(user, eq(user.id, member.userId))
+		.where(and(eq(member.orgId, orgId), eq(member.userId, actorId)));
+	if (row?.role !== 'owner')
+		throw new OrgError('FORBIDDEN', 'Only an Owner can delete or restore an organisation.');
+	return row.name;
+}
+
+/** What deleting the org would remove, for the confirmation dialog. Read only, Owner only. */
+export async function orgDeletionSummary(
+	handle: DbHandle,
+	orgId: string,
+	actorId: string
+): Promise<OrgDeletionSummary> {
+	return withTenant(handle, { orgId, userId: actorId }, async (tx) => {
+		await requireOwner(tx, orgId, actorId);
+		const one = async (query: Promise<{ n: number }[]>) => (await query)[0].n;
+		return {
+			projects: await one(
+				tx
+					.select({ n: sql<number>`count(*)::int` })
+					.from(project)
+					.where(eq(project.orgId, orgId))
+			),
+			items: await one(
+				tx
+					.select({ n: sql<number>`count(*)::int` })
+					.from(item)
+					.where(eq(item.orgId, orgId))
+			),
+			files: await one(
+				tx
+					.select({ n: sql<number>`count(*)::int` })
+					.from(attachment)
+					.where(and(eq(attachment.orgId, orgId), isNull(attachment.deletedAt)))
+			)
+		};
+	});
+}
+
+/**
+ * Locks the org: it disappears for everyone, and it is erased once the grace period ends unless an Owner restores it.
+ * The live role is read inside the transaction, the typed name is checked here and not only in the dialog, and a second
+ * call changes nothing (the first date stands).
+ */
+export async function deleteOrg(
+	handle: DbHandle,
+	orgId: string,
+	actorId: string,
+	typedName: string
+): Promise<{ deletedAt: Date; purgeAt: Date }> {
+	return withTenant(handle, { orgId, userId: actorId }, async (tx) => {
+		await lockOrg(tx, orgId);
+		const label = await requireOwner(tx, orgId, actorId);
+		const [row] = await tx
+			.select({ name: org.name, slug: org.slug, deletedAt: org.deletedAt })
+			.from(org)
+			.where(eq(org.id, orgId));
+		if (!row) throw new OrgError('NOT_FOUND', 'That organisation does not exist.');
+		if (row.deletedAt) return { deletedAt: row.deletedAt, purgeAt: purgeAt(row.deletedAt) };
+		if (!sameOrgName(typedName, row.name))
+			throw new OrgError('INVALID', 'Type the exact name of the organisation to delete it.');
+		const [done] = await tx
+			.update(org)
+			.set({ deletedAt: sql`now()`, updatedAt: sql`now()`, version: sql`${org.version} + 1` })
+			.where(and(eq(org.id, orgId), isNull(org.deletedAt)))
+			.returning({ deletedAt: org.deletedAt });
+		await tx.insert(orgDeletionLog).values({
+			orgId,
+			orgName: row.name,
+			orgSlug: row.slug,
+			event: 'deleted',
+			actorUserId: actorId,
+			actorLabel: label
+		});
+		return { deletedAt: done.deletedAt!, purgeAt: purgeAt(done.deletedAt!) };
+	});
+}
+
+/** Brings a deleted org back. Refused once the purge has claimed it. */
+export async function restoreOrg(handle: DbHandle, orgId: string, actorId: string) {
+	return withTenant(handle, { orgId, userId: actorId }, async (tx) => {
+		await lockOrg(tx, orgId);
+		const label = await requireOwner(tx, orgId, actorId);
+		const [row] = await tx
+			.select({
+				name: org.name,
+				slug: org.slug,
+				deletedAt: org.deletedAt,
+				purgeStartedAt: org.purgeStartedAt
+			})
+			.from(org)
+			.where(eq(org.id, orgId));
+		if (!row) throw new OrgError('NOT_FOUND', 'That organisation does not exist.');
+		if (!row.deletedAt) return { restored: false };
+		if (row.purgeStartedAt)
+			throw new OrgError(
+				'INVALID',
+				'This organisation is being erased and can no longer be restored.'
+			);
+		await tx
+			.update(org)
+			.set({ deletedAt: null, updatedAt: sql`now()`, version: sql`${org.version} + 1` })
+			.where(eq(org.id, orgId));
+		await tx.insert(orgDeletionLog).values({
+			orgId,
+			orgName: row.name,
+			orgSlug: row.slug,
+			event: 'restored',
+			actorUserId: actorId,
+			actorLabel: label
+		});
+		return { restored: true };
 	});
 }

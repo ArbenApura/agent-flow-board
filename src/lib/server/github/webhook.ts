@@ -9,7 +9,7 @@ import type { PushCommit } from './commits';
 // -- DEP-MODULES -- //
 import { and, eq, inArray, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { githubInstallation, githubLink, publishRun } from '../db/schema';
+import { githubInstallation, githubLink, org, publishRun } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { checkPullRequest, linkCommits } from './commits';
 
@@ -77,6 +77,12 @@ export async function handleWebhook(
 	);
 	if (!known) return { handled: false, detail: 'unknown installation' };
 	const orgId = known.orgId;
+	// An org scheduled for deletion ignores GitHub until it is restored
+	const [live] = await withTenant(handle, { orgId }, (tx) =>
+		tx.select({ deletedAt: org.deletedAt }).from(org).where(eq(org.id, orgId))
+	);
+	if (!live || live.deletedAt)
+		return { handled: false, detail: 'organisation scheduled for deletion' };
 
 	const pause = (where: ReturnType<typeof and>) =>
 		withTenant(handle, { orgId }, async (tx) => {

@@ -8,7 +8,7 @@ import { error, redirect } from '@sveltejs/kit';
 import { appServices } from '../services';
 import { getDb } from '../db/index';
 import { OpError } from '../ops/context';
-import { orgForSlug } from '../orgs/orgs';
+import { orgForSlugIncludingDeleted } from '../orgs/orgs';
 import { ROLE_LABEL, type Role } from '../../shared/roles';
 
 // -- TYPES -- //
@@ -40,8 +40,10 @@ export function requireUser(locals: Locals, returnTo: string) {
 export async function orgContext(locals: Locals, slug: string, returnTo: string) {
 	const user = requireUser(locals, returnTo);
 	const handle = await getDb();
-	const org = await orgForSlug(handle, slug, user.id);
+	const org = await orgForSlugIncludingDeleted(handle, slug, user.id);
 	if (!org) error(404, 'Not found');
+	// An org scheduled for deletion has one page of its own, where an owner can restore it
+	if (org.deletedAt) redirect(303, `/deleted/${org.slug}`);
 	const ctx: Ctx = {
 		handle,
 		orgId: org.id,

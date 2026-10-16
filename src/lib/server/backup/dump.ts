@@ -31,7 +31,8 @@ export type BackupMeta = {
 // -- CONSTANTS -- //
 
 /** Counters and idempotency records that are worthless after a restore. */
-const SKIP = new Set(['rate_bucket', 'request_log']);
+// The deletion log is about the org but outlives it, so a backup of the org never carries it
+const SKIP = new Set(['rate_bucket', 'request_log', 'org_deletion_log']);
 const PAGE = 500;
 
 // -- FUNCTIONS -- //

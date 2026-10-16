@@ -141,10 +141,18 @@
 		statusError = '';
 		busy = true;
 		try {
-			await api(org, `/items/${d.item.ref}/status`, {
-				body: { status: nextStatus, note: note.trim() },
-				key: newKey()
-			});
+			await toast.promise(
+				api(org, `/items/${d.item.ref}/status`, {
+					body: { status: nextStatus, note: note.trim() },
+					key: newKey()
+				}),
+				{
+					id: 'item-status',
+					loading: 'Changing the status...',
+					success: 'Status changed.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The status was not changed.')
+				}
+			);
 			statusOpen = false;
 			note = '';
 			await invalidate('afb:project');
@@ -160,11 +168,24 @@
 		renameError = '';
 		busy = true;
 		try {
-			await api(org, `/items/${d.item.ref}`, {
-				method: 'PATCH',
-				body: { title: title.trim(), expectVersion: d.item.version },
-				key: newKey()
-			});
+			await toast.promise(
+				api(org, `/items/${d.item.ref}`, {
+					method: 'PATCH',
+					body: { title: title.trim(), expectVersion: d.item.version },
+					key: newKey()
+				}),
+				{
+					id: 'item-rename',
+					loading: 'Saving the title...',
+					success: 'Title changed.',
+					error: (e) =>
+						e instanceof ApiError && e.code === 'STALE_VERSION'
+							? 'Someone else changed this item first.'
+							: e instanceof ApiError
+								? e.message
+								: 'The title was not changed.'
+				}
+			);
 			renaming = false;
 			await invalidate('afb:project');
 		} catch (e) {

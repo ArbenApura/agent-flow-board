@@ -12,7 +12,7 @@ import type { GithubApi } from '../github/app';
 import { createHash } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { member, project, projectMember, requestLog } from '../db/schema';
+import { member, org, project, projectMember, requestLog } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { effectiveProjectRole } from '../orgs/roles';
 
@@ -71,7 +71,8 @@ export type OpErrorCode =
 	| 'RATE_LIMITED'
 	| 'CONFLICT'
 	| 'COMPLETED_REFUSED'
-	| 'CONFIRM_REQUIRED';
+	| 'CONFIRM_REQUIRED'
+	| 'ORG_LOCKED';
 
 export class OpError extends Error {
 	constructor(
@@ -122,6 +123,15 @@ export function effectiveCaps(role: Role | null, actor: Actor): Capability[] {
 	return actor.tokenCaps ? roleCaps.filter((c) => actor.tokenCaps!.includes(c)) : roleCaps;
 }
 
+export const ORG_LOCKED_MESSAGE =
+	'This organisation is scheduled for deletion. Its owner can restore it until it is erased.';
+
+/** Refuses any work in an org that an owner has deleted. Only the restore and summary verbs read such an org. */
+export async function assertOrgLive(tx: Tx, orgId: string): Promise<void> {
+	const [o] = await tx.select({ deletedAt: org.deletedAt }).from(org).where(eq(org.id, orgId));
+	if (o?.deletedAt) throw new OpError('ORG_LOCKED', ORG_LOCKED_MESSAGE);
+}
+
 /**
  * Reads the caller's live role in this org (and project, when given) inside the open transaction, and refuses the
  * call unless it holds the capability. Returns the role for the verb to use.
@@ -132,6 +142,7 @@ export async function requireCap(
 	cap: Capability,
 	projectId?: string
 ): Promise<{ role: Role; caps: Capability[] }> {
+	await assertOrgLive(tx, ctx.orgId);
 	const [m] = await tx
 		.select({ role: member.role })
 		.from(member)
@@ -189,7 +200,10 @@ export const tenantOf = (ctx: Ctx, projectId?: string) => ({
 
 /** Runs a verb in one transaction inside the caller's tenant. */
 export function run<T>(ctx: Ctx, fn: (tx: Tx) => Promise<T>, projectId?: string): Promise<T> {
-	return withTenant(ctx.handle, tenantOf(ctx, projectId), fn);
+	return withTenant(ctx.handle, tenantOf(ctx, projectId), async (tx) => {
+		await assertOrgLive(tx, ctx.orgId);
+		return fn(tx);
+	});
 }
 
 // -- RATE LIMITS (L9) -- //

@@ -7,6 +7,7 @@
 	import Notice from '#lib/ui/Notice.svelte';
 	import AuthShell from '#lib/ui/AuthShell.svelte';
 	import Button from '#lib/ui/Button.svelte';
+	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 
 	// -- REQUIRED PROPS -- //
 
@@ -18,7 +19,8 @@
 
 	// -- REACTIVE STATES -- //
 
-	const failed = $derived(data.failed || form?.code === 'EMAIL_FAILED');
+	// Any refusal of the resend shows in the notice, because the toast leaves it to the page (inline)
+	const failed = $derived(data.failed || (!!form && !form.resent && !!form.message));
 </script>
 
 <svelte:head><title>Check your email</title></svelte:head>
@@ -51,13 +53,14 @@
 			method="POST"
 			action="?/resend"
 			class="mt-4"
-			use:enhance={() => {
-				busy = true;
-				return async ({ update }) => {
-					await update({ reset: false });
-					busy = false;
-				};
-			}}
+			use:enhance={toastEnhance({
+				id: 'resend-verification',
+				loading: 'Sending the link...',
+				success: 'Verification email sent.',
+				inline: true,
+				onStart: () => (busy = true),
+				onDone: () => (busy = false)
+			})}
 		>
 			<input type="hidden" name="email" value={data.email} />
 			<input type="hidden" name="next" value={data.next} />

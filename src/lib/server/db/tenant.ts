@@ -21,6 +21,8 @@ export type Tenant = {
 	userId?: string;
 	/** Names a GitHub App installation, so a webhook can find the org it belongs to. Only that one row is visible. */
 	installationId?: string;
+	/** Lets the purge sweep list the orgs an owner deleted, and nothing else. Used by no request path. */
+	purgeSweep?: boolean;
 };
 
 // -- FUNCTIONS -- //
@@ -51,6 +53,7 @@ export async function withTenant<T>(
 	if (tenant.installationId !== undefined && !/^[0-9]{1,20}$/.test(tenant.installationId))
 		throw new Error('installationId must be digits');
 	const installationId = tenant.installationId ?? '';
+	const purgeSweep = tenant.purgeSweep ? 'on' : '';
 	return handle.db.transaction(async (tx) => {
 		if (handle.batchSetup) {
 			// One round trip for the whole setup. The values are escaped as literals, and the ids are checked above
@@ -58,14 +61,14 @@ export async function withTenant<T>(
 			const role = handle.switchRole ? `SET LOCAL ROLE ${RUNTIME_ROLE}; ` : '';
 			await tx.execute(
 				sql.raw(
-					`${role}select set_config('app.org_id', ${lit(org)}, true), set_config('app.project_id', ${lit(project)}, true), set_config('app.user_id', ${lit(userId)}, true), set_config('app.org_slug', ${lit(orgSlug)}, true), set_config('app.installation_id', ${lit(installationId)}, true)`
+					`${role}select set_config('app.org_id', ${lit(org)}, true), set_config('app.project_id', ${lit(project)}, true), set_config('app.user_id', ${lit(userId)}, true), set_config('app.org_slug', ${lit(orgSlug)}, true), set_config('app.installation_id', ${lit(installationId)}, true), set_config('app.purge_sweep', ${lit(purgeSweep)}, true)`
 				)
 			);
 			return fn(tx);
 		}
 		if (handle.switchRole) await tx.execute(sql.raw(`SET LOCAL ROLE ${RUNTIME_ROLE}`));
 		await tx.execute(
-			sql`select set_config('app.org_id', ${org}, true), set_config('app.project_id', ${project}, true), set_config('app.user_id', ${userId}, true), set_config('app.org_slug', ${orgSlug}, true), set_config('app.installation_id', ${installationId}, true)`
+			sql`select set_config('app.org_id', ${org}, true), set_config('app.project_id', ${project}, true), set_config('app.user_id', ${userId}, true), set_config('app.org_slug', ${orgSlug}, true), set_config('app.installation_id', ${installationId}, true), set_config('app.purge_sweep', ${purgeSweep}, true)`
 		);
 		return fn(tx);
 	});

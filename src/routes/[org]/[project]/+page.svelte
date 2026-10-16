@@ -25,6 +25,7 @@
 	import Popover from '#lib/ui/Popover.svelte';
 	import Skeleton from '#lib/ui/Skeleton.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import { toast } from '#lib/ui/toast.svelte.js';
 	import VirtualList from '#lib/ui/VirtualList.svelte';
 	// -- DEP-COMPONENTS -- //
 	import Check from '@lucide/svelte/icons/check';
@@ -154,10 +155,18 @@
 		newError = '';
 		busy = true;
 		try {
-			const made = await api<{ ref: string }>(org, `/projects/${key}/items`, {
-				body: { title: newTitle.trim(), phases: [] },
-				key: newKey()
-			});
+			const made = await toast.promise(
+				api<{ ref: string }>(org, `/projects/${key}/items`, {
+					body: { title: newTitle.trim(), phases: [] },
+					key: newKey()
+				}),
+				{
+					id: 'item-create',
+					loading: 'Creating the item...',
+					success: 'Item created.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The item was not created.')
+				}
+			);
 			creating = false;
 			newTitle = '';
 			await goto(itemHref(made.ref));

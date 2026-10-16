@@ -162,7 +162,9 @@ export async function runBackup(
 	{ orgId: string; state: 'done' | 'failed' | 'skipped'; location?: string; error?: string }[]
 > {
 	const now = options.now ?? new Date();
-	const orgs = await deps.admin.query<{ id: string }>(`select "id" from "org" order by "id"`);
+	const orgs = await deps.admin.query<{ id: string }>(
+		`select "id" from "org" where "deleted_at" is null order by "id"`
+	);
 	const out: Awaited<ReturnType<typeof runBackup>> = [];
 	for (const { id: orgId } of orgs) {
 		if (options.skipIfWithinHours) {
@@ -251,7 +253,9 @@ export async function checkLateBackups(
 	deps: { handle: DbHandle; admin: Admin; mailer?: Mailer },
 	now = new Date()
 ): Promise<{ orgId: string; message: string }[]> {
-	const orgs = await deps.admin.query<{ id: string }>(`select "id" from "org" order by "id"`);
+	const orgs = await deps.admin.query<{ id: string }>(
+		`select "id" from "org" where "deleted_at" is null order by "id"`
+	);
 	const flagged: { orgId: string; message: string }[] = [];
 	for (const { id: orgId } of orgs) {
 		const health = await backupHealth(deps.handle, orgId, now);

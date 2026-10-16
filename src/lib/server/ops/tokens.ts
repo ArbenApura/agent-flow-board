@@ -145,6 +145,9 @@ export async function authenticateToken(
 			.from(apiToken)
 			.where(eq(apiToken.hash, hashOf(presented)));
 		if (!t || t.revokedAt || t.expiresAt <= new Date()) return null;
+		// A token of an org scheduled for deletion stops working until the org is restored
+		const [o] = await tx.select({ deletedAt: org.deletedAt }).from(org).where(eq(org.id, orgId));
+		if (!o || o.deletedAt) return null;
 		// Written at most once a minute, so reading with a token does not turn into a write on every call
 		if (!t.lastUsedAt || Date.now() - t.lastUsedAt.getTime() > 60_000)
 			await tx

@@ -99,11 +99,13 @@
 	}
 
 	/** Runs one write from a dialog or inline form, and keeps the form open with the server's message when it fails. */
-	async function write(path: string, body: unknown, done: () => void) {
+	async function write(path: string, body: unknown, ok: string, done: () => void) {
 		formError = '';
 		busy = true;
 		try {
 			await api(env.org, path, { body, key: newKey() });
+			// The refusal shows on the field, so only the success is a toast
+			toast.success(ok);
 			done();
 			await env.onchanged();
 		} catch (e) {
@@ -202,6 +204,7 @@
 							void write(
 								`/items/${ref}/steps`,
 								{ phase: ph.key, steps: [{ text: stepText.trim() }] },
+								'Step added.',
 								() => {
 									stepText = '';
 									addingTo = null;
@@ -350,6 +353,7 @@
 			void write(
 				`/items/${ref}/phases`,
 				{ key: phaseKey.trim(), title: phaseTitle.trim() },
+				'Phase added.',
 				() => (addingPhase = false)
 			);
 		}}
@@ -377,6 +381,7 @@
 			void write(
 				`/items/${ref}/checks`,
 				{ checks: [{ key: nextCheckKey, text: checkText.trim(), auto: checkAuto }] },
+				'Check added.',
 				() => {
 					addingCheck = false;
 					checkText = '';

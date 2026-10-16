@@ -61,6 +61,10 @@ export const org = tenantTable(
 			.$type<OrgSettings>()
 			.notNull()
 			.default(sql`'{}'::jsonb`),
+		/** Set when an owner deletes the org. The org is locked until it is restored or erased once the grace period ends. */
+		deletedAt: timestamp('deleted_at', { withTimezone: true }),
+		/** Set when the purge claims the org. From then on it can no longer be restored. */
+		purgeStartedAt: timestamp('purge_started_at', { withTimezone: true }),
 		...stamps(),
 		version: version()
 	},
@@ -70,7 +74,7 @@ export const org = tenantTable(
 	{
 		orgColumn: 'id',
 		using:
-			"id = nullif(current_setting('app.org_id', true), '')::uuid or slug = nullif(current_setting('app.org_slug', true), '') or id in (select org_id from member where user_id = nullif(current_setting('app.user_id', true), ''))"
+			"id = nullif(current_setting('app.org_id', true), '')::uuid or slug = nullif(current_setting('app.org_slug', true), '') or id in (select org_id from member where user_id = nullif(current_setting('app.user_id', true), '')) or (current_setting('app.purge_sweep', true) = 'on' and deleted_at is not null)"
 	}
 );
 
@@ -180,6 +184,34 @@ export const projectCounter = tenantTable('project_counter', 'project', {
 	/** The same counter for tasks, so T-04 style numbers never repeat. */
 	nextTask: integer('next_task').notNull().default(1)
 });
+
+// -- ORG DELETION LOG (outlives the org: org_id has no foreign key, so the purge does not erase it) -- //
+
+export const ORG_DELETION_EVENTS = ['deleted', 'restored', 'purged'] as const;
+
+/** Who deleted which org and when. Insert only. It holds no tokens, secrets or org content. */
+export const orgDeletionLog = tenantTable(
+	'org_deletion_log',
+	'org',
+	{
+		id: id(),
+		/** The org this row is about. Not a foreign key on purpose, the row must survive the org. */
+		orgId: uuid('org_id').notNull(),
+		orgName: text('org_name').notNull(),
+		/** Not unique: the address is free again once the org is erased. */
+		orgSlug: text('org_slug').notNull(),
+		event: text('event', { enum: ORG_DELETION_EVENTS }).notNull(),
+		/** The person who acted. Not a foreign key, so deleting a person never changes the log. */
+		actorUserId: text('actor_user_id'),
+		actorLabel: text('actor_label').notNull().default(''),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [
+		index('org_deletion_log_org_idx').on(t.orgId),
+		oneOf('org_deletion_log_event_chk', t.event, ORG_DELETION_EVENTS)
+	],
+	{ appendOnly: true }
+);
 
 // -- USER PREFERENCES (one row per person, readable by that person only) -- //
 

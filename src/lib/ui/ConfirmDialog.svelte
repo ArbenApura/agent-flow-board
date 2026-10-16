@@ -15,6 +15,7 @@
 		confirmLabel,
 		cancelLabel = 'Cancel',
 		tone = 'primary',
+		confirmDisabled = false,
 		onconfirm
 	}: {
 		open: boolean;
@@ -25,6 +26,8 @@
 		confirmLabel: string;
 		cancelLabel?: string;
 		tone?: 'primary' | 'danger';
+		/** Keeps the confirm button off until the dialog's own field is filled in correctly. */
+		confirmDisabled?: boolean;
 		/** Runs while the buttons show a busy state. The dialog closes only after it succeeds. */
 		onconfirm: () => void | Promise<void>;
 	} = $props();
@@ -33,6 +36,13 @@
 
 	let busy = $state(false);
 	let error = $state<string | null>(null);
+
+	// -- REACTIVE STATEMENTS -- //
+
+	// A message from an earlier try does not greet the next one
+	$effect(() => {
+		if (open) error = null;
+	});
 
 	// -- FUNCTIONS -- //
 
@@ -56,7 +66,12 @@
 	{#if error}<p role="alert" class="mt-3 text-sm text-danger">{error}</p>{/if}
 	{#snippet footer()}
 		<Button variant="secondary" disabled={busy} onclick={onclose}>{cancelLabel}</Button>
-		<Button variant={tone === 'danger' ? 'danger' : 'primary'} loading={busy} onclick={confirm}>
+		<Button
+			variant={tone === 'danger' ? 'danger' : 'primary'}
+			loading={busy}
+			disabled={confirmDisabled}
+			onclick={confirm}
+		>
 			{confirmLabel}
 		</Button>
 	{/snippet}

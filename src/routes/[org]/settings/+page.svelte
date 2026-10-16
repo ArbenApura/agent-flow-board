@@ -5,7 +5,7 @@
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	// -- ENVS -- //
 	import { enhance } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import PageFrame from '#lib/ui/PageFrame.svelte';
@@ -14,18 +14,27 @@
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import { verbText } from '#lib/board/verbs.js';
+	import { addDays, formatUtcDate, groupByDay } from '#lib/board/when.js';
+	import { ORG_DELETE_GRACE_DAYS, sameOrgName } from '#lib/shared/orgDeletion.js';
 	import { ROLE_LABEL, type Role } from '#lib/shared/roles.js';
 	import { createFollower } from '#lib/settings/follow.js';
+	import IdentityHeader from '#lib/settings/IdentityHeader.svelte';
 	import PalettePicker from '#lib/settings/PalettePicker.svelte';
 	import Runners from '#lib/settings/Runners.svelte';
 	import Section from '#lib/settings/Section.svelte';
+	import SettingsRow from '#lib/settings/SettingsRow.svelte';
+	import OrgTile from '#lib/board/OrgTile.svelte';
+	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
+	import { cn } from '#lib/ui/cn.js';
 	import Button from '#lib/ui/Button.svelte';
+	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte';
 	import FilePicker from '#lib/ui/FilePicker.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
+	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	// -- DEP-COMPONENTS -- //
 	import Settings from '@lucide/svelte/icons/settings';
@@ -35,6 +44,7 @@
 	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import Gauge from '@lucide/svelte/icons/gauge';
 	import ScrollText from '@lucide/svelte/icons/scroll-text';
+	import Trash2 from '@lucide/svelte/icons/trash-2';
 
 	// -- REQUIRED PROPS -- //
 
@@ -65,13 +75,25 @@
 	let nextAudit = $state<number | null>(null);
 	let auditProject = $state('');
 	let busyTest = $state(false);
+	/** True while a file is held over the logo area. */
+	let dragging = $state(false);
+	let deleteOpen = $state(false);
+	let typedName = $state('');
+	/** Kept while the dialog closes, so its numbers do not vanish during the transition. */
+	let deleteCounts = $state<{ projects: number; items: number; files: number } | null>(null);
 
 	// -- REACTIVE STATES -- //
 
 	const org = $derived(data.org.slug);
 	const s = $derived(data.settings);
 	const can = $derived(s.canManage);
+	const isOwner = $derived(data.org.role === 'owner');
 	const events = $derived([...(data.audit?.events ?? []), ...extraAudit]);
+	// The worked example under the token limit: a token made today lives this many days. UTC on both sides, so the page hydrates without a jump
+	const tokenExpiry = $derived(formatUtcDate(addDays(Date.now(), tokenMaxDays)));
+	const biggestBackup = $derived(
+		Math.max(1, ...(data.backups?.runs ?? []).map((r) => r.size ?? 0))
+	);
 	const dirty = $derived({
 		general: name.trim() !== s.name,
 		palette: (accent ?? null) !== (s.accent ?? null),
@@ -97,20 +119,27 @@
 	});
 
 	/** Saves one section: sends only its own fields, and shows its own result. */
-	async function save(id: string, body: Record<string, unknown>) {
+	async function save(id: string, body: Record<string, unknown>, ok = 'Saved.') {
 		status[id] = { saving: true, saved: false, error: '' };
 		try {
-			await api(org, '/settings', { method: 'PATCH', body, key: newKey() });
-			// The name, the palette and the logo also show in the page header, so everything is read again
-			await invalidateAll();
-			status[id] = { saving: false, saved: true, error: '' };
+			// The toast wraps the raw write, so a refusal rejects it and no success toast shows
+			await toast.promise(api(org, '/settings', { method: 'PATCH', body, key: newKey() }), {
+				id: `save-${id}`,
+				loading: 'Saving...',
+				success: ok,
+				error: (e) => (e instanceof ApiError ? e.message : 'That was not saved.')
+			});
 		} catch (e) {
 			status[id] = {
 				saving: false,
 				saved: false,
 				error: e instanceof ApiError ? e.message : 'That was not saved.'
 			};
+			return;
 		}
+		// The name, the palette and the logo also show in the page header, so everything is read again
+		await invalidateAll();
+		status[id] = { saving: false, saved: true, error: '' };
 	}
 
 	async function act(run: () => Promise<unknown>, ok: string) {
@@ -157,6 +186,27 @@
 		await act(() => api(org, `/invites/${id}`, { method: 'DELETE' }), 'Invitation withdrawn.');
 	};
 
+	async function openDelete() {
+		typedName = '';
+		deleteCounts = null;
+		deleteOpen = true;
+		try {
+			deleteCounts = await api(org, '/deletion');
+		} catch {
+			// The numbers are a courtesy: the dialog still works without them
+		}
+	}
+
+	async function deleteOrganisation() {
+		await toast.promise(api(org, '/delete', { body: { name: typedName } }), {
+			id: 'delete-organisation',
+			loading: 'Deleting the organisation...',
+			success: 'Organisation scheduled for deletion.',
+			error: (e) => (e instanceof Error ? e.message : 'The organisation was not deleted.')
+		});
+		await goto(`/deleted/${org}`, { invalidateAll: true });
+	}
+
 	async function uploadLogo(file: File | undefined) {
 		if (!file) return;
 		await act(async () => {
@@ -196,6 +246,14 @@
 	}
 	let filtered = $state(false);
 	const shownEvents = $derived(filtered ? extraAudit : events);
+	const auditDays = $derived(groupByDay(shownEvents, (e) => e.createdAt));
+
+	/** A file dropped on the logo area goes the same way as one chosen with the button, so the server checks its type and size. */
+	function dropLogo(e: DragEvent) {
+		e.preventDefault();
+		dragging = false;
+		if (can) void uploadLogo(e.dataTransfer?.files?.[0]);
+	}
 </script>
 
 <svelte:head><title>Organisation settings, {data.org.name}</title></svelte:head>
@@ -212,6 +270,7 @@
 		<Section
 			id="general"
 			icon={Settings}
+			group="Organisation"
 			title="Name"
 			text="The name people see at the top of every page."
 			dirty={dirty.general}
@@ -219,8 +278,13 @@
 			saved={st('general').saved}
 			error={st('general').error}
 			readonly={!can}
-			onsave={() => save('general', { name: name.trim() })}
+			onsave={() => save('general', { name: name.trim() }, 'Organisation details saved.')}
 		>
+			<IdentityHeader title={data.org.name} subtitle={`/${data.org.slug}`}>
+				{#snippet lead()}<OrgTile name={data.org.name} logo={s.logo} size={40} />{/snippet}
+				<Badge tone="accent">{ROLE_LABEL[data.org.role as Role]}</Badge>
+				<Badge>{data.members.length} {data.members.length === 1 ? 'member' : 'members'}</Badge>
+			</IdentityHeader>
 			<TextField
 				label="Organisation name"
 				bind:value={name}
@@ -233,24 +297,37 @@
 		<Section
 			id="palette"
 			icon={Palette}
-			title="Organisation colour and logo"
+			group="Organisation"
+			title="Colour and logo"
 			text="Shared by everyone in this organisation: the accent colour and the logo. Members only choose light or dark for themselves, in their account settings."
 			dirty={dirty.palette}
 			saving={st('palette').saving}
 			saved={st('palette').saved}
 			error={st('palette').error}
 			readonly={!can}
-			onsave={() => save('palette', { accent })}
+			onsave={() => save('palette', { accent }, 'Colour saved.')}
 		>
 			<PalettePicker bind:value={accent} label="Organisation accent colour" disabled={!can} />
-			<div class="flex flex-wrap items-center gap-3 border-t border-line pt-3">
-				{#if s.logo}
-					<img
-						src={s.logo}
-						alt="The current logo"
-						class="size-11 rounded-lg border border-line object-contain"
-					/>
-				{/if}
+			<!-- THE LOGO AREA TAKES A DROPPED FILE AS WELL AS THE BUTTON. THE SERVER STILL CHECKS ITS TYPE AND SIZE -->
+			<div
+				role="group"
+				aria-label="Logo"
+				ondragover={(e) => {
+					// Always stop the browser opening the file, even for someone who may not upload
+					e.preventDefault();
+					if (can) dragging = true;
+				}}
+				ondragleave={() => (dragging = false)}
+				ondrop={dropLogo}
+				class={cn(
+					'flex flex-wrap items-center gap-3 rounded-lg border p-3',
+					can && 'border-dashed',
+					dragging ? 'border-accent bg-accent-soft' : 'border-line'
+				)}
+			>
+				<span class="inline-flex shrink-0" title="The current logo">
+					<OrgTile name={data.org.name} logo={s.logo} size={40} />
+				</span>
 				{#if can}
 					<FilePicker
 						label="Logo"
@@ -275,34 +352,35 @@
 		<Section
 			id="members"
 			icon={Users}
+			group="People"
 			title="Members and roles"
 			text="Who is in this organisation and what they may do. Changes apply at once."
 		>
-			<ul class="rounded-lg border border-line" data-testid="member-list">
+			<ul class="overflow-hidden rounded-lg border border-line" data-testid="member-list">
 				{#each data.members as m (`${m.userId}-${rev}`)}
-					<li
-						class="flex min-h-12 flex-wrap items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-						data-item
-						data-testid="member"
-					>
-						<span class="min-w-0 flex-1 text-sm"
-							>{m.name} <span class="text-muted">{m.email}</span></span
-						>
-						{#if can}
-							<Select
-								label={`Role of ${m.name}`}
-								value={m.role}
-								options={roleOptions}
-								onchange={(v) => changeRole(m.userId, v)}
-								class="w-36"
-							/>
-							<Button size="sm" variant="ghost" onclick={() => removeMember(m.userId)}
-								>Remove</Button
-							>
-						{:else}
-							<Badge>{ROLE_LABEL[m.role]}</Badge>
-						{/if}
-					</li>
+					<SettingsRow data-testid="member">
+						{#snippet lead()}<Avatar name={m.name} />{/snippet}
+						<span class="block truncate font-medium text-ink">{m.name}</span>
+						<span class="block truncate text-xs text-muted">{m.email}</span>
+						{#snippet trail()}
+							{#if can}
+								<Select
+									label={`Role of ${m.name}`}
+									value={m.role}
+									options={roleOptions}
+									onchange={(v) => changeRole(m.userId, v)}
+									class="w-36"
+								/>
+								<Button
+									variant="secondary"
+									class="text-danger"
+									onclick={() => removeMember(m.userId)}>Remove</Button
+								>
+							{:else}
+								<Badge>{ROLE_LABEL[m.role]}</Badge>
+							{/if}
+						{/snippet}
+					</SettingsRow>
 				{/each}
 			</ul>
 			{#if can}
@@ -332,16 +410,25 @@
 					>
 				</form>
 				{#if data.invites.length}
-					<ul class="rounded-lg border border-line" data-testid="invite-list">
+					<div class="text-xs font-medium text-muted">Waiting for a reply</div>
+					<ul class="overflow-hidden rounded-lg border border-line" data-testid="invite-list">
 						{#each data.invites as i (i.id)}
-							<li
-								class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-								data-item
-							>
-								<span class="min-w-0 flex-1 text-sm">{i.email}</span>
-								<Badge>{ROLE_LABEL[i.role as Role]}</Badge>
-								<Button size="sm" variant="ghost" onclick={() => withdraw(i.id)}>Withdraw</Button>
-							</li>
+							<SettingsRow>
+								{#snippet lead()}
+									<span
+										class="inline-flex size-8 items-center justify-center rounded-full border border-dashed border-line text-muted"
+										aria-hidden="true"><Mail size={16} /></span
+									>
+								{/snippet}
+								<span class="block truncate font-medium text-ink">{i.email}</span>
+								<span class="block truncate text-xs text-muted">Sent {ago(i.createdAt)}</span>
+								{#snippet trail()}
+									<Badge>{ROLE_LABEL[i.role as Role]}</Badge>
+									<Button variant="secondary" class="text-danger" onclick={() => withdraw(i.id)}
+										>Withdraw</Button
+									>
+								{/snippet}
+							</SettingsRow>
 						{/each}
 					</ul>
 				{/if}
@@ -351,30 +438,41 @@
 		<Section
 			id="email"
 			icon={Mail}
+			group="Delivery"
 			title="Email sending"
 			text="How this server sends invitations, sign in codes and alerts."
 		>
 			{#if data.email.configured}
-				<div class="text-sm">
-					Sending through <Badge tone="info">{data.email.provider}</Badge>
-					{#if data.email.provider === 'log'}
-						<span class="text-muted"
-							>The log sender only writes mail to a file, nothing leaves the server.</span
+				<!-- THE PROVIDER CARD. A REAL PROVIDER IS GREEN, THE LOG SENDER IS AMBER BECAUSE NOTHING LEAVES THE SERVER -->
+				<div
+					class="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-raised/50 p-3"
+				>
+					<span class="min-w-0 flex-1 text-sm">
+						Sending through <Badge tone={data.email.provider === 'log' ? 'warning' : 'success'} dot
+							>{data.email.provider}</Badge
 						>
-					{/if}
+						{#if data.email.provider === 'log'}
+							<span class="block text-muted"
+								>The log sender only writes mail to a file, nothing leaves the server.</span
+							>
+						{/if}
+					</span>
 				</div>
 				{#if can}
 					<form
 						method="POST"
 						action="?/testEmail"
 						class="flex flex-wrap items-center gap-3"
-						use:enhance={() => {
-							busyTest = true;
-							return async ({ update }) => {
-								await update();
-								busyTest = false;
-							};
-						}}
+						use:enhance={toastEnhance({
+							id: 'test-email',
+							loading: 'Sending the test email...',
+							success: 'Test email sent.',
+							inline: true,
+							// The form's own update keeps its default reset
+							reset: true,
+							onStart: () => (busyTest = true),
+							onDone: () => (busyTest = false)
+						})}
 					>
 						<Button type="submit" loading={busyTest} data-testid="test-email"
 							>Send me a test email</Button
@@ -395,12 +493,13 @@
 			{/if}
 		</Section>
 
-		<Runners {org} projects={data.projects} {can} baseUrl={page.url.origin} />
+		<Runners {org} projects={data.projects} {can} baseUrl={page.url.origin} group="Delivery" />
 
 		{#if can}
 			<Section
 				id="backups"
 				icon={DatabaseBackup}
+				group="Delivery"
 				title="Backups"
 				text="A nightly encrypted copy of this organisation, kept apart from the app. A copy on GitHub is a reference, not a backup."
 			>
@@ -409,8 +508,11 @@
 						Backups are not set up on this server. An operator turns them on with a backup key.
 					</div>
 				{:else}
-					<div class="flex flex-wrap items-center gap-2 text-sm" data-testid="backups-status">
-						<Badge tone={data.backups.health.ok ? 'success' : 'danger'}
+					<div
+						class="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-raised/50 p-3 text-sm"
+						data-testid="backups-status"
+					>
+						<Badge tone={data.backups.health.ok ? 'success' : 'danger'} dot
 							>{data.backups.health.ok ? 'healthy' : 'needs attention'}</Badge
 						>
 						{#if data.backups.health.message}<span class="text-danger"
@@ -421,20 +523,28 @@
 							>{/if}
 					</div>
 					{#if data.backups.runs.length}
-						<ul class="rounded-lg border border-line">
+						<ul class="overflow-hidden rounded-lg border border-line">
 							{#each data.backups.runs as r (r.id)}
-								<li
-									class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 text-sm last:border-b-0"
-									data-item
-								>
-									<Badge tone={r.state === 'done' ? 'success' : 'danger'}>{r.state}</Badge>
-									<span class="min-w-0 flex-1 truncate"
-										>{r.state === 'failed'
-											? r.error
-											: `${Math.round((r.size ?? 0) / 1024)} KB`}</span
-									>
-									<span class="text-xs text-muted">{ago(r.createdAt)}</span>
-								</li>
+								<SettingsRow>
+									{#snippet lead()}
+										<Badge tone={r.state === 'done' ? 'success' : 'danger'}>{r.state}</Badge>
+									{/snippet}
+									{#if r.state === 'failed'}
+										<span class="block truncate text-danger">{r.error}</span>
+									{:else}
+										<span class="block">{Math.round((r.size ?? 0) / 1024)} KB</span>
+										<!-- THE BAR IS THE SIZE OF THIS COPY AGAINST THE BIGGEST ONE, A RUNTIME PERCENT -->
+										<span
+											class="mt-1 block h-1 w-full max-w-48 overflow-hidden rounded-full bg-raised"
+											><span
+												class="block h-full rounded-full bg-accent"
+												style="width: {Math.round(((r.size ?? 0) / biggestBackup) * 100)}%"
+											></span></span
+										>
+									{/if}
+									{#snippet trail()}<span class="text-xs text-muted">{ago(r.createdAt)}</span
+										>{/snippet}
+								</SettingsRow>
 							{/each}
 						</ul>
 					{/if}
@@ -444,13 +554,15 @@
 			<Section
 				id="limits"
 				icon={Gauge}
+				group="Safety"
 				title="Security limits"
 				text="How long access tokens may live, and whether guests may be invited."
 				dirty={dirty.limits}
 				saving={st('limits').saving}
 				saved={st('limits').saved}
 				error={st('limits').error}
-				onsave={() => save('limits', { tokenMaxDays, allowGuestInvites: allowGuests })}
+				onsave={() =>
+					save('limits', { tokenMaxDays, allowGuestInvites: allowGuests }, 'Limits saved.')}
 			>
 				<Select
 					label="Longest life of an access token"
@@ -459,6 +571,14 @@
 					onchange={(v) => (tokenMaxDays = Number(v))}
 					class="w-48"
 				/>
+				<!-- THE WORKED EXAMPLE, SO A WRONG ANSWER SHOWS BEFORE IT IS SAVED. THE DATE IS UTC -->
+				<p
+					class="rounded-lg border border-line bg-raised/50 p-3 text-sm text-ink"
+					data-testid="limit-example"
+				>
+					A token made today expires on <span class="font-semibold">{tokenExpiry}</span>
+					(UTC), {tokenMaxDays} days from now.
+				</p>
 				<Switch
 					label="Guests may be invited"
 					hint="A guest sees only what is shared and may comment."
@@ -469,6 +589,7 @@
 			<Section
 				id="audit"
 				icon={ScrollText}
+				group="Safety"
 				title="Audit log"
 				text="Everything that changed in this organisation, newest first."
 			>
@@ -487,22 +608,35 @@
 				{#if shownEvents.length === 0}
 					<div class="text-sm text-muted">Nothing has happened here yet.</div>
 				{:else}
-					<ul class="rounded-lg border border-line" data-testid="audit-list">
-						{#each shownEvents as e (e.id)}
-							<li
-								class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-								data-item
-								data-testid="audit-event"
-							>
-								<span class="w-14 shrink-0 font-mono text-xs text-muted">{e.project}</span>
-								<span class="min-w-0 flex-1 truncate text-sm"
-									><span class="font-medium">{e.actorLabel ?? 'Someone'}</span>
-									{verbText(e.verb)}</span
-								>
-								<span class="shrink-0 text-xs text-muted">{ago(e.createdAt)}</span>
-							</li>
+					<!-- A TIMELINE: A RAIL WITH A NODE PER EVENT, GROUPED BY UTC DAY -->
+					<div class="flex flex-col gap-4" data-testid="audit-list">
+						{#each auditDays as day (day.key)}
+							<section aria-label={day.label}>
+								<h3 class="mb-1 text-xs font-medium text-muted">{day.label}</h3>
+								<ol class="ml-1.5 border-l border-line">
+									{#each day.items as e (e.id)}
+										<li
+											class="relative flex min-h-12 flex-wrap items-center gap-x-3 py-2 pl-5"
+											data-item
+											data-row
+											data-testid="audit-event"
+										>
+											<span
+												class="absolute top-1/2 -left-[4.5px] size-2 -translate-y-1/2 rounded-full border border-line bg-surface"
+												aria-hidden="true"
+											></span>
+											<span class="w-14 shrink-0 font-mono text-xs text-muted">{e.project}</span>
+											<span class="min-w-0 flex-1 truncate text-sm"
+												><span class="font-medium">{e.actorLabel ?? 'Someone'}</span>
+												{verbText(e.verb)}</span
+											>
+											<span class="shrink-0 text-xs text-muted">{ago(e.createdAt)}</span>
+										</li>
+									{/each}
+								</ol>
+							</section>
 						{/each}
-					</ul>
+					</div>
 					{#if nextAudit !== null}
 						<div>
 							<Button size="sm" onclick={moreAudit} data-testid="audit-more">Show more</Button>
@@ -511,5 +645,57 @@
 				{/if}
 			</Section>
 		{/if}
+
+		{#if isOwner}
+			<Section
+				id="delete"
+				group="Safety"
+				icon={Trash2}
+				title="Delete this organisation"
+				text={`Hides it for everyone now, and erases it for good after ${ORG_DELETE_GRACE_DAYS} days. An owner can restore it until then.`}
+			>
+				<div>
+					<Button variant="danger" onclick={openDelete} data-testid="delete-org"
+						>Delete this organisation</Button
+					>
+				</div>
+			</Section>
+		{/if}
 	</SettingsShell>
 </PageFrame>
+
+<!-- DELETING AN ORGANISATION NEEDS ITS NAME TYPED, SO A MISTAKEN CLICK CANNOT DO IT -->
+<ConfirmDialog
+	open={deleteOpen}
+	onclose={() => (deleteOpen = false)}
+	title="Delete this organisation?"
+	confirmLabel="Delete this organisation"
+	tone="danger"
+	confirmDisabled={!sameOrgName(typedName, data.org.name)}
+	onconfirm={deleteOrganisation}
+>
+	<div class="flex flex-col gap-3 text-[15px] leading-6" data-testid="delete-dialog">
+		<p>
+			{data.org.name} is hidden for everyone at once, and erased for good after {ORG_DELETE_GRACE_DAYS}
+			days. Its tokens, runners and connected tools stop working now.
+		</p>
+		{#if deleteCounts}
+			<p class="text-muted" data-testid="delete-counts">
+				It holds {deleteCounts.projects}
+				{deleteCounts.projects === 1 ? 'project' : 'projects'}, {deleteCounts.items}
+				{deleteCounts.items === 1 ? 'item' : 'items'} and {deleteCounts.files}
+				{deleteCounts.files === 1 ? 'file' : 'files'}.
+			</p>
+		{/if}
+		<TextField
+			label="Type the organisation name to confirm"
+			bind:value={typedName}
+			placeholder={data.org.name}
+			autocomplete="off"
+			autocapitalize="off"
+			autocorrect="off"
+			spellcheck={false}
+			data-testid="delete-name"
+		/>
+	</div>
+</ConfirmDialog>

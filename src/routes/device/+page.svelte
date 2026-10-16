@@ -11,6 +11,7 @@
 	import Checkbox from '#lib/ui/Checkbox.svelte';
 	import SelectField from '#lib/ui/SelectField.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 
 	// -- CONSTANTS -- //
 
@@ -83,7 +84,18 @@
 				? ` from ${confirm.info.origin}`
 				: ''}. The code expires in {Math.ceil(confirm.info.expiresInSeconds / 60)} minutes.
 		</div>
-		<form method="POST" action="?/approve" use:enhance class="flex flex-col gap-3">
+		<form
+			method="POST"
+			action="?/approve"
+			use:enhance={toastEnhance({
+				id: 'device-approve',
+				loading: 'Approving the tool...',
+				success: 'Tool approved.',
+				inline: true,
+				reset: true
+			})}
+			class="flex flex-col gap-3"
+		>
 			<input type="hidden" name="code" value={confirm.typed} />
 			<input type="hidden" name="org" value={org?.id ?? ''} />
 			<SelectField
@@ -109,7 +121,18 @@
 			</fieldset>
 			<Button type="submit" variant="primary" class="w-full">Approve</Button>
 		</form>
-		<form method="POST" action="?/deny" use:enhance class="mt-2">
+		<form
+			method="POST"
+			action="?/deny"
+			use:enhance={toastEnhance({
+				id: 'device-deny',
+				loading: 'Refusing the request...',
+				success: 'Request refused.',
+				inline: true,
+				reset: true
+			})}
+			class="mt-2"
+		>
 			<input type="hidden" name="code" value={confirm.typed} />
 			<Button type="submit" class="w-full">Refuse</Button>
 		</form>
@@ -117,7 +140,19 @@
 		{#if form && 'message' in form && form.message}
 			<Notice tone="danger" class="mb-3" data-testid="device-error">{form.message}</Notice>
 		{/if}
-		<form method="POST" action="?/lookup" use:enhance class="flex flex-col gap-3">
+		<form
+			method="POST"
+			action="?/lookup"
+			use:enhance={toastEnhance({
+				id: 'device-lookup',
+				loading: 'Checking the code...',
+				// The next step on the page is the feedback
+				success: null,
+				inline: true,
+				reset: true
+			})}
+			class="flex flex-col gap-3"
+		>
 			<TextField
 				label="Code from your tool"
 				name="code"

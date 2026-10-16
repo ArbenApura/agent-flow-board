@@ -11,6 +11,9 @@
 	import Checkbox from '#lib/ui/Checkbox.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import { toast } from '#lib/ui/toast.svelte.js';
+	// -- DEP-COMPONENTS -- //
+	import Server from '@lucide/svelte/icons/server';
 
 	// -- TYPES -- //
 
@@ -22,12 +25,15 @@
 		org,
 		projects,
 		can,
-		baseUrl
+		baseUrl,
+		group
 	}: {
 		org: string;
 		projects: { key: string; name: string; webApp: boolean }[];
 		can: boolean;
 		baseUrl: string;
+		/** The heading its tab sits under in the settings navigation. */
+		group?: string;
 	} = $props();
 
 	// -- STATES -- //
@@ -37,7 +43,6 @@
 	let kind = $state('local');
 	let chosen = $state<Record<string, boolean>>({});
 	let made = $state<{ token: string; name: string; kind: string } | null>(null);
-	let error = $state('');
 	let busy = $state('');
 	let editing = $state<{ id: string; chosen: Record<string, boolean> } | null>(null);
 
@@ -67,21 +72,29 @@
 
 	async function create() {
 		busy = 'create';
-		error = '';
 		try {
-			const r = await api<{ token: string; name: string; kind: string }>(org, '/runners', {
-				body: {
-					name: name.trim(),
-					kind,
-					projects: webApps.filter((p) => chosen[p.key]).map((p) => p.key)
+			// The text is fixed on purpose: the token is shown once on the page, never in a toast
+			const r = await toast.promise(
+				api<{ token: string; name: string; kind: string }>(org, '/runners', {
+					body: {
+						name: name.trim(),
+						kind,
+						projects: webApps.filter((p) => chosen[p.key]).map((p) => p.key)
+					}
+				}),
+				{
+					id: 'runner-create',
+					loading: 'Making the runner...',
+					success: 'Runner made. Copy its token now, it is shown once.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The runner was not made.')
 				}
-			});
+			);
 			made = r;
 			name = '';
 			chosen = {};
 			await load();
-		} catch (e) {
-			error = e instanceof ApiError ? e.message : 'The runner was not made.';
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			busy = '';
 		}
@@ -90,16 +103,23 @@
 	async function saveProjects() {
 		if (!editing) return;
 		busy = `projects-${editing.id}`;
-		error = '';
 		try {
-			await api(org, `/runners/${editing.id}/projects`, {
-				method: 'PUT',
-				body: { projects: webApps.filter((p) => editing!.chosen[p.key]).map((p) => p.key) }
-			});
+			await toast.promise(
+				api(org, `/runners/${editing.id}/projects`, {
+					method: 'PUT',
+					body: { projects: webApps.filter((p) => editing!.chosen[p.key]).map((p) => p.key) }
+				}),
+				{
+					id: 'runner-projects',
+					loading: 'Saving the projects...',
+					success: 'Projects saved.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The projects were not saved.')
+				}
+			);
 			editing = null;
 			await load();
-		} catch (e) {
-			error = e instanceof ApiError ? e.message : 'The projects were not saved.';
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			busy = '';
 		}
@@ -115,12 +135,16 @@
 		)
 			return;
 		busy = `remove-${id}`;
-		error = '';
 		try {
-			await api(org, `/runners/${id}`, { method: 'DELETE' });
+			await toast.promise(api(org, `/runners/${id}`, { method: 'DELETE' }), {
+				id: 'runner-remove',
+				loading: 'Removing the runner...',
+				success: 'Runner removed.',
+				error: (e) => (e instanceof ApiError ? e.message : 'The runner was not removed.')
+			});
 			await load();
-		} catch (e) {
-			error = e instanceof ApiError ? e.message : 'The runner was not removed.';
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			busy = '';
 		}
@@ -132,6 +156,8 @@
 
 <Section
 	id="runners"
+	icon={Server}
+	{group}
 	title="Runners"
 	text="Programs that run browser checks and UI shots. A local runner works on a machine you own and asks you before it runs anything new. A hosted runner runs in a throwaway container."
 >
@@ -187,7 +213,6 @@
 			{/each}
 		</ul>
 	{/if}
-	{#if error}<p role="alert" class="text-sm text-danger" data-testid="runner-error">{error}</p>{/if}
 
 	{#if can}
 		{#if made}

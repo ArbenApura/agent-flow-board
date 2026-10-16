@@ -36,6 +36,18 @@ export const MAX_PASSWORD = 128;
 
 // -- FUNCTIONS -- //
 
+/**
+ * Browsers share cookies between ports on localhost, so the dev server and the build preview (same port 5180, other secret and
+ * database) would overwrite and clear each other's session cookie. Over plain http the name carries a short tag of the secret, so
+ * each server only ever sees its own cookie. A secure (deployed) site keeps the plain `afb` prefix.
+ */
+export function cookiePrefix(secret: string, secure: boolean): string {
+	if (secure) return 'afb';
+	let hash = 2166136261;
+	for (let i = 0; i < secret.length; i++) hash = Math.imul(hash ^ secret.charCodeAt(i), 16777619);
+	return `afb-${(hash >>> 0).toString(36)}`;
+}
+
 export function createAuth(deps: { handle: DbHandle; mailer: Mailer; config: AuthConfig }) {
 	const { handle, mailer, config } = deps;
 	const db = handle.db;
@@ -109,7 +121,7 @@ export function createAuth(deps: { handle: DbHandle; mailer: Mailer; config: Aut
 				'/send-verification-email': { window: 3600, max: 5 }
 			}
 		},
-		advanced: { cookiePrefix: 'afb', useSecureCookies: secure },
+		advanced: { cookiePrefix: cookiePrefix(config.secret, secure), useSecureCookies: secure },
 		plugins: [
 			haveIBeenPwned({ enabled: config.checkBreachedPasswords }),
 			...(config.plugins ?? [])

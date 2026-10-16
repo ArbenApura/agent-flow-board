@@ -90,7 +90,7 @@ export async function handleApi(req: ApiRequest, deps: ApiDeps): Promise<ApiResp
 		}
 
 		if (req.path === '/me' && req.method === 'GET') {
-			const orgs = await listMyOrgs(deps.handle, userId);
+			const orgs = (await listMyOrgs(deps.handle, userId)).filter((o) => !o.deletedAt);
 			return {
 				status: 200,
 				headers: NO_STORE,

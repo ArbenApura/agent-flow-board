@@ -44,6 +44,22 @@ export function paletteCss(p: OrgPalette | null | undefined): string {
 	return `${light ? `html:root,html[data-mode='light']{${light}}` : ''}${dark ? `html[data-mode='dark']{${dark}}` : ''}`;
 }
 
+/**
+ * The accent of one organisation for a small tile, as inline custom properties for both modes.
+ * A tile of another organisation (a list, a switcher) cannot read the page accent, which belongs to the current organisation.
+ */
+export function tileStyle(p: OrgPalette | null | undefined): string {
+	if (!p) return '';
+	const out: string[] = [];
+	for (const mode of ['light', 'dark'] as const) {
+		for (const k of ['--accent', '--accent-soft', '--accent-text'] as const) {
+			const v = p[mode]?.[k] ?? '';
+			if (HEX.test(v)) out.push(`--tile${k.slice(1)}-${mode}:${v}`);
+		}
+	}
+	return out.join(';');
+}
+
 /** The palettes in order, a later one over an earlier one. The app passes the organisation's palette only. */
 export const styleFor = (...palettes: (OrgPalette | null | undefined)[]): string =>
 	palettes.map(paletteCss).join('');

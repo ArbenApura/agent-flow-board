@@ -4,7 +4,7 @@
 	let { size = 24, class: extra }: { size?: number; class?: string } = $props();
 </script>
 
-<!-- THE MARK: THREE NODES JOINED BY A PATH, THE LAST ONE A CHECK. COLOURS FOLLOW THE TOKENS (design/mark/) -->
+<!-- THE MARK: THREE NODES JOINED BY A PATH, THE LAST ONE A CHECK. COLOURS FOLLOW THE TOKENS -->
 <svg
 	width={size}
 	height={size}

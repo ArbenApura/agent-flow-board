@@ -51,7 +51,16 @@
 		error = '';
 		busy = true;
 		try {
-			await api(org, `/projects/${key}/tasks`, { body: { title: title.trim() }, key: newKey() });
+			// The text is fixed: a toast never carries what the person typed
+			await toast.promise(
+				api(org, `/projects/${key}/tasks`, { body: { title: title.trim() }, key: newKey() }),
+				{
+					id: 'task-add',
+					loading: 'Adding the task...',
+					success: 'Task added.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The task was not added.')
+				}
+			);
 			title = '';
 			adding = false;
 			await invalidate('afb:project');

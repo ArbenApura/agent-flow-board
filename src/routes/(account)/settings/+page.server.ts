@@ -37,6 +37,8 @@ export const load: PageServerLoad = async ({ locals, request, url, depends }) =>
 	]);
 	const tools = [];
 	for (const o of orgs) {
+		// An org scheduled for deletion has no working tokens, and asking it for them is refused
+		if (o.deletedAt) continue;
 		const ctx = {
 			handle,
 			orgId: o.id,

@@ -133,7 +133,14 @@ import {
 import { backupHealth } from '../backup/run';
 import { handleHook, hookInput } from '../ops/hooks';
 import { createInvite, listInvites, revokeInvite } from '../orgs/invites';
-import { changeRole, listMembers, removeMember, setProjectRole } from '../orgs/orgs';
+import {
+	changeRole,
+	deleteOrg,
+	listMembers,
+	orgDeletionSummary,
+	removeMember,
+	setProjectRole
+} from '../orgs/orgs';
 
 // -- TYPES -- //
 
@@ -678,6 +685,25 @@ export const routes: Route[] = [
 		sessionOnly: true,
 		handler: ({ ctx, params }) =>
 			removeMember(ctx.handle, ctx.orgId, ctx.actor.userId, params.userId)
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/deletion',
+		summary: 'What deleting the organisation would remove (owners only)',
+		tag: 'Members',
+		sessionOnly: true,
+		handler: ({ ctx }) => orgDeletionSummary(ctx.handle, ctx.orgId, ctx.actor.userId)
+	},
+	{
+		method: 'POST',
+		path: '/orgs/{org}/delete',
+		summary:
+			'Delete the organisation (owners only). It is locked at once and erased after the grace period unless an owner restores it. Restoring is done on the web page of the locked organisation.',
+		tag: 'Members',
+		sessionOnly: true,
+		body: z.object({ name: z.string().max(200) }),
+		handler: ({ ctx, body }) =>
+			deleteOrg(ctx.handle, ctx.orgId, ctx.actor.userId, (body as { name: string }).name)
 	},
 	{
 		method: 'PUT',

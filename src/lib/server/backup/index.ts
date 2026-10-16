@@ -33,7 +33,7 @@ export const BACKUP_CHECK_JOB = 'backup.check';
 
 // -- FUNCTIONS -- //
 
-function backupStorage(): Storage {
+export function backupStorage(): Storage {
 	if (
 		BACKUP_S3_ENDPOINT ||
 		BACKUP_S3_BUCKET ||

@@ -371,7 +371,7 @@ test('M8 your own settings: name, theme, accent, notifications, password, sessio
 	await page.reload();
 	await tab(page, 'sessions');
 	await expect(page.getByTestId('session')).toHaveCount(2);
-	await expect(page.getByTestId('session').filter({ hasText: 'this one' })).toHaveCount(1);
+	await expect(page.getByTestId('session').filter({ hasText: 'This device' })).toHaveCount(1);
 	await page.getByTestId('end-others').click();
 	await confirmAsk(page, 'End them');
 	await expect(page.getByTestId('session')).toHaveCount(1);

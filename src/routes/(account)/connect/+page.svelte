@@ -19,6 +19,7 @@
 	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
+	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 	// -- DEP-COMPONENTS -- //
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -97,8 +98,8 @@
 							<Button variant="secondary" onclick={toggle} {...props}>
 								<OrgTile
 									name={data.org!.name}
-									slug={data.org!.slug}
 									logo={data.org!.logo}
+									palette={data.org!.palette}
 									size={20}
 								/>
 								<span class="max-w-[14rem] truncate">{data.org!.name}</span>
@@ -115,7 +116,7 @@
 											aria-current={o.id === data.org!.id ? 'true' : undefined}
 											class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
 										>
-											<OrgTile name={o.name} slug={o.slug} logo={o.logo} />
+											<OrgTile name={o.name} logo={o.logo} palette={o.palette} />
 											<span class="truncate">{o.name}</span>
 											{#if o.id === data.org!.id}<Check
 													size={16}
@@ -234,7 +235,17 @@
 									)}.</span
 								>
 							</div>
-							<form method="POST" action="?/revoke" use:enhance={askFirst}>
+							<form
+								method="POST"
+								action="?/revoke"
+								use:enhance={toastEnhance({
+									id: 'revoke-connection',
+									loading: 'Revoking the connection...',
+									success: 'Connection revoked.',
+									inline: true,
+									before: askFirst
+								})}
+							>
 								<input type="hidden" name="org" value={data.org.slug} />
 								<input type="hidden" name="id" value={c.id} />
 								<Button type="submit" size="sm">Revoke</Button>
@@ -276,13 +287,15 @@
 				method="POST"
 				action="?/createToken"
 				class="flex flex-col gap-3"
-				use:enhance={() => {
-					busy = true;
-					return async ({ update }) => {
-						await update({ reset: false });
-						busy = false;
-					};
-				}}
+				use:enhance={toastEnhance({
+					id: 'create-token',
+					loading: 'Making the token...',
+					// The text is fixed on purpose: the token itself is shown once on the page, never in a toast
+					success: 'Token made. Copy it now, it is shown once.',
+					inline: true,
+					onStart: () => (busy = true),
+					onDone: () => (busy = false)
+				})}
 			>
 				<input type="hidden" name="org" value={data.org.slug} />
 				<TextField

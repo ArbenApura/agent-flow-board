@@ -13,6 +13,7 @@ import {
 	apiToken,
 	deviceCode,
 	member,
+	org,
 	oauthClient,
 	oauthCode,
 	oauthGrant,
@@ -161,6 +162,9 @@ export async function grantableCaps(
 	userId: string
 ): Promise<Capability[]> {
 	return withTenant(handle, { orgId, userId }, async (tx) => {
+		// An org scheduled for deletion hands out nothing
+		const [o] = await tx.select({ deletedAt: org.deletedAt }).from(org).where(eq(org.id, orgId));
+		if (!o || o.deletedAt) return [];
 		const [m] = await tx
 			.select({ role: member.role })
 			.from(member)
@@ -259,6 +263,8 @@ export async function exchangeCode(
 	const client = await getClient(handle, input.clientId);
 	if (!client) return err('invalid_client', 'Unknown client.');
 	return withTenant(handle, { orgId }, async (tx) => {
+		const [live] = await tx.select({ deletedAt: org.deletedAt }).from(org).where(eq(org.id, orgId));
+		if (!live || live.deletedAt) return err('invalid_grant', 'The code is not valid.');
 		const [row] = await tx
 			.select()
 			.from(oauthCode)
@@ -315,6 +321,8 @@ export async function refreshTokens(
 	const client = await getClient(handle, input.clientId);
 	if (!client) return err('invalid_client', 'Unknown client.');
 	return withTenant(handle, { orgId }, async (tx) => {
+		const [live] = await tx.select({ deletedAt: org.deletedAt }).from(org).where(eq(org.id, orgId));
+		if (!live || live.deletedAt) return err('invalid_grant', 'The refresh token is not valid.');
 		const [row] = await tx
 			.select()
 			.from(oauthRefresh)

@@ -13,6 +13,14 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 	const orgs = await listMyOrgs(await getDb(), user.id);
 	return {
 		me: { name: user.name, email: user.email },
-		orgs: orgs.map((o) => ({ id: o.id, name: o.name, slug: o.slug, role: o.role, logo: o.logo }))
+		orgs: orgs.map((o) => ({
+			id: o.id,
+			name: o.name,
+			slug: o.slug,
+			role: o.role,
+			logo: o.logo,
+			palette: o.palette,
+			deleted: o.deletedAt !== null
+		}))
 	};
 };

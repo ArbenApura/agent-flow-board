@@ -8,6 +8,7 @@
 	import OrgTile from '#lib/board/OrgTile.svelte';
 	import Mark from '#lib/ui/Mark.svelte';
 	import Popover from '#lib/ui/Popover.svelte';
+	import { signOut } from '#lib/ui/signOut.js';
 	// -- DEP-COMPONENTS -- //
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import CircleUser from '@lucide/svelte/icons/circle-user';
@@ -55,7 +56,7 @@
 		>
 			{#if slug}
 				<span class="contents" data-testid={logo ? 'org-logo' : undefined}>
-					<OrgTile {name} {slug} {logo} />
+					<OrgTile {name} {logo} />
 				</span>
 			{:else}
 				<Mark size={28} class="shrink-0" />
@@ -109,7 +110,12 @@
 								>
 							</li>
 						</ul>
-						<form method="POST" action="/sign-out" class="border-t border-line pt-1">
+						<form
+							method="POST"
+							action="/sign-out"
+							onsubmit={signOut}
+							class="border-t border-line pt-1"
+						>
 							<button
 								type="submit"
 								class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"

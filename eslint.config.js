@@ -14,7 +14,6 @@ export default ts.config(
 			'build/',
 			'node_modules/',
 			'.yarn/',
-			'design/',
 			'static/',
 			'test-results/',
 			'playwright-report/',

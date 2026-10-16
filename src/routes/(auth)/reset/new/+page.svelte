@@ -9,6 +9,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import PasswordStrength from '#lib/ui/PasswordStrength.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 	// -- DEP-COMPONENTS -- //
 	import Lock from '@lucide/svelte/icons/lock';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
@@ -37,13 +38,14 @@
 		<form
 			method="POST"
 			class="flex flex-col gap-3"
-			use:enhance={() => {
-				busy = true;
-				return async ({ update }) => {
-					await update({ reset: false });
-					busy = false;
-				};
-			}}
+			use:enhance={toastEnhance({
+				id: 'reset-password',
+				loading: 'Saving your password...',
+				success: 'Password changed.',
+				inline: true,
+				onStart: () => (busy = true),
+				onDone: () => (busy = false)
+			})}
 		>
 			<input type="hidden" name="token" value={data.token} />
 			<TextField

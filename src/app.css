@@ -495,9 +495,17 @@ html[data-org='empty'] .boot-side-projects {
 	border-radius: 8px;
 	background: var(--surface);
 }
+/* THE BORDERED LIGHT AND DARK SWITCH, SAME 40 PX BOX AS THE REAL BUTTON */
+.boot-theme {
+	width: 40px;
+	height: 40px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--surface);
+}
 .boot-avatar {
-	width: 32px;
-	height: 32px;
+	width: 40px;
+	height: 40px;
 	border-radius: 50%;
 	background: var(--accent-soft);
 }
@@ -1214,4 +1222,15 @@ html[data-boot='auth'] .boot-field {
 .mk-node {
 	transform-box: fill-box;
 	transform-origin: center;
+}
+
+/* THE CHECK DRAWN IN THE "SAVED" PILL OF A SETTINGS SECTION. THE PATH HAS pathLength 1, SO ONE DASH IS THE WHOLE STROKE. REDUCED MOTION SHOWS THE FINISHED CHECK */
+.afb-check path {
+	stroke-dasharray: 1;
+	stroke-dashoffset: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+	.afb-check path {
+		animation: afb-draw 320ms ease-out both;
+	}
 }

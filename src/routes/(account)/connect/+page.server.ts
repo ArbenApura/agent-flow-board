@@ -21,7 +21,8 @@ async function personCtx(
 ): Promise<{ ctx: Ctx; orgs: Awaited<ReturnType<typeof listMyOrgs>> } | null> {
 	if (!locals.user) return null;
 	const handle = await getDb();
-	const orgs = await listMyOrgs(handle, locals.user.id);
+	// An org scheduled for deletion cannot be connected to
+	const orgs = (await listMyOrgs(handle, locals.user.id)).filter((o) => !o.deletedAt);
 	const org = orgs.find((o) => o.slug === orgSlug) ?? orgs[0];
 	if (!org) return { ctx: null as never, orgs };
 	return {

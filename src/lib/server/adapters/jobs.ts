@@ -6,7 +6,9 @@
 import type { DbHandle, Tx } from '../db/client';
 // -- DEP-MODULES -- //
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 // -- MODULES -- //
+import { org } from '../db/schema';
 import { withTenant } from '../db/tenant';
 
 // -- TYPES -- //
@@ -62,12 +64,25 @@ export function assertPayload(payload: JobPayload): void {
 		throw new Error('A job projectId must be a UUID');
 }
 
-/** Wraps a handler so the tenant context is set from the payload before any query. */
+/**
+ * Wraps a handler so the tenant context is set from the payload before any query. A job of an org that an owner deleted is
+ * refused before its first query, unless the payload says `allowLocked` (the purge of that very org).
+ */
 export function contextFor(handle: DbHandle, payload: JobPayload): JobContext {
 	assertPayload(payload);
 	return {
 		payload,
-		tenant: (fn) => withTenant(handle, { orgId: payload.orgId, projectId: payload.projectId }, fn)
+		tenant: (fn) =>
+			withTenant(handle, { orgId: payload.orgId, projectId: payload.projectId }, async (tx) => {
+				if (payload.allowLocked !== true) {
+					const [o] = await tx
+						.select({ deletedAt: org.deletedAt })
+						.from(org)
+						.where(eq(org.id, payload.orgId));
+					if (o?.deletedAt) throw new Error('This organisation is scheduled for deletion');
+				}
+				return fn(tx);
+			})
 	};
 }
 

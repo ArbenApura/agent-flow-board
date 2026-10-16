@@ -31,7 +31,8 @@ export const actions: Actions = {
 				step: 'code',
 				message: 'That code is not valid or has expired. Check the code in your tool.'
 			});
-		const orgs = await listMyOrgs(handle, locals.user.id);
+		// An org scheduled for deletion cannot be connected to
+		const orgs = (await listMyOrgs(handle, locals.user.id)).filter((o) => !o.deletedAt);
 		const withCaps = await Promise.all(
 			orgs.map(async (o) => ({
 				id: o.id,

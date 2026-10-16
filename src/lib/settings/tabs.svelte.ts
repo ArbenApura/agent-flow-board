@@ -1,9 +1,19 @@
 // THE SECTIONS OF A SETTINGS PAGE, COLLECTED AS THEY RENDER, SO THE SIDE NAVIGATION AND THE ONE VISIBLE SECTION AGREE (ADR-004)
+// -- DEP-TYPES -- //
+import type { Component } from 'svelte';
+// -- DEP-MODULES -- //
 import { getContext, setContext } from 'svelte';
 
 // -- TYPES -- //
 
-export type SettingsTab = { id: string; title: string };
+export type SettingsTab = {
+	id: string;
+	title: string;
+	/** The small picture in the navigation, the same one the section card carries. */
+	icon?: Component<{ size?: number; class?: string }>;
+	/** The heading the tab sits under. Tabs without one render in a flat list. */
+	group?: string;
+};
 
 // -- CONSTANTS -- //
 
@@ -15,8 +25,8 @@ class SettingsTabs {
 	items = $state<SettingsTab[]>([]);
 
 	/** Called by each section while it renders, on the server and in the browser, so the list is complete in the first HTML. */
-	add(id: string, title: string) {
-		if (!this.items.some((t) => t.id === id)) this.items.push({ id, title });
+	add(tab: SettingsTab) {
+		if (!this.items.some((t) => t.id === tab.id)) this.items.push(tab);
 	}
 }
 

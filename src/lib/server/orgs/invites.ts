@@ -56,9 +56,11 @@ export async function createInvite(
 		if (!actor || !canAssignRole(actor.role, null, input.role))
 			throw new OrgError('FORBIDDEN', 'Your role does not allow inviting at that role.');
 		const [o] = await tx
-			.select({ name: org.name, settings: org.settings })
+			.select({ name: org.name, settings: org.settings, deletedAt: org.deletedAt })
 			.from(org)
 			.where(eq(org.id, orgId));
+		if (o?.deletedAt)
+			throw new OrgError('ORG_LOCKED', 'This organisation is scheduled for deletion.');
 		if (input.role === 'guest' && o?.settings?.allowGuestInvites === false)
 			throw new OrgError('FORBIDDEN', 'This organisation does not allow inviting guests.');
 		// One open invite per address: the older ones stop working
@@ -184,6 +186,17 @@ export async function acceptInvite(
 				code: 'WRONG_EMAIL',
 				message: `This invitation is for ${row.email}. Sign in with that address to accept it.`
 			} as const;
+		const [live] = await tx
+			.select({ deletedAt: org.deletedAt })
+			.from(org)
+			.where(eq(org.id, row.orgId));
+		if (!live || live.deletedAt)
+			return {
+				ok: false,
+				code: 'INVALID',
+				message:
+					'This organisation is scheduled for deletion, so the invitation cannot be accepted.'
+			} as const;
 		await tx
 			.insert(member)
 			.values({ orgId: row.orgId, userId: person.id, role: row.role })
@@ -209,12 +222,14 @@ export async function describeInvite(handle: DbHandle, token: string) {
 				expiresAt: invite.expiresAt,
 				acceptedAt: invite.acceptedAt,
 				revokedAt: invite.revokedAt,
-				orgName: org.name
+				orgName: org.name,
+				orgDeletedAt: org.deletedAt
 			})
 			.from(invite)
 			.innerJoin(org, eq(org.id, invite.orgId))
 			.where(eq(invite.tokenHash, hashOf(token)));
-		if (!row) return null;
+		// An org scheduled for deletion shows the same page as a link that does not exist
+		if (!row || row.orgDeletedAt) return null;
 		const state =
 			row.revokedAt || row.acceptedAt
 				? ('used' as const)

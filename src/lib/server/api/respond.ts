@@ -16,7 +16,8 @@ export const STATUS: Record<string, number> = {
 	RATE_LIMITED: 429,
 	CONFLICT: 409,
 	COMPLETED_REFUSED: 409,
-	CONFIRM_REQUIRED: 409
+	CONFIRM_REQUIRED: 409,
+	ORG_LOCKED: 423
 };
 export const NO_STORE = { 'cache-control': 'no-store' };
 
@@ -38,8 +39,14 @@ export function errorResponse(e: unknown): ApiResponse {
 	// Organisation and member rules (the last owner, a role that may not do that) speak the same language
 	if (e instanceof OrgError)
 		return fail(
-			{ FORBIDDEN: 403, LAST_OWNER: 409, NOT_FOUND: 404, SLUG_TAKEN: 409, INVALID: 400 }[e.code] ??
-				400,
+			{
+				FORBIDDEN: 403,
+				LAST_OWNER: 409,
+				NOT_FOUND: 404,
+				SLUG_TAKEN: 409,
+				INVALID: 400,
+				ORG_LOCKED: 423
+			}[e.code] ?? 400,
 			e.code,
 			e.message
 		);

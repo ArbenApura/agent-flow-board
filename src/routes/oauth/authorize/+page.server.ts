@@ -43,7 +43,8 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 		};
 	// Signing in comes first, then the person comes straight back to this exact request
 	if (!locals.user) redirect(303, `/sign-in?next=${encodeURIComponent(url.pathname + url.search)}`);
-	const orgs = await listMyOrgs(handle, locals.user.id);
+	// An org scheduled for deletion cannot be connected to
+	const orgs = (await listMyOrgs(handle, locals.user.id)).filter((o) => !o.deletedAt);
 	const withCaps = await Promise.all(
 		orgs.map(async (o) => ({ ...o, caps: await grantableCaps(handle, o.id, locals.user!.id) }))
 	);

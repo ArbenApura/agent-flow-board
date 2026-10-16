@@ -1,4 +1,6 @@
 <script lang="ts">
+	// -- TYPES -- //
+	import type { OrgPalette } from '#lib/server/db/schema/core.js';
 	// -- ENVS -- //
 	import { page } from '$app/state';
 	// -- MODULES -- //
@@ -18,7 +20,13 @@
 		orgs,
 		me
 	}: {
-		orgs: { id: string; name: string; slug: string; logo?: string | null }[];
+		orgs: {
+			id: string;
+			name: string;
+			slug: string;
+			logo?: string | null;
+			palette?: OrgPalette | null;
+		}[];
 		me: { name: string; email: string };
 	} = $props();
 </script>
@@ -43,7 +51,7 @@
 					title={o.name}
 					class="flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
 				>
-					<OrgTile name={o.name} slug={o.slug} logo={o.logo} />
+					<OrgTile name={o.name} logo={o.logo} palette={o.palette} />
 					<span class={LABEL}>{o.name}</span>
 				</a>
 			{/each}

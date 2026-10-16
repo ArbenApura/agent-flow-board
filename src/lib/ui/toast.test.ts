@@ -111,4 +111,38 @@ describe('toast wrapper', () => {
 			expect.objectContaining({ id: 'load-id', duration: STAY })
 		);
 	});
+
+	it('promise: a given id is passed to the loading toast, so a repeat replaces it', async () => {
+		await toast.promise(Promise.resolve(1), {
+			id: 'save-general',
+			loading: 'Saving',
+			success: 'Saved',
+			error: 'Failed'
+		});
+		expect(sonner.loading).toHaveBeenCalledWith(
+			'Saving',
+			expect.objectContaining({ id: 'save-general', duration: STAY })
+		);
+	});
+
+	it('loading: stays by default and takes a finite life and an id when given', () => {
+		toast.loading('Working');
+		expect(sonner.loading).toHaveBeenLastCalledWith(
+			'Working',
+			expect.objectContaining({ duration: STAY })
+		);
+		toast.loading('Working', { id: 'x', duration: 5000 });
+		expect(sonner.loading).toHaveBeenLastCalledWith('Working', { id: 'x', duration: 5000 });
+	});
+
+	it('settle: success and info fade, warning and error stay, all under the given id', () => {
+		toast.settle('a', 'success', 'Done');
+		expect(sonner.success).toHaveBeenCalledWith('Done', { id: 'a', duration: FADE_MS });
+		toast.settle('a', 'info', 'Same');
+		expect(sonner.info).toHaveBeenCalledWith('Same', { id: 'a', duration: FADE_MS });
+		toast.settle('a', 'warning', 'Careful');
+		expect(sonner.warning).toHaveBeenCalledWith('Careful', { id: 'a', duration: STAY });
+		toast.settle('a', 'error', 'Failed');
+		expect(sonner.error).toHaveBeenCalledWith('Failed', { id: 'a', duration: STAY });
+	});
 });

@@ -9,6 +9,8 @@
 	import Button from '#lib/ui/Button.svelte';
 	import Checkbox from '#lib/ui/Checkbox.svelte';
 	import SelectField from '#lib/ui/SelectField.svelte';
+	import { toast } from '#lib/ui/toast.svelte.js';
+	import { LOADING_MS } from '#lib/ui/toastEnhance.js';
 
 	// -- CONSTANTS -- //
 
@@ -39,6 +41,16 @@
 	const org = $derived(data.orgs.find((o) => o.id === orgId) ?? data.orgs[0]);
 	const caps = $derived(org ? org.caps : []);
 	const asked = $derived(data.request?.scopes ?? []);
+
+	// -- FUNCTIONS -- //
+
+	// The answer is a full page POST that ends on the tool's own address, so the toast only covers the wait
+	function answering(text: string) {
+		return () => {
+			// A private-scheme redirect leaves this page open, so the toast must not wait for ever
+			toast.loading(text, { duration: LOADING_MS });
+		};
+	}
 </script>
 
 <svelte:head><title>Connect a tool</title></svelte:head>
@@ -73,6 +85,7 @@
 				action="/oauth/authorize/decision"
 				class="flex flex-col gap-3"
 				data-testid="consent-form"
+				onsubmit={answering('Connecting...')}
 			>
 				{#each Object.entries(data.raw) as [k, v] (k)}<input
 						type="hidden"
@@ -106,7 +119,12 @@
 					>Connect {data.request.clientName}</Button
 				>
 			</form>
-			<form method="POST" action="/oauth/authorize/decision" class="mt-2">
+			<form
+				method="POST"
+				action="/oauth/authorize/decision"
+				class="mt-2"
+				onsubmit={answering('Cancelling...')}
+			>
 				{#each Object.entries(data.raw) as [k, v] (k)}<input
 						type="hidden"
 						name={k}
