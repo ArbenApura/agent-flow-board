@@ -31,3 +31,7 @@ test-results/
 playwright-report/
 /cli
 .dev.vars
+
+# Claude Code: machine-local setup (absolute paths to the HAPR Board in hapr-gameplan)
+.claude/
+.mcp.json
