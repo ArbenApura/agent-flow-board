@@ -31,7 +31,6 @@
 	import Settings from '@lucide/svelte/icons/settings';
 	import Palette from '@lucide/svelte/icons/palette';
 	import Users from '@lucide/svelte/icons/users';
-	import FolderKanban from '@lucide/svelte/icons/folder-kanban';
 	import Mail from '@lucide/svelte/icons/mail';
 	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import Gauge from '@lucide/svelte/icons/gauge';
@@ -60,8 +59,6 @@
 	let status = $state<Record<string, { saving: boolean; saved: boolean; error: string }>>({});
 	let inviteEmail = $state('');
 	let inviteRole = $state<Role>('member');
-	let newKey_ = $state('');
-	let newName = $state('');
 	let extraAudit = $state<AuditEvents>([]);
 	/** Bumped after a failed change, so a dropdown that moved on screen is drawn again from what is saved. */
 	let rev = $state(0);
@@ -159,17 +156,6 @@
 			return;
 		await act(() => api(org, `/invites/${id}`, { method: 'DELETE' }), 'Invitation withdrawn.');
 	};
-	const createProject = () =>
-		act(
-			() =>
-				api(org, '/projects', {
-					body: { key: newKey_.trim().toUpperCase(), name: newName.trim() }
-				}),
-			'Project created.'
-		).then(() => {
-			newKey_ = '';
-			newName = '';
-		});
 
 	async function uploadLogo(file: File | undefined) {
 		if (!file) return;
@@ -247,8 +233,8 @@
 		<Section
 			id="palette"
 			icon={Palette}
-			title="Colour and logo"
-			text="The accent colour of buttons, links and progress for everyone in this organisation. Dark mode follows."
+			title="Organisation colour and logo"
+			text="Shared by everyone in this organisation: the accent colour and the logo. Members only choose light or dark for themselves, in their account settings."
 			dirty={dirty.palette}
 			saving={st('palette').saving}
 			saved={st('palette').saved}
@@ -256,7 +242,7 @@
 			readonly={!can}
 			onsave={() => save('palette', { accent })}
 		>
-			<PalettePicker bind:value={accent} disabled={!can} />
+			<PalettePicker bind:value={accent} label="Organisation accent colour" disabled={!can} />
 			<div class="flex flex-wrap items-center gap-3 border-t border-line pt-3">
 				{#if s.logo}
 					<img
@@ -359,58 +345,6 @@
 						{/each}
 					</ul>
 				{/if}
-			{/if}
-		</Section>
-
-		<Section
-			id="projects"
-			icon={FolderKanban}
-			title="Projects"
-			text="Each project has its own plans, settings and repository."
-		>
-			<ul class="rounded-lg border border-line">
-				{#each data.projects as p (p.id)}
-					<li
-						class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-						data-item
-					>
-						<span class="w-16 shrink-0 font-mono text-xs text-muted">{p.key}</span>
-						<a
-							class="min-w-0 flex-1 truncate text-sm text-accent-text hover:underline"
-							href={`/${org}/${p.key}`}>{p.name}</a
-						>
-						<a class="text-xs text-muted hover:underline" href={`/${org}/${p.key}/settings`}
-							>Settings</a
-						>
-					</li>
-				{/each}
-			</ul>
-			{#if can}
-				<form
-					class="flex flex-wrap items-end gap-2"
-					onsubmit={(e) => {
-						e.preventDefault();
-						void createProject();
-					}}
-				>
-					<TextField
-						label="Key, 2 to 10 capitals"
-						bind:value={newKey_}
-						class="w-40"
-						data-testid="project-key"
-						required
-					/>
-					<TextField
-						label="Project name"
-						bind:value={newName}
-						class="min-w-56 flex-1"
-						data-testid="project-name"
-						required
-					/>
-					<Button type="submit" variant="primary" data-testid="project-create"
-						>Create project</Button
-					>
-				</form>
 			{/if}
 		</Section>
 

@@ -3,10 +3,12 @@
 	import type { PageProps } from './$types';
 	// -- MODULES -- //
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { STATUSES, tagDot } from '#lib/board/status.js';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
+	import NewProjectDialog from '#lib/board/NewProjectDialog.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
@@ -20,6 +22,10 @@
 	// -- REQUIRED PROPS -- //
 
 	let { data }: PageProps = $props();
+
+	// -- STATES -- //
+
+	let creating = $state(false);
 
 	// -- CONSTANTS -- //
 
@@ -35,9 +41,8 @@
 
 	// -- REACTIVE STATES -- //
 
-	// Owners and admins create projects, in the Projects tab of the settings
+	// Owners and admins create projects, in a dialog on this page
 	const canCreate = $derived(data.org.role === 'owner' || data.org.role === 'admin');
-	const newProjectHref = $derived(`/${data.org.slug}/settings?tab=projects`);
 
 	// -- LIFECYCLES -- //
 
@@ -61,7 +66,7 @@
 	>
 		{#snippet actions()}
 			{#if canCreate}
-				<Button variant="primary" href={newProjectHref} data-testid="new-project">
+				<Button variant="primary" onclick={() => (creating = true)} data-testid="new-project">
 					<Plus size={16} /> New project
 				</Button>
 			{/if}
@@ -80,7 +85,7 @@
 				>
 					{#snippet action()}
 						{#if canCreate}
-							<Button variant="primary" href={newProjectHref}>
+							<Button variant="primary" onclick={() => (creating = true)}>
 								<Plus size={16} /> New project
 							</Button>
 						{/if}
@@ -133,6 +138,13 @@
 		{@render members()}
 	{/if}
 </PageFrame>
+
+<NewProjectDialog
+	org={data.org.slug}
+	open={creating}
+	onclose={() => (creating = false)}
+	oncreated={(key) => goto(`/${data.org.slug}/${key}`)}
+/>
 
 {#snippet members()}
 	<section aria-label="Members" class="flex">

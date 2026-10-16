@@ -51,14 +51,15 @@ test('M8 an organisation: each section saves on its own, the palette preview sho
 }) => {
 	const { ctx, page, slug } = await ownOrg(browser, baseURL!);
 	const api = `/api/v1/orgs/${slug}`;
+	// A first project, made in the dialog of the organisation page
+	await page.goto(`/${slug}`);
+	await page.getByTestId('new-project').click();
+	await page.getByTestId('project-name').fill('Audit project');
+	await page.getByTestId('project-key').fill('AUD');
+	await page.getByTestId('project-create').click();
+	await expect(page).toHaveURL(new RegExp(`/${slug}/AUD$`));
 	await page.goto(`/${slug}/settings`);
 	await expect(page.getByTestId('page-title')).toHaveText('Organisation settings');
-	// A first project, made from the Projects section
-	await tab(page, 'projects');
-	await page.getByTestId('project-key').fill('AUD');
-	await page.getByTestId('project-name').fill('Audit project');
-	await page.getByTestId('project-create').click();
-	await expect(page.getByText('Audit project').first()).toBeVisible();
 
 	// The name saves alone: a limit changed and saved next to an unsaved name leaves that name unsaved
 	await tab(page, 'general');
@@ -327,28 +328,20 @@ test('M8 your own settings: name, theme, accent, notifications, password, sessio
 	await expect(page.getByTestId('saved-profile')).toBeVisible();
 	await page.reload();
 	await expect(page.getByTestId('profile-name')).toHaveValue('Renamed Person');
-	// Theme: dark applies at once and stays after saving and reloading
+	// Theme: dark applies at once and stays after reloading, from the settings and from the top bar switch
 	await tab(page, 'appearance');
+	await expect(page.getByTestId('save-appearance')).toHaveCount(0);
 	await page.getByRole('radio', { name: 'Dark' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-mode', 'dark');
-	await page.getByTestId('save-appearance').click();
-	await expect(page.getByTestId('saved-appearance')).toBeVisible();
 	await page.reload();
 	await expect(page.locator('html')).toHaveAttribute('data-mode', 'dark');
-	await page.getByRole('radio', { name: 'Light' }).click();
-	// A personal accent colours this person's pages
-	const violet = generatePalette('#7c3aed');
-	await page.getByRole('radio', { name: 'Violet' }).click();
-	await page.getByTestId('save-appearance').click();
-	await expect(page.getByTestId('saved-appearance')).toBeVisible();
+	await page.getByTestId('theme-toggle').click();
+	await expect(page.locator('html')).toHaveAttribute('data-mode', 'light');
 	await page.reload();
-	await expect
-		.poll(() =>
-			page.evaluate(() =>
-				getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
-			)
-		)
-		.toBe(violet.light.accent);
+	await expect(page.locator('html')).toHaveAttribute('data-mode', 'light');
+	// There is no personal accent: the colour comes from the organisation
+	await tab(page, 'appearance');
+	await expect(page.getByRole('radio', { name: 'Violet' })).toHaveCount(0);
 	// Notifications and the check target
 	await tab(page, 'notifications');
 	await page.getByRole('switch', { name: 'Backup problems' }).click();
@@ -371,8 +364,6 @@ test('M8 your own settings: name, theme, accent, notifications, password, sessio
 	);
 	await tab(page, 'checks');
 	await expect(page.getByRole('button', { name: 'Run checks on' })).toContainText('Build preview');
-	await tab(page, 'appearance');
-	await expect(page.getByRole('radio', { name: 'Violet' })).toHaveAttribute('aria-checked', 'true');
 	// Sessions: sign in from a second browser, see both, end the other one
 	const other = await browser.newContext({ baseURL });
 	const op = await other.newPage();
