@@ -27,9 +27,9 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import VirtualList from '#lib/ui/VirtualList.svelte';
 	// -- DEP-COMPONENTS -- //
-	import Check from 'phosphor-svelte/lib/Check';
-	import Funnel from 'phosphor-svelte/lib/Funnel';
-	import Plus from 'phosphor-svelte/lib/Plus';
+	import Check from '@lucide/svelte/icons/check';
+	import Funnel from '@lucide/svelte/icons/funnel';
+	import Plus from '@lucide/svelte/icons/plus';
 
 	// -- REQUIRED PROPS -- //
 
@@ -242,7 +242,7 @@
 
 	{#if running.length}
 		<section
-			class="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-4 py-3"
+			class="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 shadow-[var(--elev-1)]"
 			aria-label="Running now"
 			data-testid="running-now"
 		>
@@ -302,7 +302,7 @@
 						>
 							{#if data.filters.status.includes(s)}<Check
 									size={12}
-									weight="bold"
+									strokeWidth={3}
 									class="text-accent"
 								/>{/if}
 						</span>
@@ -415,7 +415,7 @@
 			<div class="mb-2 text-sm text-muted" data-testid="list-count">
 				{data.list.total.toLocaleString('en')} items
 			</div>
-			<div class="overflow-hidden rounded-xl border border-line bg-surface">
+			<div class="overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
 				<VirtualList
 					items={listItems}
 					total={data.list.total}
@@ -429,7 +429,7 @@
 						<ItemLine row={r} href={itemHref(r.ref)} running={runningOf(r.id)} onopen={peek} />
 					{/snippet}
 					{#snippet placeholder()}
-						<div class="px-4 py-3"><Skeleton lines={2} /></div>
+						<div class="px-4"><Skeleton variant="row" lines={1} /></div>
 					{/snippet}
 				</VirtualList>
 			</div>

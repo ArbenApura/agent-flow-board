@@ -7,8 +7,8 @@
 	import ProgressRing from '#lib/ui/ProgressRing.svelte';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
 	// -- DEP-COMPONENTS -- //
-	import Lock from 'phosphor-svelte/lib/Lock';
-	import Warning from 'phosphor-svelte/lib/Warning';
+	import Lock from '@lucide/svelte/icons/lock';
+	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 
 	// -- REQUIRED PROPS -- //
 
@@ -43,13 +43,13 @@
 		{href}
 		onclick={peek}
 		data-testid="item-card"
-		class="group flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 transition-colors hover:border-muted"
+		class="group flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)] transition-colors hover:border-muted"
 		data-card
 	>
 		<span class="flex items-center gap-2 text-xs text-muted">
 			<span class="font-mono">{row.ref}</span>
 			{#if row.visibility === 'private'}<Lock size={14} aria-label="Private" />{/if}
-			{#if row.flags > 0}<Warning
+			{#if row.flags > 0}<TriangleAlert
 					size={14}
 					class="text-warning"
 					aria-label="Needs attention"
@@ -79,7 +79,7 @@
 			<span class="flex items-center gap-1.5 truncate text-sm font-medium text-ink">
 				{row.title}
 				{#if row.visibility === 'private'}<Lock size={14} aria-label="Private" />{/if}
-				{#if row.flags > 0}<Warning
+				{#if row.flags > 0}<TriangleAlert
 						size={14}
 						class="text-warning"
 						aria-label="Needs attention"

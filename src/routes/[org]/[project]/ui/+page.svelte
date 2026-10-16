@@ -45,7 +45,7 @@
 		<ul class="flex flex-col gap-3" data-testid="ui-runs">
 			{#each ui.runs as r (r.id)}
 				<li
-					class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4"
+					class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
 					data-card
 					data-testid="ui-run"
 				>

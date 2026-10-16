@@ -7,7 +7,7 @@
 	import { lockScroll, unlockScroll } from '#lib/actions/scrollLock.js';
 	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
-	import X from 'phosphor-svelte/lib/X';
+	import X from '@lucide/svelte/icons/x';
 
 	// -- REQUIRED PROPS -- //
 
@@ -31,7 +31,7 @@
 		busy?: boolean;
 		size?: 'sm' | 'md' | 'lg';
 		/** A drawer slides in from the right on a wide screen, so a record can be read next to the page it came from. */
-		variant?: 'dialog' | 'drawer';
+		variant?: 'dialog' | 'drawer' | 'top';
 	} = $props();
 
 	// -- CONSTANTS -- //
@@ -96,7 +96,11 @@
 		<div
 			class={cn(
 				'pointer-events-none absolute inset-0 flex items-end justify-center',
-				variant === 'drawer' ? 'sm:items-stretch sm:justify-end' : 'sm:items-center sm:p-4'
+				variant === 'drawer'
+					? 'sm:items-stretch sm:justify-end'
+					: variant === 'top'
+						? 'sm:items-start sm:p-4 sm:pt-[12vh]'
+						: 'sm:items-center sm:p-4'
 			)}
 		>
 			<div
@@ -107,7 +111,7 @@
 				use:focusTrap
 				onkeydown={onKey}
 				class={cn(
-					'pointer-events-auto flex max-h-[90vh] w-full flex-col overflow-hidden border border-line bg-surface text-ink shadow-[var(--shadow-pop)] transition-[opacity,translate] duration-150 motion-reduce:transition-none',
+					'pointer-events-auto flex max-h-[90vh] w-full flex-col overflow-hidden border border-line bg-surface text-ink shadow-[var(--shadow-pop)] transition-[opacity,translate,scale] duration-150 motion-reduce:transition-none',
 					variant === 'drawer'
 						? 'rounded-t-xl sm:h-full sm:max-h-none sm:max-w-[560px] sm:rounded-none sm:border-y-0 sm:border-r-0'
 						: cn('rounded-t-xl sm:rounded-xl', WIDTHS[size]),
@@ -115,7 +119,8 @@
 						? 'translate-y-0 opacity-100 sm:translate-x-0'
 						: cn(
 								'translate-y-4 opacity-0',
-								variant === 'drawer' && 'sm:translate-x-8 sm:translate-y-0'
+								variant === 'drawer' && 'sm:translate-x-8 sm:translate-y-0',
+								variant === 'top' && 'sm:-translate-y-3 sm:scale-95'
 							)
 				)}
 			>

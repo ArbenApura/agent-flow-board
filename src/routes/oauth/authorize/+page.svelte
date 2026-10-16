@@ -2,6 +2,7 @@
 	// -- DEP-TYPES -- //
 	import type { PageProps } from './$types';
 	// -- MODULES -- //
+	import Notice from '#lib/ui/Notice.svelte';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
 	import AuthShell from '#lib/ui/AuthShell.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
@@ -44,13 +45,7 @@
 
 <AuthShell title={data.request ? `Connect ${data.request.clientName}?` : 'Connection problem'}>
 	{#if data.problem || !data.request}
-		<p
-			role="alert"
-			class="rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
-			data-testid="oauth-problem"
-		>
-			{data.problem}
-		</p>
+		<Notice tone="danger" data-testid="oauth-problem">{data.problem}</Notice>
 	{:else}
 		<div class="mb-3 flex flex-wrap items-center gap-2">
 			{#if data.request.verified}<Badge tone="success">Verified</Badge>{:else}<Badge tone="warning"
@@ -63,13 +58,7 @@
 			only a tool you started yourself.
 		</p>
 		{#if data.notice}
-			<p
-				role="alert"
-				class="mb-3 rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
-				data-testid="oauth-notice"
-			>
-				{data.notice}
-			</p>
+			<Notice tone="danger" class="mb-3" data-testid="oauth-notice">{data.notice}</Notice>
 		{/if}
 		{#if data.orgs.length === 0}
 			<p class="text-sm">

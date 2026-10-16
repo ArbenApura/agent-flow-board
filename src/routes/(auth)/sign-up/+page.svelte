@@ -6,7 +6,13 @@
 	// -- MODULES -- //
 	import AuthShell from '#lib/ui/AuthShell.svelte';
 	import Button from '#lib/ui/Button.svelte';
+	import GoogleLogo from '#lib/ui/GoogleLogo.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	// -- DEP-COMPONENTS -- //
+	import Lock from '@lucide/svelte/icons/lock';
+	import Mail from '@lucide/svelte/icons/mail';
+	import User from '@lucide/svelte/icons/user';
+	import UserPlus from '@lucide/svelte/icons/user-plus';
 
 	// -- REQUIRED PROPS -- //
 
@@ -30,6 +36,7 @@
 <svelte:head><title>Create an account</title></svelte:head>
 
 <AuthShell
+	icon={UserPlus}
 	title="Create an account"
 	subtitle="Use your work email. We send one link to confirm it."
 >
@@ -50,6 +57,9 @@
 			label="Your name"
 			name="name"
 			autocomplete="name"
+			placeholder="Olivia Owner"
+			icon={User}
+			large
 			required
 			bind:value={name}
 			error={form?.field === 'name' ? form.message : undefined}
@@ -59,6 +69,9 @@
 			name="email"
 			type="email"
 			autocomplete="email"
+			placeholder="you@company.com"
+			icon={Mail}
+			large
 			required
 			bind:value={email}
 			error={form?.field === 'email' ? form.message : undefined}
@@ -68,18 +81,25 @@
 			name="password"
 			type="password"
 			autocomplete="new-password"
+			icon={Lock}
+			large
 			required
 			minlength={data.minPassword}
 			bind:value={password}
 			hint={`At least ${data.minPassword} characters. A long sentence works well.`}
 			error={form?.field === 'password' ? form.message : undefined}
 		/>
-		<Button type="submit" variant="primary" loading={busy} class="w-full">Create account</Button>
+		<Button type="submit" variant="primary" loading={busy} class="mt-1 h-11 w-full"
+			>Create account</Button
+		>
 	</form>
 	{#if data.google}
-		<form method="POST" action="?/google" class="mt-3">
+		<div class="my-5 flex items-center gap-3 text-xs text-muted">
+			<span class="h-px flex-1 bg-line"></span>or<span class="h-px flex-1 bg-line"></span>
+		</div>
+		<form method="POST" action="?/google" use:enhance>
 			<input type="hidden" name="next" value={data.next} />
-			<Button type="submit" class="w-full">Continue with Google</Button>
+			<Button type="submit" class="h-11 w-full"><GoogleLogo /> Continue with Google</Button>
 		</form>
 	{/if}
 	{#snippet footer()}

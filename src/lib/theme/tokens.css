@@ -23,6 +23,15 @@
 	--overlay: rgb(10 12 16 / 0.45);
 	--ripple: rgb(22 24 29 / 0.14);
 	--shadow-pop: 0 8px 24px rgb(0 0 0 / 0.12);
+	/* STRUCTURE AND TEXTURE (FLOW-20261016-0935 PHASE 14). EVERY TINT IS MIXED FROM THE ACCENT, SO THE ORG PALETTE CARRIES THROUGH */
+	--glow: color-mix(in srgb, var(--accent) 13%, transparent);
+	--glow-2: color-mix(in srgb, var(--accent) 7%, transparent);
+	--grid: color-mix(in srgb, var(--ink) 5%, transparent);
+	--grain: 0.035;
+	--band: color-mix(in srgb, var(--accent-soft) 45%, var(--surface));
+	--bar: color-mix(in srgb, var(--surface) 78%, transparent);
+	--elev-1: 0 1px 2px rgb(16 24 40 / 0.06);
+	--elev-2: 0 2px 8px rgb(16 24 40 / 0.08), 0 1px 2px rgb(16 24 40 / 0.06);
 }
 
 [data-mode='dark'] {
@@ -48,6 +57,14 @@
 	--overlay: rgb(0 0 0 / 0.6);
 	--ripple: rgb(236 238 241 / 0.16);
 	--shadow-pop: 0 8px 24px rgb(0 0 0 / 0.5);
+	--glow: color-mix(in srgb, var(--accent) 20%, transparent);
+	--glow-2: color-mix(in srgb, var(--accent) 10%, transparent);
+	--grid: color-mix(in srgb, var(--ink) 6%, transparent);
+	--grain: 0.05;
+	--band: color-mix(in srgb, var(--accent-soft) 55%, var(--surface));
+	--bar: color-mix(in srgb, var(--surface) 78%, transparent);
+	--elev-1: 0 1px 2px rgb(0 0 0 / 0.4);
+	--elev-2: 0 2px 10px rgb(0 0 0 / 0.45), 0 1px 2px rgb(0 0 0 / 0.4);
 }
 
 @theme inline {
@@ -69,6 +86,8 @@
 	--color-success-soft: var(--success-soft);
 	--color-info: var(--info);
 	--color-info-soft: var(--info-soft);
+	--color-band: var(--band);
+	--color-bar: var(--bar);
 }
 
 /* TYPE SCALE (ADR-013). EVERY text-xs TO text-2xl CLASS IN THE APP READS THESE, SO THE SIZES ARE SET HERE ONCE */

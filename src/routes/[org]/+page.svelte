@@ -42,12 +42,15 @@
 			/>
 		</Card>
 	{:else}
-		<ul class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="project-cards">
-			{#each data.overview as o (o.project.id)}
-				<li>
+		<ul
+			class="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+			data-testid="project-cards"
+		>
+			{#each data.overview as o, i (o.project.id)}
+				<li style="--i:{i}">
 					<a
 						href={`/${data.org.slug}/${o.project.key}`}
-						class="flex h-full min-h-11 flex-col gap-3 rounded-xl border border-line bg-surface p-4 hover:bg-raised"
+						class="lift flex h-full min-h-11 flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)] hover:bg-raised"
 						data-card
 					>
 						<span class="flex items-center gap-2">

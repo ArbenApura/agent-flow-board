@@ -9,8 +9,8 @@
 	import Popover from '#lib/ui/Popover.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
-	import CaretDown from 'phosphor-svelte/lib/CaretDown';
-	import Check from 'phosphor-svelte/lib/Check';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import Check from '@lucide/svelte/icons/check';
 
 	// -- REQUIRED PROPS -- //
 
@@ -102,13 +102,13 @@
 			onclick={toggle}
 			onkeydown={onTriggerKey}
 			class={cn(
-				'flex h-10 w-full min-w-40 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-surface px-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-11',
+				'flex h-10 w-full min-w-40 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-surface px-3 text-left text-sm shadow-[var(--elev-1)] transition-[border-color,box-shadow] duration-150 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent-soft focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-11',
 				invalid ? 'border-danger' : 'border-line',
 				selected ? 'text-ink' : 'text-muted'
 			)}
 		>
 			<span class="truncate">{selected?.label ?? placeholder}</span>
-			<CaretDown size={16} class="shrink-0 text-muted" />
+			<ChevronDown size={16} class="shrink-0 text-muted" />
 		</button>
 	{/snippet}
 	{#snippet children({ close })}

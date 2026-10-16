@@ -46,7 +46,7 @@ The plain accent on the soft tint is 4.19 in light mode, so text on the soft tin
 
 ## Type
 
-Geist Sans for text, Geist Mono for IDs, hashes and code, both variable files, self-hosted. Tabular figures on every number in a table.
+Inter for text (ADR-016, chosen on 2026-10-16 as the more professional face), Geist Mono for IDs, hashes and code, both variable files, self-hosted. Tabular figures on every number in a table. Headings are tracked -0.02 em.
 
 ## Scale per level
 
@@ -90,3 +90,11 @@ A page does one job. Secondary actions live in a popover, creation in a modal or
 ## Visuals (ADR-005)
 
 Progress, order, time and people are drawn. `ProgressRing` shows an item's percent with a fixed status colour (info while in flight, success when done) and never the org accent. `Avatar` shows a person or a logo tile with initials as the fallback. `Illustration` is the one illustration style (rounded shapes in the surface, line and accent tokens), used only on empty, error and welcome screens and beside the sign in form.
+
+## Structure and texture (round two)
+
+- Surfaces are the page (`--bg`), the header band (`--band`, a tint of the accent on the surface), the card (`--surface`) and the translucent top bar (`--bar`).
+- Elevation is two shadows, `--elev-1` for cards and rows and `--elev-2` for the bar once the page scrolls and for the sign in card. Overlays keep `--shadow-pop`.
+- The background is three quiet layers behind the page, all mixed from the accent so an organisation palette carries through: an aurora of two glows (`--glow`, `--glow-2`), a faint grid (`--grid`) and a paper grain (`--grain`). Dark mode raises each a little. Worst case contrast of muted text on the strongest glow is 6.4 to 1 in dark and 5.1 to 1 in light.
+- Fields lift with `--elev-1`, and on focus take an accent border and a four pixel `--accent-soft` ring instead of an outline. A password field has a reveal button, and the sign in fields carry an icon.
+- Motion helpers in `app.css`: `.enter` (fade and rise), `.stagger` (rows enter in turn, `--i` sets the order), `.lift` (a hovered card rises two pixels) and `.press` (a pressed control settles). All are off under reduced motion.

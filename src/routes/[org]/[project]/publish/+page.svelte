@@ -5,6 +5,7 @@
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import Notice from '#lib/ui/Notice.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
@@ -17,7 +18,7 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
-	import GitBranch from 'phosphor-svelte/lib/GitBranch';
+	import GitBranch from '@lucide/svelte/icons/git-branch';
 
 	// -- REQUIRED PROPS -- //
 
@@ -162,7 +163,10 @@
 				text="An admin or owner can connect a GitHub repository to publish this project."
 			/>
 		{:else}
-			<section class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4" data-card>
+			<section
+				class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
+				data-card
+			>
 				<h2 class="text-lg font-semibold">Connect a repository</h2>
 				{#if data.repos.length}
 					<p class="text-sm text-muted">Pick the repository to publish into.</p>
@@ -228,7 +232,7 @@
 		{/if}
 	{:else}
 		<section
-			class="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface p-4"
+			class="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
 			data-card
 		>
 			<GitBranch size={20} class="text-muted" />
@@ -253,22 +257,12 @@
 		</section>
 
 		{#if link.pausedReason}
-			<div
-				class="rounded-lg border border-line bg-warning-soft px-3 py-2 text-sm text-warning"
-				role="alert"
-				data-testid="paused"
+			<Notice tone="warning" data-testid="paused"
+				>Automatic publish is paused. {link.pausedReason}</Notice
 			>
-				Automatic publish is paused. {link.pausedReason}
-			</div>
 		{/if}
 		{#if preview?.refusal}
-			<div
-				class="rounded-lg border border-line bg-danger-soft px-3 py-2 text-sm text-danger"
-				role="alert"
-				data-testid="refusal"
-			>
-				{preview.refusal}
-			</div>
+			<Notice tone="danger" data-testid="refusal">{preview.refusal}</Notice>
 		{/if}
 		{#if error}<p class="text-sm text-danger" role="alert" data-testid="publish-error">
 				{error}
@@ -282,7 +276,10 @@
 						Nothing has changed since the last publish.
 					</p>
 				{:else}
-					<ul class="rounded-xl border border-line bg-surface" data-testid="diff">
+					<ul
+						class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
+						data-testid="diff"
+					>
 						{#each preview.diff.added as r (r)}
 							<li
 								class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
@@ -334,7 +331,7 @@
 
 		{#if pub.pending}
 			<section
-				class="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface p-4"
+				class="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
 				data-card
 				data-testid="pending"
 			>
@@ -357,7 +354,10 @@
 			{#if pub.runs.length === 0}
 				<p class="text-sm text-muted">Nothing has been published yet.</p>
 			{:else}
-				<ul class="rounded-xl border border-line bg-surface" data-testid="runs">
+				<ul
+					class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
+					data-testid="runs"
+				>
 					{#each pub.runs as r (r.id)}
 						<li
 							class="flex min-h-12 flex-wrap items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"

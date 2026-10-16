@@ -6,6 +6,7 @@
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { ApiError, api } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import Button from '#lib/ui/Button.svelte';
@@ -51,8 +52,11 @@
 
 <svelte:head><title>Trash, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<PageFrame class="flex flex-col gap-4 py-8 pb-12">
-	<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">Trash</h1>
+<PageFrame class="flex flex-col gap-4 pb-12">
+	<PageHeader
+		title="Trash"
+		context="Things stay here for 30 days, then they are removed for good."
+	/>
 	{#if data.denied}
 		<PermissionDenied needed={data.denied.needed} current={data.denied.role} what="the trash" />
 	{:else if empty}
@@ -61,11 +65,13 @@
 			text="Items and files you remove stay here for 30 days, so you can bring them back."
 		/>
 	{:else if data.trash}
-		<p class="text-sm text-muted">Things stay here for 30 days, then they are removed for good.</p>
 		{#if data.trash.items.length}
 			<section class="flex flex-col gap-2" aria-label="Items in the trash">
 				<h2 class="text-lg font-semibold">Items</h2>
-				<ul class="rounded-xl border border-line bg-surface" data-testid="trash-items">
+				<ul
+					class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
+					data-testid="trash-items"
+				>
 					{#each data.trash.items as i (i.id)}
 						<li
 							class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
@@ -88,7 +94,7 @@
 		{#if data.trash.tasks.length}
 			<section class="flex flex-col gap-2" aria-label="Tasks in the trash">
 				<h2 class="text-lg font-semibold">Tasks</h2>
-				<ul class="rounded-xl border border-line bg-surface">
+				<ul class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
 					{#each data.trash.tasks as t (t.id)}
 						<li
 							class="flex items-center gap-3 border-b border-line px-3 py-2 text-sm last:border-b-0"
@@ -104,7 +110,7 @@
 		{#if data.trash.attachments.length}
 			<section class="flex flex-col gap-2" aria-label="Files in the trash">
 				<h2 class="text-lg font-semibold">Files</h2>
-				<ul class="rounded-xl border border-line bg-surface">
+				<ul class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
 					{#each data.trash.attachments as a (a.id)}
 						<li
 							class="flex items-center gap-3 border-b border-line px-3 py-2 text-sm last:border-b-0"

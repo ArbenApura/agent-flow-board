@@ -19,7 +19,7 @@
 	import Popover from '#lib/ui/Popover.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
-	import DotsThree from 'phosphor-svelte/lib/DotsThree';
+	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 
 	// -- REQUIRED PROPS -- //
 
@@ -64,7 +64,7 @@
 <Popover bind:open placement="bottom-end" role="menu" {label}>
 	{#snippet trigger({ props, toggle })}
 		<Button variant="ghost" iconOnly aria-label={label} onclick={toggle} {...props}>
-			<DotsThree size={20} weight="bold" />
+			<Ellipsis size={20} strokeWidth={3} />
 		</Button>
 	{/snippet}
 	{#snippet children({ close })}

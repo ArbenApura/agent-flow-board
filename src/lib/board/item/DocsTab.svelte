@@ -11,8 +11,8 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
-	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
-	import Plus from 'phosphor-svelte/lib/Plus';
+	import Pencil from '@lucide/svelte/icons/pencil';
+	import Plus from '@lucide/svelte/icons/plus';
 
 	// -- REQUIRED PROPS -- //
 
@@ -104,12 +104,15 @@
 		/>
 	{/if}
 	{#each detail.sections as s (s.id)}
-		<section class="rounded-xl border border-line bg-surface p-4" aria-label={s.title}>
+		<section
+			class="rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
+			aria-label={s.title}
+		>
 			<div class="mb-2 flex items-center justify-between gap-2">
 				<h2 class="text-lg font-semibold">{s.title}</h2>
 				{#if env.canWrite}
 					<Button variant="ghost" size="sm" onclick={() => edit(s)}
-						><PencilSimple size={14} /> Edit</Button
+						><Pencil size={14} /> Edit</Button
 					>
 				{/if}
 			</div>

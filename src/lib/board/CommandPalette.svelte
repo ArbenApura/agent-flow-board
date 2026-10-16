@@ -7,7 +7,7 @@
 	import Badge from '#lib/ui/Badge.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	// -- DEP-COMPONENTS -- //
-	import MagnifyingGlass from 'phosphor-svelte/lib/MagnifyingGlass';
+	import Search from '@lucide/svelte/icons/search';
 
 	// -- TYPES -- //
 
@@ -137,10 +137,10 @@
 </script>
 
 <!-- THE COMMAND PALETTE (PLAN 3.13). TYPE TO SEARCH THE ORGANISATION, OR PICK A PAGE OF THIS PROJECT, WITH THE ARROW KEYS AND ENTER -->
-<ResponsiveModal {open} {onclose} title="Search" size="lg">
+<ResponsiveModal {open} {onclose} title="Search" size="lg" variant="top">
 	<div class="flex flex-col gap-3" data-testid="palette">
 		<div class="relative">
-			<MagnifyingGlass size={18} class="pointer-events-none absolute top-3 left-3 text-muted" />
+			<Search size={18} class="pointer-events-none absolute top-3 left-3 text-muted" />
 			<input
 				bind:this={input}
 				bind:value={q}

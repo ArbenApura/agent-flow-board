@@ -76,10 +76,29 @@ const theme: Handle = ({ event, resolve }) => {
 	});
 };
 
+/** Paths that are not app pages, so a document request to them still reads the session. */
+const NOT_A_SHELL =
+	/^\/(api|oauth|mcp|github|internal|\.well-known|healthz)(\/|$)|\/shot\/|\/stream$|\.(json|md)$/;
+
+/**
+ * The app is a client rendered shell, so a browser asking for a page gets the same small HTML whoever asks and no database call is
+ * made for it. The page's own data request reads the session and enforces every rule (ADR-019).
+ */
+const isShellRequest = (event: Parameters<Handle>[0]['event']) =>
+	event.request.method === 'GET' &&
+	event.request.headers.get('sec-fetch-dest') === 'document' &&
+	!event.isDataRequest &&
+	!NOT_A_SHELL.test(event.url.pathname);
+
 /** Reads the session once per request and serves /api/auth/* through Better Auth. */
 const authentication: Handle = async ({ event, resolve }) => {
 	// Health checks never touch the database
 	if (event.url.pathname === '/healthz') return resolve(event);
+	if (isShellRequest(event)) {
+		event.locals.user = null;
+		event.locals.session = null;
+		return resolve(event);
+	}
 	const auth = await getAuth();
 	const session = await auth.api.getSession({ headers: event.request.headers });
 	event.locals.user = session?.user ?? null;

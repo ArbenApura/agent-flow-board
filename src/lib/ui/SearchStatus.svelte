@@ -1,6 +1,6 @@
 <script lang="ts">
 	// -- DEP-COMPONENTS -- //
-	import CircleNotch from 'phosphor-svelte/lib/CircleNotch';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 
 	// -- REQUIRED PROPS -- //
 
@@ -14,7 +14,7 @@
 <!-- ONE LINE THAT SAYS WHAT THE SEARCH IS DOING, READ OUT POLITELY -->
 <p class="flex min-h-6 items-center gap-2 text-sm text-muted" role="status" aria-live="polite">
 	{#if searching}
-		<CircleNotch size={16} class="animate-spin" aria-hidden="true" /> Searching for "{query}"
+		<LoaderCircle size={16} class="animate-spin" aria-hidden="true" /> Searching for "{query}"
 	{:else if query === ''}
 		Type to search items, decisions and tasks
 	{:else if count === 0}

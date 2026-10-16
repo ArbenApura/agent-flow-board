@@ -204,7 +204,7 @@
 		<Skeleton lines={4} />
 	{:else}
 		<section
-			class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4"
+			class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
 			data-card
 			aria-labelledby="targets-title"
 		>
@@ -242,7 +242,7 @@
 		{#each autoChecks as mc (mc.id)}
 			{@const c = checkOf(mc.key)}
 			<section
-				class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4"
+				class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
 				data-card
 				data-testid={`check-${mc.key}`}
 				aria-labelledby={`check-${mc.key}-title`}

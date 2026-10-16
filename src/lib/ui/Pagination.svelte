@@ -19,8 +19,8 @@
 	// -- MODULES -- //
 	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
-	import CaretLeft from 'phosphor-svelte/lib/CaretLeft';
-	import CaretRight from 'phosphor-svelte/lib/CaretRight';
+	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	// -- REQUIRED PROPS -- //
 
@@ -50,7 +50,7 @@
 		disabled={page <= 1}
 		onclick={() => go(page - 1)}
 	>
-		<CaretLeft size={16} />
+		<ChevronLeft size={16} />
 	</button>
 	{#each pageWindow(page, count) as p, i (p ?? `gap-${i}`)}
 		{#if p === null}
@@ -81,6 +81,6 @@
 		disabled={page >= count}
 		onclick={() => go(page + 1)}
 	>
-		<CaretRight size={16} />
+		<ChevronRight size={16} />
 	</button>
 </nav>

@@ -4,6 +4,7 @@
 	// -- DEP-MODULES -- //
 	import { enhance, type SubmitFunction } from '$app/forms';
 	// -- MODULES -- //
+	import Notice from '#lib/ui/Notice.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
 	import Badge from '#lib/ui/Badge.svelte';
@@ -211,12 +212,7 @@
 				</div>
 			{/if}
 			{#if form && 'message' in form && form.message}
-				<p
-					role="alert"
-					class="mb-3 rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
-				>
-					{form.message}
-				</p>
+				<Notice tone="danger" class="mb-3">{form.message}</Notice>
 			{/if}
 			<form
 				method="POST"

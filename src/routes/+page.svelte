@@ -16,7 +16,7 @@
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	// -- DEP-COMPONENTS -- //
-	import Plus from 'phosphor-svelte/lib/Plus';
+	import Plus from '@lucide/svelte/icons/plus';
 
 	// -- REQUIRED PROPS -- //
 
@@ -89,7 +89,7 @@
 					<a
 						href={`/${o.slug}`}
 						data-card
-						class="flex items-center gap-4 rounded-xl border border-line bg-surface p-5 transition-colors hover:border-muted"
+						class="flex items-center gap-4 rounded-xl border border-line bg-surface p-5 shadow-[var(--elev-1)] transition-colors hover:border-muted"
 					>
 						<Avatar name={o.name} size={40} kind="agent" />
 						<span class="flex min-w-0 flex-1 flex-col gap-1">

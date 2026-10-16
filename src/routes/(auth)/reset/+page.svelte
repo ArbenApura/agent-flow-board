@@ -7,6 +7,9 @@
 	import AuthShell from '#lib/ui/AuthShell.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	// -- DEP-COMPONENTS -- //
+	import KeyRound from '@lucide/svelte/icons/key-round';
+	import Mail from '@lucide/svelte/icons/mail';
 
 	// -- REQUIRED PROPS -- //
 
@@ -21,6 +24,7 @@
 <svelte:head><title>Reset your password</title></svelte:head>
 
 <AuthShell
+	icon={KeyRound}
 	title="Reset your password"
 	subtitle="Enter your email and we send a link to choose a new password."
 >
@@ -45,6 +49,8 @@
 			}}
 		>
 			<TextField
+				icon={Mail}
+				large
 				label="Email"
 				name="email"
 				type="email"
@@ -53,7 +59,9 @@
 				bind:value={email}
 				error={form?.message}
 			/>
-			<Button type="submit" variant="primary" loading={busy} class="w-full">Send the link</Button>
+			<Button type="submit" variant="primary" loading={busy} class="h-11 w-full"
+				>Send the link</Button
+			>
 		</form>
 	{/if}
 	{#snippet footer()}

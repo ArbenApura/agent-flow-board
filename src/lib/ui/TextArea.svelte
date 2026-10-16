@@ -37,7 +37,7 @@
 		{rows}
 		class={cn(
 			'w-full rounded-lg border bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-muted',
-			'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+			'shadow-[var(--elev-1)] transition-[border-color,box-shadow] duration-150 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent-soft focus-visible:outline-none',
 			'disabled:cursor-not-allowed disabled:opacity-50',
 			error ? 'border-danger' : 'border-line'
 		)}

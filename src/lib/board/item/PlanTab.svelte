@@ -7,13 +7,14 @@
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
+	import Checkbox from '#lib/ui/Checkbox.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
-	import Check from 'phosphor-svelte/lib/Check';
-	import Plus from 'phosphor-svelte/lib/Plus';
+	import Check from '@lucide/svelte/icons/check';
+	import Plus from '@lucide/svelte/icons/plus';
 
 	// -- REQUIRED PROPS -- //
 
@@ -141,7 +142,7 @@
 					<RunningBadge tool={r.tool} title={r.title} phase={ph.key} />
 				{/each}
 			</h2>
-			<ul class="rounded-xl border border-line bg-surface">
+			<ul class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
 				{#each ph.steps as s (s.id)}
 					{@const st = stateOf(s.key, s.state)}
 					<li
@@ -159,7 +160,7 @@
 							onclick={() => toggle(s.key, s.state)}
 							class={BOX}
 						>
-							{#if st === 'done'}<Check size={14} weight="bold" class="text-accent-ink" />{/if}
+							{#if st === 'done'}<Check size={14} strokeWidth={3} class="text-accent-ink" />{/if}
 						</button>
 						<span class="w-10 shrink-0 pt-0.5 font-mono text-xs text-muted">{s.key}</span>
 						<span
@@ -246,7 +247,7 @@
 		<div class="text-xs text-muted">
 			Checks a person or a tool does. They are not part of the percent.
 		</div>
-		<ul class="rounded-xl border border-line bg-surface">
+		<ul class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
 			{#each detail.manualChecks as c (c.id)}
 				{@const st = stateOf(c.key, c.state)}
 				<li
@@ -264,7 +265,7 @@
 						onclick={() => toggle(c.key, c.state)}
 						class={BOX}
 					>
-						{#if st === 'done'}<Check size={14} weight="bold" class="text-accent-ink" />{/if}
+						{#if st === 'done'}<Check size={14} strokeWidth={3} class="text-accent-ink" />{/if}
 					</button>
 					<span class="w-10 shrink-0 pt-0.5 font-mono text-xs text-muted">{c.key}</span>
 					<span class="min-w-0 flex-1 text-sm text-ink">{c.text}</span>
@@ -376,10 +377,7 @@
 		}}
 	>
 		<TextField label="What is checked" bind:value={checkText} error={formError} required />
-		<label class="flex min-h-11 items-center gap-2 text-sm">
-			<input type="checkbox" bind:checked={checkAuto} class="size-4" />
-			A tool can run this check
-		</label>
+		<Checkbox label="A tool can run this check" bind:checked={checkAuto} />
 		<div class="flex justify-end gap-2">
 			<Button onclick={() => (addingCheck = false)} disabled={busy}>Cancel</Button>
 			<Button type="submit" variant="primary" loading={busy}>Add check</Button>

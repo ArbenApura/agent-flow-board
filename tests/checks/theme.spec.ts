@@ -144,6 +144,8 @@ test.describe('M5 theme', () => {
 			const page = await ctx.newPage();
 			await page.goto(GALLERY);
 			await expect(page.locator('html')).toHaveAttribute('data-mode', mode);
+			// The page is a client rendered shell, so the gallery is audited once it has mounted
+			await expect(page.getByTestId('g-states')).toBeVisible();
 			const { checked, failures } = await auditContrast(page);
 			expect(checked).toBeGreaterThan(80);
 			expect(failures, JSON.stringify(failures, null, 1)).toEqual([]);

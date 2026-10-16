@@ -29,6 +29,7 @@
 	import Select from '#lib/ui/Select.svelte';
 	import SelectField from '#lib/ui/SelectField.svelte';
 	import Skeleton from '#lib/ui/Skeleton.svelte';
+	import Texture from '#lib/ui/Texture.svelte';
 	import StaleWriteDialog from '#lib/ui/StaleWriteDialog.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
 	import TagInput from '#lib/ui/TagInput.svelte';
@@ -39,9 +40,9 @@
 	import VirtualList from '#lib/ui/VirtualList.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
-	import Archive from 'phosphor-svelte/lib/Archive';
-	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
-	import Trash from 'phosphor-svelte/lib/Trash';
+	import Archive from '@lucide/svelte/icons/archive';
+	import Pencil from '@lucide/svelte/icons/pencil';
+	import Trash from '@lucide/svelte/icons/trash';
 
 	// -- CONSTANTS -- //
 
@@ -137,7 +138,7 @@
 			<Button variant="primary" loading>Saving</Button>
 			<Button disabled>Disabled</Button>
 			<Button size="sm">Compact</Button>
-			<Button iconOnly aria-label="Edit"><PencilSimple size={20} /></Button>
+			<Button iconOnly aria-label="Edit"><Pencil size={20} /></Button>
 			<Avatar name="Maria Santos" />
 			<Avatar name="Claude Code" kind="agent" />
 		</div>
@@ -218,7 +219,7 @@
 			</Popover>
 			<ActionMenu
 				items={[
-					{ label: 'Rename', icon: PencilSimple, onselect: () => toast.info('Rename chosen') },
+					{ label: 'Rename', icon: Pencil, onselect: () => toast.info('Rename chosen') },
 					{ label: 'Archive', icon: Archive, onselect: () => toast.success('Archived') },
 					{
 						label: 'Delete',
@@ -236,6 +237,23 @@
 			<Button onclick={() => toast.error('Could not save. The connection dropped.')}
 				>Error toast</Button
 			>
+		</div>
+	</Card>
+
+	<Card>
+		{#snippet header()}<h2 class="text-lg font-semibold">Background treatments</h2>{/snippet}
+		<!-- THE THREE LAYERS ALONE AND THE CHOSEN MIX (ADR-024), EACH ON THE PAGE COLOUR WITH TEXT ON TOP SO THE LEGIBILITY IS PLAIN TO SEE -->
+		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="g-textures">
+			{#each [{ name: 'Aurora', kinds: ['aurora'] }, { name: 'Grid', kinds: ['grid'] }, { name: 'Paper grain', kinds: ['paper'] }, { name: 'Chosen mix', kinds: ['aurora', 'grid', 'paper'] }] as t (t.name)}
+				<div
+					class="relative h-40 overflow-hidden rounded-xl border border-line bg-bg p-4"
+					data-testid="g-texture"
+				>
+					<Texture kinds={t.kinds as ('aurora' | 'grid' | 'paper')[]} contained />
+					<p class="relative text-sm font-medium text-ink">{t.name}</p>
+					<p class="relative mt-1 text-xs text-muted">Body text on the treatment, 13 pixels.</p>
+				</div>
+			{/each}
 		</div>
 	</Card>
 

@@ -37,6 +37,7 @@
 
 	const uid = $props.id();
 	const panelId = `${uid}-panel`;
+	const OUT_MS = 140;
 
 	// -- STATES -- //
 
@@ -44,6 +45,9 @@
 	let panel = $state<HTMLElement>();
 	let pos = $state({ x: 0, y: 0 });
 	let width = $state<number | undefined>(undefined);
+	/** Stays true for the out transition, so the panel fades away instead of vanishing. */
+	let mounted = $state(false);
+	let shown = $state(false);
 
 	// -- FUNCTIONS -- //
 
@@ -82,6 +86,20 @@
 	// -- REACTIVE STATEMENTS -- //
 
 	$effect(() => {
+		if (open) {
+			mounted = true;
+			const frame = requestAnimationFrame(() => (shown = true));
+			return () => {
+				cancelAnimationFrame(frame);
+				shown = false;
+				const t = setTimeout(() => (mounted = false), OUT_MS);
+				// A reopen inside the transition keeps the panel mounted
+				return () => clearTimeout(t);
+			};
+		}
+	});
+
+	$effect(() => {
 		if (!open) return;
 		void reposition().then(() => {
 			if (!open || !panel || role === 'listbox') return;
@@ -118,7 +136,7 @@
 	})}
 </span>
 
-{#if open}
+{#if mounted}
 	<!-- DYNAMIC RUNTIME POSITION OF THE FLOATING PANEL -->
 	<div
 		bind:this={panel}
@@ -131,7 +149,10 @@
 		onkeydown={onKey}
 		style="position:fixed;left:{pos.x}px;top:{pos.y}px;{width ? `width:${width}px;` : ''}"
 		class={cn(
-			'z-[2500] max-h-[min(24rem,calc(100vh-16px))] min-w-40 overflow-auto rounded-lg border border-line bg-surface p-1 text-sm text-ink shadow-[var(--shadow-pop)] outline-none',
+			'z-[2500] max-h-[min(24rem,calc(100vh-16px))] min-w-40 origin-top overflow-auto rounded-xl border border-line bg-surface p-1 text-sm text-ink shadow-[var(--elev-1)] shadow-[var(--shadow-pop)] transition-[opacity,translate,scale] duration-150 ease-out outline-none motion-reduce:transition-none',
+			shown
+				? 'translate-y-0 scale-100 opacity-100'
+				: 'pointer-events-none -translate-y-1 scale-95 opacity-0',
 			extra
 		)}
 	>

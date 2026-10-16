@@ -61,7 +61,10 @@
 	{:else}
 		<ul class="flex flex-col gap-3">
 			{#each extras.comments as c (c.id)}
-				<li class="rounded-xl border border-line bg-surface p-3" data-testid="comment">
+				<li
+					class="rounded-xl border border-line bg-surface p-3 shadow-[var(--elev-1)]"
+					data-testid="comment"
+				>
 					<div class="mb-1 flex items-center gap-2 text-xs text-muted">
 						<span class="font-medium text-ink">{detail.people[c.authorId ?? ''] ?? 'Someone'}</span>
 						{ago(c.createdAt)}

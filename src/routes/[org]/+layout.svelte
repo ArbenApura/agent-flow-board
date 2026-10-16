@@ -2,7 +2,7 @@
 	// -- DEP-TYPES -- //
 	import type { LayoutProps } from './$types';
 	// -- ENVS -- //
-	import { page } from '$app/state';
+	import { navigating, page } from '$app/state';
 	// -- MODULES -- //
 	import { tagDot } from '#lib/board/status.js';
 	import { cn } from '#lib/ui/cn.js';
@@ -12,15 +12,16 @@
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import Popover from '#lib/ui/Popover.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
+	import RouteSkeleton from '#lib/ui/RouteSkeleton.svelte';
 	// -- DEP-COMPONENTS -- //
-	import CaretDown from 'phosphor-svelte/lib/CaretDown';
-	import DotsThree from 'phosphor-svelte/lib/DotsThree';
-	import Gear from 'phosphor-svelte/lib/Gear';
-	import List from 'phosphor-svelte/lib/List';
-	import MagnifyingGlass from 'phosphor-svelte/lib/MagnifyingGlass';
-	import Plugs from 'phosphor-svelte/lib/Plugs';
-	import SignOut from 'phosphor-svelte/lib/SignOut';
-	import UserCircle from 'phosphor-svelte/lib/UserCircle';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import Ellipsis from '@lucide/svelte/icons/ellipsis';
+	import Settings from '@lucide/svelte/icons/settings';
+	import Menu from '@lucide/svelte/icons/menu';
+	import Search from '@lucide/svelte/icons/search';
+	import Plug from '@lucide/svelte/icons/plug';
+	import LogOut from '@lucide/svelte/icons/log-out';
+	import CircleUser from '@lucide/svelte/icons/circle-user';
 
 	// -- REQUIRED PROPS -- //
 
@@ -31,6 +32,8 @@
 	let drawer = $state(false);
 	let switcher = $state(false);
 	let more = $state(false);
+	/** A quiet shadow under the bar once the page has scrolled. */
+	let scrolled = $state(false);
 	let account = $state(false);
 	let palette = $state(false);
 	/** The palette is loaded the first time it opens, so it is not in the first load of every page. */
@@ -88,10 +91,15 @@
 </script>
 
 <svelte:head><title>{data.org.name}</title></svelte:head>
-<svelte:window onkeydown={onShortcut} />
+<svelte:window onkeydown={onShortcut} onscroll={() => (scrolled = window.scrollY > 4)} />
 
-<div class="flex min-h-dvh flex-col bg-bg">
-	<header class="sticky top-0 z-30 border-b border-line bg-surface">
+<div class="flex min-h-dvh flex-col">
+	<header
+		class={cn(
+			'sticky top-0 z-30 border-b border-line bg-bar backdrop-blur-md transition-shadow duration-150',
+			scrolled && 'shadow-[var(--elev-2)]'
+		)}
+	>
 		<PageFrame testid="nav-frame">
 			<div class="flex h-16 items-center gap-3">
 				<Button
@@ -102,7 +110,7 @@
 					data-testid="menu-button"
 					onclick={() => (drawer = true)}
 				>
-					<List size={20} />
+					<Menu size={20} />
 				</Button>
 				<a href={base} class="flex min-w-0 items-center gap-2.5 text-base font-semibold text-ink">
 					{#if data.org.logo}
@@ -136,7 +144,7 @@
 									{:else}
 										Projects
 									{/if}
-									<CaretDown size={14} />
+									<ChevronDown size={14} />
 								</Button>
 							{/snippet}
 							{#snippet children({ close })}
@@ -184,7 +192,7 @@
 										data-testid="nav-more"
 										{...props}
 									>
-										<DotsThree size={20} weight="bold" />
+										<Ellipsis size={20} strokeWidth={3} />
 									</Button>
 								{/snippet}
 								{#snippet children({ close })}
@@ -221,7 +229,7 @@
 						}}
 						class="text-muted max-md:size-10 max-md:px-0 md:w-52 md:justify-start"
 					>
-						<MagnifyingGlass size={18} />
+						<Search size={18} />
 						<span class="max-md:hidden">Search</span>
 						<kbd class="ml-auto rounded border border-line px-1.5 text-xs text-muted max-md:hidden"
 							>/</kbd
@@ -254,7 +262,7 @@
 												onclick={close}
 												data-testid="account-settings-link"
 												class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
-												><UserCircle size={18} class="text-muted" /> Your account settings</a
+												><CircleUser size={18} class="text-muted" /> Your account settings</a
 											>
 										</li>
 										<li>
@@ -263,7 +271,7 @@
 												onclick={close}
 												data-testid="org-settings-link"
 												class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
-												><Gear size={18} class="text-muted" /> Organisation settings</a
+												><Settings size={18} class="text-muted" /> Organisation settings</a
 											>
 										</li>
 										<li>
@@ -271,7 +279,7 @@
 												href={`/connect?org=${data.org.slug}`}
 												onclick={close}
 												class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
-												><Plugs size={18} class="text-muted" /> Connect a tool</a
+												><Plug size={18} class="text-muted" /> Connect a tool</a
 											>
 										</li>
 									</ul>
@@ -280,7 +288,7 @@
 											type="submit"
 											class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
 										>
-											<SignOut size={18} class="text-muted" /> Sign out
+											<LogOut size={18} class="text-muted" /> Sign out
 										</button>
 									</form>
 								</div>
@@ -293,7 +301,12 @@
 	</header>
 
 	<main class="flex-1">
-		{@render pageContent()}
+		<!-- ANOTHER SCREEN IS LOADING, SO ITS SKELETON REPLACES THE OLD PAGE AT ONCE. A CHANGE OF FILTER OR TAB ON THE SAME SCREEN KEEPS THE PAGE -->
+		{#if navigating.to && navigating.to.route.id !== navigating.from?.route.id && navigating.to.url.pathname.startsWith(`/${data.org.slug}`)}
+			<RouteSkeleton routeId={navigating.to.route.id} />
+		{:else}
+			{@render pageContent()}
+		{/if}
 	</main>
 </div>
 
@@ -336,7 +349,7 @@
 					href="/settings"
 					onclick={() => (drawer = false)}
 					class="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm hover:bg-raised"
-					><UserCircle size={18} /> Your account settings</a
+					><CircleUser size={18} /> Your account settings</a
 				>
 			</li>
 			<li>
@@ -344,7 +357,7 @@
 					href={`${base}/settings`}
 					onclick={() => (drawer = false)}
 					class="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm hover:bg-raised"
-					><Gear size={18} /> Organisation settings</a
+					><Settings size={18} /> Organisation settings</a
 				>
 			</li>
 			<li>
@@ -352,13 +365,13 @@
 					href={`/connect?org=${data.org.slug}`}
 					onclick={() => (drawer = false)}
 					class="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm hover:bg-raised"
-					><Plugs size={18} /> Connect a tool</a
+					><Plug size={18} /> Connect a tool</a
 				>
 			</li>
 		</ul>
 		<form method="POST" action="/sign-out" class="border-t border-line pt-2">
 			<Button type="submit" variant="ghost" class="w-full justify-start">
-				<SignOut size={16} /> Sign out
+				<LogOut size={16} /> Sign out
 			</Button>
 		</form>
 	</nav>

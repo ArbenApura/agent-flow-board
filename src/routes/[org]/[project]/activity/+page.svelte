@@ -6,6 +6,7 @@
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { ApiError, api } from '#lib/board/api.js';
 	import EventList from '#lib/board/EventList.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -46,27 +47,24 @@
 
 <svelte:head><title>Activity, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<PageFrame class="flex flex-col gap-4 py-8 pb-12">
-	<div class="flex flex-wrap items-center justify-between gap-3">
-		<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">
-			Activity
-		</h1>
-		{#if data.sessionId}
-			<div class="flex items-center gap-2">
+<PageFrame class="flex flex-col gap-4 pb-12">
+	<PageHeader
+		title="Activity"
+		context={data.sessionId
+			? 'Only what one agent session changed.'
+			: 'Everything that changed in this project, newest first. Most changes can be undone.'}
+	>
+		{#snippet actions()}
+			{#if data.sessionId}
 				<a class="text-sm text-accent-text hover:underline" href={`/${org}/${key}/activity`}
 					>Show everything</a
 				>
 				{#if canWrite}<Button size="sm" variant="danger" onclick={undoSession}
 						>Undo this session</Button
 					>{/if}
-			</div>
-		{/if}
-	</div>
-	<p class="text-sm text-muted">
-		{data.sessionId
-			? 'Only what one agent session changed.'
-			: 'Everything that changed in this project, newest first. Most changes can be undone.'}
-	</p>
+			{/if}
+		{/snippet}
+	</PageHeader>
 	<EventList
 		events={data.events}
 		{org}

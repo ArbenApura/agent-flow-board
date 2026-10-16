@@ -1,6 +1,6 @@
 <script lang="ts">
 	// -- DEP-COMPONENTS -- //
-	import Lock from 'phosphor-svelte/lib/Lock';
+	import Lock from '@lucide/svelte/icons/lock';
 
 	// -- REQUIRED PROPS -- //
 

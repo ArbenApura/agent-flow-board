@@ -4,9 +4,9 @@
 	import { cn } from '#lib/ui/cn.js';
 	import { MONTHS, WEEKDAYS, formatLong, monthGrid, parseIso, shiftMonth } from '#lib/ui/dates.js';
 	// -- DEP-COMPONENTS -- //
-	import CalendarBlank from 'phosphor-svelte/lib/CalendarBlank';
-	import CaretLeft from 'phosphor-svelte/lib/CaretLeft';
-	import CaretRight from 'phosphor-svelte/lib/CaretRight';
+	import Calendar from '@lucide/svelte/icons/calendar';
+	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	// -- REQUIRED PROPS -- //
 
@@ -70,13 +70,13 @@
 				onclick={toggle}
 				aria-label={value ? `${label}, ${formatLong(value)}` : label}
 				class={cn(
-					'flex h-10 w-full min-w-44 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-surface px-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent max-sm:h-11',
+					'flex h-10 w-full min-w-44 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-surface px-3 text-left text-sm shadow-[var(--elev-1)] transition-[border-color,box-shadow] duration-150 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent-soft focus-visible:outline-none max-sm:h-11',
 					error ? 'border-danger' : 'border-line',
 					value ? 'text-ink' : 'text-muted'
 				)}
 			>
 				<span>{value ? formatLong(value) : 'Pick a date'}</span>
-				<CalendarBlank size={16} class="shrink-0 text-muted" />
+				<Calendar size={16} class="shrink-0 text-muted" />
 			</button>
 		{/snippet}
 		{#snippet children({ close })}
@@ -88,7 +88,7 @@
 						class="inline-flex size-11 cursor-pointer items-center justify-center rounded-lg hover:bg-raised"
 						onclick={() => (view = shiftMonth(view.year, view.month, -1))}
 					>
-						<CaretLeft size={16} />
+						<ChevronLeft size={16} />
 					</button>
 					<span class="text-sm font-semibold" aria-live="polite"
 						>{MONTHS[view.month]} {view.year}</span
@@ -99,7 +99,7 @@
 						class="inline-flex size-11 cursor-pointer items-center justify-center rounded-lg hover:bg-raised"
 						onclick={() => (view = shiftMonth(view.year, view.month, 1))}
 					>
-						<CaretRight size={16} />
+						<ChevronRight size={16} />
 					</button>
 				</div>
 				<div class="grid grid-cols-7 text-center text-xs text-muted">

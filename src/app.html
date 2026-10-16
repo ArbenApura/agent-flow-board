@@ -6,7 +6,7 @@
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
 		<link
 			rel="preload"
-			href="%sveltekit.assets%/fonts/geist-latin-wght-normal.woff2"
+			href="%sveltekit.assets%/fonts/inter-latin-wght-normal.woff2"
 			as="font"
 			type="font/woff2"
 			crossorigin
@@ -21,9 +21,40 @@
 		<script>
 			%afb.modescript%
 		</script>
+		<script src="%sveltekit.assets%/swr.js"></script>
+		<script>
+			// THE SHELL SHOWS ITS OWN SKELETON AND THE LAST PALETTE OF THIS ORGANISATION BEFORE THE APP MOUNTS (13.2). NOTHING HERE READS THE SERVER
+			try {
+				var seg = location.pathname.split('/')[1] || '';
+				var auth = /^(sign-in|sign-up|verify|reset|invite|device|oauth|connect)$/.test(seg);
+				document.documentElement.setAttribute('data-boot', auth ? 'auth' : 'app');
+				var css = localStorage.getItem('afb-palette:' + seg);
+				if (css) {
+					var st = document.createElement('style');
+					st.id = 'afb-palette-boot';
+					st.textContent = css;
+					document.head.appendChild(st);
+				}
+			} catch (e) {
+				/* Storage can be blocked, the skeleton still shows */
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
+		<!-- THE BOOT SKELETON. DRAWN IN CSS FROM THE TOKENS WITH NO SCRIPT, AND REMOVED WHEN THE APP MOUNTS -->
+		<div id="afb-boot" aria-hidden="true">
+			<div class="boot-card"></div>
+			<div class="boot-bar">
+				<span class="boot-dot"></span><span class="boot-line" style="width: 96px"></span>
+			</div>
+			<div class="boot-body">
+				<div class="boot-band"></div>
+				<div class="boot-row"></div>
+				<div class="boot-row"></div>
+				<div class="boot-row"></div>
+			</div>
+		</div>
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
 </html>

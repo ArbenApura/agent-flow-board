@@ -2,7 +2,7 @@
 	// -- MODULES -- //
 	import Button from '#lib/ui/Button.svelte';
 	// -- DEP-COMPONENTS -- //
-	import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
+	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 
 	// -- REQUIRED PROPS -- //
 
@@ -35,7 +35,7 @@
 </script>
 
 <div class="flex flex-col items-center gap-2 px-4 py-10 text-center" role="alert">
-	<WarningCircle size={24} class="text-danger" />
+	<CircleAlert size={24} class="text-danger" />
 	<h2 class="text-base leading-6 font-semibold text-ink sm:text-lg sm:leading-[26px]">{title}</h2>
 	<p class="max-w-[48ch] text-sm text-muted">{message}</p>
 	{#if onretry}

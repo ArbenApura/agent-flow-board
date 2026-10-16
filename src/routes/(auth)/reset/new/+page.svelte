@@ -4,9 +4,13 @@
 	// -- DEP-MODULES -- //
 	import { enhance } from '$app/forms';
 	// -- MODULES -- //
+	import Notice from '#lib/ui/Notice.svelte';
 	import AuthShell from '#lib/ui/AuthShell.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	// -- DEP-COMPONENTS -- //
+	import Lock from '@lucide/svelte/icons/lock';
+	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 
 	// -- REQUIRED PROPS -- //
 
@@ -20,15 +24,11 @@
 
 <svelte:head><title>Choose a new password</title></svelte:head>
 
-<AuthShell title="Choose a new password">
+<AuthShell title="Choose a new password" icon={ShieldCheck}>
 	{#if data.invalid || form?.expired}
-		<p
-			role="alert"
-			class="rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
-			data-testid="reset-invalid"
+		<Notice tone="danger" data-testid="reset-invalid"
+			>This link has expired or was already used.</Notice
 		>
-			This link has expired or was already used.
-		</p>
 		<div class="mt-4">
 			<Button href="/reset" variant="primary" class="w-full">Ask for a new link</Button>
 		</div>
@@ -46,6 +46,8 @@
 		>
 			<input type="hidden" name="token" value={data.token} />
 			<TextField
+				icon={Lock}
+				large
 				label="New password"
 				name="password"
 				type="password"
@@ -56,7 +58,9 @@
 				hint={`At least ${data.minPassword} characters.`}
 				error={form?.message}
 			/>
-			<Button type="submit" variant="primary" loading={busy} class="w-full">Save password</Button>
+			<Button type="submit" variant="primary" loading={busy} class="h-11 w-full"
+				>Save password</Button
+			>
 		</form>
 	{/if}
 </AuthShell>

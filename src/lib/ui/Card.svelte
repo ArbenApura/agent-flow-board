@@ -25,7 +25,10 @@
 
 <div
 	data-card
-	class={cn('overflow-hidden rounded-xl border border-line bg-surface text-ink', extra)}
+	class={cn(
+		'overflow-hidden rounded-xl border border-line bg-surface text-ink shadow-[var(--elev-1)]',
+		extra
+	)}
 	{...rest}
 >
 	{#if header}

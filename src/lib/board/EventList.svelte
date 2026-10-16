@@ -10,7 +10,7 @@
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
-	import ArrowUUpLeft from 'phosphor-svelte/lib/ArrowUUpLeft';
+	import Undo2 from '@lucide/svelte/icons/undo-2';
 
 	// -- TYPES -- //
 
@@ -94,7 +94,10 @@
 	/>
 {:else}
 	<!-- A TIMELINE. WHO DID IT AS AN AVATAR (A SQUARE MARK FOR AN AGENT TOOL), WHAT THEY DID, WHEN, AND THE UNDO ON THE RIGHT -->
-	<ul class="rounded-xl border border-line bg-surface p-2" data-testid="event-list">
+	<ul
+		class="rounded-xl border border-line bg-surface p-2 shadow-[var(--elev-1)]"
+		data-testid="event-list"
+	>
 		{#each events as e (e.id)}
 			<li
 				class="relative flex items-start gap-4 rounded-lg px-3 py-3 hover:bg-raised/60"
@@ -145,7 +148,7 @@
 						onclick={() => undo(e)}
 						data-testid="undo"
 					>
-						<ArrowUUpLeft size={14} /> Undo
+						<Undo2 size={14} /> Undo
 					</Button>
 				{/if}
 			</li>

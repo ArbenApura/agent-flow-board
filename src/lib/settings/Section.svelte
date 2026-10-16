@@ -57,7 +57,7 @@
 	{id}
 	hidden={!shown}
 	data-testid={`section-${id}`}
-	class="flex scroll-mt-20 flex-col gap-4 rounded-xl border border-line bg-surface p-6 max-sm:p-4"
+	class="flex scroll-mt-20 flex-col gap-4 rounded-xl border border-line bg-surface p-6 shadow-[var(--elev-1)] max-sm:p-4"
 	data-card
 	aria-labelledby={`${id}-title`}
 >

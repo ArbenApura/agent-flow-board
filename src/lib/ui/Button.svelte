@@ -6,7 +6,7 @@
 	import { ripple } from '#lib/actions/ripple.js';
 	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
-	import CircleNotch from 'phosphor-svelte/lib/CircleNotch';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 
 	// -- TYPES -- //
 
@@ -53,7 +53,7 @@
 	const off = $derived(disabled || loading);
 	const classes = $derived(
 		cn(
-			'relative inline-flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg border text-sm font-medium whitespace-nowrap select-none',
+			'press relative inline-flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg border text-sm font-medium whitespace-nowrap select-none',
 			'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
 			'disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50',
 			iconOnly
@@ -92,7 +92,7 @@
 		use:ripple={{ disabled: off }}
 		{...rest as HTMLButtonAttributes}
 	>
-		{#if loading}<CircleNotch size={16} class="animate-spin" aria-hidden="true" />{/if}
+		{#if loading}<LoaderCircle size={16} class="animate-spin" aria-hidden="true" />{/if}
 		{@render children()}
 	</button>
 {/if}

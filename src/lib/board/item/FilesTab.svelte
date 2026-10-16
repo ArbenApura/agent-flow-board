@@ -7,10 +7,12 @@
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
+	import FilePicker from '#lib/ui/FilePicker.svelte';
+	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	// -- DEP-COMPONENTS -- //
-	import Paperclip from 'phosphor-svelte/lib/Paperclip';
+	import Paperclip from '@lucide/svelte/icons/paperclip';
 
 	// -- REQUIRED PROPS -- //
 
@@ -42,7 +44,10 @@
 				kind: 'file'
 			});
 			caption = '';
-			if (input) input.value = '';
+			if (input) {
+				input.value = '';
+				input.dispatchEvent(new Event('change'));
+			}
 			toast.success('File attached. It is private until someone makes it public.');
 			await env.onchanged();
 		} catch (e) {
@@ -83,29 +88,19 @@
 <div class="flex flex-col gap-4" data-testid="files-tab">
 	{#if env.canWrite}
 		<form
-			class="flex flex-wrap items-end gap-2 rounded-xl border border-line bg-surface p-3"
+			class="flex flex-wrap items-end gap-2 rounded-xl border border-line bg-surface p-3 shadow-[var(--elev-1)]"
 			onsubmit={(e) => {
 				e.preventDefault();
 				void send();
 			}}
 		>
-			<label class="flex min-w-48 flex-1 flex-col gap-1 text-xs font-medium text-ink">
-				File
-				<input
-					bind:this={input}
-					type="file"
-					required
-					class="min-h-11 text-sm file:mr-3 file:min-h-9 file:cursor-pointer file:rounded-lg file:border file:border-line file:bg-surface file:px-3 file:text-sm"
-				/>
-			</label>
-			<label class="flex min-w-48 flex-1 flex-col gap-1 text-xs font-medium text-ink">
-				Caption
-				<input
-					bind:value={caption}
-					class="h-11 rounded-lg border border-line bg-surface px-3 text-sm"
-					placeholder="What the file shows"
-				/>
-			</label>
+			<FilePicker label="File" required bind:el={input} class="min-w-48 flex-1" />
+			<TextField
+				label="Caption"
+				bind:value={caption}
+				placeholder="What the file shows"
+				class="min-w-48 flex-1"
+			/>
 			<Button type="submit" variant="primary" loading={busy}>Attach</Button>
 		</form>
 	{/if}
@@ -116,7 +111,7 @@
 			text="Screenshots, documents and check results attached to this item appear here. Files are private by default."
 		/>
 	{:else}
-		<ul class="rounded-xl border border-line bg-surface">
+		<ul class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
 			{#each extras.attachments as a (a.id)}
 				<li
 					class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"

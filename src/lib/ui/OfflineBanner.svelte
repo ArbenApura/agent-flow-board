@@ -2,7 +2,7 @@
 	// -- DEP-MODULES -- //
 	import { onMount } from 'svelte';
 	// -- DEP-COMPONENTS -- //
-	import WifiSlash from 'phosphor-svelte/lib/WifiSlash';
+	import WifiOff from '@lucide/svelte/icons/wifi-off';
 
 	// -- REQUIRED PROPS -- //
 
@@ -43,7 +43,7 @@
 		role="status"
 		class="flex min-h-11 items-center gap-2 border-b border-line bg-warning-soft px-4 py-2 text-sm text-warning"
 	>
-		<WifiSlash size={16} aria-hidden="true" />
+		<WifiOff size={16} aria-hidden="true" />
 		{#if !online}
 			You are offline. Changes you make now will not be saved until the connection returns.
 		{:else}

@@ -1,10 +1,10 @@
 @import 'tailwindcss';
 @import './lib/theme/tokens.css';
 
-/* SELF-HOSTED GEIST, VARIABLE FILES, LATIN FIRST */
+/* SELF-HOSTED INTER, VARIABLE FILES, LATIN FIRST (ADR-016). GEIST MONO STAYS FOR IDS, HASHES AND CODE */
 @font-face {
-	font-family: 'Geist';
-	src: url('/fonts/geist-latin-wght-normal.woff2') format('woff2-variations');
+	font-family: 'Inter';
+	src: url('/fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
 	font-weight: 100 900;
 	font-style: normal;
 	font-display: swap;
@@ -13,8 +13,8 @@
 		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
-	font-family: 'Geist';
-	src: url('/fonts/geist-latin-ext-wght-normal.woff2') format('woff2-variations');
+	font-family: 'Inter';
+	src: url('/fonts/inter-latin-ext-wght-normal.woff2') format('woff2-variations');
 	font-weight: 100 900;
 	font-style: normal;
 	font-display: swap;
@@ -46,11 +46,11 @@
 }
 /* SIZE-ADJUSTED FALLBACKS SO THE SWAP DOES NOT MOVE THE LAYOUT */
 @font-face {
-	font-family: 'Geist Fallback';
+	font-family: 'Inter Fallback';
 	src: local('Arial');
-	size-adjust: 104%;
-	ascent-override: 92%;
-	descent-override: 26%;
+	size-adjust: 107%;
+	ascent-override: 90%;
+	descent-override: 22%;
 	line-gap-override: 0%;
 }
 @font-face {
@@ -63,12 +63,26 @@
 }
 
 @theme {
-	--font-sans: 'Geist', 'Geist Fallback', system-ui, sans-serif;
+	--font-sans: 'Inter', 'Inter Fallback', system-ui, sans-serif;
 	--font-mono: 'Geist Mono', 'Geist Mono Fallback', ui-monospace, monospace;
 }
 
 html {
 	font-family: var(--font-sans);
+	font-optical-sizing: auto;
+	/* Inter's own contextual alternates and a slightly tighter fit at text sizes */
+	font-feature-settings:
+		'calt' 1,
+		'cv05' 1,
+		'ss03' 1;
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3 {
+	letter-spacing: -0.02em;
 }
 
 /* BODY TEXT IS 15 / 24 (design/tokens.md, ADR-013) */
@@ -154,4 +168,175 @@ body {
 .md th {
 	background: var(--raised);
 	font-weight: 600;
+}
+
+/* MOTION HELPERS (FLOW-20261016-0935 11.5). A FADE AND RISE FOR PAGE CONTENT, A STAGGER FOR LIST ROWS, A LIFT ON HOVERED CARDS AND A SETTLE ON PRESS. ALL OFF UNDER REDUCED MOTION */
+@keyframes afb-rise {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+@media (prefers-reduced-motion: no-preference) {
+	.enter {
+		animation: afb-rise 220ms ease-out both;
+	}
+	.stagger > * {
+		animation: afb-rise 220ms ease-out both;
+		animation-delay: calc(min(var(--i, 0), 8) * 30ms);
+	}
+	.lift {
+		transition:
+			translate 150ms ease-out,
+			box-shadow 150ms ease-out;
+	}
+	.lift:hover {
+		translate: 0 -2px;
+		box-shadow: var(--shadow-pop);
+	}
+	.press {
+		transition: scale 100ms ease-out;
+	}
+	.press:active {
+		scale: 0.98;
+	}
+}
+
+/* TEXTURE LAYERS (FLOW-20261016-0935 10.4 AND 14.2). EACH IS A FIXED LAYER BEHIND THE PAGE, DRAWN FROM TOKENS, SO IT NEVER REPAINTS ON SCROLL */
+.tex {
+	pointer-events: none;
+	position: fixed;
+	inset: 0;
+	z-index: -1;
+}
+.tex-contained {
+	position: absolute;
+	z-index: 0;
+}
+.tex-aurora {
+	background:
+		radial-gradient(60rem 30rem at 12% -8%, var(--glow), transparent 70%),
+		radial-gradient(50rem 28rem at 92% 0%, var(--glow-2), transparent 70%);
+}
+.tex-grid {
+	background-image:
+		linear-gradient(to right, var(--grid) 1px, transparent 1px),
+		linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+	background-size: 48px 48px;
+	-webkit-mask-image: linear-gradient(to bottom, black, transparent 75%);
+	mask-image: linear-gradient(to bottom, black, transparent 75%);
+}
+.tex-paper {
+	opacity: var(--grain);
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* THE BOOT SKELETON IN THE APP SHELL (FLOW-20261016-0935 13.2). SHOWN FROM THE FIRST PAINT UNTIL THE APP MOUNTS, THEN REMOVED */
+#afb-boot {
+	display: none;
+	position: fixed;
+	inset: 0;
+	z-index: 10;
+	background: var(--bg);
+}
+html[data-boot='app'] #afb-boot {
+	display: block;
+}
+.boot-bar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	height: 64px;
+	padding: 0 32px;
+	border-bottom: 1px solid var(--line);
+	background: var(--surface);
+}
+.boot-dot {
+	width: 28px;
+	height: 28px;
+	border-radius: 8px;
+	background: var(--accent-soft);
+}
+.boot-line,
+.boot-band,
+.boot-row {
+	background: var(--raised);
+	border-radius: 12px;
+}
+.boot-line {
+	height: 14px;
+	display: inline-block;
+}
+.boot-body {
+	max-width: 1280px;
+	margin: 0 auto;
+	padding: 24px 32px;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+.boot-band {
+	height: 96px;
+	background: var(--band);
+	border: 1px solid var(--line);
+	border-radius: 16px;
+}
+.boot-row {
+	height: 56px;
+}
+@media (prefers-reduced-motion: no-preference) {
+	.boot-row,
+	.boot-line {
+		animation: afb-pulse 1.4s ease-in-out infinite;
+	}
+}
+@keyframes afb-pulse {
+	50% {
+		opacity: 0.55;
+	}
+}
+
+/* A ROUTE SKELETON WAITS A MOMENT BEFORE IT SHOWS, SO A FAST NAVIGATION NEVER FLASHES IT */
+.route-skeleton {
+	opacity: 0;
+	animation: afb-show 1ms 150ms forwards;
+}
+@keyframes afb-show {
+	to {
+		opacity: 1;
+	}
+}
+@keyframes afb-progress {
+	from {
+		transform: scaleX(0.05);
+	}
+	to {
+		transform: scaleX(0.9);
+	}
+}
+
+/* THE SIGN IN PAGES SHOW A CARD IN PLACE OF THE BAR AND THE LIST WHILE THE APP MOUNTS */
+html[data-boot='auth'] #afb-boot {
+	display: block;
+}
+html[data-boot='auth'] .boot-bar,
+html[data-boot='auth'] .boot-body {
+	display: none;
+}
+.boot-card {
+	display: none;
+}
+html[data-boot='auth'] .boot-card {
+	display: block;
+	width: min(440px, calc(100vw - 32px));
+	height: 380px;
+	margin: 20vh auto 0;
+	border: 1px solid var(--line);
+	border-radius: 16px;
+	background: var(--surface);
+	box-shadow: var(--elev-2);
 }

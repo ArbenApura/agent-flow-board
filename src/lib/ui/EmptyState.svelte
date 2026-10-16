@@ -22,7 +22,10 @@
 </script>
 
 <div class="flex flex-col items-center gap-2 px-4 py-12 text-center">
-	<Illustration {kind} class="mb-2" />
+	<!-- A SOFT GLOW OF THE ACCENT BEHIND THE PICTURE, SO THE EMPTY STATE IS NOT A BARE GREY BOX -->
+	<div class="mb-2 rounded-full bg-[radial-gradient(closest-side,var(--glow),transparent)] p-6">
+		<Illustration {kind} class="h-auto w-48" />
+	</div>
 	<h2 class="text-lg font-semibold text-ink">{title}</h2>
 	<p class="max-w-[48ch] text-sm text-muted">{text}</p>
 	{#if action}<div class="mt-2">{@render action()}</div>{/if}

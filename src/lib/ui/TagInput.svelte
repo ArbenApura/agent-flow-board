@@ -2,7 +2,7 @@
 	// -- MODULES -- //
 	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
-	import X from 'phosphor-svelte/lib/X';
+	import X from '@lucide/svelte/icons/x';
 
 	// -- REQUIRED PROPS -- //
 

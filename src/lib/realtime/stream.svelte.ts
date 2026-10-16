@@ -12,12 +12,13 @@ const DEBOUNCE_MS = 120;
 
 /**
  * Connects to a project stream. `onChange` runs once per burst of changes and after a reconnect (so a missed change is
- * never silently lost). Returns the function that closes the stream.
+ * never silently lost). It is told whether a change was announced (`true`, so cached data must not be used) or the stream only
+ * opened (`false`, a cached answer may show while the network refreshes it). Returns the function that closes the stream.
  */
 export function connectStream(
 	url: string,
 	state: LiveState,
-	onChange: () => void,
+	onChange: (announced: boolean) => void,
 	source: typeof EventSource = EventSource
 ): () => void {
 	let es: EventSource;
@@ -27,9 +28,15 @@ export function connectStream(
 	let first = true;
 	let attempt = 0;
 	let closed = false;
-	const soon = () => {
+	let announced = false;
+	const soon = (isChange = true) => {
+		announced ||= isChange;
 		clearTimeout(timer);
-		timer = setTimeout(onChange, DEBOUNCE_MS);
+		timer = setTimeout(() => {
+			const asked = announced;
+			announced = false;
+			onChange(asked);
+		}, DEBOUNCE_MS);
 	};
 	const connect = () => {
 		es = new source(url);
@@ -39,13 +46,15 @@ export function connectStream(
 			// The page was drawn before the stream opened, and a claim carries no event id to replay, so the first open refetches
 			// once. After a drop the browser reconnects with Last-Event-ID and the server replays; a refetch covers the rest.
 			if (dropped || first) {
+				// Only the very first open may show cached data. After a drop a change may have been missed, so the network answers
+				const missed = dropped;
 				dropped = false;
 				first = false;
-				soon();
+				soon(missed);
 			}
 		});
-		es.addEventListener('change', soon);
-		es.addEventListener('refetch', soon);
+		es.addEventListener('change', () => soon());
+		es.addEventListener('refetch', () => soon());
 		es.addEventListener('error', () => {
 			dropped = true;
 			state.lost = true;

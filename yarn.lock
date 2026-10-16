@@ -1337,6 +1337,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@lucide/svelte@npm:^1.57.0":
+  version: 1.57.0
+  resolution: "@lucide/svelte@npm:1.57.0"
+  peerDependencies:
+    svelte: ^5
+  checksum: 10c0/6a2b3df3b85e85a768355b7042621ac8aa2646053a529e3a087fcc5dfa54923e50fe304412eb7b1c43fbb535c87f213a6618d7ea4cace0dc29502276b4076591
+  languageName: node
+  linkType: hard
+
 "@modelcontextprotocol/sdk@npm:^1.32.1":
   version: 1.32.1
   resolution: "@modelcontextprotocol/sdk@npm:1.32.1"
@@ -2153,6 +2162,7 @@ __metadata:
   dependencies:
     "@electric-sql/pglite": "npm:^0.5.9"
     "@eslint/js": "npm:^10.0.1"
+    "@lucide/svelte": "npm:^1.57.0"
     "@modelcontextprotocol/sdk": "npm:^1.32.1"
     "@opentelemetry/api": "npm:^1.9.1"
     "@playwright/test": "npm:^1.64.0"
@@ -2182,7 +2192,6 @@ __metadata:
     nodemailer: "npm:^10.1.1"
     pg: "npm:^8.23.1"
     pg-boss: "npm:^12.38.0"
-    phosphor-svelte: "npm:^3.1.1"
     prettier: "npm:^3.9.10"
     prettier-plugin-svelte: "npm:^4.1.1"
     prettier-plugin-tailwindcss: "npm:^0.8.1"
@@ -4205,7 +4214,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"magic-string@npm:^0.30.11, magic-string@npm:^0.30.13, magic-string@npm:^0.30.21":
+"magic-string@npm:^0.30.11, magic-string@npm:^0.30.21":
   version: 0.30.21
   resolution: "magic-string@npm:0.30.21"
   dependencies:
@@ -4634,22 +4643,6 @@ __metadata:
   dependencies:
     split2: "npm:^4.1.0"
   checksum: 10c0/5ea6c9b2de04c33abb08d33a2dded303c4a3c7162a9264519cbe85c0a9857d712463140ba42fad0c7cd4b21f644dd870b45bb2e02fcbe505b4de0744fd802c1d
-  languageName: node
-  linkType: hard
-
-"phosphor-svelte@npm:^3.1.1":
-  version: 3.1.1
-  resolution: "phosphor-svelte@npm:3.1.1"
-  dependencies:
-    estree-walker: "npm:^3.0.3"
-    magic-string: "npm:^0.30.13"
-  peerDependencies:
-    svelte: ^5.0.0 || ^5.0.0-next.96
-    vite: ">=5"
-  peerDependenciesMeta:
-    vite:
-      optional: true
-  checksum: 10c0/8de0f998ff143c93b715367f1e26281e972971a17bf36914bcfce6c688d3ccebda36446a13f8e38328b903da92ef85d97af61efff7e9ea60da7bfa0d6227cf66
   languageName: node
   linkType: hard
 

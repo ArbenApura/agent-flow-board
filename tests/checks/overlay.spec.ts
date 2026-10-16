@@ -120,3 +120,44 @@ test('M2 the command palette opens with / and Ctrl+K, searches, and moves with t
 	await expect(page.getByTestId('filter-q')).toHaveValue('a/b');
 	await ctx.close();
 });
+
+test('M2 every floating layer stays mounted through its out transition and reduced motion turns it off', async ({
+	browser,
+	baseURL
+}) => {
+	const ctx = await browser.newContext({ baseURL, viewport: { width: 1440, height: 900 } });
+	const page = await ctx.newPage();
+	await signIn(page, 'owner@acme.example');
+	await page.goto('/acme/CKT');
+	await page.waitForLoadState('networkidle');
+	// A popover is present during its out transition and gone after it
+	const button = page.getByTestId('filters-button');
+	await button.click();
+	const option = page.getByRole('checkbox', { name: /^planned/ });
+	await expect(option).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(option).toHaveCount(0, { timeout: 1000 });
+	// The palette is a top variant of the dialog, a quarter of the height down at most
+	await page.keyboard.press('Control+k');
+	const dialog = page.getByRole('dialog', { name: 'Search' });
+	await expect(dialog).toBeVisible();
+	await expect.poll(async () => (await dialog.boundingBox())?.y ?? 999).toBeLessThan(300);
+	await page.keyboard.press('Escape');
+	await expect(dialog).toHaveCount(0, { timeout: 1000 });
+	await ctx.close();
+	// Reduced motion switches every transition off
+	const calm = await browser.newContext({
+		baseURL,
+		viewport: { width: 1440, height: 900 },
+		reducedMotion: 'reduce'
+	});
+	const p2 = await calm.newPage();
+	await signIn(p2, 'owner@acme.example');
+	await p2.goto('/acme/CKT');
+	await p2.waitForLoadState('networkidle');
+	await p2.keyboard.press('Control+k');
+	const d2 = p2.getByRole('dialog', { name: 'Search' });
+	await expect(d2).toBeVisible();
+	expect(await d2.evaluate((el) => getComputedStyle(el).transitionProperty)).toBe('none');
+	await calm.close();
+});

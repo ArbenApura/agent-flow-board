@@ -21,6 +21,7 @@
 	import Section from '#lib/settings/Section.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
+	import FilePicker from '#lib/ui/FilePicker.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
@@ -252,16 +253,14 @@
 					/>
 				{/if}
 				{#if can}
-					<label class="flex flex-col gap-1 text-xs font-medium text-muted">
-						Logo, a PNG, JPEG or WebP under 200 KB
-						<input
-							type="file"
-							accept="image/png,image/jpeg,image/webp"
-							data-testid="logo-file"
-							onchange={(e) => void uploadLogo(e.currentTarget.files?.[0])}
-							class="min-h-11 text-sm file:mr-3 file:min-h-9 file:cursor-pointer file:rounded-lg file:border file:border-line file:bg-surface file:px-3 file:text-sm"
-						/>
-					</label>
+					<FilePicker
+						label="Logo"
+						hint="A PNG, JPEG or WebP under 200 KB"
+						accept="image/png,image/jpeg,image/webp"
+						data-testid="logo-file"
+						onchange={(f) => void uploadLogo(f)}
+						class="w-72"
+					/>
 					{#if s.logo}
 						<Button
 							size="sm"

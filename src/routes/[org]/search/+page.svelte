@@ -3,6 +3,7 @@
 	import type { PageProps } from './$types';
 	// -- MODULES -- //
 	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
@@ -36,8 +37,11 @@
 
 <svelte:head><title>Search, {data.org.name}</title></svelte:head>
 
-<PageFrame class="flex flex-col gap-4 py-8 pb-12">
-	<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">Search</h1>
+<PageFrame class="flex flex-col gap-4 pb-12">
+	<PageHeader
+		title="Search"
+		context="Items, documents, decisions and tasks across the organisation."
+	/>
 	<form method="GET" class="flex items-end gap-2">
 		<TextField
 			label="Search items, documents, decisions and tasks"
@@ -59,7 +63,10 @@
 			text={`No item, document, decision or task matches "${data.q}". Try fewer or different words.`}
 		/>
 	{:else}
-		<ul class="rounded-xl border border-line bg-surface" data-testid="search-hits">
+		<ul
+			class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
+			data-testid="search-hits"
+		>
 			{#each data.hits as h (h.kind + h.id)}
 				<li class="border-b border-line last:border-b-0">
 					<a

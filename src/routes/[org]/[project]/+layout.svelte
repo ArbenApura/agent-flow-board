@@ -6,6 +6,7 @@
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import { clearCache } from '#lib/board/swr.js';
 	import { connectStream } from '#lib/realtime/stream.svelte.js';
 	import OfflineBanner from '#lib/ui/OfflineBanner.svelte';
 	import PermissionDenied from '#lib/ui/PermissionDenied.svelte';
@@ -20,7 +21,11 @@
 
 	// -- FUNCTIONS -- //
 
-	const refetch = () => invalidate('afb:project');
+	// A change the live hub announced must come from the network, so the cache is cleared first
+	const refetch = (announced = true) => {
+		if (announced) clearCache();
+		return invalidate('afb:project');
+	};
 
 	// -- EFFECTS -- //
 
@@ -35,7 +40,7 @@
 	});
 </script>
 
-<OfflineBanner liveLost={live.lost} onreconnect={refetch} />
+<OfflineBanner liveLost={live.lost} onreconnect={() => refetch()} />
 
 {#if data.denied}
 	<PageFrame class="flex flex-col gap-5 py-8 pb-12">

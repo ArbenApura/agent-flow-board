@@ -52,8 +52,11 @@ test('M3 org A cannot see or change anything of org B through the UI, REST, MCP 
 	// A person of org A (Acme)
 	await signIn(page, 'member@acme.example');
 	// UI: org B's pages are 404, never a hint that the org exists
-	expect((await page.goto('/lumora'))!.status()).toBe(404);
-	expect((await page.goto('/no-such-org-at-all'))!.status()).toBe(404);
+	// The page is a client rendered shell, so the 404 is the answer to its data request and the page that shows
+	for (const path of ['/lumora', '/no-such-org-at-all']) {
+		await page.goto(path);
+		await expect(page.getByTestId('page-title')).toHaveText('This page does not exist');
+	}
 	await page.goto('/');
 	await expect(page.locator('body')).not.toContainText('Lumora');
 	// REST by path and by name, as a session
@@ -166,7 +169,8 @@ test('M3 a removed member loses access on the next call, in the UI, REST and MCP
 	expect((await owner.page.request.delete(`${ACME}/members/${me.userId}`)).status()).toBe(200);
 	// The very next call fails everywhere
 	expect((await np.request.get(`${ACME}/projects`)).status()).toBe(404);
-	expect((await np.goto('/acme'))!.status()).toBe(404);
+	await np.goto('/acme');
+	await expect(np.getByTestId('page-title')).toHaveText('This page does not exist');
 	expect(
 		(
 			await request.get(`${ACME}/projects`, {

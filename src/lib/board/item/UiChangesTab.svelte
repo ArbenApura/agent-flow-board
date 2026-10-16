@@ -169,7 +169,7 @@
 		<Skeleton lines={4} />
 	{:else}
 		<section
-			class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4"
+			class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
 			data-card
 			aria-labelledby="ui-table-title"
 		>
@@ -230,7 +230,7 @@
 
 		{#if view.rows.length > 0}
 			<section
-				class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4"
+				class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
 				data-card
 				aria-labelledby="ui-run-title"
 			>
@@ -311,7 +311,7 @@
 				</div>
 				{#each pages as p, i (i)}
 					<div
-						class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4"
+						class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
 						data-card
 						data-testid="ui-page"
 					>

@@ -172,6 +172,21 @@ export class Shooter {
 				waitUntil: 'load',
 				timeout: GOTO_TIMEOUT
 			});
+			// A client rendered page paints after the load event, so wait until the page has stopped changing (at most 4 seconds)
+			await page.evaluate(
+				() =>
+					new Promise<void>((done) => {
+						let quiet = setTimeout(done, 300);
+						const cap = setTimeout(done, 4000);
+						new MutationObserver(() => {
+							clearTimeout(quiet);
+							quiet = setTimeout(() => {
+								clearTimeout(cap);
+								done();
+							}, 300);
+						}).observe(document, { subtree: true, childList: true, attributes: true });
+					})
+			);
 			await page.evaluate(
 				({ theme, attrs }) => {
 					for (const a of attrs) document.documentElement.setAttribute(a, theme);

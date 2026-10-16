@@ -1,7 +1,10 @@
 <script lang="ts">
 	// -- DEP-TYPES -- //
 	import type { PageProps } from './$types';
+	// -- ENVS -- //
+	import { enhance } from '$app/forms';
 	// -- MODULES -- //
+	import Notice from '#lib/ui/Notice.svelte';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
 	import AuthShell from '#lib/ui/AuthShell.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -79,7 +82,7 @@
 				? ` from ${confirm.info.origin}`
 				: ''}. The code expires in {Math.ceil(confirm.info.expiresInSeconds / 60)} minutes.
 		</div>
-		<form method="POST" action="?/approve" class="flex flex-col gap-3">
+		<form method="POST" action="?/approve" use:enhance class="flex flex-col gap-3">
 			<input type="hidden" name="code" value={confirm.typed} />
 			<input type="hidden" name="org" value={org?.id ?? ''} />
 			<SelectField
@@ -105,21 +108,15 @@
 			</fieldset>
 			<Button type="submit" variant="primary" class="w-full">Approve</Button>
 		</form>
-		<form method="POST" action="?/deny" class="mt-2">
+		<form method="POST" action="?/deny" use:enhance class="mt-2">
 			<input type="hidden" name="code" value={confirm.typed} />
 			<Button type="submit" class="w-full">Refuse</Button>
 		</form>
 	{:else}
 		{#if form && 'message' in form && form.message}
-			<p
-				role="alert"
-				class="mb-3 rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
-				data-testid="device-error"
-			>
-				{form.message}
-			</p>
+			<Notice tone="danger" class="mb-3" data-testid="device-error">{form.message}</Notice>
 		{/if}
-		<form method="POST" action="?/lookup" class="flex flex-col gap-3">
+		<form method="POST" action="?/lookup" use:enhance class="flex flex-col gap-3">
 			<TextField
 				label="Code from your tool"
 				name="code"

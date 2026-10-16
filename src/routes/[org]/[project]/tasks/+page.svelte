@@ -16,7 +16,7 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
-	import Plus from 'phosphor-svelte/lib/Plus';
+	import Plus from '@lucide/svelte/icons/plus';
 
 	// -- REQUIRED PROPS -- //
 
@@ -32,6 +32,8 @@
 	let error = $state('');
 	let busy = $state(false);
 	let adding = $state(false);
+	/** The task whose detail drawer is open. */
+	let openId = $state<string | null>(null);
 	/** The status a change asked for, shown at once while the server answers. */
 	let pending = $state<Record<string, string>>({});
 
@@ -41,6 +43,7 @@
 	const key = $derived(page.params.project ?? '');
 	const canWrite = $derived(data.summary?.caps.includes('write') ?? false);
 	const statusOf = (id: string, s: string) => pending[id] ?? s;
+	const current = $derived(data.tasks.find((t) => t.id === openId) ?? null);
 
 	// -- FUNCTIONS -- //
 
@@ -95,7 +98,10 @@
 			text="Tasks are small jobs outside any plan. Add one, or link it to an item later."
 		/>
 	{:else}
-		<ul class="rounded-xl border border-line bg-surface" data-testid="task-list">
+		<ul
+			class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
+			data-testid="task-list"
+		>
 			{#each data.tasks as t (t.id)}
 				<li
 					class="flex min-h-14 flex-wrap items-center gap-4 border-b border-line px-4 py-3 last:border-b-0"
@@ -108,7 +114,12 @@
 							? 'text-muted line-through'
 							: 'text-ink'}"
 					>
-						{t.title}
+						<button
+							type="button"
+							class="cursor-pointer text-left hover:underline focus-visible:outline-2"
+							onclick={() => (openId = t.id)}
+							data-testid="task-open">{t.title}</button
+						>
 						{#each t.linkedItemIds as id (id)}
 							{#if data.refs[id]}
 								<a
@@ -148,6 +159,64 @@
 		</ul>
 	{/if}
 </PageFrame>
+
+<ResponsiveModal
+	open={current !== null}
+	onclose={() => (openId = null)}
+	title={current ? `T-${current.number} ${current.title}` : 'Task'}
+	variant="drawer"
+	size="lg"
+>
+	{#if current}
+		<div class="flex flex-col gap-4" data-testid="task-drawer">
+			<Select
+				label="Status"
+				value={statusOf(current.id, current.status)}
+				disabled={!canWrite}
+				options={STATES.map((s) => ({ value: s, label: s.toLowerCase() }))}
+				onchange={(v) => setStatus(current.id, v)}
+			/>
+			<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+				{#if current.assigneeId && data.people[current.assigneeId]}
+					<dt class="text-muted">Assigned to</dt>
+					<dd class="inline-flex items-center gap-2 text-ink">
+						<Avatar name={data.people[current.assigneeId]} size={24} />{data.people[
+							current.assigneeId
+						]}
+					</dd>
+				{/if}
+				{#if current.groupName}
+					<dt class="text-muted">Group</dt>
+					<dd class="text-ink">{current.groupName}</dd>
+				{/if}
+				{#if current.priority}
+					<dt class="text-muted">Priority</dt>
+					<dd class="text-ink">{current.priority}</dd>
+				{/if}
+				{#if current.linkedItemIds.length}
+					<dt class="text-muted">Linked items</dt>
+					<dd class="flex flex-wrap gap-2">
+						{#each current.linkedItemIds as id (id)}
+							{#if data.refs[id]}
+								<a
+									class="font-mono text-xs text-accent-text hover:underline"
+									href={`/${org}/${key}/${data.refs[id]}`}>{data.refs[id]}</a
+								>
+							{/if}
+						{/each}
+					</dd>
+				{/if}
+			</dl>
+			{#if current.body}
+				<div class="text-sm whitespace-pre-wrap text-ink" data-testid="task-body">
+					{current.body}
+				</div>
+			{:else}
+				<p class="text-sm text-muted">This task has no description.</p>
+			{/if}
+		</div>
+	{/if}
+</ResponsiveModal>
 
 <ResponsiveModal open={adding} onclose={() => (adding = false)} title="New task" size="sm" {busy}>
 	<form

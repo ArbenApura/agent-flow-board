@@ -3,19 +3,19 @@
 	import { toast, toasts } from '#lib/ui/toast.svelte.js';
 	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
-	import CheckCircle from 'phosphor-svelte/lib/CheckCircle';
-	import Info from 'phosphor-svelte/lib/Info';
-	import Warning from 'phosphor-svelte/lib/Warning';
-	import WarningCircle from 'phosphor-svelte/lib/WarningCircle';
-	import X from 'phosphor-svelte/lib/X';
+	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import Info from '@lucide/svelte/icons/info';
+	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+	import CircleAlert from '@lucide/svelte/icons/circle-alert';
+	import X from '@lucide/svelte/icons/x';
 
 	// -- CONSTANTS -- //
 
 	const TONE = {
-		success: { icon: CheckCircle, text: 'text-success' },
+		success: { icon: CircleCheck, text: 'text-success' },
 		info: { icon: Info, text: 'text-info' },
-		warning: { icon: Warning, text: 'text-warning' },
-		danger: { icon: WarningCircle, text: 'text-danger' }
+		warning: { icon: TriangleAlert, text: 'text-warning' },
+		danger: { icon: CircleAlert, text: 'text-danger' }
 	};
 </script>
 

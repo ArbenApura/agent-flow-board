@@ -10,7 +10,7 @@
 	import TextArea from '#lib/ui/TextArea.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	// -- DEP-COMPONENTS -- //
-	import Plus from 'phosphor-svelte/lib/Plus';
+	import Plus from '@lucide/svelte/icons/plus';
 
 	// -- REQUIRED PROPS -- //
 
@@ -80,7 +80,7 @@
 	{#if adrs.length}
 		<section class="flex flex-col gap-2" aria-label="Decisions">
 			<h2 class="text-lg font-semibold">Decisions</h2>
-			<ul class="rounded-xl border border-line bg-surface">
+			<ul class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
 				{#each adrs as d (d.id)}
 					<li class="border-b border-line last:border-b-0" data-testid="adr">
 						<details class="group">
@@ -119,7 +119,10 @@
 			<div class="text-xs text-muted">
 				Questions the builder answered from the documents and the code. Overrule any of them.
 			</div>
-			<ul class="rounded-xl border border-line bg-surface" data-testid="settled-list">
+			<ul
+				class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
+				data-testid="settled-list"
+			>
 				{#each settled as d (d.id)}
 					<li class="flex flex-col gap-0.5 border-b border-line px-3 py-2 last:border-b-0">
 						<span class="text-sm font-medium text-ink">{d.title}</span>

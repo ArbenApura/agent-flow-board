@@ -7,6 +7,7 @@
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import { clearCache } from '#lib/board/swr.js';
 	import EventList from '#lib/board/EventList.svelte';
 	import PlanTab from '#lib/board/item/PlanTab.svelte';
 	import { DRIFT_TEXT, STATUSES, STATUS_TONE, type Status } from '#lib/board/status.js';
@@ -27,10 +28,10 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
-	import Lock from 'phosphor-svelte/lib/Lock';
-	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
-	import Trash from 'phosphor-svelte/lib/Trash';
-	import Warning from 'phosphor-svelte/lib/Warning';
+	import Lock from '@lucide/svelte/icons/lock';
+	import Pencil from '@lucide/svelte/icons/pencil';
+	import Trash from '@lucide/svelte/icons/trash';
+	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 
 	// -- REQUIRED PROPS -- //
 
@@ -206,7 +207,22 @@
 	</PageFrame>
 {:else if d}
 	<PageFrame class="flex flex-col gap-5 pb-12">
-		<header class="flex flex-col gap-5 pt-8">
+		<header
+			class="enter relative mt-6 flex flex-col gap-5 overflow-hidden rounded-2xl border border-line bg-band px-6 py-5 shadow-[var(--elev-1)] max-sm:px-4"
+		>
+			<svg
+				viewBox="0 0 240 120"
+				class="pointer-events-none absolute -top-6 -right-8 h-40 w-80 text-accent opacity-[0.14] max-sm:hidden"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				aria-hidden="true"
+			>
+				<circle cx="200" cy="40" r="30" />
+				<circle cx="200" cy="40" r="55" />
+				<circle cx="200" cy="40" r="80" />
+				<circle cx="200" cy="40" r="105" />
+			</svg>
 			<div class="flex items-start justify-between gap-4">
 				<div class="min-w-0">
 					<a
@@ -231,7 +247,7 @@
 						items={[
 							{
 								label: 'Rename',
-								icon: PencilSimple,
+								icon: Pencil,
 								onselect: () => {
 									title = d.item.title;
 									renameError = '';
@@ -251,7 +267,7 @@
 
 			<!-- THE SUMMARY BAND. THE RING, THE STATUS AND WHO IS RUNNING IT -->
 			<div
-				class="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-line bg-surface p-5"
+				class="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-line bg-surface p-5 shadow-[var(--elev-1)]"
 			>
 				<ProgressRing value={d.item.percent} label={`${d.item.ref} progress`} size={48} />
 				<div class="flex min-w-0 flex-col gap-1">
@@ -316,7 +332,7 @@
 				data-testid="unrecorded-commits"
 			>
 				<span class="flex items-center gap-2"
-					><Warning size={18} />
+					><TriangleAlert size={18} />
 					{d.unrecorded.length}
 					{d.unrecorded.length === 1 ? 'commit has' : 'commits have'} no recorded step.</span
 				>
@@ -389,10 +405,13 @@
 			{:else if extrasFailed}
 				<ErrorState
 					message="This part of the item did not load."
-					onretry={() => invalidate('afb:project')}
+					onretry={() => {
+						clearCache();
+						return invalidate('afb:project');
+					}}
 				/>
 			{:else}
-				<div data-testid="extras-loading"><Skeleton lines={4} /></div>
+				<div data-testid="extras-loading"><Skeleton variant="row" lines={4} /></div>
 			{/if}
 		{/if}
 	</PageFrame>

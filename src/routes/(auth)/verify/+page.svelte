@@ -4,6 +4,7 @@
 	// -- DEP-MODULES -- //
 	import { enhance } from '$app/forms';
 	// -- MODULES -- //
+	import Notice from '#lib/ui/Notice.svelte';
 	import AuthShell from '#lib/ui/AuthShell.svelte';
 	import Button from '#lib/ui/Button.svelte';
 
@@ -25,17 +26,14 @@
 <AuthShell title={data.verified ? 'Email confirmed' : 'Check your email'}>
 	{#if data.verified}
 		<p class="text-sm">Your email address is confirmed.</p>
-		<div class="mt-4"><Button href="/" variant="primary" class="w-full">Continue</Button></div>
+		<div class="mt-4"><Button href="/" variant="primary" class="h-11 w-full">Continue</Button></div>
 	{:else}
 		{#if failed}
-			<p
-				role="alert"
-				class="mb-4 rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
-				data-testid="email-failed"
+			<Notice tone="danger" class="mb-4" data-testid="email-failed"
+				>{form?.message ??
+					'Your account was created, but we could not send the confirmation email.'} Use the button to
+				try again.</Notice
 			>
-				{form?.message ?? 'Your account was created, but we could not send the confirmation email.'} Use
-				the button to try again.
-			</p>
 		{:else if form?.resent || data.sent}
 			<p
 				role="status"
@@ -63,8 +61,11 @@
 		>
 			<input type="hidden" name="email" value={data.email} />
 			<input type="hidden" name="next" value={data.next} />
-			<Button type="submit" variant={failed ? 'primary' : 'secondary'} loading={busy} class="w-full"
-				>Send the link again</Button
+			<Button
+				type="submit"
+				variant={failed ? 'primary' : 'secondary'}
+				loading={busy}
+				class="h-11 w-full">Send the link again</Button
 			>
 		</form>
 	{/if}

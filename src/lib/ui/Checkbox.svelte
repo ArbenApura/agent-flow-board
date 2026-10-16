@@ -4,7 +4,7 @@
 	// -- MODULES -- //
 	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
-	import Check from 'phosphor-svelte/lib/Check';
+	import Check from '@lucide/svelte/icons/check';
 
 	// -- REQUIRED PROPS -- //
 
@@ -33,7 +33,7 @@
 		/>
 		<Check
 			size={14}
-			weight="bold"
+			strokeWidth={3}
 			class="pointer-events-none absolute top-[3px] left-[3px] text-accent-ink opacity-0 peer-checked:opacity-100"
 		/>
 	</span>

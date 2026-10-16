@@ -5,6 +5,7 @@
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import Notice from '#lib/ui/Notice.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
@@ -302,12 +303,9 @@
 						>
 					</div>
 					{#if link.pausedReason}
-						<div
-							class="rounded-lg border border-line bg-warning-soft px-3 py-2 text-sm text-warning"
-							role="alert"
+						<Notice tone="warning"
+							>Automatic publish is paused. {link.pausedReason} Turn it on again to resume.</Notice
 						>
-							Automatic publish is paused. {link.pausedReason} Turn it on again to resume.
-						</div>
 					{/if}
 					<Switch
 						label="Publish automatically"

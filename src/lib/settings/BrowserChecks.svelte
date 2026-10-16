@@ -215,7 +215,7 @@
 
 {#if !webApp}
 	<div
-		class="rounded-xl border border-line bg-surface p-4 text-sm text-muted"
+		class="rounded-xl border border-line bg-surface p-4 text-sm text-muted shadow-[var(--elev-1)]"
 		data-testid="not-web-app"
 	>
 		Browser checks and UI shots are for web apps. Turn on "This project is a web app" in General
