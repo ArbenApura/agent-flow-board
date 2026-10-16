@@ -48,7 +48,7 @@
 						data-sveltekit-noscroll
 						aria-current={active === t.id ? 'page' : undefined}
 						class={cn(
-							'flex min-h-10 items-center rounded-lg px-3 text-sm whitespace-nowrap text-muted hover:bg-raised hover:text-ink max-md:rounded-none max-md:border-b-2 max-md:border-transparent max-md:px-4',
+							'flex min-h-10 items-center rounded-lg px-3 py-2 text-sm whitespace-nowrap text-muted hover:bg-line/60 hover:text-ink max-md:rounded-none max-md:border-b-2 max-md:border-transparent max-md:px-4 md:whitespace-normal',
 							active === t.id &&
 								'bg-accent-soft font-medium text-accent-text hover:bg-accent-soft hover:text-accent-text max-md:border-accent max-md:bg-transparent max-md:text-ink'
 						)}>{t.title}</a
