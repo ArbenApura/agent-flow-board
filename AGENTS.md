@@ -32,7 +32,7 @@ Checks run against `yarn build && yarn preview`, never the dev server (`tests/ru
 
 ## Design fit (read before any visible change)
 
-The scale is `design/tokens.md`. The mockups are `design/brand-exploration.html` and `design/screens.html`.
+The scale is `design/tokens.md`. The mockups are `design/brand-exploration.html` and `design/screens.html`. The look, the fonts, the logo, the cards, the motion and what was tried and dropped are in `DESIGN.md` at the root. Read it before changing any screen.
 
 1. Match the nearest sibling page. Name 1 to 3 pages a person visits next to the new screen and copy their sizes and spacing level by level.
 2. Never larger than a sibling at the same level. For emphasis use weight or colour from the tokens, not size.
