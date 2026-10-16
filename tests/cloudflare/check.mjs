@@ -107,11 +107,13 @@ for (const path of [
 		String(res.status())
 	);
 }
-const page = await b.goto(`/${slugA}/CFP`);
+// The page is a client rendered shell, so its document is always 200 and the refusal is the page that shows
+await b.goto(`/${slugA}/CFP`);
+await b.getByTestId('page-title').waitFor();
 check(
 	'B gets no project page of A',
-	page?.status() === 404 || page?.status() === 403,
-	String(page?.status())
+	(await b.getByTestId('page-title').textContent()) === 'This page does not exist' &&
+		!(await b.content()).includes('Secret item of A')
 );
 check(
 	'B cannot write into A',
