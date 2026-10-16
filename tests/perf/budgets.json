@@ -1,0 +1,7 @@
+{
+	"firstLoadJsGzipKb": 100,
+	"pageResponseP95Ms": 200,
+	"mcpToolP95Ms": 150,
+	"registry5000OpenMs": 1000,
+	"liveChangeMs": 1000
+}

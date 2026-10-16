@@ -1,0 +1,94 @@
+# THE VPS DEPLOYMENT: POSTGRESQL, A ONE SHOT MIGRATION, THE APP AND A REVERSE PROXY WITH AUTOMATIC HTTPS (SPEC 4, ADR-003)
+# From this folder:   cp .env.example .env   (fill it in)   then   docker compose up -d --build
+# Every secret comes from .env. Nothing in this file is a secret. See docs/self-hosting.md for the whole walk through.
+
+name: agent-flow-board
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      AFB_OWNER_PASSWORD: ${AFB_OWNER_PASSWORD:?Set AFB_OWNER_PASSWORD in .env}
+      AFB_BACKUP_DB_PASSWORD: ${AFB_BACKUP_DB_PASSWORD:?Set AFB_BACKUP_DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Makes the owner role (not a superuser, so row level security binds it) and the role backups read with
+      - ./postgres-init.sh:/docker-entrypoint-initdb.d/10-afb.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d afb']
+      interval: 5s
+      timeout: 4s
+      retries: 20
+    # PostgreSQL is reachable by the other containers only, never from outside
+
+  migrate:
+    build: ../..
+    image: agent-flow-board:local
+    command: ['node', 'cli/db.mjs', 'migrate']
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://afb_owner:${AFB_OWNER_PASSWORD}@postgres:5432/afb
+      # Gives the app_runtime role its login. The app connects as that role, so forced row level security applies to it
+      AFB_RUNTIME_PASSWORD: ${AFB_RUNTIME_PASSWORD:?Set AFB_RUNTIME_PASSWORD in .env}
+
+  app:
+    build: ../..
+    image: agent-flow-board:local
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      AFB_BASE_URL: ${AFB_BASE_URL:?Set AFB_BASE_URL in .env, for example https://board.example.com}
+      # The app works out its own address from these headers, which the proxy sets. Without PROTOCOL_HEADER it assumes https
+      PROTOCOL_HEADER: x-forwarded-proto
+      HOST_HEADER: x-forwarded-host
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
+      DATABASE_URL: postgres://app_runtime:${AFB_RUNTIME_PASSWORD}@postgres:5432/afb
+      DATABASE_OWNER_URL: postgres://afb_owner:${AFB_OWNER_PASSWORD}@postgres:5432/afb
+      DATABASE_BACKUP_URL: postgres://afb_backup:${AFB_BACKUP_DB_PASSWORD}@postgres:5432/afb
+      BACKUP_KEY: ${BACKUP_KEY:?Set BACKUP_KEY in .env}
+      BACKUP_DIR: /data/backups
+      AFB_MASTER_KEY: ${AFB_MASTER_KEY:?Set AFB_MASTER_KEY in .env}
+      AFB_STORAGE_DIR: /data/files
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
+      EMAIL_FROM: ${EMAIL_FROM:-agent-flow-board <board@localhost>}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      POSTMARK_TOKEN: ${POSTMARK_TOKEN:-}
+      SMTP_URL: ${SMTP_URL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+    volumes:
+      # Attachments and backups. Back up this volume and the database separately, and keep BACKUP_KEY somewhere else
+      - appdata:/data
+    # No published port: only the proxy below reaches the app
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      AFB_DOMAIN: ${AFB_DOMAIN:?Set AFB_DOMAIN in .env, for example board.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  appdata:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,77 @@
+/* DESIGN TOKENS FROM design/tokens.md (GRAPHITE). THIS FILE AND palette.ts ARE THE ONLY PLACES COLOUR VALUES LIVE. */
+:root,
+[data-mode='light'] {
+	color-scheme: light;
+	--bg: #f4f5f7;
+	--surface: #ffffff;
+	--raised: #ebedf0;
+	--ink: #16181d;
+	--muted: #5b616b;
+	--line: #dcdfe4;
+	--accent: #2563eb;
+	--accent-ink: #ffffff;
+	--accent-soft: #dde8fd;
+	--accent-text: #1d4ed8;
+	--danger: #c62828;
+	--danger-soft: #fbe4e4;
+	--warning: #a15c00;
+	--warning-soft: #fdeed5;
+	--success: #1b7a3d;
+	--success-soft: #ddf3e4;
+	--info: #1565c0;
+	--info-soft: #dcebfa;
+	--overlay: rgb(10 12 16 / 0.45);
+	--ripple: rgb(22 24 29 / 0.14);
+	--shadow-pop: 0 8px 24px rgb(0 0 0 / 0.12);
+}
+
+[data-mode='dark'] {
+	color-scheme: dark;
+	--bg: #0e1013;
+	--surface: #15181c;
+	--raised: #1d2127;
+	--ink: #eceef1;
+	--muted: #9aa1ab;
+	--line: #2a2f37;
+	--accent: #6b9bff;
+	--accent-ink: #071634;
+	--accent-soft: #1a2a4d;
+	--accent-text: #6b9bff;
+	--danger: #ff7b72;
+	--danger-soft: #3a1a1a;
+	--warning: #f0b429;
+	--warning-soft: #3a2c0c;
+	--success: #4ade80;
+	--success-soft: #123322;
+	--info: #79b8ff;
+	--info-soft: #12294a;
+	--overlay: rgb(0 0 0 / 0.6);
+	--ripple: rgb(236 238 241 / 0.16);
+	--shadow-pop: 0 8px 24px rgb(0 0 0 / 0.5);
+}
+
+@theme inline {
+	--color-bg: var(--bg);
+	--color-surface: var(--surface);
+	--color-raised: var(--raised);
+	--color-ink: var(--ink);
+	--color-muted: var(--muted);
+	--color-line: var(--line);
+	--color-accent: var(--accent);
+	--color-accent-ink: var(--accent-ink);
+	--color-accent-soft: var(--accent-soft);
+	--color-accent-text: var(--accent-text);
+	--color-danger: var(--danger);
+	--color-danger-soft: var(--danger-soft);
+	--color-warning: var(--warning);
+	--color-warning-soft: var(--warning-soft);
+	--color-success: var(--success);
+	--color-success-soft: var(--success-soft);
+	--color-info: var(--info);
+	--color-info-soft: var(--info-soft);
+}
+
+html {
+	background: var(--bg);
+	color: var(--ink);
+}

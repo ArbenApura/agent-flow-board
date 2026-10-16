@@ -1,0 +1,39 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+      - run: yarn install --immutable
+      - run: yarn check
+      - run: yarn check:packages
+      - run: yarn lint
+      - run: yarn format:check
+      - run: yarn test
+      - run: yarn build
+      - run: yarn playwright install --with-deps chromium
+      - run: yarn test:checks
+      - run: yarn ui-shots
+
+  node-adapter-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+      - run: yarn install --immutable
+      - run: yarn build
+      - run: yarn build:cloudflare

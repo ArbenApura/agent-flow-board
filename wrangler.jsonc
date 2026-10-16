@@ -1,0 +1,48 @@
+{
+	// THE CLOUDFLARE DEPLOYMENT (docs/cloudflare.md). Replace every value in <angle brackets>, then `yarn build:cloudflare` and `wrangler deploy`.
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "agent-flow-board",
+	"main": "cloudflare/worker.ts",
+	"compatibility_date": "2025-09-01",
+	// nodejs_compat gives the Worker node:crypto, node:async_hooks and the TCP sockets the pg driver needs, and fills process.env from the vars below
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": { "directory": ".svelte-kit/cloudflare", "binding": "ASSETS" },
+
+	// PostgreSQL through Hyperdrive. Its connection logs in as the app_runtime role, never as the owner
+	"hyperdrive": [
+		{
+			"binding": "HYPERDRIVE",
+			"id": "8beb32ee04d84316ae8de81b961b582a",
+			"localConnectionString": "postgres://app_runtime:local-only@localhost:5432/afb"
+		}
+	],
+
+	// Attachments. The bucket stays private: files are served by the app through short lived signed links
+	"r2_buckets": [{ "binding": "AFB_FILES", "bucket_name": "afb-files" }],
+
+	// Background jobs (publishing). The Worker is both the producer and the consumer
+	"queues": {
+		"producers": [{ "binding": "AFB_QUEUE", "queue": "afb-jobs" }],
+		"consumers": [{ "queue": "afb-jobs", "max_batch_size": 10, "max_retries": 3 }]
+	},
+
+	// Live updates: one object for each project
+	"durable_objects": { "bindings": [{ "name": "AFB_HUB", "class_name": "HubObject" }] },
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["HubObject"] }],
+
+	// Settings that are not secret. Secrets are set with `wrangler secret put <NAME>`:
+	// BETTER_AUTH_SECRET, AFB_MASTER_KEY, RESEND_API_KEY (or POSTMARK_TOKEN, SMTP_URL), GOOGLE_CLIENT_SECRET, GITHUB_APP_PRIVATE_KEY, GITHUB_WEBHOOK_SECRET
+	"vars": {
+		"AFB_BASE_URL": "https://agent-flow-board.arbenger.com",
+		"EMAIL_PROVIDER": "resend",
+		"EMAIL_FROM": "board@arbenger.com"
+	},
+
+	"observability": { "enabled": true },
+
+	// RUN THE WORKER NEXT TO THE DATABASE: a page makes many queries one after another, and each one pays the distance between the Worker and the database. Name the host of your database so Cloudflare places the Worker near it (a region hint does not move a Worker that uses Hyperdrive; measured 80 ms a query with it and 10 ms with the host)
+	"placement": { "host": "aws-0-ap-northeast-1.pooler.supabase.com:5432" },
+
+	// THE ADDRESS: Cloudflare makes the DNS record and the certificate for this domain (it is in the arbenger.com zone)
+	"routes": [{ "pattern": "agent-flow-board.arbenger.com", "custom_domain": true }]
+}

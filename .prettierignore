@@ -1,0 +1,12 @@
+.svelte-kit
+build
+node_modules
+yarn.lock
+.yarn
+static
+design
+test-results
+playwright-report
+cli
+.afb
+.wrangler

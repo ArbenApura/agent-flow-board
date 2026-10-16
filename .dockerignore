@@ -1,0 +1,15 @@
+node_modules
+.svelte-kit
+build
+cli
+.afb
+test-results
+playwright-report
+.git
+.env
+.env.*
+!.env.example
+**/node_modules
+*.log
+CLAUDE.md
+AGENTS.md

@@ -1,0 +1,154 @@
+@import 'tailwindcss';
+@import './lib/theme/tokens.css';
+
+/* SELF-HOSTED GEIST, VARIABLE FILES, LATIN FIRST */
+@font-face {
+	font-family: 'Geist';
+	src: url('/fonts/geist-latin-wght-normal.woff2') format('woff2-variations');
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+	font-family: 'Geist';
+	src: url('/fonts/geist-latin-ext-wght-normal.woff2') format('woff2-variations');
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+		U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+		U+A720-A7FF;
+}
+@font-face {
+	font-family: 'Geist Mono';
+	src: url('/fonts/geist-mono-latin-wght-normal.woff2') format('woff2-variations');
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+		U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+	font-family: 'Geist Mono';
+	src: url('/fonts/geist-mono-latin-ext-wght-normal.woff2') format('woff2-variations');
+	font-weight: 100 900;
+	font-style: normal;
+	font-display: swap;
+	unicode-range:
+		U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+		U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
+		U+A720-A7FF;
+}
+/* SIZE-ADJUSTED FALLBACKS SO THE SWAP DOES NOT MOVE THE LAYOUT */
+@font-face {
+	font-family: 'Geist Fallback';
+	src: local('Arial');
+	size-adjust: 104%;
+	ascent-override: 92%;
+	descent-override: 26%;
+	line-gap-override: 0%;
+}
+@font-face {
+	font-family: 'Geist Mono Fallback';
+	src: local('Courier New');
+	size-adjust: 101%;
+	ascent-override: 90%;
+	descent-override: 24%;
+	line-gap-override: 0%;
+}
+
+@theme {
+	--font-sans: 'Geist', 'Geist Fallback', system-ui, sans-serif;
+	--font-mono: 'Geist Mono', 'Geist Mono Fallback', ui-monospace, monospace;
+}
+
+html {
+	font-family: var(--font-sans);
+}
+
+/* BODY TEXT IS 14 / 22 (design/tokens.md), NOT THE BROWSER DEFAULT OF 16 */
+body {
+	font-size: 14px;
+	line-height: 22px;
+}
+
+/* RENDERED MARKDOWN (SECTIONS, DECISIONS, COMMENTS). THE HTML IS SANITISED ON THE SERVER, THESE RULES ONLY SET THE TYPE */
+.md {
+	font-size: 14px;
+	line-height: 22px;
+	overflow-wrap: anywhere;
+}
+.md > * + * {
+	margin-top: 0.75rem;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+	font-weight: 600;
+	line-height: 1.4;
+}
+.md h1 {
+	font-size: 18px;
+}
+.md h2 {
+	font-size: 16px;
+}
+.md h3,
+.md h4 {
+	font-size: 14px;
+}
+.md ul {
+	list-style: disc;
+	padding-left: 1.25rem;
+}
+.md ol {
+	list-style: decimal;
+	padding-left: 1.25rem;
+}
+.md a {
+	color: var(--accent-text);
+	text-decoration: underline;
+}
+.md code {
+	font-family: var(--font-mono);
+	font-size: 13px;
+	background: var(--raised);
+	border-radius: 4px;
+	padding: 1px 4px;
+}
+.md pre {
+	background: var(--raised);
+	border-radius: 8px;
+	padding: 0.75rem;
+	overflow-x: auto;
+}
+.md pre code {
+	background: none;
+	padding: 0;
+}
+.md blockquote {
+	border-left: 3px solid var(--line);
+	padding-left: 0.75rem;
+	color: var(--muted);
+}
+.md table {
+	display: block;
+	overflow-x: auto;
+	border-collapse: collapse;
+}
+.md th,
+.md td {
+	border: 1px solid var(--line);
+	padding: 4px 8px;
+	text-align: left;
+}
+.md th {
+	background: var(--raised);
+	font-weight: 600;
+}

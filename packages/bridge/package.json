@@ -1,0 +1,19 @@
+{
+	"name": "@agent-flow-board/bridge",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"description": "Local stdio bridge to an agent-flow-board server. It forwards MCP calls and holds no tool code.",
+	"bin": {
+		"agent-flow-board": "dist/cli.js"
+	},
+	"files": [
+		"dist"
+	],
+	"engines": {
+		"node": ">=20"
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json"
+	}
+}

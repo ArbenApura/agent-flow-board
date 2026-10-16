@@ -1,0 +1,109 @@
+// THE RUNNER'S VIEW OF THE SERVER: THE FEW CALLS IT MAKES WITH ITS OWN TOKEN (SPEC 10)
+
+// -- TYPES -- //
+import type { CheckJob } from '../../../src/lib/server/ops/checks';
+import type { ShotsJob } from '../../../src/lib/server/ops/uiShots';
+
+export type Job = CheckJob | ShotsJob;
+export type Account = { email: string; password: string };
+export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
+
+// -- FUNCTIONS -- //
+
+export class ApiError extends Error {
+	constructor(
+		readonly status: number,
+		readonly code: string,
+		message: string
+	) {
+		super(message);
+		this.name = 'ApiError';
+	}
+}
+
+/** The calls of the runner API. A refusal becomes an ApiError that carries the server's own words. */
+export class RunnerApi {
+	constructor(
+		private readonly server: string,
+		private readonly token: string,
+		private readonly doFetch: Fetch = fetch
+	) {}
+
+	private async call<T>(method: string, path: string, body?: BodyInit, type?: string): Promise<T> {
+		const res = await this.doFetch(`${this.server.replace(/\/$/, '')}/api/v1/runner${path}`, {
+			method,
+			headers: { authorization: `Bearer ${this.token}`, ...(type ? { 'content-type': type } : {}) },
+			body
+		});
+		const text = await res.text();
+		let json: unknown = null;
+		try {
+			json = text ? JSON.parse(text) : null;
+		} catch {
+			/* Not JSON */
+		}
+		if (!res.ok) {
+			const e = (json as { error?: { code?: string; message?: string } } | null)?.error;
+			throw new ApiError(
+				res.status,
+				e?.code ?? 'ERROR',
+				e?.message ?? `The server answered ${res.status}.`
+			);
+		}
+		return json as T;
+	}
+
+	/** The next queued run this runner may take, or null. */
+	async claim(): Promise<Job | null> {
+		return (await this.claimWithKey()).job;
+	}
+
+	/** Like claim, with the key of that one run, for a supervisor that hands the run to a throwaway container. */
+	async claimWithKey(): Promise<{ job: Job | null; runKey: string | null }> {
+		const out = await this.call<{ job: Job | null; runKey?: string | null }>('POST', '/claim');
+		return { job: out.job, runKey: out.runKey ?? null };
+	}
+
+	/** How many runs wait for this runner. Nothing is taken. */
+	async peek(): Promise<number> {
+		return (await this.call<{ waiting: number }>('POST', '/peek')).waiting;
+	}
+
+	/** Gives back the runs this runner holds, for a restart. */
+	async release(): Promise<number> {
+		return (await this.call<{ released: number }>('POST', '/release')).released;
+	}
+
+	/** The test accounts of the run's project, opened for this run only. */
+	async accounts(kind: 'runs' | 'shots', id: string): Promise<Record<string, Account>> {
+		return (
+			await this.call<{ accounts: Record<string, Account> }>('GET', `/${kind}/${id}/accounts`)
+		).accounts;
+	}
+
+	/** Stores a file of a run. `artifacts` for a check run, `images` for a shots run. */
+	async upload(
+		kind: 'runs' | 'shots',
+		id: string,
+		file: { filename: string; caption: string; bytes: Uint8Array }
+	): Promise<string> {
+		const what = kind === 'runs' ? 'artifacts' : 'images';
+		const q = `filename=${encodeURIComponent(file.filename)}&caption=${encodeURIComponent(file.caption)}`;
+		const out = await this.call<{ attachmentId: string }>(
+			'POST',
+			`/${kind}/${id}/${what}?${q}`,
+			file.bytes as unknown as BodyInit,
+			'application/octet-stream'
+		);
+		return out.attachmentId;
+	}
+
+	async finish<T = unknown>(kind: 'runs' | 'shots', id: string, report: unknown): Promise<T> {
+		return this.call<T>(
+			'POST',
+			`/${kind}/${id}/finish`,
+			JSON.stringify(report),
+			'application/json'
+		);
+	}
+}

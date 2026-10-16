@@ -1,0 +1,19 @@
+# THE REVERSE PROXY: HTTPS FROM LET'S ENCRYPT, COMPRESSION, AND LIVE UPDATES THAT ARE NEVER BUFFERED
+{$AFB_DOMAIN} {
+	encode zstd gzip
+
+	reverse_proxy app:3000 {
+		# The live updates of a project page are one long lived Server-Sent Events response, so nothing may hold it back
+		flush_interval -1
+		health_uri /healthz
+		health_interval 15s
+	}
+
+	# Files are served through short lived signed links, so no response is cached by the proxy
+	header {
+		-Server
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Content-Type-Options nosniff
+		Strict-Transport-Security "max-age=31536000"
+	}
+}

@@ -1,0 +1,99 @@
+// -- DEP-TYPES -- //
+import type { Actions, PageServerLoad } from './$types';
+import type { Ctx } from '#lib/server/ops/context.js';
+// -- ENVS -- //
+import { AFB_BASE_URL } from '$app/env/private';
+// -- DEP-MODULES -- //
+import { fail, redirect } from '@sveltejs/kit';
+// -- MODULES -- //
+import { snippets } from '#lib/connect/snippets.js';
+import { getDb } from '#lib/server/db/index.js';
+import { listConnections, revokeConnection } from '#lib/server/oauth/oauth.js';
+import { capsOf, OpError } from '#lib/server/ops/context.js';
+import { createToken } from '#lib/server/ops/tokens.js';
+import { listMyOrgs } from '#lib/server/orgs/orgs.js';
+
+// -- FUNCTIONS -- //
+
+async function personCtx(
+	locals: App.Locals,
+	orgSlug: string | null
+): Promise<{ ctx: Ctx; orgs: Awaited<ReturnType<typeof listMyOrgs>> } | null> {
+	if (!locals.user) return null;
+	const handle = await getDb();
+	const orgs = await listMyOrgs(handle, locals.user.id);
+	const org = orgs.find((o) => o.slug === orgSlug) ?? orgs[0];
+	if (!org) return { ctx: null as never, orgs };
+	return {
+		ctx: {
+			handle,
+			orgId: org.id,
+			actor: { userId: locals.user.id, kind: 'person', label: locals.user.name }
+		},
+		orgs
+	};
+}
+
+export const load: PageServerLoad = async ({ locals, url }) => {
+	if (!locals.user) redirect(303, `/sign-in?next=${encodeURIComponent('/connect')}`);
+	const got = await personCtx(locals, url.searchParams.get('org'));
+	if (!got || got.orgs.length === 0)
+		return {
+			baseUrl: AFB_BASE_URL,
+			snippets: snippets(AFB_BASE_URL),
+			orgs: [],
+			org: null,
+			connections: [],
+			caps: []
+		};
+	const org = got.orgs.find((o) => o.id === got.ctx.orgId)!;
+	const connections = await listConnections(got.ctx);
+	return {
+		baseUrl: AFB_BASE_URL,
+		snippets: snippets(AFB_BASE_URL),
+		orgs: got.orgs,
+		org,
+		connections,
+		caps: capsOf(org.role)
+	};
+};
+
+export const actions: Actions = {
+	createToken: async ({ request, locals }) => {
+		const data = await request.formData();
+		const got = await personCtx(locals, String(data.get('org') ?? ''));
+		if (!got?.ctx) return fail(400, { message: 'Choose an organisation first.' });
+		try {
+			const made = await createToken(got.ctx, {
+				name: String(data.get('name') ?? ''),
+				days: Number(data.get('days') ?? 30),
+				permissions: data.getAll('permission').map(String) as never
+			});
+			return {
+				created: {
+					token: made.token,
+					name: String(data.get('name') ?? ''),
+					expiresAt: made.expiresAt.toISOString()
+				}
+			};
+		} catch (e) {
+			if (e instanceof OpError) return fail(400, { message: e.message });
+			return fail(400, {
+				message:
+					'Give the token a name of at least two letters, pick at most 90 days, and choose at least one permission.'
+			});
+		}
+	},
+	revoke: async ({ request, locals }) => {
+		const data = await request.formData();
+		const got = await personCtx(locals, String(data.get('org') ?? ''));
+		if (!got?.ctx) return fail(400, { message: 'Choose an organisation first.' });
+		try {
+			await revokeConnection(got.ctx, String(data.get('id') ?? ''));
+		} catch (e) {
+			if (e instanceof OpError) return fail(400, { message: e.message });
+			throw e;
+		}
+		return { revoked: true };
+	}
+};
