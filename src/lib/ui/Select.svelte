@@ -102,7 +102,7 @@
 			onclick={toggle}
 			onkeydown={onTriggerKey}
 			class={cn(
-				'flex h-11 w-full min-w-40 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-bg px-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50',
+				'flex h-10 w-full min-w-40 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-surface px-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-11',
 				invalid ? 'border-danger' : 'border-line',
 				selected ? 'text-ink' : 'text-muted'
 			)}

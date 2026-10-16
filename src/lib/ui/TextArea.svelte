@@ -36,7 +36,7 @@
 		bind:value
 		{rows}
 		class={cn(
-			'w-full rounded-lg border bg-bg px-3 py-2.5 text-sm text-ink placeholder:text-muted',
+			'w-full rounded-lg border bg-surface px-3 py-2.5 text-sm text-ink placeholder:text-muted',
 			'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
 			'disabled:cursor-not-allowed disabled:opacity-50',
 			error ? 'border-danger' : 'border-line'

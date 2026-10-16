@@ -70,7 +70,7 @@
 				onclick={toggle}
 				aria-label={value ? `${label}, ${formatLong(value)}` : label}
 				class={cn(
-					'flex h-11 w-full min-w-44 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-bg px-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+					'flex h-10 w-full min-w-44 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-surface px-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent max-sm:h-11',
 					error ? 'border-danger' : 'border-line',
 					value ? 'text-ink' : 'text-muted'
 				)}

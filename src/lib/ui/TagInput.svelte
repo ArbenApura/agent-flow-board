@@ -61,7 +61,7 @@
 	<label for={uid} class="text-xs font-medium text-muted">{label}</label>
 	<div
 		class={cn(
-			'flex min-h-11 flex-wrap items-center gap-1.5 rounded-lg border bg-bg px-2 py-1.5 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-accent',
+			'flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border bg-surface px-2 py-1.5 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-accent',
 			error ? 'border-danger' : 'border-line'
 		)}
 	>

@@ -38,7 +38,7 @@
 
 	const uid = $props.id();
 	const titleId = `${uid}-title`;
-	const OUT_MS = 200;
+	const OUT_MS = 150;
 	const WIDTHS = { sm: 'sm:max-w-[400px]', md: 'sm:max-w-[480px]', lg: 'sm:max-w-[640px]' };
 
 	// -- STATES -- //
@@ -87,7 +87,7 @@
 			tabindex="-1"
 			aria-label="Close"
 			class={cn(
-				'absolute inset-0 cursor-default bg-[var(--overlay)] transition-opacity duration-200 motion-reduce:transition-none',
+				'absolute inset-0 cursor-default bg-[var(--overlay)] transition-opacity duration-150 motion-reduce:transition-none',
 				shown ? 'opacity-100' : 'opacity-0'
 			)}
 			onclick={requestClose}
@@ -107,7 +107,7 @@
 				use:focusTrap
 				onkeydown={onKey}
 				class={cn(
-					'pointer-events-auto flex max-h-[90vh] w-full flex-col overflow-hidden border border-line bg-surface text-ink shadow-[var(--shadow-pop)] transition-[opacity,translate] duration-200 motion-reduce:transition-none',
+					'pointer-events-auto flex max-h-[90vh] w-full flex-col overflow-hidden border border-line bg-surface text-ink shadow-[var(--shadow-pop)] transition-[opacity,translate] duration-150 motion-reduce:transition-none',
 					variant === 'drawer'
 						? 'rounded-t-xl sm:h-full sm:max-h-none sm:max-w-[560px] sm:rounded-none sm:border-y-0 sm:border-r-0'
 						: cn('rounded-t-xl sm:rounded-xl', WIDTHS[size]),

@@ -13,11 +13,15 @@
 	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte';
 	import DatePickerField from '#lib/ui/DatePickerField.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
+	import Illustration from '#lib/ui/Illustration.svelte';
 	import ErrorState from '#lib/ui/ErrorState.svelte';
 	import OfflineBanner from '#lib/ui/OfflineBanner.svelte';
 	import Pagination from '#lib/ui/Pagination.svelte';
 	import PermissionDenied from '#lib/ui/PermissionDenied.svelte';
+	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PhaseStepper from '#lib/ui/PhaseStepper.svelte';
 	import Popover from '#lib/ui/Popover.svelte';
+	import ProgressRing from '#lib/ui/ProgressRing.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
 	import SearchStatus from '#lib/ui/SearchStatus.svelte';
@@ -51,6 +55,10 @@
 		id: `ACME-${i + 1}`,
 		title: `Item number ${i + 1}`
 	}));
+
+	// -- CONSTANTS -- //
+
+	const ILLUSTRATIONS = ['items', 'search', 'inbox', 'error', 'welcome'] as const;
 
 	// -- STATES -- //
 
@@ -101,7 +109,7 @@
 
 <svelte:head><title>Component gallery</title></svelte:head>
 
-<div class="mx-auto flex max-w-[1100px] flex-col gap-6 px-4 py-6 max-sm:px-3.5">
+<PageFrame class="flex flex-col gap-6 py-8 pb-12">
 	<header class="flex flex-wrap items-center justify-between gap-3">
 		<div>
 			<h1 class="text-xl font-semibold tracking-tight sm:text-2xl">Component gallery</h1>
@@ -345,7 +353,39 @@
 			{/if}
 		</div>
 	</Card>
-</div>
+	<Card data-testid="g-visuals">
+		{#snippet header()}<h2 class="text-lg font-semibold">Visuals</h2>{/snippet}
+		<div class="flex flex-col gap-8">
+			<div class="flex flex-wrap items-center gap-6">
+				<ProgressRing value={0} label="Ring at zero" size={48} />
+				<ProgressRing value={50} label="Ring at half" size={48} />
+				<ProgressRing value={100} label="Ring when done" size={48} />
+				<ProgressRing value={50} label="Small ring" size={28} />
+			</div>
+			<PhaseStepper
+				phases={[
+					{ key: '1', title: 'Foundations', done: 4, total: 4 },
+					{ key: '2', title: 'Components', done: 2, total: 5 },
+					{ key: '3', title: 'Screens', done: 0, total: 6 }
+				]}
+			/>
+			<div class="flex flex-wrap items-center gap-4">
+				<Avatar name="Olivia Owner" size={40} />
+				<Avatar name="Claude Code" size={40} kind="agent" />
+				<Avatar name="Maria Member" size={32} />
+				<Avatar name="Victor Viewer" size={24} />
+			</div>
+			<div class="flex flex-wrap gap-6">
+				{#each ILLUSTRATIONS as k (k)}
+					<figure class="flex flex-col items-center gap-2">
+						<Illustration kind={k} />
+						<figcaption class="text-sm text-muted">{k}</figcaption>
+					</figure>
+				{/each}
+			</div>
+		</div>
+	</Card>
+</PageFrame>
 
 <ResponsiveModal open={modal} onclose={() => (modal = false)} title="Move item to another project">
 	<p>The item keeps its number and its history. Anyone watching it is told.</p>
