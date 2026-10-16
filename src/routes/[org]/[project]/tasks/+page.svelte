@@ -86,6 +86,7 @@
 
 <PageFrame class="flex flex-col gap-4 pb-12">
 	<PageHeader
+		class="mb-2!"
 		title="Tasks"
 		context={`${data.tasks.length} ${data.tasks.length === 1 ? 'task' : 'tasks'}, small jobs outside any plan.`}
 	>

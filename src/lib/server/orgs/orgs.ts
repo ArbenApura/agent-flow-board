@@ -94,7 +94,7 @@ export async function createOrg(
 export async function listMyOrgs(handle: DbHandle, userId: string) {
 	return withTenant(handle, { userId }, (tx) =>
 		tx
-			.select({ id: org.id, name: org.name, slug: org.slug, role: member.role })
+			.select({ id: org.id, name: org.name, slug: org.slug, role: member.role, logo: org.logo })
 			.from(member)
 			.innerJoin(org, eq(org.id, member.orgId))
 			.where(eq(member.userId, userId))

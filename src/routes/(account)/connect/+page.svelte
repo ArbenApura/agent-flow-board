@@ -4,21 +4,24 @@
 	// -- DEP-MODULES -- //
 	import { enhance, type SubmitFunction } from '$app/forms';
 	// -- MODULES -- //
+	import OrgTile from '#lib/board/OrgTile.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
+	import Popover from '#lib/ui/Popover.svelte';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Card from '#lib/ui/Card.svelte';
 	import Checkbox from '#lib/ui/Checkbox.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
-	import Logo from '#lib/ui/Logo.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
+	import Check from '@lucide/svelte/icons/check';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import MonitorSmartphone from '@lucide/svelte/icons/monitor-smartphone';
 	import Plug from '@lucide/svelte/icons/plug';
@@ -28,6 +31,8 @@
 	let { data, form }: PageProps = $props();
 
 	// -- STATES -- //
+
+	let picking = $state(false);
 
 	let active = $state('claude-code');
 	let name = $state('');
@@ -76,28 +81,53 @@
 
 <svelte:head><title>Connect a tool</title></svelte:head>
 
-<PageFrame tag="main" class="flex flex-col gap-6 py-8 pb-12">
-	<header class="flex items-center justify-between gap-3">
-		<a href="/" class="text-base"><Logo size={30} /></a>
-		<a href="/" class="text-sm text-accent-text hover:underline">All organisations</a>
-	</header>
-
+<PageFrame class="flex flex-col gap-6 pb-12">
 	<PageHeader
 		title="Connect a tool"
 		context="Pick the tool you work in. Most sign you in through your browser."
-		class="my-0"
+		class="mb-0!"
 	>
 		{#snippet actions()}
 			{#if data.org && data.orgs.length > 1}
-				<!-- A tool connects to one organisation, so which one is always said, with a way to pick another -->
-				<p class="text-sm" data-testid="connect-org">
-					For <strong>{data.org.name}</strong>.
-					{#each data.orgs.filter((o) => o.id !== data.org!.id) as o (o.id)}
-						<a class="ml-2 text-accent-text hover:underline" href={`/connect?org=${o.slug}`}
-							>Use {o.name} instead</a
-						>
-					{/each}
-				</p>
+				<!-- A TOOL CONNECTS TO ONE ORGANISATION, SO WHICH ONE IS ALWAYS SAID, WITH A MENU TO PICK ANOTHER -->
+				<div class="flex items-center gap-2" data-testid="connect-org">
+					<span class="text-sm text-muted max-sm:hidden">Connecting to</span>
+					<Popover bind:open={picking} placement="bottom-end" role="dialog" label="Organisation">
+						{#snippet trigger({ props, toggle })}
+							<Button variant="secondary" onclick={toggle} {...props}>
+								<OrgTile
+									name={data.org!.name}
+									slug={data.org!.slug}
+									logo={data.org!.logo}
+									size={20}
+								/>
+								<span class="max-w-[14rem] truncate">{data.org!.name}</span>
+								<ChevronDown size={16} class="text-muted" />
+							</Button>
+						{/snippet}
+						{#snippet children({ close })}
+							<ul class="min-w-64 p-1">
+								{#each data.orgs as o (o.id)}
+									<li>
+										<a
+											href={`/connect?org=${o.slug}`}
+											onclick={close}
+											aria-current={o.id === data.org!.id ? 'true' : undefined}
+											class="flex min-h-10 items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
+										>
+											<OrgTile name={o.name} slug={o.slug} logo={o.logo} />
+											<span class="truncate">{o.name}</span>
+											{#if o.id === data.org!.id}<Check
+													size={16}
+													class="ml-auto shrink-0 text-accent-text"
+												/>{/if}
+										</a>
+									</li>
+								{/each}
+							</ul>
+						{/snippet}
+					</Popover>
+				</div>
 			{/if}
 		{/snippet}
 	</PageHeader>
@@ -163,10 +193,20 @@
 			description="Tools that can read and write here right now."
 		>
 			{#if data.connections.length === 0}
-				<EmptyState
-					title="Nothing is connected yet"
-					text="Tools you sign in and tokens you make appear here, and you can end any of them at once."
-				/>
+				<!-- A SHORT NOTE, NOT THE BIG PICTURE. THE CARD STAYS THE SAME SIZE AS THE ONES AROUND IT -->
+				<div class="flex items-center gap-4 px-4 py-5" data-testid="connected-empty">
+					<span
+						class="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-raised text-muted"
+						aria-hidden="true"><Plug size={18} /></span
+					>
+					<div class="min-w-0">
+						<p class="text-sm font-medium text-ink">Nothing is connected yet</p>
+						<p class="text-sm text-muted">
+							Tools you sign in and tokens you make appear here, and you can end any of them at
+							once.
+						</p>
+					</div>
+				</div>
 			{:else}
 				<ul>
 					{#each data.connections as c (c.id)}

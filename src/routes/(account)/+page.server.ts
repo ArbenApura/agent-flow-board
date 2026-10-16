@@ -4,7 +4,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 // -- MODULES -- //
 import { getDb } from '#lib/server/db/index.js';
-import { OrgError, createOrg, listMyOrgs } from '#lib/server/orgs/orgs.js';
+import { OrgError, createOrg } from '#lib/server/orgs/orgs.js';
 
 // -- FUNCTIONS -- //
 
@@ -12,8 +12,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	if (!locals.user) redirect(303, '/sign-in');
 	if (!locals.user.emailVerified)
 		redirect(303, `/verify?email=${encodeURIComponent(locals.user.email)}`);
-	const orgs = await listMyOrgs(await getDb(), locals.user.id);
-	return { user: { name: locals.user.name, email: locals.user.email }, orgs };
+	return {};
 };
 
 export const actions: Actions = {

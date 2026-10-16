@@ -60,6 +60,7 @@
 
 <PageFrame class="flex flex-col gap-4 pb-12">
 	<PageHeader
+		class="mb-2!"
 		title="Health"
 		context="What needs a look in this project. Nothing here blocks any work."
 	/>

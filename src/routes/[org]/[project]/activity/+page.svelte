@@ -55,6 +55,7 @@
 
 <PageFrame class="flex flex-col gap-4 pb-12">
 	<PageHeader
+		class="mb-2!"
 		title="Activity"
 		context={data.sessionId
 			? 'Only what one agent session changed.'

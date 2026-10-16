@@ -11,7 +11,6 @@
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
-	import Logo from '#lib/ui/Logo.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
@@ -73,21 +72,11 @@
 
 <svelte:head><title>Your organisations</title></svelte:head>
 
-<PageFrame tag="main" class={data.orgs.length ? 'pb-12' : 'flex min-h-dvh flex-col pb-12'}>
-	<div class="flex items-center justify-between gap-3 pt-6">
-		<Logo size={32} class="text-base" />
-		<form method="POST" action="/sign-out" class="flex items-center gap-3">
-			<span class="text-sm text-muted max-sm:hidden" data-testid="signed-in-as"
-				>{data.user.email}</span
-			>
-			<Button type="submit" size="sm">Sign out</Button>
-		</form>
-	</div>
-
+<PageFrame class={data.orgs.length ? 'pb-12' : 'flex flex-1 flex-col pb-12'}>
 	{#if data.orgs.length}
 		<PageHeader
 			title="Your organisations"
-			context={`Hello ${data.user.name}. Pick an organisation or start a new one.`}
+			context={`Hello ${data.me.name}. Pick an organisation or start a new one.`}
 			testid="home-title"
 		>
 			{#snippet actions()}
@@ -112,7 +101,7 @@
 				>
 					<div class="flex flex-col gap-2">
 						<p class="text-xs font-medium tracking-wide text-accent-text uppercase">
-							Welcome, {data.user.name.split(' ')[0]}
+							Welcome, {data.me.name.split(' ')[0]}
 						</p>
 						<h1
 							class="font-display text-2xl font-semibold tracking-tight text-ink"

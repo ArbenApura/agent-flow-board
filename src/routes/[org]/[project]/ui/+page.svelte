@@ -30,6 +30,7 @@
 
 <PageFrame class="flex flex-col gap-4 pb-12">
 	<PageHeader
+		class="mb-2!"
 		title="UI"
 		context="The newest screens of every item, measured against the project scale and the pages around them."
 	/>

@@ -16,7 +16,6 @@
 	import { applyMode, type ModeChoice } from '#lib/theme/mode.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
-	import Logo from '#lib/ui/Logo.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
@@ -187,11 +186,7 @@
 
 <svelte:head><title>Your settings</title></svelte:head>
 
-<PageFrame tag="main" class="pb-12">
-	<header class="flex items-center justify-between gap-3 pt-6">
-		<a href="/" class="text-base"><Logo size={30} /></a>
-		<a class="text-sm text-accent-text hover:underline" href="/">All organisations</a>
-	</header>
+<PageFrame class="pb-12">
 	<PageHeader title="Your settings" context="Each section saves on its own." />
 
 	<SettingsShell>

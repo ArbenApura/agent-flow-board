@@ -55,6 +55,7 @@
 
 <PageFrame class="flex flex-col gap-6 pb-12">
 	<PageHeader
+		class="mb-0!"
 		title="Projects"
 		context={`Where your team and your agents keep their plans. You are ${ROLE_LABEL[data.org.role]} here.`}
 	>

@@ -39,6 +39,7 @@
 
 <PageFrame class="flex flex-col gap-4 pb-12">
 	<PageHeader
+		class="mb-2!"
 		title="Search"
 		context="Items, documents, decisions and tasks across the organisation."
 	/>

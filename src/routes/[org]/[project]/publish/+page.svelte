@@ -197,6 +197,7 @@
 
 <PageFrame class="flex flex-col gap-4 pb-12">
 	<PageHeader
+		class="mb-2!"
 		title="Publish"
 		context="A readable reference copy of this project in a GitHub repository. It is not a backup."
 	/>

@@ -156,6 +156,8 @@
 }
 
 html {
+	/* THE SCROLLBAR'S WIDTH IS ALWAYS RESERVED, SO A PAGE THAT NEEDS ONE DOES NOT SHIFT SIDEWAYS FROM A PAGE THAT DOES NOT */
+	scrollbar-gutter: stable;
 	font-family: var(--font-sans);
 	-webkit-font-smoothing: antialiased;
 	text-rendering: optimizeLegibility;
@@ -498,6 +500,7 @@ html[data-org='empty'] .boot-side-projects {
 	border-radius: 50%;
 	background: var(--accent-soft);
 }
+.boot-account,
 .boot-org-empty,
 .boot-org-cards {
 	display: none;
@@ -546,17 +549,24 @@ html[data-org] .boot-body {
 html[data-org] .boot-body > .boot-row {
 	display: none;
 }
+html[data-org='account'] .boot-account {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+}
+.boot-pane-pad {
+	gap: 12px;
+	padding: 24px;
+}
 html[data-org='empty'] .boot-org-empty {
 	display: grid;
 	grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 	gap: 24px;
-	margin-top: 24px;
 }
 html[data-org='cards'] .boot-org-cards {
 	display: flex;
 	flex-direction: column;
 	gap: 24px;
-	margin-top: 24px;
 }
 .boot-org-grid {
 	display: grid;
@@ -592,41 +602,11 @@ html[data-boot='auth'] .boot-body {
 	display: none;
 }
 .boot-card,
-.boot-aside,
-.boot-home {
+.boot-aside {
 	display: none;
-}
-/* THE HOME PAGE SHOWS ITS OWN SHAPE, THE LOGO ROW, THE BAND AND EITHER THE ORGANISATION CARDS OR THE FIRST ORGANISATION PANEL */
-html[data-boot='home'] #afb-boot {
-	display: block;
-}
-html[data-boot='home'] .boot-bar,
-html[data-boot='home'] .boot-body,
-html[data-boot='home'] .boot-card,
-html[data-boot='home'] .boot-aside {
-	display: none;
-}
-html[data-boot='home'] .boot-home {
-	display: flex;
-	flex-direction: column;
-	gap: 24px;
-	max-width: 1280px;
-	margin: 0 auto;
-	padding: 24px 32px;
-}
-.boot-home-head {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	height: 32px;
-}
-.boot-home-brand {
-	display: inline-flex;
-	align-items: center;
-	gap: 12px;
 }
 .boot-home-orgs {
-	display: grid;
+	display: none;
 	grid-template-columns: repeat(3, 1fr);
 	gap: 16px;
 }
@@ -660,19 +640,21 @@ html[data-boot='home'] .boot-home {
 	border-radius: 16px;
 	background: var(--surface);
 }
-html[data-home='empty'] .boot-home {
-	min-height: 100dvh;
+html[data-org='orgs'] .boot-home-orgs {
+	display: grid;
 }
-html[data-home='empty'] .boot-band,
-html[data-home='empty'] .boot-home-orgs {
+html[data-org='welcome'] .boot-body {
+	min-height: calc(100dvh - 64px);
+}
+html[data-org='welcome'] .boot-band {
 	display: none;
 }
-html[data-home='empty'] .boot-home-first {
+html[data-org='welcome'] .boot-home-first {
 	display: grid;
 	grid-template-columns: 5fr 6fr;
 }
 @media (max-width: 767px) {
-	html[data-home='empty'] .boot-home-first {
+	html[data-org='welcome'] .boot-home-first {
 		grid-template-columns: 1fr;
 		height: auto;
 	}
@@ -686,9 +668,6 @@ html[data-home='empty'] .boot-home-first {
 	}
 }
 @media (max-width: 639px) {
-	html[data-boot='home'] .boot-home {
-		padding: 24px 16px;
-	}
 	.boot-home-orgs {
 		grid-template-columns: 1fr;
 	}

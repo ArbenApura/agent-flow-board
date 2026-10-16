@@ -60,6 +60,7 @@
 
 <PageFrame class="flex flex-col gap-4 pb-12">
 	<PageHeader
+		class="mb-2!"
 		title="Trash"
 		context="Things stay here for 30 days, then they are removed for good."
 	/>
