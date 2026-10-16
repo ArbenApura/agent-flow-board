@@ -3,7 +3,9 @@
 	import type { Component, Snippet } from 'svelte';
 	// -- MODULES -- //
 	import Badge from '#lib/ui/Badge.svelte';
+	import AuthCard from '#lib/ui/AuthCard.svelte';
 	import Logo from '#lib/ui/Logo.svelte';
+	import MeshField from '#lib/ui/MeshField.svelte';
 	import Texture from '#lib/ui/Texture.svelte';
 	// -- DEP-COMPONENTS -- //
 	import Bot from '@lucide/svelte/icons/bot';
@@ -57,12 +59,13 @@
 </script>
 
 <!-- THE SHARED FRAME OF EVERY SIGN IN PAGE. A BRAND PANEL ON A WIDE SCREEN, THE FORM CARD, ONE LINE UNDER IT -->
-<main class="grid min-h-dvh lg:grid-cols-2">
+<main class="relative grid min-h-dvh lg:grid-cols-2">
+	<MeshField />
 	<aside
 		class="auth-aside relative hidden grid-rows-[1fr_auto_1fr] justify-items-center overflow-hidden border-r border-line bg-raised/50 px-8 py-12 lg:grid"
 		aria-hidden="true"
 	>
-		<div class="absolute inset-0"><Texture kinds={['aurora', 'grid']} contained /></div>
+		<div class="absolute inset-0"><Texture kinds={['aurora']} contained /></div>
 		<div class="relative w-full max-w-[440px] self-start xl:max-w-[480px]">
 			<Logo size={36} class="text-xl" />
 		</div>
@@ -71,73 +74,74 @@
 			<!-- A SMALL PICTURE OF THE PRODUCT, PLAYING A LOOP. A PLAN CARD WITH ITS RING, ITS STEPS AND AN AGENT AT WORK, A SECOND CARD BEHIND IT FOR DEPTH. THE STILL STATE (REDUCED MOTION) IS 2 OF 3 STEPS DONE -->
 			<div class="auth-rise relative pb-3" style="--d: 150">
 				<div
-					class="absolute inset-x-4 -bottom-3 h-full rounded-2xl border border-line bg-surface/60 shadow-[var(--elev-1)]"
+					class="absolute inset-x-5 -bottom-2 h-8 rounded-xl border border-line bg-surface"
 				></div>
-				<div
-					class="relative flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5 shadow-[var(--elev-2)]"
-				>
-					<div class="flex items-center gap-3">
-						<span class="relative inline-flex size-9 shrink-0 items-center justify-center">
-							<svg width="36" height="36" viewBox="0 0 36 36" class="-rotate-90">
-								<circle
-									cx="18"
-									cy="18"
-									r="16"
-									fill="none"
-									stroke="var(--raised)"
-									stroke-width="4"
-								/>
-								<circle
-									class="hero-ring"
-									cx="18"
-									cy="18"
-									r="16"
-									fill="none"
-									stroke="var(--info)"
-									stroke-width="4"
-									stroke-linecap="round"
-								/>
-							</svg>
-							<span
-								class="hero-n absolute text-[11px] leading-none font-semibold text-ink tabular-nums"
-							></span>
-						</span>
-						<div class="min-w-0 flex-1">
-							<p class="font-mono text-xs text-muted">CKT-12</p>
-							<p class="truncate text-sm font-semibold text-ink">Saved cards at checkout</p>
+				<AuthCard>
+					<div class="flex flex-col gap-4 p-5">
+						<div class="flex items-center gap-3">
+							<span class="relative inline-flex size-9 shrink-0 items-center justify-center">
+								<svg width="36" height="36" viewBox="0 0 36 36" class="-rotate-90">
+									<circle
+										cx="18"
+										cy="18"
+										r="16"
+										fill="none"
+										stroke="var(--raised)"
+										stroke-width="4"
+									/>
+									<circle
+										class="hero-ring"
+										cx="18"
+										cy="18"
+										r="16"
+										fill="none"
+										stroke="var(--info)"
+										stroke-width="4"
+										stroke-linecap="round"
+									/>
+								</svg>
+								<span
+									class="hero-n absolute text-[11px] leading-none font-semibold text-ink tabular-nums"
+								></span>
+							</span>
+							<div class="min-w-0 flex-1">
+								<p class="font-mono text-xs text-muted">CKT-12</p>
+								<p class="truncate text-sm font-semibold text-ink">Saved cards at checkout</p>
+							</div>
+							<Badge tone="running" dot>in progress</Badge>
 						</div>
-						<Badge tone="running" dot>in progress</Badge>
-					</div>
-					<ul class="flex flex-col gap-2">
-						{#each STEPS as s, i (s.text)}
-							<li class="flex items-center gap-2.5 text-sm">
-								<span class="relative size-[18px] shrink-0">
-									<Circle size={18} class="absolute inset-0 text-muted" />
-									{#if i === 2}
-										<span class="hero-work absolute -inset-1 rounded-full border-2 border-accent/40"
-										></span>
-									{/if}
-									<span class="hero-chk-{i + 1} absolute inset-0">
-										<CircleCheck size={18} class="text-accent" />
+						<ul class="flex flex-col gap-2">
+							{#each STEPS as s, i (s.text)}
+								<li class="flex items-center gap-2.5 text-sm">
+									<span class="relative size-[18px] shrink-0">
+										<Circle size={18} class="absolute inset-0 text-muted" />
+										{#if i === 2}
+											<span
+												class="hero-work absolute -inset-1 rounded-full border-2 border-accent/40"
+											></span>
+										{/if}
+										<span class="hero-chk-{i + 1} absolute inset-0">
+											<CircleCheck size={18} class="text-accent" />
+										</span>
 									</span>
-								</span>
-								<span class="hero-lab-{i + 1} relative"
-									>{s.text}<span class="hero-str hero-str-{i + 1}"></span></span
-								>
-							</li>
-						{/each}
-					</ul>
-					<div
-						class="hero-bar flex items-center gap-2 rounded-lg bg-accent-soft px-3 py-2 text-xs text-accent-text"
-					>
-						<Bot size={16} class="hero-bot shrink-0" />
-						<span class="grid">
-							{#each MESSAGES as m, i (m)}
-								<span class="hero-msg hero-msg-{i + 1}">{m}</span>
+									<span class="hero-lab-{i + 1} relative"
+										>{s.text}<span class="hero-str hero-str-{i + 1}"></span></span
+									>
+								</li>
 							{/each}
-						</span>
+						</ul>
+						<div
+							class="hero-bar flex items-center gap-2 rounded-lg bg-accent-soft px-3 py-2 text-xs text-accent-text"
+						>
+							<Bot size={16} class="hero-bot shrink-0" />
+							<span class="grid">
+								{#each MESSAGES as m, i (m)}
+									<span class="hero-msg hero-msg-{i + 1}">{m}</span>
+								{/each}
+							</span>
+						</div>
 					</div>
-				</div>
+				</AuthCard>
 			</div>
 
 			<div class="flex flex-col gap-5">
@@ -172,15 +176,11 @@
 		<div class="relative flex w-full max-w-[440px] flex-col gap-5 xl:max-w-[480px]">
 			<Logo size={32} class="text-lg lg:hidden" />
 			<!-- THE CARD. AN ACCENT EDGE ON TOP, A BADGE THAT SAYS WHAT THE PAGE IS FOR, THE FORM, AND A QUIET SECURITY LINE AT THE BOTTOM -->
-			<div
-				class="relative overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--elev-2)]"
-			>
-				<div
-					class="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-accent via-accent-text to-accent"
-				></div>
+			<AuthCard>
+				<div class="absolute inset-x-0 top-0 h-0.5 bg-accent"></div>
 				<div class="p-8 max-sm:p-5">
 					<span
-						class="mb-5 inline-flex size-12 items-center justify-center rounded-xl bg-accent-soft text-accent-text ring-8 ring-accent-soft/50 [@media(max-height:720px)]:hidden"
+						class="mb-5 inline-flex size-12 items-center justify-center rounded-xl border border-accent/35 bg-accent/12 text-accent-text shadow-[inset_0_1px_0_0_rgb(255_255_255/0.08)] [@media(max-height:720px)]:hidden"
 						aria-hidden="true"
 					>
 						<Icon size={22} />
@@ -192,12 +192,12 @@
 					{@render children()}
 				</div>
 				<div
-					class="flex items-center gap-2 border-t border-line bg-raised/60 px-8 py-3 text-xs text-muted max-sm:px-5 [@media(max-height:720px)]:hidden"
+					class="flex items-center gap-2 border-t border-line/50 bg-raised/30 px-8 py-3 text-xs text-muted max-sm:px-5 [@media(max-height:720px)]:hidden"
 				>
 					<ShieldCheck size={14} class="shrink-0" aria-hidden="true" />
 					{note}
 				</div>
-			</div>
+			</AuthCard>
 			{#if footer}<p class="text-center text-sm text-muted">{@render footer()}</p>{/if}
 		</div>
 	</div>

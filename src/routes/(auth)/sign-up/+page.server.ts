@@ -77,7 +77,7 @@ export const actions: Actions = {
 			body: { provider: 'google', callbackURL: next, requestSignUp: true },
 			headers: request.headers
 		});
-		if (res.url) redirect(303, res.url);
+		if (res.url) redirect(303, res.url, { external: true });
 		return fail(500, { next, message: 'Google sign in is not available right now.' });
 	}
 };

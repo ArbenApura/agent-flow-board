@@ -82,6 +82,7 @@
 			name="password"
 			type="password"
 			autocomplete="new-password"
+			placeholder="Choose a password"
 			icon={Lock}
 			large
 			required

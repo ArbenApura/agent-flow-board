@@ -79,7 +79,7 @@ export const actions: Actions = {
 			body: { provider: 'google', callbackURL: next },
 			headers: request.headers
 		});
-		if (res.url) redirect(303, res.url);
+		if (res.url) redirect(303, res.url, { external: true });
 		return fail(500, {
 			email: '',
 			next,

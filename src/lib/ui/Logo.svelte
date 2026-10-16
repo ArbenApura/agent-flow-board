@@ -20,15 +20,15 @@
 				>Flow</span
 			>
 			<svg
-				viewBox="0 0 60 8"
+				viewBox="0 0 60 12"
 				fill="none"
 				preserveAspectRatio="none"
 				aria-hidden="true"
-				class="logo-wave absolute inset-x-0 -bottom-[0.3em] h-[0.24em] w-full"
+				class="logo-wave absolute inset-x-0 -bottom-[0.36em] h-[0.36em] w-full overflow-visible"
 			>
 				<path
 					pathLength="1"
-					d="M2 5c6-5 10-5 14 0s8 5 14 0 10-5 14 0 6 3 10 0"
+					d="M2 6q7.5-5 15 0t15 0t15 0t11 0"
 					stroke="var(--accent)"
 					stroke-width="2.4"
 					stroke-linecap="round"

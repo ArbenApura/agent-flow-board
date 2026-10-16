@@ -74,6 +74,7 @@
 			name="password"
 			type="password"
 			autocomplete="current-password"
+			placeholder="Enter your password"
 			icon={Lock}
 			large
 			required
