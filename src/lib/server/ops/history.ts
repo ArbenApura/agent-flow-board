@@ -227,7 +227,15 @@ export async function purgeTrash(ctx: Ctx, days = TRASH_DAYS) {
  * The daily clean up of an org's trash, run by whoever opens the org first each day (no background process is needed, so it
  * works the same on a server and on a Worker). One caller claims the day with a guarded update, so two at once purge once.
  */
+// An org checked in the last hour is skipped without asking the database. Opening any page used to cost a transaction (four round
+// trips) just to learn that the day was already claimed, which is slow when the database is far away
+const checkedAt = new Map<string, number>();
+const CHECK_EVERY_MS = 60 * 60 * 1000;
+
 export async function purgeTrashIfDue(ctx: Ctx) {
+	const last = checkedAt.get(ctx.orgId);
+	if (last !== undefined && Date.now() - last < CHECK_EVERY_MS) return null;
+	checkedAt.set(ctx.orgId, Date.now());
 	const claimed = await run(ctx, async (tx) => {
 		const res = await tx.execute(sql`
 			update "org"

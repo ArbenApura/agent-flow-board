@@ -22,6 +22,11 @@ export type DbHandle = {
 	 * (PGlite is always like this). False when the connection already logs in as app_runtime.
 	 */
 	switchRole: boolean;
+	/**
+	 * True on a real PostgreSQL connection, which takes several statements in one text. The tenant setup then costs one round trip,
+	 * which matters a lot when the database is far away. PGlite does not take them.
+	 */
+	batchSetup: boolean;
 	/** Listens to a NOTIFY channel on a connection of its own. Returns the function that stops listening. */
 	listen(channel: string, onMessage: (payload: string) => void): Promise<() => Promise<void>>;
 	close(): Promise<void>;
@@ -95,6 +100,7 @@ export async function createPglite(dataDir?: string): Promise<DbHandle> {
 		db: drizzlePglite(client, { schema }) as unknown as Db,
 		owner: pgliteExecutor(client),
 		switchRole: true,
+		batchSetup: false,
 		listen: async (channel, onMessage) => {
 			const stop = await client.listen(channel, onMessage);
 			return async () => {
@@ -112,6 +118,8 @@ export async function createPglite(dataDir?: string): Promise<DbHandle> {
 export async function createPostgres(options: {
 	runtimeUrl?: string;
 	ownerUrl: string;
+	/** Left out, the role is switched in each transaction when there is no runtime URL. Set false when the one URL already logs in as the runtime role. */
+	switchRole?: boolean;
 	/** Connections the pool may hold. A Worker uses 1 for each request, because Hyperdrive does the pooling. */
 	poolMax?: number;
 	/** Replaces LISTEN, for a platform where the database cannot notify (Hyperdrive). */
@@ -124,7 +132,8 @@ export async function createPostgres(options: {
 	return {
 		db: drizzlePg(runtimePool, { schema }) as unknown as Db,
 		owner: pgExecutor(ownerPool),
-		switchRole: !options.runtimeUrl,
+		switchRole: options.switchRole ?? !options.runtimeUrl,
+		batchSetup: true,
 		listen:
 			options.listen ?? ((channel, onMessage) => listenOnPool(runtimePool, channel, onMessage)),
 		close: async () => {
