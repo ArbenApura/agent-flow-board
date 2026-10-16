@@ -125,7 +125,7 @@ export const handle: Handle = sequence(platform, timing, csrf, theme, authentica
 export const init: ServerInit = async () => {
 	// A Worker has no process of its own: its bindings arrive with each request, so there is nothing to start here
 	if (onWorkers()) return;
-	if (AFB_SEED_DEMO) await seedForPreview(await getDb(), await getAuth());
+	if (AFB_SEED_DEMO) await seedForPreview(await getDb());
 	// Background jobs (publishing, backups) start with the server, not on the first request that needs them
 	await getJobs();
 };

@@ -24,6 +24,9 @@ export default defineConfig({
 			csrf: { trustedOrigins: ['*'] }
 		})
 	],
+	// LOCALHOST IS ALWAYS PORT 5180, FOR THE DEV SERVER AND THE BUILD PREVIEW. strictPort FAILS INSTEAD OF MOVING TO ANOTHER PORT
+	server: { port: 5180, strictPort: true },
+	preview: { port: 5180, strictPort: true },
 	test: {
 		include: [
 			'src/**/*.test.ts',

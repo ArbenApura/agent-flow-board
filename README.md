@@ -28,9 +28,23 @@ node tests/runner/preview.mjs
 
 That builds the app and serves it at http://localhost:5180 with demo organisations and people (read from `.env.test`; the shared sign in password is `seed-password-for-previews` and must never reach a deployment). Sign in as `owner@acme.example`.
 
-For development, copy `.env.example` to `.env`, set `AFB_BASE_URL=http://localhost:5173`, a `BETTER_AUTH_SECRET` of 32 or more characters, `AFB_AUTO_MIGRATE=1` and, for demo data, `AFB_SEED_DEMO=1`, then run `yarn dev`.
+Localhost is always port **5180**, for the dev server and for the build preview (`vite.config.ts` sets `strictPort`, so a second server fails instead of moving to another port). Stop one before starting the other.
 
-A local PGlite folder is the database unless `DATABASE_URL` is set. Every variable is described in `src/env.ts`, and a missing required one stops the app at start with a plain message.
+### Fast local development (Docker PostgreSQL)
+
+The Supabase database is in Tokyo, so every query pays a long round trip. For day to day work run a local PostgreSQL 17 in Docker instead. It keeps its data in a Docker volume, uses the same roles as production (`app_runtime` serves requests, so forced row level security applies), and listens on `127.0.0.1:5433` only.
+
+```
+yarn db:up              # start the container (Docker Desktop must be running)
+yarn db:local:migrate   # tables, plus the app_runtime login
+yarn dev:local          # http://localhost:5180 with demo data (owner@acme.example)
+```
+
+`yarn dev:local` sets its database and `AFB_BASE_URL` in the process, which takes priority over `.env`, so your Supabase `DATABASE_URL` stays untouched and cannot be seeded by accident. `yarn db:down` stops the container and keeps the data. `yarn db:local:reset` deletes the volume and rebuilds it. The passwords in `deploy/local/compose.yaml` and `package.json` are throwaways for this machine. The local owner is the `postgres` superuser, because the demo seed needs to write across organisations, which forced row level security blocks for a normal owner.
+
+To run against Supabase instead, put `AFB_BASE_URL=http://localhost:5180`, a `BETTER_AUTH_SECRET` of 32 or more characters and `DATABASE_URL` in `.env`, then run `yarn dev`.
+
+The database is PostgreSQL on Supabase (the session pooler, port 5432). `DATABASE_URL` in `.env` points at it, so the dev server and the build preview on 5180 both use it, and `AFB_DB_DIR` is ignored while `DATABASE_URL` is set. A local PGlite database (a folder, or in memory with `AFB_DB_DIR=memory`) is used only when `DATABASE_URL` is empty, and only for tests and offline work. `AFB_AUTO_MIGRATE=1` and `AFB_SEED_DEMO=1` act on whichever database is in use, so leave them out of any `.env` that points at data you want to keep. After `yarn db migrate`, run `deploy/supabase/lock-public-api.sql` as the `postgres` role (see [docs/cloudflare.md](docs/cloudflare.md)). Every variable is described in `src/env.ts`, and a missing required one stops the app at start with a plain message.
 
 ## The gates
 
@@ -58,7 +72,7 @@ A local PGlite folder is the database unless `DATABASE_URL` is set. Every variab
 ## How it is built
 
 - SvelteKit 3 with Svelte 5 runes and Tailwind 4. `adapter-node` for a server, `adapter-cloudflare` for Workers.
-- PostgreSQL through Drizzle. Every tenant table has forced row level security, and the app connects as a role that does not own the tables. PGlite stands in for PostgreSQL in development and tests.
+- PostgreSQL through Drizzle. Every tenant table has forced row level security, and the app connects as a role that does not own the tables. The hosted database is Supabase PostgreSQL. PGlite stands in for it only in unit tests and when `DATABASE_URL` is empty.
 - One operations layer (`src/lib/server/ops/`). The pages, the REST API, the MCP server and the commands all call it, and each verb reads the caller's live role.
 - Better Auth for sign in, with the OAuth 2.1 and device flows for tools written beside it.
 - `packages/runner` (the browser check runner), `packages/bridge` (the MCP stdio bridge and the tool hooks), `importer/` (the HAPR importer), `design/` (the brand and the size scale).

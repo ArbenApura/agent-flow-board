@@ -1,0 +1,30 @@
+# LOCAL DEVELOPMENT DATABASE: ONE POSTGRESQL CONTAINER WITH A VOLUME, REACHABLE ON 127.0.0.1:5433 ONLY
+# Start it with `yarn db:up`, make the tables and the app_runtime login with `yarn db:local:migrate`, then run `yarn dev:local`.
+# Same roles as the VPS deployment (afb_owner owns, app_runtime serves requests), so forced row level security applies as in production.
+# Every password here is a throwaway for this machine. Nothing in this file is a secret, and none of it is for a deployment.
+
+name: afb-local
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: localpostgrespassword
+      AFB_OWNER_PASSWORD: localownerpassword
+      AFB_BACKUP_DB_PASSWORD: localbackuppassword
+    ports:
+      # Bound to the loopback address, so nothing outside this machine reaches it. 5433 leaves 5432 free for another install
+      - '127.0.0.1:5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # The same init script as the VPS compose file
+      - ../vps/postgres-init.sh:/docker-entrypoint-initdb.d/10-afb.sh:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d afb']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

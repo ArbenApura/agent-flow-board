@@ -25,6 +25,11 @@
 		"perf": "node tests/perf/run.mjs",
 		"ui-shots": "tsx tests/ui-shots/run.ts",
 		"db": "tsx scripts/db.ts",
+		"db:up": "docker compose -f deploy/local/compose.yaml up -d --wait",
+		"db:down": "docker compose -f deploy/local/compose.yaml down",
+		"db:local:reset": "docker compose -f deploy/local/compose.yaml down -v && yarn db:up && yarn db:local:migrate",
+		"db:local:migrate": "cross-env DATABASE_URL=postgres://postgres:localpostgrespassword@127.0.0.1:5433/afb AFB_RUNTIME_PASSWORD=localruntimepassword tsx scripts/db.ts migrate",
+		"dev:local": "cross-env DATABASE_URL=postgres://app_runtime:localruntimepassword@127.0.0.1:5433/afb DATABASE_OWNER_URL=postgres://postgres:localpostgrespassword@127.0.0.1:5433/afb AFB_BASE_URL=http://localhost:5180 AFB_AUTO_MIGRATE=1 AFB_SEED_DEMO=1 vite dev",
 		"server": "tsx scripts/server.ts",
 		"import:hapr": "tsx importer/cli.ts",
 		"db:generate": "drizzle-kit generate"

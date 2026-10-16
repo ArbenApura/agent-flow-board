@@ -2,8 +2,9 @@
 // Local development and previews only. The password is public on purpose, so it must never reach a deployment.
 
 // -- TYPES -- //
-import type { Auth } from '../auth/auth';
 import type { DbHandle } from './client';
+// -- DEP-MODULES -- //
+import { hashPassword } from 'better-auth/crypto';
 // -- MODULES -- //
 import { authAccount, user } from './schema';
 import { SEED_USERS, seedDemo } from './seed';
@@ -15,11 +16,12 @@ export const SEED_PASSWORD = 'seed-password-for-previews';
 // -- FUNCTIONS -- //
 
 /** Seeds the demo data once (when the database holds no users) and gives every seeded person the shared password. */
-export async function seedForPreview(handle: DbHandle, auth: Auth): Promise<boolean> {
+export async function seedForPreview(handle: DbHandle): Promise<boolean> {
 	const existing = await handle.db.select({ id: user.id }).from(user).limit(1);
 	if (existing.length > 0) return false;
 	await seedDemo(handle.owner, { loadItems: 5000 });
-	const hash = await (await auth.$context).password.hash(SEED_PASSWORD);
+	// The same scrypt hash Better Auth makes. `auth.$context` cannot be read outside a request in dev ("No auth context found")
+	const hash = await hashPassword(SEED_PASSWORD);
 	for (const u of SEED_USERS) {
 		await handle.db
 			.insert(authAccount)
