@@ -174,13 +174,8 @@
 			aria-labelledby="ui-table-title"
 		>
 			<div>
-				<h2
-					id="ui-table-title"
-					class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]"
-				>
-					UI changes
-				</h2>
-				<p class="text-sm leading-[22px] text-muted">
+				<h2 id="ui-table-title" class="text-lg font-semibold">UI changes</h2>
+				<p class="text-sm text-muted">
 					The pages this item adds or changes. Each is opened, measured against the project scale
 					and its sibling pages, and photographed.
 				</p>
@@ -241,13 +236,8 @@
 			>
 				<div class="flex flex-wrap items-start gap-2">
 					<div class="min-w-0 flex-1">
-						<h2
-							id="ui-run-title"
-							class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]"
-						>
-							Latest run
-						</h2>
-						<p class="text-sm leading-[22px] text-muted">
+						<h2 id="ui-run-title" class="text-lg font-semibold">Latest run</h2>
+						<p class="text-sm text-muted">
 							{#if latest}
 								{ago(latest.createdAt)}{latest.target
 									? `, on the ${latest.target}`
@@ -275,15 +265,15 @@
 					</div>
 				{/if}
 				{#if message && !editing}<p role="status" class="text-sm text-warning">{message}</p>{/if}
-				{#if latest?.reason}<p class="text-xs leading-4 text-muted">{latest.reason}</p>{/if}
+				{#if latest?.reason}<p class="text-xs text-muted">{latest.reason}</p>{/if}
 				{#if latest && latest.foreignPaths.length}
-					<p class="text-xs leading-4 text-warning" data-testid="foreign-paths">
+					<p class="text-xs text-warning" data-testid="foreign-paths">
 						{latest.foreignPaths.length} changed file{latest.foreignPaths.length === 1 ? '' : 's'} in
 						the working tree belong to other work, so these shots may show more than this item.
 					</p>
 				{/if}
 				{#if latest && (latest.abortedWrites || latest.outsideCalls)}
-					<p class="text-xs leading-4 text-muted">
+					<p class="text-xs text-muted">
 						{latest.abortedWrites} write{latest.abortedWrites === 1 ? '' : 's'} the pages tried {latest.abortedWrites ===
 						1
 							? 'was'
@@ -302,12 +292,7 @@
 				data-testid="ui-results"
 			>
 				<div class="flex flex-wrap items-center gap-3">
-					<h2
-						id="ui-results-title"
-						class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]"
-					>
-						Results
-					</h2>
+					<h2 id="ui-results-title" class="text-lg font-semibold">Results</h2>
 					<SegmentedControl
 						label="Width"
 						options={[

@@ -50,7 +50,7 @@
 
 <div class="flex flex-col gap-3" data-testid="palette-picker">
 	<div class="flex flex-col gap-1">
-		<span class="text-xs leading-4 font-medium text-muted" id="palette-label">{label}</span>
+		<span class="text-xs font-medium text-muted" id="palette-label">{label}</span>
 		<div class="flex flex-wrap gap-2" role="radiogroup" aria-labelledby="palette-label">
 			{#each PRESETS as p (p.hex)}
 				<button

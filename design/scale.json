@@ -2,18 +2,153 @@
 	"source": "design/tokens.md",
 	"tolerancePx": 0.5,
 	"levels": {
-		"title": { "desktop": { "fontSize": 24, "fontWeight": 600 }, "phone": { "fontSize": 20, "fontWeight": 600 } },
-		"section": { "desktop": { "fontSize": 18, "fontWeight": 600 }, "phone": { "fontSize": 16, "fontWeight": 600 } },
-		"body": { "desktop": { "fontSize": 14, "fontWeight": 400 }, "phone": { "fontSize": 14, "fontWeight": 400 } },
-		"label": { "desktop": { "fontSize": 12 }, "phone": { "fontSize": 12 } },
-		"button-primary": { "desktop": { "height": 44, "fontSize": 14, "radius": 8 }, "phone": { "height": 44, "fontSize": 14, "radius": 8 } },
-		"button": { "desktop": { "height": [32, 44], "fontSize": 14, "radius": 8 }, "phone": { "height": 44, "fontSize": 14, "radius": 8 } },
-		"button-icon": { "desktop": { "height": 44 }, "phone": { "height": 44 } },
-		"input": { "desktop": { "height": 44, "fontSize": 14, "radius": 8 }, "phone": { "height": 44, "fontSize": 14, "radius": 8 } },
-		"card": { "desktop": { "radius": 12 }, "phone": { "radius": 12 } },
-		"row": { "desktop": { "height": [36, 48] }, "phone": { "height": [48, 56] } },
-		"icon": { "desktop": { "width": [16, 20, 24] }, "phone": { "width": [16, 20, 24] } },
-		"image": { "desktop": { "width": [120] }, "phone": { "width": [96] } }
+		"title": {
+			"desktop": {
+				"fontSize": 28,
+				"fontWeight": 600
+			},
+			"phone": {
+				"fontSize": 22,
+				"fontWeight": 600
+			}
+		},
+		"section": {
+			"desktop": {
+				"fontSize": 18,
+				"fontWeight": 600
+			},
+			"phone": {
+				"fontSize": 18,
+				"fontWeight": 600
+			}
+		},
+		"body": {
+			"desktop": {
+				"fontSize": 15,
+				"fontWeight": 400
+			},
+			"phone": {
+				"fontSize": 15,
+				"fontWeight": 400
+			}
+		},
+		"label": {
+			"desktop": {
+				"fontSize": 13
+			},
+			"phone": {
+				"fontSize": 13
+			}
+		},
+		"button-primary": {
+			"desktop": {
+				"height": [
+					40,
+					44
+				],
+				"fontSize": 15,
+				"radius": 8
+			},
+			"phone": {
+				"height": 44,
+				"fontSize": 15,
+				"radius": 8
+			}
+		},
+		"button": {
+			"desktop": {
+				"height": [
+					32,
+					44
+				],
+				"fontSize": [
+					13,
+					15
+				],
+				"radius": 8
+			},
+			"phone": {
+				"height": 44,
+				"fontSize": [
+					13,
+					15
+				],
+				"radius": 8
+			}
+		},
+		"button-icon": {
+			"desktop": {
+				"height": 44
+			},
+			"phone": {
+				"height": 44
+			}
+		},
+		"input": {
+			"desktop": {
+				"height": [
+					40,
+					44
+				],
+				"fontSize": 15,
+				"radius": 8
+			},
+			"phone": {
+				"height": 44,
+				"fontSize": 15,
+				"radius": 8
+			}
+		},
+		"card": {
+			"desktop": {
+				"radius": 12
+			},
+			"phone": {
+				"radius": 12
+			}
+		},
+		"row": {
+			"desktop": {
+				"height": [
+					36,
+					48
+				]
+			},
+			"phone": {
+				"height": [
+					48,
+					56
+				]
+			}
+		},
+		"icon": {
+			"desktop": {
+				"width": [
+					16,
+					20,
+					24
+				]
+			},
+			"phone": {
+				"width": [
+					16,
+					20,
+					24
+				]
+			}
+		},
+		"image": {
+			"desktop": {
+				"width": [
+					120
+				]
+			},
+			"phone": {
+				"width": [
+					96
+				]
+			}
+		}
 	},
 	"locators": {
 		"title": "h1",

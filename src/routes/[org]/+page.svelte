@@ -2,9 +2,12 @@
 	// -- DEP-TYPES -- //
 	import type { PageProps } from './$types';
 	// -- MODULES -- //
-	import { STATUSES, STATUS_TONE, tagDot } from '#lib/board/status.js';
+	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
+	import { STATUSES, tagDot } from '#lib/board/status.js';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
 	import { cn } from '#lib/ui/cn.js';
+	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Card from '#lib/ui/Card.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
@@ -12,17 +15,24 @@
 	// -- REQUIRED PROPS -- //
 
 	let { data }: PageProps = $props();
+
+	// -- CONSTANTS -- //
+
+	// One colour for each status in the stacked bar of a project card. Tokens only
+	const SEGMENT: Record<string, string> = {
+		PLANNED: 'bg-line',
+		'IN PROGRESS': 'bg-info',
+		TESTING: 'bg-accent',
+		'IN REVIEW': 'bg-warning',
+		'ON HOLD': 'bg-muted',
+		COMPLETED: 'bg-success'
+	};
 </script>
 
 <svelte:head><title>{data.org.name}</title></svelte:head>
 
-<div class="mx-auto flex max-w-[1200px] flex-col gap-6 px-4 py-6 max-sm:px-3.5">
-	<div>
-		<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8" data-testid="page-title">
-			Projects
-		</h1>
-		<p class="text-sm leading-[22px] text-muted">You are {ROLE_LABEL[data.org.role]} here.</p>
-	</div>
+<PageFrame class="flex flex-col gap-6 pb-12">
+	<PageHeader title="Projects" context={`You are ${ROLE_LABEL[data.org.role]} here.`} />
 
 	{#if data.overview.length === 0}
 		<Card>
@@ -46,10 +56,20 @@
 							{#if o.running > 0}<Badge tone="running">{o.running} running</Badge>{/if}
 						</span>
 						<span class="text-base leading-6 font-semibold">{o.project.name}</span>
-						<span class="flex flex-wrap gap-1.5">
-							<Badge>{o.total} {o.total === 1 ? 'item' : 'items'}</Badge>
-							{#each STATUSES.filter((s) => (o.byStatus[s] ?? 0) > 0 && s !== 'REMOVED') as s (s)}
-								<Badge tone={STATUS_TONE[s]}>{o.byStatus[s]} {s.toLowerCase()}</Badge>
+						<span
+							class="flex h-2 w-full overflow-hidden rounded-full bg-raised"
+							role="img"
+							aria-label={`${o.total} items by status`}
+						>
+							{#each STATUSES.filter((x) => (o.byStatus[x] ?? 0) > 0 && x !== 'REMOVED') as x (x)}
+								<span class={SEGMENT[x]} style="width:{((o.byStatus[x] ?? 0) / o.total) * 100}%"
+								></span>
+							{/each}
+						</span>
+						<span class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+							<span class="font-medium text-ink">{o.total} {o.total === 1 ? 'item' : 'items'}</span>
+							{#each STATUSES.filter((x) => (o.byStatus[x] ?? 0) > 0 && x !== 'REMOVED' && x !== 'COMPLETED' && x !== 'PLANNED') as x (x)}
+								<span>{o.byStatus[x]} {x.toLowerCase()}</span>
 							{/each}
 						</span>
 					</a>
@@ -59,7 +79,7 @@
 	{/if}
 
 	<section class="flex flex-col gap-2">
-		<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">Members</h2>
+		<h2 class="text-lg font-semibold">Members</h2>
 		<Card padded={false}>
 			<ul>
 				{#each data.members as m (m.userId)}
@@ -67,11 +87,17 @@
 						class="flex min-h-12 items-center justify-between gap-3 border-b border-line px-4 py-2 last:border-b-0"
 						data-row
 					>
-						<span>{m.name} <span class="text-muted">{m.email}</span></span>
+						<span class="flex items-center gap-3"
+							><Avatar name={m.name} size={32} /><span class="flex flex-col"
+								><span class="font-medium">{m.name}</span><span class="text-sm text-muted"
+									>{m.email}</span
+								></span
+							></span
+						>
 						<Badge>{ROLE_LABEL[m.role]}</Badge>
 					</li>
 				{/each}
 			</ul>
 		</Card>
 	</section>
-</div>
+</PageFrame>

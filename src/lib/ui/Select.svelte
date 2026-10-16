@@ -102,7 +102,7 @@
 			onclick={toggle}
 			onkeydown={onTriggerKey}
 			class={cn(
-				'flex h-11 w-full min-w-40 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-bg px-3 text-left text-sm leading-5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50',
+				'flex h-11 w-full min-w-40 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-bg px-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-50',
 				invalid ? 'border-danger' : 'border-line',
 				selected ? 'text-ink' : 'text-muted'
 			)}
@@ -131,7 +131,7 @@
 			>
 				<span class="flex min-w-0 flex-col">
 					<span class="truncate">{opt.label}</span>
-					{#if opt.hint}<span class="truncate text-xs leading-4 text-muted">{opt.hint}</span>{/if}
+					{#if opt.hint}<span class="truncate text-xs text-muted">{opt.hint}</span>{/if}
 				</span>
 				{#if opt.value === value}<Check size={16} class="shrink-0 text-accent-text" />{/if}
 			</div>

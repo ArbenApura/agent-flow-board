@@ -18,7 +18,8 @@
 		children,
 		footer,
 		busy = false,
-		size = 'md'
+		size = 'md',
+		variant = 'dialog'
 	}: {
 		/** Always mounted with this flag, never inside an {#if}, so the out transition plays. */
 		open: boolean;
@@ -29,6 +30,8 @@
 		/** While true the dialog cannot be closed (an action is running). */
 		busy?: boolean;
 		size?: 'sm' | 'md' | 'lg';
+		/** A drawer slides in from the right on a wide screen, so a record can be read next to the page it came from. */
+		variant?: 'dialog' | 'drawer';
 	} = $props();
 
 	// -- CONSTANTS -- //
@@ -91,7 +94,10 @@
 		></button>
 		<!-- PANEL, A BOTTOM SHEET ON PHONES AND A CENTRED DIALOG FROM sm UP -->
 		<div
-			class="pointer-events-none absolute inset-0 flex items-end justify-center sm:items-center sm:p-4"
+			class={cn(
+				'pointer-events-none absolute inset-0 flex items-end justify-center',
+				variant === 'drawer' ? 'sm:items-stretch sm:justify-end' : 'sm:items-center sm:p-4'
+			)}
 		>
 			<div
 				role="dialog"
@@ -101,17 +107,20 @@
 				use:focusTrap
 				onkeydown={onKey}
 				class={cn(
-					'pointer-events-auto flex max-h-[90vh] w-full flex-col overflow-hidden border border-line bg-surface text-ink shadow-[var(--shadow-pop)] transition-[opacity,transform] duration-200 motion-reduce:transition-none',
-					'rounded-t-xl sm:rounded-xl',
-					WIDTHS[size],
-					shown ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
+					'pointer-events-auto flex max-h-[90vh] w-full flex-col overflow-hidden border border-line bg-surface text-ink shadow-[var(--shadow-pop)] transition-[opacity,translate] duration-200 motion-reduce:transition-none',
+					variant === 'drawer'
+						? 'rounded-t-xl sm:h-full sm:max-h-none sm:max-w-[560px] sm:rounded-none sm:border-y-0 sm:border-r-0'
+						: cn('rounded-t-xl sm:rounded-xl', WIDTHS[size]),
+					shown
+						? 'translate-y-0 opacity-100 sm:translate-x-0'
+						: cn(
+								'translate-y-4 opacity-0',
+								variant === 'drawer' && 'sm:translate-x-8 sm:translate-y-0'
+							)
 				)}
 			>
-				<div class="flex items-center gap-2 border-b border-line px-4 py-3">
-					<h2
-						id={titleId}
-						class="flex-1 text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]"
-					>
+				<div class="flex items-center gap-2 border-b border-line px-5 py-3">
+					<h2 id={titleId} class="flex-1 text-lg font-semibold">
 						{title}
 					</h2>
 					<button
@@ -124,11 +133,11 @@
 						<X size={20} />
 					</button>
 				</div>
-				<div class="min-h-0 flex-1 overflow-auto p-4 text-sm leading-[22px]">
+				<div class="min-h-0 flex-1 overflow-auto p-5 text-sm">
 					{@render children()}
 				</div>
 				{#if footer}
-					<div class="flex flex-wrap items-center justify-end gap-2 border-t border-line px-4 py-3">
+					<div class="flex flex-wrap items-center justify-end gap-2 border-t border-line px-5 py-3">
 						{@render footer()}
 					</div>
 				{/if}

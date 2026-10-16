@@ -83,7 +83,13 @@
 
 	$effect(() => {
 		if (!open) return;
-		reposition();
+		void reposition().then(() => {
+			if (!open || !panel || role === 'listbox') return;
+			const first = panel.querySelector<HTMLElement>(
+				'a[href], button:not([disabled]), input:not([disabled]), [role=checkbox], [tabindex]:not([tabindex="-1"])'
+			);
+			(first ?? panel).focus();
+		});
 		const on = () => reposition();
 		// Escape closes the panel wherever focus is, as it often stays on the trigger
 		const esc = (e: KeyboardEvent) => {

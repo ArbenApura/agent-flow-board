@@ -5,6 +5,7 @@
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import Badge from '#lib/ui/Badge.svelte';
@@ -140,12 +141,12 @@
 
 <svelte:head><title>Publish, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<div class="mx-auto flex max-w-[960px] flex-col gap-4 px-4 py-6 max-sm:px-3.5">
+<PageFrame class="flex flex-col gap-4 py-8 pb-12">
 	<div>
-		<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8" data-testid="page-title">
+		<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">
 			Publish
 		</h1>
-		<p class="text-sm leading-[22px] text-muted">
+		<p class="text-sm text-muted">
 			A readable reference copy of this project in a GitHub repository. It is not a backup.
 		</p>
 	</div>
@@ -156,20 +157,16 @@
 		<EmptyState
 			title="GitHub publishing is not set up on this server"
 			text="An operator adds the GitHub App settings to the server first. Plans stay in this app either way."
-			icon={GitBranch}
 		/>
 	{:else if !link}
 		{#if !pub.canPublish}
 			<EmptyState
 				title="No repository is connected"
 				text="An admin or owner can connect a GitHub repository to publish this project."
-				icon={GitBranch}
 			/>
 		{:else}
 			<section class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4" data-card>
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-					Connect a repository
-				</h2>
+				<h2 class="text-lg font-semibold">Connect a repository</h2>
 				{#if data.repos.length}
 					<p class="text-sm text-muted">Pick the repository to publish into.</p>
 					<ul class="rounded-lg border border-line" data-testid="repo-list">
@@ -282,9 +279,7 @@
 
 		{#if pub.canPublish && preview}
 			<section class="flex flex-col gap-2" aria-label="What would change">
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-					What would change
-				</h2>
+				<h2 class="text-lg font-semibold">What would change</h2>
 				{#if preview.diff.total === 0}
 					<p class="text-sm text-muted" data-testid="no-changes">
 						Nothing has changed since the last publish.
@@ -361,7 +356,7 @@
 		{/if}
 
 		<section class="flex flex-col gap-2" aria-label="Publish history">
-			<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">History</h2>
+			<h2 class="text-lg font-semibold">History</h2>
 			{#if pub.runs.length === 0}
 				<p class="text-sm text-muted">Nothing has been published yet.</p>
 			{:else}
@@ -392,7 +387,7 @@
 			{/if}
 		</section>
 	{/if}
-</div>
+</PageFrame>
 
 <ResponsiveModal
 	open={laterOpen}

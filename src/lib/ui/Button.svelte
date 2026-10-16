@@ -53,10 +53,14 @@
 	const off = $derived(disabled || loading);
 	const classes = $derived(
 		cn(
-			'relative inline-flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg border text-sm leading-5 font-medium whitespace-nowrap select-none',
+			'relative inline-flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg border text-sm font-medium whitespace-nowrap select-none',
 			'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
 			'disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50',
-			iconOnly ? 'size-11 p-0' : size === 'sm' ? 'h-8 px-3 max-sm:h-11' : 'h-11 px-4',
+			iconOnly
+				? 'size-10 p-0 max-sm:size-11'
+				: size === 'sm'
+					? 'h-8 px-3 max-sm:h-11'
+					: 'h-10 px-4 max-sm:h-11',
 			VARIANTS[variant],
 			extra
 		)

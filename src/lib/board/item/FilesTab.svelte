@@ -124,7 +124,7 @@
 					data-testid="attachment"
 				>
 					<Paperclip size={16} class="shrink-0 text-muted" />
-					<span class="min-w-0 flex-1 text-sm leading-5">
+					<span class="min-w-0 flex-1 text-sm">
 						<span class="block truncate font-medium">{a.caption}</span>
 						<span class="block truncate text-xs text-muted"
 							>{a.filename}, {size(a.size)}, {ago(a.createdAt)}</span

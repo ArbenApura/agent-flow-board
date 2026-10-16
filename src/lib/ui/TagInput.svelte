@@ -58,7 +58,7 @@
 </script>
 
 <div class={cn('flex flex-col gap-1', extra)}>
-	<label for={uid} class="text-xs leading-4 font-medium text-muted">{label}</label>
+	<label for={uid} class="text-xs font-medium text-muted">{label}</label>
 	<div
 		class={cn(
 			'flex min-h-11 flex-wrap items-center gap-1.5 rounded-lg border bg-bg px-2 py-1.5 focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-accent',
@@ -67,7 +67,7 @@
 	>
 		{#each tags as tag (tag)}
 			<span
-				class="inline-flex items-center gap-1 rounded-md bg-raised py-0.5 pr-0.5 pl-2 text-xs leading-4 text-ink"
+				class="inline-flex items-center gap-1 rounded-md bg-raised py-0.5 pr-0.5 pl-2 text-xs text-ink"
 			>
 				{tag}
 				<button
@@ -92,8 +92,8 @@
 		/>
 	</div>
 	{#if error}
-		<p role="alert" class="text-xs leading-4 text-danger">{error}</p>
+		<p role="alert" class="text-xs text-danger">{error}</p>
 	{:else if hint}
-		<p class="text-xs leading-4 text-muted">{hint}</p>
+		<p class="text-xs text-muted">{hint}</p>
 	{/if}
 </div>

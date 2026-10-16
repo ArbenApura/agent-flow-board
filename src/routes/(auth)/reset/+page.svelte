@@ -27,7 +27,7 @@
 	{#if form?.sent}
 		<p
 			role="status"
-			class="rounded-lg border border-line bg-success-soft p-3 text-sm leading-[22px] text-success"
+			class="rounded-lg border border-line bg-success-soft p-3 text-sm text-success"
 			data-testid="reset-sent"
 		>
 			If an account uses {form.email}, a link is on its way. It works for one hour.

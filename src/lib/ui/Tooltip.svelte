@@ -78,7 +78,7 @@
 		id={tipId}
 		role="tooltip"
 		style="position:fixed;left:{pos.x}px;top:{pos.y}px;"
-		class="pointer-events-none z-[3000] max-w-64 rounded-md bg-ink px-2 py-1 text-xs leading-4 text-bg"
+		class="pointer-events-none z-[3000] max-w-64 rounded-md bg-ink px-2 py-1 text-xs text-bg"
 	>
 		{text}
 	</div>

@@ -79,7 +79,7 @@
 
 	{#if adrs.length}
 		<section class="flex flex-col gap-2" aria-label="Decisions">
-			<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">Decisions</h2>
+			<h2 class="text-lg font-semibold">Decisions</h2>
 			<ul class="rounded-xl border border-line bg-surface">
 				{#each adrs as d (d.id)}
 					<li class="border-b border-line last:border-b-0" data-testid="adr">
@@ -115,9 +115,7 @@
 
 	{#if settled.length}
 		<section class="flex flex-col gap-2" aria-label="Settled without asking">
-			<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-				Settled without asking
-			</h2>
+			<h2 class="text-lg font-semibold">Settled without asking</h2>
 			<div class="text-xs text-muted">
 				Questions the builder answered from the documents and the code. Overrule any of them.
 			</div>

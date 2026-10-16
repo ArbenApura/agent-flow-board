@@ -104,8 +104,8 @@
 <div class="mx-auto flex max-w-[1100px] flex-col gap-6 px-4 py-6 max-sm:px-3.5">
 	<header class="flex flex-wrap items-center justify-between gap-3">
 		<div>
-			<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8">Component gallery</h1>
-			<p class="text-sm leading-[22px] text-muted">Every component and state, in light and dark.</p>
+			<h1 class="text-xl font-semibold tracking-tight sm:text-2xl">Component gallery</h1>
+			<p class="text-sm text-muted">Every component and state, in light and dark.</p>
 		</div>
 		<SegmentedControl
 			label="Theme mode"
@@ -120,9 +120,7 @@
 	</header>
 
 	<Card data-testid="g-buttons">
-		{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-				Buttons and badges
-			</h2>{/snippet}
+		{#snippet header()}<h2 class="text-lg font-semibold">Buttons and badges</h2>{/snippet}
 		<div class="flex flex-wrap items-center gap-3">
 			<Button variant="primary">Save changes</Button>
 			<Button>Cancel</Button>
@@ -148,9 +146,7 @@
 	</Card>
 
 	<Card data-testid="g-fields">
-		{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-				Fields and controls
-			</h2>{/snippet}
+		{#snippet header()}<h2 class="text-lg font-semibold">Fields and controls</h2>{/snippet}
 		<div class="grid gap-4 sm:grid-cols-2">
 			<TextField
 				label="Project name"
@@ -168,7 +164,7 @@
 				hint="On hold is unavailable here."
 			/>
 			<div class="flex flex-col gap-1">
-				<span class="text-xs leading-4 font-medium text-muted">Plain select</span>
+				<span class="text-xs font-medium text-muted">Plain select</span>
 				<Select label="Plain select" options={STATUS} bind:value={status} />
 			</div>
 			<DatePickerField label="Due date" bind:value={date} />
@@ -196,9 +192,7 @@
 	</Card>
 
 	<Card data-testid="g-overlays">
-		{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-				Overlays
-			</h2>{/snippet}
+		{#snippet header()}<h2 class="text-lg font-semibold">Overlays</h2>{/snippet}
 		<div class="flex flex-wrap items-center gap-3">
 			<Button onclick={() => (modal = true)}>Open dialog</Button>
 			<Button variant="danger" onclick={() => (confirm = true)}>Delete item</Button>
@@ -239,15 +233,11 @@
 
 	<div class="grid gap-6 sm:grid-cols-2" data-testid="g-states">
 		<Card>
-			{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-					Loading
-				</h2>{/snippet}
+			{#snippet header()}<h2 class="text-lg font-semibold">Loading</h2>{/snippet}
 			<Skeleton lines={4} />
 		</Card>
 		<Card>
-			{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-					Empty
-				</h2>{/snippet}
+			{#snippet header()}<h2 class="text-lg font-semibold">Empty</h2>{/snippet}
 			<EmptyState
 				title="No items yet"
 				text="Items appear here once an agent or a person creates one. Start by adding the first."
@@ -256,32 +246,24 @@
 			</EmptyState>
 		</Card>
 		<Card>
-			{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-					Error
-				</h2>{/snippet}
+			{#snippet header()}<h2 class="text-lg font-semibold">Error</h2>{/snippet}
 			<ErrorState
 				message="The registry did not load. The server answered with an error."
 				onretry={() => new Promise((r) => setTimeout(r, 600))}
 			/>
 		</Card>
 		<Card>
-			{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-					Permission denied
-				</h2>{/snippet}
+			{#snippet header()}<h2 class="text-lg font-semibold">Permission denied</h2>{/snippet}
 			<PermissionDenied needed="Admin" current="Member" what="Organisation settings" />
 		</Card>
 	</div>
 	<Card padded={false} data-testid="g-offline">
 		<OfflineBanner liveLost />
-		<p class="p-4 text-sm leading-[22px] text-muted">
-			The banner above shows when live updates are lost.
-		</p>
+		<p class="p-4 text-sm text-muted">The banner above shows when live updates are lost.</p>
 	</Card>
 
 	<Card data-testid="g-lists">
-		{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-				Lists
-			</h2>{/snippet}
+		{#snippet header()}<h2 class="text-lg font-semibold">Lists</h2>{/snippet}
 		<div class="flex flex-col gap-4">
 			<SearchStatus query="cards" count={12} />
 			<Pagination bind:page count={20} />
@@ -303,9 +285,7 @@
 	</Card>
 
 	<Card data-testid="g-palette">
-		{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-				Palette generator
-			</h2>{/snippet}
+		{#snippet header()}<h2 class="text-lg font-semibold">Palette generator</h2>{/snippet}
 		<div class="flex flex-col gap-4">
 			<TextField
 				label="Seed colour (hex)"
@@ -313,7 +293,7 @@
 				hint="A pale seed is adjusted until every pair passes AA."
 			/>
 			{#if palette}
-				<p class="text-sm leading-[22px]" data-testid="palette-adjusted">
+				<p class="text-sm" data-testid="palette-adjusted">
 					{palette.adjusted
 						? 'This seed was adjusted to pass contrast.'
 						: 'This seed passes as it is.'}
@@ -357,7 +337,7 @@
 						{/each}
 					</tbody>
 				</table>
-				<p class="text-sm leading-[22px] text-muted" data-testid="palette-charts">
+				<p class="text-sm text-muted" data-testid="palette-charts">
 					{pairs.filter((x) => x.name.includes('chart') && x.pass).length} of {pairs.filter((x) =>
 						x.name.includes('chart')
 					).length} chart colours pass 3:1 on the surface.

@@ -61,7 +61,7 @@
 </script>
 
 <div class={cn('flex flex-col gap-1', extra)}>
-	<span class="text-xs leading-4 font-medium text-muted">{label}</span>
+	<span class="text-xs font-medium text-muted">{label}</span>
 	<Popover bind:open placement="bottom-start" label={`Choose ${label.toLowerCase()}`}>
 		{#snippet trigger({ props, toggle })}
 			<button
@@ -70,7 +70,7 @@
 				onclick={toggle}
 				aria-label={value ? `${label}, ${formatLong(value)}` : label}
 				class={cn(
-					'flex h-11 w-full min-w-44 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-bg px-3 text-left text-sm leading-5 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+					'flex h-11 w-full min-w-44 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-bg px-3 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
 					error ? 'border-danger' : 'border-line',
 					value ? 'text-ink' : 'text-muted'
 				)}
@@ -102,7 +102,7 @@
 						<CaretRight size={16} />
 					</button>
 				</div>
-				<div class="grid grid-cols-7 text-center text-xs leading-4 text-muted">
+				<div class="grid grid-cols-7 text-center text-xs text-muted">
 					{#each WEEKDAYS as w (w)}<span class="py-1">{w}</span>{/each}
 				</div>
 				<div class="grid grid-cols-7">
@@ -128,8 +128,8 @@
 		{/snippet}
 	</Popover>
 	{#if error}
-		<p role="alert" class="text-xs leading-4 text-danger">{error}</p>
+		<p role="alert" class="text-xs text-danger">{error}</p>
 	{:else if hint}
-		<p class="text-xs leading-4 text-muted">{hint}</p>
+		<p class="text-xs text-muted">{hint}</p>
 	{/if}
 </div>

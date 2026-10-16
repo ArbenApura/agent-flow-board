@@ -33,7 +33,7 @@
 			onmouseleave={() => toasts.release(t.id)}
 			onfocusin={() => toasts.hold(t.id)}
 			onfocusout={() => toasts.release(t.id)}
-			class="pointer-events-auto flex items-start gap-3 rounded-lg border border-line bg-surface p-3 text-sm leading-5 text-ink shadow-[var(--shadow-pop)]"
+			class="pointer-events-auto flex items-start gap-3 rounded-lg border border-line bg-surface p-3 text-sm text-ink shadow-[var(--shadow-pop)]"
 		>
 			<Icon size={20} class={cn('mt-px shrink-0', TONE[t.tone].text)} aria-hidden="true" />
 			<p class="min-w-0 flex-1">{t.text}</p>

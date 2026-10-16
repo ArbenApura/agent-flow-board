@@ -4,6 +4,7 @@
 	// -- ENVS -- //
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import { ago } from '#lib/board/status.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
@@ -26,12 +27,10 @@
 
 <svelte:head><title>UI, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<div class="mx-auto flex max-w-[960px] flex-col gap-4 px-4 py-6 max-sm:px-3.5">
+<PageFrame class="flex flex-col gap-4 py-8 pb-12">
 	<div>
-		<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8" data-testid="page-title">
-			UI
-		</h1>
-		<p class="text-sm leading-[22px] text-muted">
+		<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">UI</h1>
+		<p class="text-sm text-muted">
 			The newest screens of every item, measured against the project scale and the pages around
 			them.
 		</p>
@@ -63,7 +62,7 @@
 							<Badge tone="success">Fits</Badge>
 						{/if}
 					</div>
-					<div class="text-xs leading-4 text-muted">
+					<div class="text-xs text-muted">
 						{r.pages} page{r.pages === 1 ? '' : 's'}, {ago(r.createdAt)}{r.target
 							? `, on the ${r.target}`
 							: ''}{r.afterCommit ? `, commit ${r.afterCommit.slice(0, 7)}` : ''}
@@ -89,4 +88,4 @@
 			{/each}
 		</ul>
 	{/if}
-</div>
+</PageFrame>

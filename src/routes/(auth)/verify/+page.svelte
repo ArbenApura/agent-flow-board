@@ -24,13 +24,13 @@
 
 <AuthShell title={data.verified ? 'Email confirmed' : 'Check your email'}>
 	{#if data.verified}
-		<p class="text-sm leading-[22px]">Your email address is confirmed.</p>
+		<p class="text-sm">Your email address is confirmed.</p>
 		<div class="mt-4"><Button href="/" variant="primary" class="w-full">Continue</Button></div>
 	{:else}
 		{#if failed}
 			<p
 				role="alert"
-				class="mb-4 rounded-lg border border-line bg-danger-soft p-3 text-sm leading-[22px] text-danger"
+				class="mb-4 rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
 				data-testid="email-failed"
 			>
 				{form?.message ?? 'Your account was created, but we could not send the confirmation email.'} Use
@@ -39,13 +39,13 @@
 		{:else if form?.resent || data.sent}
 			<p
 				role="status"
-				class="mb-4 rounded-lg border border-line bg-success-soft p-3 text-sm leading-[22px] text-success"
+				class="mb-4 rounded-lg border border-line bg-success-soft p-3 text-sm text-success"
 				data-testid="email-sent"
 			>
 				We sent a confirmation link to {data.email || 'your email address'}. It works for one hour.
 			</p>
 		{/if}
-		<p class="text-sm leading-[22px] text-muted">
+		<p class="text-sm text-muted">
 			Open the link in the email to finish. Nothing arrived? Check the spam folder, then send it
 			again.
 		</p>

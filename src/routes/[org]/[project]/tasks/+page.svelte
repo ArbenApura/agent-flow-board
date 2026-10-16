@@ -5,6 +5,7 @@
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
@@ -66,10 +67,8 @@
 
 <svelte:head><title>Tasks, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<div class="mx-auto flex max-w-[960px] flex-col gap-4 px-4 py-6 max-sm:px-3.5">
-	<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8" data-testid="page-title">
-		Tasks
-	</h1>
+<PageFrame class="flex flex-col gap-4 py-8 pb-12">
+	<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">Tasks</h1>
 
 	{#if canWrite}
 		<form
@@ -135,7 +134,7 @@
 						class="w-40"
 					/>
 					{#if t.body}
-						<details class="w-full text-xs leading-4 text-muted" data-testid="task-details">
+						<details class="w-full text-xs text-muted" data-testid="task-details">
 							<summary class="cursor-pointer">
 								Details{t.groupName ? `, ${t.groupName}` : ''}{t.priority
 									? `, priority ${t.priority}`
@@ -148,4 +147,4 @@
 			{/each}
 		</ul>
 	{/if}
-</div>
+</PageFrame>

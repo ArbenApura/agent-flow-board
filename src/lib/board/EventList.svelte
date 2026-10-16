@@ -3,13 +3,14 @@
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import { verbText } from '#lib/board/verbs.js';
+	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte';
+	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
 	import ArrowUUpLeft from 'phosphor-svelte/lib/ArrowUUpLeft';
-	import Robot from 'phosphor-svelte/lib/Robot';
 
 	// -- TYPES -- //
 
@@ -86,39 +87,52 @@
 </script>
 
 {#if events.length === 0}
-	<p class="rounded-xl border border-dashed border-line p-4 text-sm text-muted">
-		Nothing has happened here yet.
-	</p>
+	<EmptyState
+		kind="inbox"
+		title="Nothing has happened here yet"
+		text="Changes to this project show up here, newest first."
+	/>
 {:else}
-	<ul class="rounded-xl border border-line bg-surface" data-testid="event-list">
+	<!-- A TIMELINE. WHO DID IT AS AN AVATAR (A SQUARE MARK FOR AN AGENT TOOL), WHAT THEY DID, WHEN, AND THE UNDO ON THE RIGHT -->
+	<ul class="rounded-xl border border-line bg-surface p-2" data-testid="event-list">
 		{#each events as e (e.id)}
 			<li
-				class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
+				class="relative flex items-start gap-4 rounded-lg px-3 py-3 hover:bg-raised/60"
 				data-row
 				data-testid="event"
 				data-verb={e.verb}
 			>
-				<span class="min-w-0 flex-1 truncate text-sm leading-5">
-					<span class="inline-flex items-center gap-1 font-medium">
-						{#if e.tool}<Robot size={14} aria-label="Agent" />{/if}
-						{e.actorLabel ?? 'Someone'}
-					</span>
-					{verbText(e.verb)}
-					{#if e.itemId && refs[e.itemId]}
-						<a
-							class="font-mono text-xs text-accent-text hover:underline"
-							href={`${linkBase ?? ''}/${refs[e.itemId]}`}>{refs[e.itemId]}</a
-						>
-					{/if}
-				</span>
-				{#if e.sessionId && linkBase}
-					<a
-						class="shrink-0 text-xs text-accent-text hover:underline max-sm:hidden"
-						href={`${linkBase}/activity?session=${encodeURIComponent(e.sessionId)}`}
-						data-testid="session-link">This session</a
-					>
-				{/if}
-				<span class="shrink-0 text-xs text-muted">{ago(e.createdAt)}</span>
+				<Avatar
+					name={e.actorLabel ?? 'Someone'}
+					size={32}
+					kind={e.tool ? 'agent' : 'person'}
+					class="mt-0.5"
+				/>
+				<div class="min-w-0 flex-1">
+					<p class="text-sm">
+						<span class="font-medium text-ink">{e.actorLabel ?? 'Someone'}</span>
+						{#if e.tool && e.tool !== e.actorLabel}<span class="text-muted">
+								via {e.tool}</span
+							>{/if}
+						{verbText(e.verb)}
+						{#if e.itemId && refs[e.itemId]}
+							<a
+								class="font-mono text-xs text-accent-text hover:underline"
+								href={`${linkBase ?? ''}/${refs[e.itemId]}`}>{refs[e.itemId]}</a
+							>
+						{/if}
+					</p>
+					<p class="mt-0.5 flex items-center gap-3 text-xs text-muted">
+						<span>{ago(e.createdAt)}</span>
+						{#if e.sessionId && linkBase}
+							<a
+								class="text-accent-text hover:underline max-sm:hidden"
+								href={`${linkBase}/activity?session=${encodeURIComponent(e.sessionId)}`}
+								data-testid="session-link">This session</a
+							>
+						{/if}
+					</p>
+				</div>
 				{#if e.label === 'undone'}
 					<Badge>undone</Badge>
 				{:else if e.label === 'external'}

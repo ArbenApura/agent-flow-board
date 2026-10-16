@@ -78,6 +78,7 @@ test('M6 the registry shows the board, areas and list, filters, and the project 
 	await expect(page.getByRole('region', { name: /features core/ })).toBeVisible();
 	// A status chip narrows the list
 	await page.goto('/acme/CKT?view=list');
+	await page.getByTestId('filters-button').click();
 	await page.getByRole('checkbox', { name: /^in review/ }).click();
 	await expect(page.getByTestId('item-row')).toHaveCount(1);
 	await ctx.close();

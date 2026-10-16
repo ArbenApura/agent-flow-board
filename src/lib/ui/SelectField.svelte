@@ -29,11 +29,11 @@
 </script>
 
 <div class={cn('flex flex-col gap-1', extra)}>
-	<span class="text-xs leading-4 font-medium text-muted">{label}</span>
+	<span class="text-xs font-medium text-muted">{label}</span>
 	<Select {options} bind:value {label} {placeholder} {onchange} invalid={!!error} />
 	{#if error}
-		<p role="alert" class="text-xs leading-4 text-danger">{error}</p>
+		<p role="alert" class="text-xs text-danger">{error}</p>
 	{:else if hint}
-		<p class="text-xs leading-4 text-muted">{hint}</p>
+		<p class="text-xs text-muted">{hint}</p>
 	{/if}
 </div>

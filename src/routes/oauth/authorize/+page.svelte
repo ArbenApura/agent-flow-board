@@ -46,7 +46,7 @@
 	{#if data.problem || !data.request}
 		<p
 			role="alert"
-			class="rounded-lg border border-line bg-danger-soft p-3 text-sm leading-[22px] text-danger"
+			class="rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
 			data-testid="oauth-problem"
 		>
 			{data.problem}
@@ -58,21 +58,21 @@
 				>{/if}
 			<span class="text-sm text-muted">It will return to {data.request.redirectHost}</span>
 		</div>
-		<p class="mb-3 text-sm leading-[22px] text-muted">
+		<p class="mb-3 text-sm text-muted">
 			{data.request.clientName} introduced itself. Anyone can register a tool under any name, so connect
 			only a tool you started yourself.
 		</p>
 		{#if data.notice}
 			<p
 				role="alert"
-				class="mb-3 rounded-lg border border-line bg-danger-soft p-3 text-sm leading-[22px] text-danger"
+				class="mb-3 rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
 				data-testid="oauth-notice"
 			>
 				{data.notice}
 			</p>
 		{/if}
 		{#if data.orgs.length === 0}
-			<p class="text-sm leading-[22px]">
+			<p class="text-sm">
 				You are not in an organisation yet, so there is nothing to connect. Create one first.
 			</p>
 			<div class="mt-3">
@@ -100,7 +100,7 @@
 					bind:value={orgId}
 				/>
 				<fieldset class="flex flex-col">
-					<legend class="mb-1 text-xs leading-4 font-medium text-muted">What it may do</legend>
+					<legend class="mb-1 text-xs font-medium text-muted">What it may do</legend>
 					{#key org?.id}
 						{#each caps as c (c)}
 							<Checkbox

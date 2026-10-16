@@ -2,12 +2,12 @@
 :root,
 [data-mode='light'] {
 	color-scheme: light;
-	--bg: #f4f5f7;
+	--bg: #f3f4f7;
 	--surface: #ffffff;
-	--raised: #ebedf0;
-	--ink: #16181d;
-	--muted: #5b616b;
-	--line: #dcdfe4;
+	--raised: #eceff3;
+	--ink: #14171c;
+	--muted: #565d68;
+	--line: #d5d9e0;
 	--accent: #2563eb;
 	--accent-ink: #ffffff;
 	--accent-soft: #dde8fd;
@@ -27,12 +27,12 @@
 
 [data-mode='dark'] {
 	color-scheme: dark;
-	--bg: #0e1013;
-	--surface: #15181c;
-	--raised: #1d2127;
-	--ink: #eceef1;
-	--muted: #9aa1ab;
-	--line: #2a2f37;
+	--bg: #0c0e11;
+	--surface: #171b21;
+	--raised: #212730;
+	--ink: #f1f3f6;
+	--muted: #a7aebb;
+	--line: #333a45;
 	--accent: #6b9bff;
 	--accent-ink: #071634;
 	--accent-soft: #1a2a4d;
@@ -69,6 +69,24 @@
 	--color-success-soft: var(--success-soft);
 	--color-info: var(--info);
 	--color-info-soft: var(--info-soft);
+}
+
+/* TYPE SCALE (ADR-013). EVERY text-xs TO text-2xl CLASS IN THE APP READS THESE, SO THE SIZES ARE SET HERE ONCE */
+@theme {
+	--text-xs: 13px;
+	--text-xs--line-height: 18px;
+	--text-sm: 15px;
+	--text-sm--line-height: 24px;
+	--text-base: 16px;
+	--text-base--line-height: 24px;
+	--text-lg: 18px;
+	--text-lg--line-height: 28px;
+	--text-xl: 22px;
+	--text-xl--line-height: 30px;
+	--text-2xl: 28px;
+	--text-2xl--line-height: 36px;
+	--text-badge: 12px;
+	--text-badge--line-height: 16px;
 }
 
 html {

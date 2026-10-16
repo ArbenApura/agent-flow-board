@@ -22,7 +22,7 @@
 	<h2 class="text-base leading-6 font-semibold text-ink sm:text-lg sm:leading-[26px]">
 		You cannot open {what}
 	</h2>
-	<p class="max-w-[48ch] text-sm leading-[22px] text-muted">
+	<p class="max-w-[48ch] text-sm text-muted">
 		It needs the {needed} role and you are {current}. Ask an Owner of this organisation to change
 		your role.
 	</p>

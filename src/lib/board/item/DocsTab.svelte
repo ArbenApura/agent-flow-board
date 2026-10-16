@@ -106,7 +106,7 @@
 	{#each detail.sections as s (s.id)}
 		<section class="rounded-xl border border-line bg-surface p-4" aria-label={s.title}>
 			<div class="mb-2 flex items-center justify-between gap-2">
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">{s.title}</h2>
+				<h2 class="text-lg font-semibold">{s.title}</h2>
 				{#if env.canWrite}
 					<Button variant="ghost" size="sm" onclick={() => edit(s)}
 						><PencilSimple size={14} /> Edit</Button

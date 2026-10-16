@@ -149,7 +149,7 @@ test('the server refuses a password that is too short even when the browser chec
 	const email = fresh();
 	const res = await page.request.post('/sign-up?/register', {
 		form: { name: 'Short Pass', email, password: 'short', next: '/' },
-		headers: { origin: 'http://localhost:5180' }
+		headers: { origin: process.env.AFB_BASE_URL ?? 'http://localhost:5180' }
 	});
 	expect(res.status()).toBeLessThan(500);
 	expect(await res.text()).toContain('at least 10 characters');

@@ -2,6 +2,9 @@
 	// -- DEP-TYPES -- //
 	import type { Snippet } from 'svelte';
 	// -- MODULES -- //
+	import { untrack } from 'svelte';
+	import { page } from '$app/state';
+	import { useTabs } from '#lib/settings/tabs.svelte.js';
 	import Button from '#lib/ui/Button.svelte';
 
 	// -- REQUIRED PROPS -- //
@@ -37,21 +40,32 @@
 		/** A person who may only look sees the section without a save button. */
 		readonly?: boolean;
 	} = $props();
+
+	// -- CONSTANTS -- //
+
+	const tabs = useTabs();
+	untrack(() => tabs?.add(id, title));
+
+	// -- REACTIVE STATES -- //
+
+	// Inside a settings shell only the open tab shows. It stays mounted, so unsaved edits are kept when someone looks at another tab
+	const shown = $derived(!tabs || (page.url.searchParams.get('tab') || tabs.items[0]?.id) === id);
 </script>
 
 <!-- ONE SETTINGS SECTION: ITS OWN CARD AND ITS OWN SAVE, SO CHANGING ONE NEVER SAVES ANOTHER (ADR-015) -->
 <section
 	{id}
+	hidden={!shown}
 	data-testid={`section-${id}`}
-	class="flex scroll-mt-20 flex-col gap-3 rounded-xl border border-line bg-surface p-4"
+	class="flex scroll-mt-20 flex-col gap-4 rounded-xl border border-line bg-surface p-6 max-sm:p-4"
 	data-card
 	aria-labelledby={`${id}-title`}
 >
 	<div>
-		<h2 id={`${id}-title`} class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
+		<h2 id={`${id}-title`} class="text-lg font-semibold">
 			{title}
 		</h2>
-		{#if text}<p class="text-sm leading-[22px] text-muted">{text}</p>{/if}
+		{#if text}<p class="text-sm text-muted">{text}</p>{/if}
 	</div>
 	<div class="flex flex-col gap-3">
 		{@render children()}

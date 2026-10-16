@@ -104,7 +104,9 @@ test('M9 a commit with an item trailer and no record shows on the item and the h
 	await expect(page.getByTestId('unrecorded-commits')).toContainText(
 		'1 commit has no recorded step'
 	);
-	await expect(page.getByTestId('unrecorded-commits')).toContainText(sha(1).slice(0, 7));
+	await page.getByTestId('review-commits').click();
+	await expect(page.getByRole('dialog')).toContainText(sha(1).slice(0, 7));
+	await page.getByRole('button', { name: 'Close dialog' }).click();
 	// The health panel lists it, and counts the commit that named no item
 	await page.goto(`/acme/${key}/health`);
 	await expect(page.getByTestId('unrecorded')).toContainText(ref);

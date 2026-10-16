@@ -49,7 +49,7 @@
 </script>
 
 <div class={cn('flex flex-col gap-1', extra)}>
-	<span class="text-xs leading-4 font-medium text-muted">{label}</span>
+	<span class="text-xs font-medium text-muted">{label}</span>
 	<div class="flex items-center gap-2">
 		<Select
 			label={`${label}, hour`}
@@ -67,5 +67,5 @@
 			class="w-24"
 		/>
 	</div>
-	{#if hint}<p class="text-xs leading-4 text-muted">{hint}</p>{/if}
+	{#if hint}<p class="text-xs text-muted">{hint}</p>{/if}
 </div>

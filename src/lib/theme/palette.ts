@@ -30,8 +30,8 @@ export type PairCheck = {
 
 /** Surfaces the generated colours must work on, taken from design/tokens.md. */
 export const SURFACES = {
-	light: { bg: '#f4f5f7', surface: '#ffffff', ink: '#16181d' },
-	dark: { bg: '#0e1013', surface: '#15181c', ink: '#eceef1' }
+	light: { bg: '#f3f4f7', surface: '#ffffff', ink: '#14171c' },
+	dark: { bg: '#0c0e11', surface: '#171b21', ink: '#f1f3f6' }
 } as const;
 export const AA_TEXT = 4.5;
 export const AA_UI = 3;

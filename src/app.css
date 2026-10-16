@@ -71,16 +71,19 @@ html {
 	font-family: var(--font-sans);
 }
 
-/* BODY TEXT IS 14 / 22 (design/tokens.md), NOT THE BROWSER DEFAULT OF 16 */
+/* BODY TEXT IS 15 / 24 (design/tokens.md, ADR-013) */
 body {
-	font-size: 14px;
-	line-height: 22px;
+	font-size: 15px;
+	line-height: 24px;
+	/* A LONG WORD OR NAME WRAPS INSIDE ITS BOX INSTEAD OF PUSHING THE PAGE SIDEWAYS */
+	overflow-wrap: anywhere;
 }
 
 /* RENDERED MARKDOWN (SECTIONS, DECISIONS, COMMENTS). THE HTML IS SANITISED ON THE SERVER, THESE RULES ONLY SET THE TYPE */
 .md {
-	font-size: 14px;
-	line-height: 22px;
+	font-size: 15px;
+	line-height: 24px;
+	max-width: 72ch;
 	overflow-wrap: anywhere;
 }
 .md > * + * {
@@ -94,14 +97,14 @@ body {
 	line-height: 1.4;
 }
 .md h1 {
-	font-size: 18px;
+	font-size: 20px;
 }
 .md h2 {
-	font-size: 16px;
+	font-size: 17px;
 }
 .md h3,
 .md h4 {
-	font-size: 14px;
+	font-size: 15px;
 }
 .md ul {
 	list-style: disc;
@@ -117,7 +120,7 @@ body {
 }
 .md code {
 	font-family: var(--font-mono);
-	font-size: 13px;
+	font-size: 14px;
 	background: var(--raised);
 	border-radius: 4px;
 	padding: 1px 4px;

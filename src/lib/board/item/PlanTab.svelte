@@ -2,6 +2,7 @@
 	// -- DEP-TYPES -- //
 	import type { ItemView, TabEnv } from '#lib/board/item/types.js';
 	// -- MODULES -- //
+	import ProgressRing from '#lib/ui/ProgressRing.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
@@ -128,11 +129,14 @@
 		{@const done = ph.steps.filter((s) => stateOf(s.key, s.state) === 'done').length}
 		{@const phaseRunning = detail.running.filter((r) => r.phase === ph.key)}
 		<section class="flex flex-col gap-1" aria-label={`Phase ${ph.key}`} data-testid="phase">
-			<h2
-				class="flex flex-wrap items-center gap-2 text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]"
-			>
+			<h2 class="flex flex-wrap items-center gap-2 text-lg font-semibold">
 				Phase {ph.key} <span class="text-ink">{ph.title}</span>
-				<span class="text-xs font-normal text-muted tabular-nums">{done} of {ph.steps.length}</span>
+				<ProgressRing
+					value={ph.steps.length ? (done / ph.steps.length) * 100 : 0}
+					label={`Phase ${ph.key} progress`}
+					size={28}
+				/>
+				<span class="text-sm font-normal text-muted tabular-nums">{done} of {ph.steps.length}</span>
 				{#each phaseRunning as r (r.sessionId)}
 					<RunningBadge tool={r.tool} title={r.title} phase={ph.key} />
 				{/each}
@@ -141,7 +145,7 @@
 				{#each ph.steps as s (s.id)}
 					{@const st = stateOf(s.key, s.state)}
 					<li
-						class="flex min-h-12 items-start gap-3 border-b border-line px-3 py-2 last:border-b-0"
+						class="flex min-h-12 items-start gap-4 border-b border-line px-4 py-3 last:border-b-0"
 						data-row
 						data-testid="step"
 						data-state={st}
@@ -157,9 +161,9 @@
 						>
 							{#if st === 'done'}<Check size={14} weight="bold" class="text-accent-ink" />{/if}
 						</button>
-						<span class="w-10 shrink-0 pt-px font-mono text-xs text-muted">{s.key}</span>
+						<span class="w-10 shrink-0 pt-0.5 font-mono text-xs text-muted">{s.key}</span>
 						<span
-							class="min-w-0 flex-1 text-sm leading-5 {st === 'done'
+							class="min-w-0 flex-1 text-sm {st === 'done'
 								? 'text-muted line-through'
 								: 'text-ink'}">{s.text}</span
 						>
@@ -238,7 +242,7 @@
 	{/if}
 
 	<section class="flex flex-col gap-1" aria-label="Manual checks">
-		<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">Manual checks</h2>
+		<h2 class="text-lg font-semibold">Manual checks</h2>
 		<div class="text-xs text-muted">
 			Checks a person or a tool does. They are not part of the percent.
 		</div>
@@ -246,7 +250,7 @@
 			{#each detail.manualChecks as c (c.id)}
 				{@const st = stateOf(c.key, c.state)}
 				<li
-					class="flex min-h-12 items-start gap-3 border-b border-line px-3 py-2 last:border-b-0"
+					class="flex min-h-12 items-start gap-4 border-b border-line px-4 py-3 last:border-b-0"
 					data-row
 					data-testid="manual-check"
 					data-state={st}
@@ -262,8 +266,8 @@
 					>
 						{#if st === 'done'}<Check size={14} weight="bold" class="text-accent-ink" />{/if}
 					</button>
-					<span class="w-10 shrink-0 pt-px font-mono text-xs text-muted">{c.key}</span>
-					<span class="min-w-0 flex-1 text-sm leading-5 text-ink">{c.text}</span>
+					<span class="w-10 shrink-0 pt-0.5 font-mono text-xs text-muted">{c.key}</span>
+					<span class="min-w-0 flex-1 text-sm text-ink">{c.text}</span>
 					{#if c.auto}<Badge tone="info">auto</Badge>{/if}
 					{#if st === 'waived'}
 						<Badge tone="warning">waived{c.reason ? `, ${c.reason}` : ''}</Badge>

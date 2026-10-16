@@ -5,6 +5,7 @@
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import { ApiError, api } from '#lib/board/api.js';
 	import EventList from '#lib/board/EventList.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -45,9 +46,9 @@
 
 <svelte:head><title>Activity, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<div class="mx-auto flex max-w-[960px] flex-col gap-4 px-4 py-6 max-sm:px-3.5">
+<PageFrame class="flex flex-col gap-4 py-8 pb-12">
 	<div class="flex flex-wrap items-center justify-between gap-3">
-		<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8" data-testid="page-title">
+		<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">
 			Activity
 		</h1>
 		{#if data.sessionId}
@@ -74,4 +75,4 @@
 		canUndo={canWrite}
 		onchanged={() => invalidate('afb:project')}
 	/>
-</div>
+</PageFrame>

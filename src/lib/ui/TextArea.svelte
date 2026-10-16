@@ -30,13 +30,13 @@
 </script>
 
 <div class={cn('flex flex-col gap-1', extra)}>
-	<label for={uid} class="text-xs leading-4 font-medium text-muted">{label}</label>
+	<label for={uid} class="text-xs font-medium text-muted">{label}</label>
 	<textarea
 		id={uid}
 		bind:value
 		{rows}
 		class={cn(
-			'w-full rounded-lg border bg-bg px-3 py-2.5 text-sm leading-5 text-ink placeholder:text-muted',
+			'w-full rounded-lg border bg-bg px-3 py-2.5 text-sm text-ink placeholder:text-muted',
 			'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
 			'disabled:cursor-not-allowed disabled:opacity-50',
 			error ? 'border-danger' : 'border-line'
@@ -45,8 +45,8 @@
 		aria-describedby={error ? errorId : hint ? hintId : undefined}
 		{...rest}></textarea>
 	{#if error}
-		<p id={errorId} role="alert" class="text-xs leading-4 text-danger">{error}</p>
+		<p id={errorId} role="alert" class="text-xs text-danger">{error}</p>
 	{:else if hint}
-		<p id={hintId} class="text-xs leading-4 text-muted">{hint}</p>
+		<p id={hintId} class="text-xs text-muted">{hint}</p>
 	{/if}
 </div>

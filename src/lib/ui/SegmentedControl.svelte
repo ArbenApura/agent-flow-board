@@ -63,7 +63,7 @@
 			onclick={() => pick(opt.value)}
 			onkeydown={(e) => onKey(e, i)}
 			class={cn(
-				'h-11 min-w-11 cursor-pointer rounded-md px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+				'h-9 min-w-16 cursor-pointer rounded-md px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent max-sm:h-11',
 				value === opt.value
 					? 'bg-surface text-ink shadow-[0_0_0_1px_var(--line)]'
 					: 'text-muted hover:text-ink'

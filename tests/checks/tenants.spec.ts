@@ -55,7 +55,7 @@ test('M3 org A cannot see or change anything of org B through the UI, REST, MCP 
 	expect((await page.goto('/lumora'))!.status()).toBe(404);
 	expect((await page.goto('/no-such-org-at-all'))!.status()).toBe(404);
 	await page.goto('/');
-	await expect(page.getByRole('main').or(page.locator('body'))).not.toContainText('Lumora');
+	await expect(page.locator('body')).not.toContainText('Lumora');
 	// REST by path and by name, as a session
 	for (const path of [
 		`${LUMORA}/projects`,

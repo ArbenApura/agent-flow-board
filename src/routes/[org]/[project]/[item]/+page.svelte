@@ -17,7 +17,9 @@
 	import ErrorState from '#lib/ui/ErrorState.svelte';
 	import Skeleton from '#lib/ui/Skeleton.svelte';
 	import PermissionDenied from '#lib/ui/PermissionDenied.svelte';
-	import Progress from '#lib/ui/Progress.svelte';
+	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PhaseStepper from '#lib/ui/PhaseStepper.svelte';
+	import ProgressRing from '#lib/ui/ProgressRing.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
 	import Select from '#lib/ui/Select.svelte';
@@ -28,6 +30,7 @@
 	import Lock from 'phosphor-svelte/lib/Lock';
 	import PencilSimple from 'phosphor-svelte/lib/PencilSimple';
 	import Trash from 'phosphor-svelte/lib/Trash';
+	import Warning from 'phosphor-svelte/lib/Warning';
 
 	// -- REQUIRED PROPS -- //
 
@@ -64,6 +67,7 @@
 	let note = $state('');
 	let statusError = $state('');
 	let renaming = $state(false);
+	let commitsOpen = $state(false);
 	let title = $state('');
 	let renameError = $state('');
 	let trashing = $state(false);
@@ -197,25 +201,25 @@
 <svelte:head><title>{d ? `${d.item.ref} ${d.item.title}` : 'Item'}</title></svelte:head>
 
 {#if data.denied}
-	<div class="mx-auto max-w-[720px] px-4 py-6 max-sm:px-3.5">
+	<PageFrame class="py-8">
 		<PermissionDenied needed={data.denied.needed} current={data.denied.role} what="this item" />
-	</div>
+	</PageFrame>
 {:else if d}
-	<div class="mx-auto flex max-w-[960px] flex-col gap-4 px-4 py-6 max-sm:px-3.5">
-		<a href={`/${org}/${d.project.key}`} class="text-sm text-accent-text hover:underline"
-			>{d.project.name}</a
-		>
-
-		<header class="flex flex-col gap-3">
-			<div class="flex items-start justify-between gap-3">
+	<PageFrame class="flex flex-col gap-5 pb-12">
+		<header class="flex flex-col gap-5 pt-8">
+			<div class="flex items-start justify-between gap-4">
 				<div class="min-w-0">
+					<a
+						href={`/${org}/${d.project.key}`}
+						class="mb-1 inline-block text-sm text-accent-text hover:underline">{d.project.name}</a
+					>
 					<div class="flex items-center gap-2 font-mono text-xs text-muted" data-testid="item-ref">
 						{d.item.ref}
-						{#if d.item.visibility === 'private'}<Lock size={12} aria-label="Private" />{/if}
+						{#if d.item.visibility === 'private'}<Lock size={14} aria-label="Private" />{/if}
 						{#if d.item.tabName}<span>{d.item.tabName}</span>{/if}
 					</div>
 					<h1
-						class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8"
+						class="mt-1 text-xl font-semibold tracking-tight sm:text-2xl"
 						data-testid="page-title"
 					>
 						{d.item.title}
@@ -244,42 +248,60 @@
 					/>
 				{/if}
 			</div>
-			<div class="flex flex-wrap items-center gap-2">
-				<span data-testid="item-status">
-					<Badge tone={STATUS_TONE[d.item.status as Status]} dot
-						>{d.item.status.toLowerCase()}</Badge
+
+			<!-- THE SUMMARY BAND. THE RING, THE STATUS AND WHO IS RUNNING IT -->
+			<div
+				class="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-line bg-surface p-5"
+			>
+				<ProgressRing value={d.item.percent} label={`${d.item.ref} progress`} size={48} />
+				<div class="flex min-w-0 flex-col gap-1">
+					<span class="text-lg font-semibold tabular-nums" data-testid="item-percent"
+						>{d.item.percent}%, {d.item.doneSteps} of {d.item.totalSteps} steps</span
 					>
-				</span>
-				{#if env.canWrite}
-					<Button
-						size="sm"
-						onclick={() => {
-							nextStatus = d.item.status;
-							note = '';
-							statusError = '';
-							statusOpen = true;
-						}}
-						data-testid="change-status">Change status</Button
-					>
-				{/if}
-				{#each d.running as r (r.sessionId)}
-					<RunningBadge tool={r.tool} title={r.title} phase={r.phase ?? undefined} />
-				{/each}
-			</div>
-			<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-				<Progress value={d.item.percent} label={`${d.item.ref} progress`} class="max-w-64" />
-				<span class="text-sm text-muted tabular-nums" data-testid="item-percent"
-					>{d.item.percent}%, {d.item.doneSteps} of {d.item.totalSteps} steps</span
-				>
-				{#if d.item.openManual > 0}
-					<span class="text-xs text-muted">{d.item.openManual} manual checks open</span>
+					{#if d.item.openManual > 0}
+						<span class="text-sm text-muted">{d.item.openManual} manual checks open</span>
+					{/if}
+				</div>
+				<div class="ml-auto flex flex-wrap items-center gap-2">
+					{#each d.running as r (r.sessionId)}
+						<RunningBadge tool={r.tool} title={r.title} phase={r.phase ?? undefined} />
+					{/each}
+					<span data-testid="item-status">
+						<Badge tone={STATUS_TONE[d.item.status as Status]} dot
+							>{d.item.status.toLowerCase()}</Badge
+						>
+					</span>
+					{#if env.canWrite}
+						<Button
+							size="sm"
+							onclick={() => {
+								nextStatus = d.item.status;
+								note = '';
+								statusError = '';
+								statusOpen = true;
+							}}
+							data-testid="change-status">Change status</Button
+						>
+					{/if}
+				</div>
+
+				{#if d.phases.length}
+					<PhaseStepper
+						class="basis-full border-t border-line pt-4"
+						phases={d.phases.map((ph) => ({
+							key: ph.key,
+							title: ph.title,
+							done: ph.steps.filter((x) => x.state === 'done').length,
+							total: ph.steps.length
+						}))}
+					/>
 				{/if}
 			</div>
 		</header>
 
 		{#if d.item.health.drift.length}
 			<ul
-				class="flex flex-col gap-1 rounded-lg border border-line bg-warning-soft px-3 py-2 text-sm text-warning"
+				class="flex flex-col gap-1 rounded-xl border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning"
 				data-testid="drift"
 			>
 				{#each d.item.health.drift as code (code)}
@@ -290,22 +312,21 @@
 
 		{#if d.unrecorded.length}
 			<div
-				class="flex flex-col gap-1 rounded-lg border border-line bg-warning-soft px-3 py-2 text-sm text-warning"
+				class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning"
 				data-testid="unrecorded-commits"
 			>
-				<span
-					>{d.unrecorded.length}
-					{d.unrecorded.length === 1 ? 'commit has' : 'commits have'} no recorded step. Record the finished
-					steps.</span
+				<span class="flex items-center gap-2"
+					><Warning size={18} />
+					{d.unrecorded.length}
+					{d.unrecorded.length === 1 ? 'commit has' : 'commits have'} no recorded step.</span
 				>
-				{#each d.unrecorded.slice(0, 5) as c (c.sha)}
-					<span class="text-xs"><span class="font-mono">{c.sha.slice(0, 7)}</span> {c.message}</span
-					>
-				{/each}
+				<Button size="sm" onclick={() => (commitsOpen = true)} data-testid="review-commits"
+					>Review commits</Button
+				>
 			</div>
 		{/if}
 
-		<nav class="-mx-4 overflow-x-auto px-4 max-sm:-mx-3.5 max-sm:px-3.5" aria-label="Item sections">
+		<nav aria-label="Item sections" class="overflow-x-auto">
 			<ul class="flex min-w-max gap-1 border-b border-line">
 				{#each TABS.filter((t) => (t !== 'checks' && t !== 'ui') || d.project.webApp) as t (t)}
 					<li>
@@ -313,10 +334,14 @@
 							href={tabHref(t)}
 							aria-current={tab === t ? 'page' : undefined}
 							data-testid={`tab-${t}`}
-							class="flex min-h-11 items-center gap-1.5 border-b-2 border-transparent px-3 text-sm text-muted hover:text-ink aria-[current=page]:border-accent aria-[current=page]:font-medium aria-[current=page]:text-ink"
+							class="-mb-px flex min-h-11 items-center gap-2 border-b-2 border-transparent px-4 text-sm text-muted hover:text-ink aria-[current=page]:border-accent aria-[current=page]:font-medium aria-[current=page]:text-ink"
 						>
 							{TAB_LABEL[t]}
-							{#if (counts[t] ?? 0) > 0}<span class="text-xs tabular-nums">{counts[t]}</span>{/if}
+							{#if (counts[t] ?? 0) > 0}<span
+									data-count
+									class="rounded-full bg-raised px-1.5 text-[11px] leading-5 font-semibold text-muted tabular-nums"
+									>{counts[t]}</span
+								>{/if}
 						</a>
 					</li>
 				{/each}
@@ -370,7 +395,7 @@
 				<div data-testid="extras-loading"><Skeleton lines={4} /></div>
 			{/if}
 		{/if}
-	</div>
+	</PageFrame>
 
 	<ResponsiveModal
 		open={statusOpen}
@@ -427,6 +452,23 @@
 				<Button type="submit" variant="primary" loading={busy}>Save</Button>
 			</div>
 		</form>
+	</ResponsiveModal>
+
+	<ResponsiveModal
+		open={commitsOpen}
+		onclose={() => (commitsOpen = false)}
+		title="Commits with no recorded step"
+		variant="drawer"
+	>
+		<p class="mb-4 text-sm text-muted">Record the steps these commits finished, or ignore them.</p>
+		<ul class="flex flex-col divide-y divide-line">
+			{#each d.unrecorded as c (c.sha)}
+				<li class="flex gap-3 py-3 text-sm">
+					<span class="font-mono text-xs text-muted">{c.sha.slice(0, 7)}</span>
+					<span>{c.message}</span>
+				</li>
+			{/each}
+		</ul>
 	</ResponsiveModal>
 
 	<ConfirmDialog

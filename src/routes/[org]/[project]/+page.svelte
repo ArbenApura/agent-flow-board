@@ -11,7 +11,7 @@
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { slimItem } from '#lib/board/rows.js';
 	import ItemLine from '#lib/board/ItemLine.svelte';
-	import { STATUSES, STATUS_TONE, VIEWS, type View } from '#lib/board/status.js';
+	import { STATUSES, STATUS_TONE, VIEWS, ago, type View } from '#lib/board/status.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
@@ -19,10 +19,16 @@
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
+	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
+	import ProgressRing from '#lib/ui/ProgressRing.svelte';
+	import Popover from '#lib/ui/Popover.svelte';
 	import Skeleton from '#lib/ui/Skeleton.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import VirtualList from '#lib/ui/VirtualList.svelte';
 	// -- DEP-COMPONENTS -- //
+	import Check from 'phosphor-svelte/lib/Check';
+	import Funnel from 'phosphor-svelte/lib/Funnel';
 	import Plus from 'phosphor-svelte/lib/Plus';
 
 	// -- REQUIRED PROPS -- //
@@ -47,6 +53,7 @@
 	/** Counts how many times the filter changed, so pages that were loading for an old filter are thrown away. */
 	let generation = 0;
 	let creating = $state(false);
+	let filtersOpen = $state(false);
 	let newTitle = $state('');
 	let newError = $state('');
 	let busy = $state(false);
@@ -66,13 +73,15 @@
 	// -- FUNCTIONS -- //
 
 	/** Keeps the address as the one place the filters live, so a view can be shared and the back button works. */
-	function go(change: Record<string, string | null>) {
+	function go(change: Record<string, string | null>, replace = true) {
 		const u = new URL(page.url.href);
+		// Changing the view or a filter leaves the quick look behind, so it does not pop open later on another list
+		if (!('item' in change)) u.searchParams.delete('item');
 		for (const [k, v] of Object.entries(change)) {
 			if (v === null || v === '') u.searchParams.delete(k);
 			else u.searchParams.set(k, v);
 		}
-		void goto(u, { reset: false, replace: true });
+		void goto(u, { reset: false, replaceState: replace });
 	}
 
 	const typed = () => {
@@ -81,12 +90,27 @@
 	};
 
 	function toggleStatus(s: string) {
-		const now = data.filters.status as string[];
+		const now = (page.url.searchParams.get('status') ?? '').split(',').filter(Boolean);
 		const next = now.includes(s) ? now.filter((x) => x !== s) : [...now, s];
 		go({ status: next.join(',') || null });
 	}
 
 	const itemHref = (ref: string) => `${base}/${ref}`;
+	/** The quick look is part of the address, so it can be shared and Back closes it. */
+	const peek = (row: ItemRow) => go({ item: row.ref }, false);
+	let fetched = $state<ItemRow | null>(null);
+	/** The last item shown, kept while the drawer slides out, so it does not flash empty. */
+	let lastPeeked = $state<ItemRow | null>(null);
+	const peekRef = $derived(page.url.searchParams.get('item'));
+	const peeked = $derived.by(() => {
+		if (!peekRef) return null;
+		const all = [
+			...data.columns.flatMap((c) => c.items),
+			...data.areas.flatMap((a) => a.items),
+			...listItems
+		];
+		return all.find((r) => r.ref === peekRef) ?? (fetched?.ref === peekRef ? fetched : null);
+	});
 	const runningOf = (id: string) => running.filter((r) => r.itemId === id);
 
 	/** Loads the pages the list scrolled into, one after another by keyset, until the screen is covered. */
@@ -144,7 +168,32 @@
 		}
 	}
 
+	const shown = $derived(peeked ?? lastPeeked);
+
 	// -- EFFECTS -- //
+
+	$effect(() => {
+		if (peeked) lastPeeked = peeked;
+	});
+
+	// A shared link can name an item this page has not loaded (past the first rows of a long list). It is fetched on its own, and a name that
+	// matches nothing is taken out of the address
+	$effect(() => {
+		const ref = peekRef;
+		if (!ref || peeked || fetched?.ref === ref) return;
+		let live = true;
+		api<ApiItem>(org, `/items/${encodeURIComponent(ref)}`).then(
+			(item) => {
+				if (live) fetched = slimItem(item);
+			},
+			() => {
+				if (live) go({ item: null });
+			}
+		);
+		return () => {
+			live = false;
+		};
+	});
 
 	$effect(() => {
 		const query = matchMedia('(max-width: 639px)');
@@ -176,31 +225,28 @@
 
 <svelte:head><title>{summary?.project.name ?? 'Project'}</title></svelte:head>
 
-<div class="mx-auto flex max-w-[1200px] flex-col gap-4 px-4 py-6 max-sm:px-3.5">
-	<div class="flex flex-wrap items-start justify-between gap-3">
-		<div>
-			<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8" data-testid="page-title">
-				{summary?.project.name}
-			</h1>
-			<p class="text-sm leading-[22px] text-muted">
-				<span class="font-mono">{key}</span>, {summary?.total ?? 0}
-				{summary?.total === 1 ? 'item' : 'items'}
-			</p>
-		</div>
-		{#if canWrite}
-			<Button variant="primary" onclick={() => (creating = true)} data-testid="new-item">
-				<Plus size={16} /> New item
-			</Button>
-		{/if}
-	</div>
+<PageFrame class="pb-12">
+	<PageHeader title={summary?.project.name ?? ''}>
+		{#snippet context()}
+			<span class="font-mono">{key}</span>, {summary?.total ?? 0}
+			{summary?.total === 1 ? 'item' : 'items'}
+		{/snippet}
+		{#snippet actions()}
+			{#if canWrite}
+				<Button variant="primary" onclick={() => (creating = true)} data-testid="new-item">
+					<Plus size={16} /> New item
+				</Button>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
 	{#if running.length}
 		<section
-			class="flex flex-wrap items-center gap-2"
+			class="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-4 py-3"
 			aria-label="Running now"
 			data-testid="running-now"
 		>
-			<span class="text-xs font-semibold tracking-wide text-muted uppercase">Running now</span>
+			<span class="text-sm font-medium text-ink">Running now</span>
 			{#each running as r (r.sessionId)}
 				<a href={itemHref(r.itemRef)}>
 					<RunningBadge tool={r.tool} title={r.title} phase={r.phase ?? undefined} />
@@ -209,40 +255,78 @@
 		</section>
 	{/if}
 
-	<div class="flex flex-wrap items-center gap-3">
+	<!-- ONE TOOLBAR ROW. THE VIEW, THE SEARCH AND THE STATUS FILTERS IN A POPOVER (ADR-004) -->
+	<div class="mb-6 flex flex-wrap items-center gap-3">
 		<SegmentedControl
 			label="View"
 			value={data.view}
 			options={VIEWS.map((v) => ({ value: v, label: VIEW_LABEL[v] }))}
 			onchange={(v) => go({ view: v === 'board' ? null : v })}
 		/>
-		<div class="min-w-48 flex-1 sm:max-w-80">
+		<div class="min-w-56 flex-1 sm:max-w-96">
 			<TextField
 				label="Filter by title or reference"
+				hideLabel
+				placeholder="Filter by title or reference"
 				type="search"
 				bind:value={q}
 				oninput={typed}
 				data-testid="filter-q"
 			/>
 		</div>
-	</div>
-	<div class="flex flex-wrap gap-1.5" role="group" aria-label="Status filter">
-		{#each STATUSES as s (s)}
-			<button
-				type="button"
-				role="checkbox"
-				aria-checked={data.filters.status.includes(s)}
-				onclick={() => toggleStatus(s)}
-				class="min-h-9 cursor-pointer rounded-full border border-line bg-surface px-3 text-xs font-medium text-muted hover:bg-raised aria-checked:border-accent aria-checked:bg-accent-soft aria-checked:text-accent-text max-sm:min-h-11"
-			>
-				{s.toLowerCase()}
-				{#if summary?.byStatus[s]}<span class="tabular-nums">{summary.byStatus[s]}</span>{/if}
-			</button>
-		{/each}
+		<Popover bind:open={filtersOpen} placement="bottom-start" role="dialog" label="Status filter">
+			{#snippet trigger({ props, toggle })}
+				<Button variant="secondary" onclick={toggle} data-testid="filters-button" {...props}>
+					<Funnel size={16} /> Filters
+					{#if data.filters.status.length}
+						<span
+							data-count
+							class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-ink tabular-nums"
+							>{data.filters.status.length}</span
+						>
+					{/if}
+				</Button>
+			{/snippet}
+			<div class="w-64 p-2" role="group" aria-label="Status filter">
+				{#each STATUSES as s (s)}
+					<button
+						type="button"
+						role="checkbox"
+						aria-checked={data.filters.status.includes(s)}
+						onclick={() => toggleStatus(s)}
+						class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised aria-checked:font-medium"
+					>
+						<span
+							class="inline-flex size-4 items-center justify-center rounded border border-line"
+							aria-hidden="true"
+						>
+							{#if data.filters.status.includes(s)}<Check
+									size={12}
+									weight="bold"
+									class="text-accent"
+								/>{/if}
+						</span>
+						<span class="flex-1 text-left">{s.toLowerCase()}</span>
+						{#if summary?.byStatus[s]}<span class="text-xs text-muted tabular-nums"
+								>{summary.byStatus[s]}</span
+							>{/if}
+					</button>
+				{/each}
+				{#if data.filters.status.length}
+					<button
+						type="button"
+						onclick={() => go({ status: null })}
+						class="mt-1 min-h-10 w-full cursor-pointer rounded-md border-t border-line px-2.5 pt-1 text-left text-sm text-accent-text hover:underline"
+						>Clear filters</button
+					>
+				{/if}
+			</div>
+		</Popover>
 	</div>
 
 	{#if (summary?.total ?? 0) === 0}
 		<EmptyState
+			kind="welcome"
 			title="No items in this project yet"
 			text="Create the first item here, or let a connected tool create it from a plan."
 		>
@@ -252,27 +336,37 @@
 			{/snippet}
 		</EmptyState>
 	{:else if data.view === 'board'}
-		<div class="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6" data-testid="board-columns">
+		<!-- A COLUMN WITH NOTHING IN IT SHRINKS, SO THE ROOM GOES TO THE CARDS -->
+		<div
+			class="grid grid-cols-1 gap-4 md:[grid-template-columns:var(--cols)] md:overflow-x-auto"
+			style="--cols:{data.columns
+				.map((c) => (c.total ? 'minmax(190px,1fr)' : 'minmax(120px,0.45fr)'))
+				.join(' ')}"
+			data-testid="board-columns"
+		>
 			{#each data.columns as col (col.status)}
-				<section class="flex flex-col gap-2" aria-label={col.status.toLowerCase()}>
-					<div
-						role="heading"
-						aria-level="2"
-						class="flex items-center gap-2 text-xs font-semibold tracking-wide text-muted uppercase"
-					>
+				<section
+					class="flex flex-col gap-3 rounded-xl bg-raised/60 p-3"
+					aria-label={col.status.toLowerCase()}
+				>
+					<div role="heading" aria-level="2" class="flex items-center gap-2 px-1">
 						<Badge tone={STATUS_TONE[col.status]}>{col.status.toLowerCase()}</Badge>
-						<span class="tabular-nums">{col.total}</span>
+						<span class="text-sm text-muted tabular-nums">{col.total}</span>
 					</div>
 					{#each col.items as row (row.id)}
-						<ItemLine {row} href={itemHref(row.ref)} running={runningOf(row.id)} compact />
+						<ItemLine
+							{row}
+							href={itemHref(row.ref)}
+							running={runningOf(row.id)}
+							compact
+							onopen={peek}
+						/>
 					{:else}
-						<div class="rounded-lg border border-dashed border-line p-3 text-xs text-muted">
-							Nothing {col.status.toLowerCase()}.
-						</div>
+						<p class="px-1 py-2 text-sm text-muted">Nothing {col.status.toLowerCase()}.</p>
 					{/each}
 					{#if col.total > col.items.length}
 						<a
-							class="min-h-9 text-xs text-accent-text hover:underline"
+							class="min-h-9 px-1 text-sm text-accent-text hover:underline"
 							href={`${base}?view=list&status=${encodeURIComponent(col.status)}`}
 							>Show all {col.total}</a
 						>
@@ -281,46 +375,58 @@
 			{/each}
 		</div>
 	{:else if data.view === 'areas'}
-		<div class="grid grid-cols-1 gap-4 md:grid-cols-2" data-testid="area-groups">
+		<div class="grid grid-cols-1 gap-6 md:grid-cols-2" data-testid="area-groups">
 			{#each data.areas as a (a.stream + '/' + a.scope)}
-				<section class="flex flex-col gap-2" aria-label={`${a.stream} ${a.scope}`}>
-					<h2
-						class="flex items-center justify-between text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]"
-					>
+				<section class="flex flex-col gap-3" aria-label={`${a.stream} ${a.scope}`}>
+					<h2 class="flex items-center justify-between text-lg font-semibold">
 						<span>{a.stream} <span class="text-muted">/</span> {a.scope}</span>
 						<a
-							class="text-xs font-normal text-accent-text hover:underline"
+							class="text-sm font-normal text-accent-text hover:underline"
 							href={`${base}?view=list&stream=${encodeURIComponent(a.stream)}&scope=${encodeURIComponent(a.scope)}`}
 							>{a.total} items</a
 						>
 					</h2>
 					{#each a.items as row (row.id)}
-						<ItemLine {row} href={itemHref(row.ref)} running={runningOf(row.id)} compact />
+						<ItemLine
+							{row}
+							href={itemHref(row.ref)}
+							running={runningOf(row.id)}
+							compact
+							onopen={peek}
+						/>
 					{/each}
 				</section>
 			{:else}
-				<p class="text-sm text-muted">No items match this filter.</p>
+				<EmptyState
+					kind="search"
+					title="No items match this filter"
+					text="Try a different word or clear the status filter."
+				/>
 			{/each}
 		</div>
 	{:else if data.list}
 		{#if data.list.total === 0}
-			<EmptyState title="No items match" text="Try a different word or clear the status filter." />
+			<EmptyState
+				kind="search"
+				title="No items match"
+				text="Try a different word or clear the status filter."
+			/>
 		{:else}
-			<div class="text-xs text-muted" data-testid="list-count">
+			<div class="mb-2 text-sm text-muted" data-testid="list-count">
 				{data.list.total.toLocaleString('en')} items
 			</div>
 			<div class="overflow-hidden rounded-xl border border-line bg-surface">
 				<VirtualList
 					items={listItems}
 					total={data.list.total}
-					rowHeight={narrow ? 56 : 48}
+					rowHeight={narrow ? 56 : 52}
 					keyOf={(r) => r.id}
 					label={`${data.list.total.toLocaleString('en')} items`}
 					class="h-[70dvh]"
 					onreach={reach}
 				>
 					{#snippet row(r)}
-						<ItemLine row={r} href={itemHref(r.ref)} running={runningOf(r.id)} />
+						<ItemLine row={r} href={itemHref(r.ref)} running={runningOf(r.id)} onopen={peek} />
 					{/snippet}
 					{#snippet placeholder()}
 						<div class="px-4 py-3"><Skeleton lines={2} /></div>
@@ -339,7 +445,7 @@
 			{/if}
 		{/if}
 	{/if}
-</div>
+</PageFrame>
 
 <ResponsiveModal open={creating} onclose={() => (creating = false)} title="New item" {busy}>
 	<form
@@ -365,4 +471,51 @@
 			>
 		</div>
 	</form>
+</ResponsiveModal>
+
+<ResponsiveModal
+	open={peeked !== null}
+	onclose={() => go({ item: null })}
+	title={shown?.ref ?? 'Item'}
+	variant="drawer"
+>
+	{#if shown}
+		<div class="flex flex-col gap-6" data-testid="item-peek">
+			<div class="flex items-start gap-4">
+				<ProgressRing value={shown.percent} label={`${shown.ref} progress`} size={48} />
+				<div class="min-w-0">
+					<h3 class="text-lg font-semibold">{shown.title}</h3>
+					<div class="mt-2 flex flex-wrap items-center gap-2">
+						<Badge tone={STATUS_TONE[shown.status]} dot>{shown.status.toLowerCase()}</Badge>
+						{#each runningOf(shown.id) as r (r.sessionId)}
+							<RunningBadge tool={r.tool} title={r.title} phase={r.phase ?? undefined} />
+						{/each}
+					</div>
+				</div>
+			</div>
+			<dl class="grid grid-cols-2 gap-4 text-sm">
+				<div>
+					<dt class="text-xs text-muted">Steps</dt>
+					<dd class="font-medium tabular-nums">{shown.doneSteps} of {shown.totalSteps} done</dd>
+				</div>
+				<div>
+					<dt class="text-xs text-muted">Manual checks open</dt>
+					<dd class="font-medium tabular-nums">{shown.openManual}</dd>
+				</div>
+				<div>
+					<dt class="text-xs text-muted">Area</dt>
+					<dd class="font-medium">{shown.stream} / {shown.scope}</dd>
+				</div>
+				<div>
+					<dt class="text-xs text-muted">Last activity</dt>
+					<dd class="font-medium">{ago(shown.lastActivityAt)}</dd>
+				</div>
+			</dl>
+			<div>
+				<Button variant="primary" href={itemHref(shown.ref)} data-testid="peek-open"
+					>Open the item</Button
+				>
+			</div>
+		</div>
+	{/if}
 </ResponsiveModal>

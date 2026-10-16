@@ -72,7 +72,7 @@ async function newItem(page: Page, key: string, title: string, extra: object = {
 const rows = `| Page | State | Themes | Accounts | Siblings | Levels | Viewports |
 | --- | --- | --- | --- | --- | --- | --- |
 | \`/acme/CKT/health\` | none | both | default | \`/acme/CKT/tasks\` | title, section | 1440, 390 |
-| \`/acme\` | \`click:form[action="/sign-out"] button\` | light | default | \`/acme/CKT\` | title | 1440 |
+| \`/acme\` | \`click:[data-testid="account-menu"] > click:form[action="/sign-out"] button\` | light | default | \`/acme/CKT\` | title | 1440 |
 | \`/acme/CKT/health\` | none | light | default | \`/acme/CKT/tasks\` | title=css:h2 | 1440 |
 `;
 
@@ -98,10 +98,10 @@ test('M18 a UI shots run shows before and after at desktop and phone in both the
 	expect(ran.out, ran.out).toContain('Finished.');
 	const scale = await ok(await page.request.get(`${ACME}/projects/${p.key}/scale`));
 	const desktop = scale.scales.find((s: any) => s.theme === 'light' && s.viewport === 1440);
-	expect(desktop.levels.title.fontSize).toBe(24);
+	expect(desktop.levels.title.fontSize).toBe(28);
 	expect(
 		scale.scales.find((s: any) => s.theme === 'dark' && s.viewport === 390).levels.title.fontSize
-	).toBe(20);
+	).toBe(22);
 
 	// The table is checked first, then a run is asked for
 	const bad = await page.request.put(`${ACME}/items/${ref}/ui-changes`, {

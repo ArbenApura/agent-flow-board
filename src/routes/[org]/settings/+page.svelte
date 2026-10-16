@@ -8,6 +8,9 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
+	import SettingsShell from '#lib/settings/SettingsShell.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import { verbText } from '#lib/board/verbs.js';
@@ -199,283 +202,146 @@
 
 <svelte:head><title>Organisation settings, {data.org.name}</title></svelte:head>
 
-<div class="mx-auto flex max-w-[960px] flex-col gap-4 px-4 py-6 max-sm:px-3.5">
-	<div>
-		<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8" data-testid="page-title">
-			Organisation settings
-		</h1>
-		<p class="text-sm leading-[22px] text-muted">
-			{can
-				? 'Each section saves on its own.'
-				: 'You can look at these. An admin or owner changes them.'}
-		</p>
-	</div>
+<PageFrame class="pb-12">
+	<PageHeader
+		title="Organisation settings"
+		context={can
+			? 'Each section saves on its own.'
+			: 'You can look at these. An admin or owner changes them.'}
+	/>
 
-	<Section
-		id="general"
-		title="Name"
-		text="The name people see at the top of every page."
-		dirty={dirty.general}
-		saving={st('general').saving}
-		saved={st('general').saved}
-		error={st('general').error}
-		readonly={!can}
-		onsave={() => save('general', { name: name.trim() })}
-	>
-		<TextField
-			label="Organisation name"
-			bind:value={name}
-			disabled={!can}
-			data-testid="org-name-input"
-		/>
-		<div class="text-xs text-muted">Its address is /{data.org.slug} and does not change.</div>
-	</Section>
+	<SettingsShell>
+		<Section
+			id="general"
+			title="Name"
+			text="The name people see at the top of every page."
+			dirty={dirty.general}
+			saving={st('general').saving}
+			saved={st('general').saved}
+			error={st('general').error}
+			readonly={!can}
+			onsave={() => save('general', { name: name.trim() })}
+		>
+			<TextField
+				label="Organisation name"
+				bind:value={name}
+				disabled={!can}
+				data-testid="org-name-input"
+			/>
+			<div class="text-xs text-muted">Its address is /{data.org.slug} and does not change.</div>
+		</Section>
 
-	<Section
-		id="palette"
-		title="Colour and logo"
-		text="The accent colour of buttons, links and progress for everyone in this organisation. Dark mode follows."
-		dirty={dirty.palette}
-		saving={st('palette').saving}
-		saved={st('palette').saved}
-		error={st('palette').error}
-		readonly={!can}
-		onsave={() => save('palette', { accent })}
-	>
-		<PalettePicker bind:value={accent} disabled={!can} />
-		<div class="flex flex-wrap items-center gap-3 border-t border-line pt-3">
-			{#if s.logo}
-				<img
-					src={s.logo}
-					alt="The current logo"
-					class="size-11 rounded-lg border border-line object-contain"
-				/>
-			{/if}
-			{#if can}
-				<label class="flex flex-col gap-1 text-xs font-medium text-muted">
-					Logo, a PNG, JPEG or WebP under 200 KB
-					<input
-						type="file"
-						accept="image/png,image/jpeg,image/webp"
-						data-testid="logo-file"
-						onchange={(e) => void uploadLogo(e.currentTarget.files?.[0])}
-						class="min-h-11 text-sm file:mr-3 file:min-h-9 file:cursor-pointer file:rounded-lg file:border file:border-line file:bg-surface file:px-3 file:text-sm"
-					/>
-				</label>
+		<Section
+			id="palette"
+			title="Colour and logo"
+			text="The accent colour of buttons, links and progress for everyone in this organisation. Dark mode follows."
+			dirty={dirty.palette}
+			saving={st('palette').saving}
+			saved={st('palette').saved}
+			error={st('palette').error}
+			readonly={!can}
+			onsave={() => save('palette', { accent })}
+		>
+			<PalettePicker bind:value={accent} disabled={!can} />
+			<div class="flex flex-wrap items-center gap-3 border-t border-line pt-3">
 				{#if s.logo}
-					<Button
-						size="sm"
-						variant="ghost"
-						onclick={() => act(() => api(org, '/logo', { method: 'DELETE' }), 'Logo removed.')}
-						data-testid="logo-remove">Remove the logo</Button
-					>
+					<img
+						src={s.logo}
+						alt="The current logo"
+						class="size-11 rounded-lg border border-line object-contain"
+					/>
 				{/if}
-			{/if}
-		</div>
-	</Section>
-
-	<Section
-		id="members"
-		title="Members and roles"
-		text="Who is in this organisation and what they may do. Changes apply at once."
-	>
-		<ul class="rounded-lg border border-line" data-testid="member-list">
-			{#each data.members as m (`${m.userId}-${rev}`)}
-				<li
-					class="flex min-h-12 flex-wrap items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-					data-item
-					data-testid="member"
-				>
-					<span class="min-w-0 flex-1 text-sm"
-						>{m.name} <span class="text-muted">{m.email}</span></span
-					>
-					{#if can}
-						<Select
-							label={`Role of ${m.name}`}
-							value={m.role}
-							options={roleOptions}
-							onchange={(v) => changeRole(m.userId, v)}
-							class="w-36"
+				{#if can}
+					<label class="flex flex-col gap-1 text-xs font-medium text-muted">
+						Logo, a PNG, JPEG or WebP under 200 KB
+						<input
+							type="file"
+							accept="image/png,image/jpeg,image/webp"
+							data-testid="logo-file"
+							onchange={(e) => void uploadLogo(e.currentTarget.files?.[0])}
+							class="min-h-11 text-sm file:mr-3 file:min-h-9 file:cursor-pointer file:rounded-lg file:border file:border-line file:bg-surface file:px-3 file:text-sm"
 						/>
-						<Button size="sm" variant="ghost" onclick={() => removeMember(m.userId)}>Remove</Button>
-					{:else}
-						<Badge>{ROLE_LABEL[m.role]}</Badge>
-					{/if}
-				</li>
-			{/each}
-		</ul>
-		{#if can}
-			<form
-				class="flex flex-wrap items-end gap-2"
-				onsubmit={(e) => {
-					e.preventDefault();
-					void invite();
-				}}
-			>
-				<TextField
-					label="Invite by email"
-					type="email"
-					bind:value={inviteEmail}
-					class="min-w-56 flex-1"
-					data-testid="invite-email"
-					required
-				/>
-				<Select
-					label="Role of the invited person"
-					bind:value={inviteRole}
-					options={roleOptions}
-					class="w-36"
-				/>
-				<Button type="submit" variant="primary" data-testid="invite-submit">Send invitation</Button>
-			</form>
-			{#if data.invites.length}
-				<ul class="rounded-lg border border-line" data-testid="invite-list">
-					{#each data.invites as i (i.id)}
-						<li
-							class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-							data-item
+					</label>
+					{#if s.logo}
+						<Button
+							size="sm"
+							variant="ghost"
+							onclick={() => act(() => api(org, '/logo', { method: 'DELETE' }), 'Logo removed.')}
+							data-testid="logo-remove">Remove the logo</Button
 						>
-							<span class="min-w-0 flex-1 text-sm">{i.email}</span>
-							<Badge>{ROLE_LABEL[i.role as Role]}</Badge>
-							<Button size="sm" variant="ghost" onclick={() => withdraw(i.id)}>Withdraw</Button>
-						</li>
-					{/each}
-				</ul>
-			{/if}
-		{/if}
-	</Section>
-
-	<Section
-		id="projects"
-		title="Projects"
-		text="Each project has its own plans, settings and repository."
-	>
-		<ul class="rounded-lg border border-line">
-			{#each data.projects as p (p.id)}
-				<li
-					class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-					data-item
-				>
-					<span class="w-16 shrink-0 font-mono text-xs text-muted">{p.key}</span>
-					<a
-						class="min-w-0 flex-1 truncate text-sm text-accent-text hover:underline"
-						href={`/${org}/${p.key}`}>{p.name}</a
-					>
-					<a class="text-xs text-muted hover:underline" href={`/${org}/${p.key}/settings`}
-						>Settings</a
-					>
-				</li>
-			{/each}
-		</ul>
-		{#if can}
-			<form
-				class="flex flex-wrap items-end gap-2"
-				onsubmit={(e) => {
-					e.preventDefault();
-					void createProject();
-				}}
-			>
-				<TextField
-					label="Key, 2 to 10 capitals"
-					bind:value={newKey_}
-					class="w-40"
-					data-testid="project-key"
-					required
-				/>
-				<TextField
-					label="Project name"
-					bind:value={newName}
-					class="min-w-56 flex-1"
-					data-testid="project-name"
-					required
-				/>
-				<Button type="submit" variant="primary" data-testid="project-create">Create project</Button>
-			</form>
-		{/if}
-	</Section>
-
-	<Section
-		id="email"
-		title="Email sending"
-		text="How this server sends invitations, sign in codes and alerts."
-	>
-		{#if data.email.configured}
-			<div class="text-sm">
-				Sending through <Badge tone="info">{data.email.provider}</Badge>
-				{#if data.email.provider === 'log'}
-					<span class="text-muted"
-						>The log sender only writes mail to a file, nothing leaves the server.</span
-					>
+					{/if}
 				{/if}
 			</div>
+		</Section>
+
+		<Section
+			id="members"
+			title="Members and roles"
+			text="Who is in this organisation and what they may do. Changes apply at once."
+		>
+			<ul class="rounded-lg border border-line" data-testid="member-list">
+				{#each data.members as m (`${m.userId}-${rev}`)}
+					<li
+						class="flex min-h-12 flex-wrap items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
+						data-item
+						data-testid="member"
+					>
+						<span class="min-w-0 flex-1 text-sm"
+							>{m.name} <span class="text-muted">{m.email}</span></span
+						>
+						{#if can}
+							<Select
+								label={`Role of ${m.name}`}
+								value={m.role}
+								options={roleOptions}
+								onchange={(v) => changeRole(m.userId, v)}
+								class="w-36"
+							/>
+							<Button size="sm" variant="ghost" onclick={() => removeMember(m.userId)}
+								>Remove</Button
+							>
+						{:else}
+							<Badge>{ROLE_LABEL[m.role]}</Badge>
+						{/if}
+					</li>
+				{/each}
+			</ul>
 			{#if can}
 				<form
-					method="POST"
-					action="?/testEmail"
-					class="flex flex-wrap items-center gap-3"
-					use:enhance={() => {
-						busyTest = true;
-						return async ({ update }) => {
-							await update();
-							busyTest = false;
-						};
+					class="flex flex-wrap items-end gap-2"
+					onsubmit={(e) => {
+						e.preventDefault();
+						void invite();
 					}}
 				>
-					<Button type="submit" loading={busyTest} data-testid="test-email"
-						>Send me a test email</Button
+					<TextField
+						label="Invite by email"
+						type="email"
+						bind:value={inviteEmail}
+						class="min-w-56 flex-1"
+						data-testid="invite-email"
+						required
+					/>
+					<Select
+						label="Role of the invited person"
+						bind:value={inviteRole}
+						options={roleOptions}
+						class="w-36"
+					/>
+					<Button type="submit" variant="primary" data-testid="invite-submit"
+						>Send invitation</Button
 					>
-					{#if form?.sent}
-						<span class="text-sm text-success" role="status" data-testid="test-email-result"
-							>Sent to {form.to}.</span
-						>
-					{:else if form?.message}
-						<span class="text-sm text-danger" role="alert" data-testid="test-email-result"
-							>{form.message}</span
-						>
-					{/if}
 				</form>
-			{/if}
-		{:else}
-			<div class="text-sm text-muted">This server has no way to send email yet.</div>
-		{/if}
-	</Section>
-
-	<Runners {org} projects={data.projects} {can} baseUrl={page.url.origin} />
-
-	{#if can}
-		<Section
-			id="backups"
-			title="Backups"
-			text="A nightly encrypted copy of this organisation, kept apart from the app. A copy on GitHub is a reference, not a backup."
-		>
-			{#if !data.backups?.enabled}
-				<div class="text-sm text-muted" data-testid="backups-off">
-					Backups are not set up on this server. An operator turns them on with a backup key.
-				</div>
-			{:else}
-				<div class="flex flex-wrap items-center gap-2 text-sm" data-testid="backups-status">
-					<Badge tone={data.backups.health.ok ? 'success' : 'danger'}
-						>{data.backups.health.ok ? 'healthy' : 'needs attention'}</Badge
-					>
-					{#if data.backups.health.message}<span class="text-danger"
-							>{data.backups.health.message}</span
-						>{/if}
-					{#if data.backups.health.lastOkAt}<span class="text-muted"
-							>Last good backup {ago(data.backups.health.lastOkAt)}.</span
-						>{/if}
-				</div>
-				{#if data.backups.runs.length}
-					<ul class="rounded-lg border border-line">
-						{#each data.backups.runs as r (r.id)}
+				{#if data.invites.length}
+					<ul class="rounded-lg border border-line" data-testid="invite-list">
+						{#each data.invites as i (i.id)}
 							<li
-								class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 text-sm last:border-b-0"
+								class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
 								data-item
 							>
-								<Badge tone={r.state === 'done' ? 'success' : 'danger'}>{r.state}</Badge>
-								<span class="min-w-0 flex-1 truncate"
-									>{r.state === 'failed' ? r.error : `${Math.round((r.size ?? 0) / 1024)} KB`}</span
-								>
-								<span class="text-xs text-muted">{ago(r.createdAt)}</span>
+								<span class="min-w-0 flex-1 text-sm">{i.email}</span>
+								<Badge>{ROLE_LABEL[i.role as Role]}</Badge>
+								<Button size="sm" variant="ghost" onclick={() => withdraw(i.id)}>Withdraw</Button>
 							</li>
 						{/each}
 					</ul>
@@ -484,71 +350,214 @@
 		</Section>
 
 		<Section
-			id="limits"
-			title="Security limits"
-			text="How long access tokens may live, and whether guests may be invited."
-			dirty={dirty.limits}
-			saving={st('limits').saving}
-			saved={st('limits').saved}
-			error={st('limits').error}
-			onsave={() => save('limits', { tokenMaxDays, allowGuestInvites: allowGuests })}
+			id="projects"
+			title="Projects"
+			text="Each project has its own plans, settings and repository."
 		>
-			<Select
-				label="Longest life of an access token"
-				value={String(tokenMaxDays)}
-				options={TOKEN_DAYS.map((d) => ({ value: String(d), label: `${d} days` }))}
-				onchange={(v) => (tokenMaxDays = Number(v))}
-				class="w-48"
-			/>
-			<Switch
-				label="Guests may be invited"
-				hint="A guest sees only what is shared and may comment."
-				bind:checked={allowGuests}
-			/>
+			<ul class="rounded-lg border border-line">
+				{#each data.projects as p (p.id)}
+					<li
+						class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
+						data-item
+					>
+						<span class="w-16 shrink-0 font-mono text-xs text-muted">{p.key}</span>
+						<a
+							class="min-w-0 flex-1 truncate text-sm text-accent-text hover:underline"
+							href={`/${org}/${p.key}`}>{p.name}</a
+						>
+						<a class="text-xs text-muted hover:underline" href={`/${org}/${p.key}/settings`}
+							>Settings</a
+						>
+					</li>
+				{/each}
+			</ul>
+			{#if can}
+				<form
+					class="flex flex-wrap items-end gap-2"
+					onsubmit={(e) => {
+						e.preventDefault();
+						void createProject();
+					}}
+				>
+					<TextField
+						label="Key, 2 to 10 capitals"
+						bind:value={newKey_}
+						class="w-40"
+						data-testid="project-key"
+						required
+					/>
+					<TextField
+						label="Project name"
+						bind:value={newName}
+						class="min-w-56 flex-1"
+						data-testid="project-name"
+						required
+					/>
+					<Button type="submit" variant="primary" data-testid="project-create"
+						>Create project</Button
+					>
+				</form>
+			{/if}
 		</Section>
 
 		<Section
-			id="audit"
-			title="Audit log"
-			text="Everything that changed in this organisation, newest first."
+			id="email"
+			title="Email sending"
+			text="How this server sends invitations, sign in codes and alerts."
 		>
-			<div class="flex flex-wrap items-end gap-2">
-				<Select
-					label="Project"
-					value={auditProject}
-					options={[
-						{ value: '', label: 'Every project' },
-						...data.projects.map((p) => ({ value: p.key, label: p.key }))
-					]}
-					onchange={(v) => filterAudit(v)}
-					class="w-44"
-				/>
-			</div>
-			{#if shownEvents.length === 0}
-				<div class="text-sm text-muted">Nothing has happened here yet.</div>
-			{:else}
-				<ul class="rounded-lg border border-line" data-testid="audit-list">
-					{#each shownEvents as e (e.id)}
-						<li
-							class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-							data-item
-							data-testid="audit-event"
+			{#if data.email.configured}
+				<div class="text-sm">
+					Sending through <Badge tone="info">{data.email.provider}</Badge>
+					{#if data.email.provider === 'log'}
+						<span class="text-muted"
+							>The log sender only writes mail to a file, nothing leaves the server.</span
 						>
-							<span class="w-14 shrink-0 font-mono text-xs text-muted">{e.project}</span>
-							<span class="min-w-0 flex-1 truncate text-sm"
-								><span class="font-medium">{e.actorLabel ?? 'Someone'}</span>
-								{verbText(e.verb)}</span
+					{/if}
+				</div>
+				{#if can}
+					<form
+						method="POST"
+						action="?/testEmail"
+						class="flex flex-wrap items-center gap-3"
+						use:enhance={() => {
+							busyTest = true;
+							return async ({ update }) => {
+								await update();
+								busyTest = false;
+							};
+						}}
+					>
+						<Button type="submit" loading={busyTest} data-testid="test-email"
+							>Send me a test email</Button
+						>
+						{#if form?.sent}
+							<span class="text-sm text-success" role="status" data-testid="test-email-result"
+								>Sent to {form.to}.</span
 							>
-							<span class="shrink-0 text-xs text-muted">{ago(e.createdAt)}</span>
-						</li>
-					{/each}
-				</ul>
-				{#if nextAudit !== null}
-					<div>
-						<Button size="sm" onclick={moreAudit} data-testid="audit-more">Show more</Button>
-					</div>
+						{:else if form?.message}
+							<span class="text-sm text-danger" role="alert" data-testid="test-email-result"
+								>{form.message}</span
+							>
+						{/if}
+					</form>
 				{/if}
+			{:else}
+				<div class="text-sm text-muted">This server has no way to send email yet.</div>
 			{/if}
 		</Section>
-	{/if}
-</div>
+
+		<Runners {org} projects={data.projects} {can} baseUrl={page.url.origin} />
+
+		{#if can}
+			<Section
+				id="backups"
+				title="Backups"
+				text="A nightly encrypted copy of this organisation, kept apart from the app. A copy on GitHub is a reference, not a backup."
+			>
+				{#if !data.backups?.enabled}
+					<div class="text-sm text-muted" data-testid="backups-off">
+						Backups are not set up on this server. An operator turns them on with a backup key.
+					</div>
+				{:else}
+					<div class="flex flex-wrap items-center gap-2 text-sm" data-testid="backups-status">
+						<Badge tone={data.backups.health.ok ? 'success' : 'danger'}
+							>{data.backups.health.ok ? 'healthy' : 'needs attention'}</Badge
+						>
+						{#if data.backups.health.message}<span class="text-danger"
+								>{data.backups.health.message}</span
+							>{/if}
+						{#if data.backups.health.lastOkAt}<span class="text-muted"
+								>Last good backup {ago(data.backups.health.lastOkAt)}.</span
+							>{/if}
+					</div>
+					{#if data.backups.runs.length}
+						<ul class="rounded-lg border border-line">
+							{#each data.backups.runs as r (r.id)}
+								<li
+									class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 text-sm last:border-b-0"
+									data-item
+								>
+									<Badge tone={r.state === 'done' ? 'success' : 'danger'}>{r.state}</Badge>
+									<span class="min-w-0 flex-1 truncate"
+										>{r.state === 'failed'
+											? r.error
+											: `${Math.round((r.size ?? 0) / 1024)} KB`}</span
+									>
+									<span class="text-xs text-muted">{ago(r.createdAt)}</span>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				{/if}
+			</Section>
+
+			<Section
+				id="limits"
+				title="Security limits"
+				text="How long access tokens may live, and whether guests may be invited."
+				dirty={dirty.limits}
+				saving={st('limits').saving}
+				saved={st('limits').saved}
+				error={st('limits').error}
+				onsave={() => save('limits', { tokenMaxDays, allowGuestInvites: allowGuests })}
+			>
+				<Select
+					label="Longest life of an access token"
+					value={String(tokenMaxDays)}
+					options={TOKEN_DAYS.map((d) => ({ value: String(d), label: `${d} days` }))}
+					onchange={(v) => (tokenMaxDays = Number(v))}
+					class="w-48"
+				/>
+				<Switch
+					label="Guests may be invited"
+					hint="A guest sees only what is shared and may comment."
+					bind:checked={allowGuests}
+				/>
+			</Section>
+
+			<Section
+				id="audit"
+				title="Audit log"
+				text="Everything that changed in this organisation, newest first."
+			>
+				<div class="flex flex-wrap items-end gap-2">
+					<Select
+						label="Project"
+						value={auditProject}
+						options={[
+							{ value: '', label: 'Every project' },
+							...data.projects.map((p) => ({ value: p.key, label: p.key }))
+						]}
+						onchange={(v) => filterAudit(v)}
+						class="w-44"
+					/>
+				</div>
+				{#if shownEvents.length === 0}
+					<div class="text-sm text-muted">Nothing has happened here yet.</div>
+				{:else}
+					<ul class="rounded-lg border border-line" data-testid="audit-list">
+						{#each shownEvents as e (e.id)}
+							<li
+								class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
+								data-item
+								data-testid="audit-event"
+							>
+								<span class="w-14 shrink-0 font-mono text-xs text-muted">{e.project}</span>
+								<span class="min-w-0 flex-1 truncate text-sm"
+									><span class="font-medium">{e.actorLabel ?? 'Someone'}</span>
+									{verbText(e.verb)}</span
+								>
+								<span class="shrink-0 text-xs text-muted">{ago(e.createdAt)}</span>
+							</li>
+						{/each}
+					</ul>
+					{#if nextAudit !== null}
+						<div>
+							<Button size="sm" onclick={moreAudit} data-testid="audit-more">Show more</Button>
+						</div>
+					{/if}
+				{/if}
+			</Section>
+		{/if}
+	</SettingsShell>
+</PageFrame>

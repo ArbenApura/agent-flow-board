@@ -209,13 +209,8 @@
 			aria-labelledby="targets-title"
 		>
 			<div>
-				<h2
-					id="targets-title"
-					class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]"
-				>
-					Where checks can run
-				</h2>
-				<p class="text-sm leading-[22px] text-muted">
+				<h2 id="targets-title" class="text-lg font-semibold">Where checks can run</h2>
+				<p class="text-sm text-muted">
 					The build preview is the usual choice. A target is ready when the project has an
 					environment for it and a runner that can reach it is online.
 				</p>
@@ -254,14 +249,11 @@
 			>
 				<div class="flex flex-wrap items-start gap-2">
 					<div class="min-w-0 flex-1">
-						<h2
-							id={`check-${mc.key}-title`}
-							class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]"
-						>
+						<h2 id={`check-${mc.key}-title`} class="text-lg font-semibold">
 							{mc.key}
 							{mc.text}
 						</h2>
-						<p class="text-sm leading-[22px] text-muted">
+						<p class="text-sm text-muted">
 							{#if c}
 								Counts when it passes on the {TARGET_LABEL[c.requiredTarget]}
 								{#if c.pinnedTarget}, always run on the {TARGET_LABEL[c.pinnedTarget]}{/if}.
@@ -343,7 +335,7 @@
 									>
 								{/each}
 								{#if r.reason}
-									<span class="w-full text-xs leading-4 text-muted">{r.reason}</span>
+									<span class="w-full text-xs text-muted">{r.reason}</span>
 								{/if}
 							</li>
 						{/each}

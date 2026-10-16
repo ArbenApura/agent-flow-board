@@ -5,6 +5,7 @@
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import { ApiError, api } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import Button from '#lib/ui/Button.svelte';
@@ -50,10 +51,8 @@
 
 <svelte:head><title>Trash, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<div class="mx-auto flex max-w-[960px] flex-col gap-4 px-4 py-6 max-sm:px-3.5">
-	<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8" data-testid="page-title">
-		Trash
-	</h1>
+<PageFrame class="flex flex-col gap-4 py-8 pb-12">
+	<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">Trash</h1>
 	{#if data.denied}
 		<PermissionDenied needed={data.denied.needed} current={data.denied.role} what="the trash" />
 	{:else if empty}
@@ -65,7 +64,7 @@
 		<p class="text-sm text-muted">Things stay here for 30 days, then they are removed for good.</p>
 		{#if data.trash.items.length}
 			<section class="flex flex-col gap-2" aria-label="Items in the trash">
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">Items</h2>
+				<h2 class="text-lg font-semibold">Items</h2>
 				<ul class="rounded-xl border border-line bg-surface" data-testid="trash-items">
 					{#each data.trash.items as i (i.id)}
 						<li
@@ -88,7 +87,7 @@
 		{/if}
 		{#if data.trash.tasks.length}
 			<section class="flex flex-col gap-2" aria-label="Tasks in the trash">
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">Tasks</h2>
+				<h2 class="text-lg font-semibold">Tasks</h2>
 				<ul class="rounded-xl border border-line bg-surface">
 					{#each data.trash.tasks as t (t.id)}
 						<li
@@ -104,7 +103,7 @@
 		{/if}
 		{#if data.trash.attachments.length}
 			<section class="flex flex-col gap-2" aria-label="Files in the trash">
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">Files</h2>
+				<h2 class="text-lg font-semibold">Files</h2>
 				<ul class="rounded-xl border border-line bg-surface">
 					{#each data.trash.attachments as a (a.id)}
 						<li
@@ -122,4 +121,4 @@
 	<a class="text-sm text-accent-text hover:underline" href={`/${org}/${key}`}
 		>Back to the registry</a
 	>
-</div>
+</PageFrame>

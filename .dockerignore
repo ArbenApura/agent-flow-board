@@ -13,3 +13,5 @@ playwright-report
 *.log
 CLAUDE.md
 AGENTS.md
+.yarn/install-state.gz
+.yarn/cache

@@ -38,7 +38,7 @@
 		/>
 	</span>
 	<span class="flex flex-col">
-		<span class="text-sm leading-5 text-ink">{label}</span>
-		{#if hint}<span class="text-xs leading-4 text-muted">{hint}</span>{/if}
+		<span class="text-sm text-ink">{label}</span>
+		{#if hint}<span class="text-xs text-muted">{hint}</span>{/if}
 	</span>
 </label>

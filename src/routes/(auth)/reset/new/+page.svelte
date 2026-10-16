@@ -24,7 +24,7 @@
 	{#if data.invalid || form?.expired}
 		<p
 			role="alert"
-			class="rounded-lg border border-line bg-danger-soft p-3 text-sm leading-[22px] text-danger"
+			class="rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
 			data-testid="reset-invalid"
 		>
 			This link has expired or was already used.

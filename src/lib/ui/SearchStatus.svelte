@@ -12,11 +12,7 @@
 </script>
 
 <!-- ONE LINE THAT SAYS WHAT THE SEARCH IS DOING, READ OUT POLITELY -->
-<p
-	class="flex min-h-6 items-center gap-2 text-sm leading-[22px] text-muted"
-	role="status"
-	aria-live="polite"
->
+<p class="flex min-h-6 items-center gap-2 text-sm text-muted" role="status" aria-live="polite">
 	{#if searching}
 		<CircleNotch size={16} class="animate-spin" aria-hidden="true" /> Searching for "{query}"
 	{:else if query === ''}

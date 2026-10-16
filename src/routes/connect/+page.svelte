@@ -4,6 +4,7 @@
 	// -- DEP-MODULES -- //
 	import { enhance, type SubmitFunction } from '$app/forms';
 	// -- MODULES -- //
+	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -69,20 +70,20 @@
 
 <svelte:head><title>Connect a tool</title></svelte:head>
 
-<div class="mx-auto flex max-w-[860px] flex-col gap-6 px-4 py-6 max-sm:px-3.5">
+<PageFrame tag="main" class="flex flex-col gap-6 py-8 pb-12">
 	<header class="flex items-center justify-between gap-3">
 		<a href="/" class="flex items-center gap-2 font-bold"><Mark size={24} /> agent-flow-board</a>
 		<a href="/" class="text-sm text-accent-text hover:underline">All organisations</a>
 	</header>
 
 	<div>
-		<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8">Connect a tool</h1>
-		<p class="text-sm leading-[22px] text-muted">
+		<h1 class="text-xl font-semibold tracking-tight sm:text-2xl">Connect a tool</h1>
+		<p class="text-sm text-muted">
 			Pick the tool you work in. Most sign you in through your browser.
 		</p>
 		{#if data.org && data.orgs.length > 1}
 			<!-- A tool connects to one organisation, so which one is always said, with a way to pick another -->
-			<p class="mt-2 text-sm leading-[22px]" data-testid="connect-org">
+			<p class="mt-2 text-sm" data-testid="connect-org">
 				For <strong>{data.org.name}</strong>.
 				{#each data.orgs.filter((o) => o.id !== data.org!.id) as o (o.id)}
 					<a class="ml-2 text-accent-text hover:underline" href={`/connect?org=${o.slug}`}
@@ -105,9 +106,7 @@
 		>
 	{:else}
 		<Card data-testid="connect-snippets">
-			{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-					Add it to your tool
-				</h2>{/snippet}
+			{#snippet header()}<h2 class="text-lg font-semibold">Add it to your tool</h2>{/snippet}
 			<div
 				class="-mx-1 mb-4 flex [scrollbar-width:none]! gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-line [&::-webkit-scrollbar]:hidden"
 				role="tablist"
@@ -130,8 +129,8 @@
 					</button>
 				{/each}
 			</div>
-			<p class="mb-2 text-sm leading-[22px]">{snippet.signIn}</p>
-			{#if snippet.where}<p class="mb-2 text-xs leading-4 text-muted">
+			<p class="mb-2 text-sm">{snippet.signIn}</p>
+			{#if snippet.where}<p class="mb-2 text-xs text-muted">
 					Put this in {snippet.where}
 				</p>{/if}
 			<div class="relative rounded-lg border border-line bg-raised">
@@ -145,7 +144,7 @@
 		</Card>
 
 		<Card padded={false} data-testid="connected-apps">
-			{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
+			{#snippet header()}<h2 class="text-lg font-semibold">
 					Connected apps in {data.org.name}
 				</h2>{/snippet}
 			{#if data.connections.length === 0}
@@ -174,7 +173,7 @@
 											>Unverified {c.redirectHosts.join(', ')}</Badge
 										>{/if}
 								</span>
-								<span class="text-xs leading-4 text-muted"
+								<span class="text-xs text-muted"
 									>Can {c.permissions.join(', ')}. Last used {when(c.lastUsedAt)}. Ends {when(
 										c.expiresAt
 									)}.</span
@@ -192,10 +191,8 @@
 		</Card>
 
 		<Card data-testid="token-form">
-			{#snippet header()}<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-					Personal access token
-				</h2>{/snippet}
-			<p class="mb-3 text-sm leading-[22px] text-muted">
+			{#snippet header()}<h2 class="text-lg font-semibold">Personal access token</h2>{/snippet}
+			<p class="mb-3 text-sm text-muted">
 				For scripts and tools that cannot sign in through a browser. The token is shown once. It
 				lasts at most 90 days and never holds more than your role ({ROLE_LABEL[data.org.role]})
 				allows.
@@ -206,9 +203,7 @@
 					class="mb-4 rounded-lg border border-line bg-success-soft p-3"
 					data-testid="token-created"
 				>
-					<p class="mb-2 text-sm leading-[22px] text-success">
-						Copy it now. It will not be shown again.
-					</p>
+					<p class="mb-2 text-sm text-success">Copy it now. It will not be shown again.</p>
 					<pre
 						class="mb-2 overflow-x-auto rounded-md bg-surface p-2 font-mono text-xs leading-5 break-all whitespace-pre-wrap"
 						data-testid="token-value">{created.token}</pre>
@@ -218,7 +213,7 @@
 			{#if form && 'message' in form && form.message}
 				<p
 					role="alert"
-					class="mb-3 rounded-lg border border-line bg-danger-soft p-3 text-sm leading-[22px] text-danger"
+					class="mb-3 rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
 				>
 					{form.message}
 				</p>
@@ -252,7 +247,7 @@
 					bind:value={days}
 				/>
 				<fieldset class="flex flex-col">
-					<legend class="mb-1 text-xs leading-4 font-medium text-muted">What it may do</legend>
+					<legend class="mb-1 text-xs font-medium text-muted">What it may do</legend>
 					{#each data.caps as c (c)}
 						<Checkbox
 							label={c}
@@ -266,4 +261,4 @@
 			</form>
 		</Card>
 	{/if}
-</div>
+</PageFrame>

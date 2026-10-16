@@ -2,6 +2,7 @@
 	// -- DEP-TYPES -- //
 	import type { PageProps } from './$types';
 	// -- MODULES -- //
+	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
@@ -35,10 +36,8 @@
 
 <svelte:head><title>Search, {data.org.name}</title></svelte:head>
 
-<div class="mx-auto flex max-w-[960px] flex-col gap-4 px-4 py-6 max-sm:px-3.5">
-	<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8" data-testid="page-title">
-		Search
-	</h1>
+<PageFrame class="flex flex-col gap-4 py-8 pb-12">
+	<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">Search</h1>
 	<form method="GET" class="flex items-end gap-2">
 		<TextField
 			label="Search items, documents, decisions and tasks"
@@ -77,4 +76,4 @@
 			{/each}
 		</ul>
 	{/if}
-</div>
+</PageFrame>

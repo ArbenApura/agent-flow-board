@@ -5,6 +5,9 @@
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
+	import SettingsShell from '#lib/settings/SettingsShell.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import BrowserChecks from '#lib/settings/BrowserChecks.svelte';
 	import { canon, createFollower } from '#lib/settings/follow.js';
@@ -162,297 +165,300 @@
 
 <svelte:head><title>Project settings, {p?.name ?? ''}</title></svelte:head>
 
-<div class="mx-auto flex max-w-[960px] flex-col gap-4 px-4 py-6 max-sm:px-3.5">
-	<div>
-		<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8" data-testid="page-title">
-			Project settings
-		</h1>
-		<p class="text-sm leading-[22px] text-muted">
-			{can
-				? 'Each section saves on its own.'
-				: 'You can look at these. An admin or owner changes them.'}
-		</p>
-	</div>
+<PageFrame class="pb-12">
+	<PageHeader
+		title="Project settings"
+		context={can
+			? 'Each section saves on its own.'
+			: 'You can look at these. An admin or owner changes them.'}
+	/>
 
-	{#if !p}
-		<EmptyState title="Not available" text="You do not have access to this project." />
-	{:else}
-		<Section
-			id="general"
-			title="General"
-			text="The name and colour tag people see in the project list."
-			dirty={dirty.general}
-			saving={st('general').saving}
-			saved={st('general').saved}
-			error={st('general').error}
-			readonly={!can}
-			onsave={() => patchProject('general', { name: name.trim(), colourTag: tag || null, webApp })}
-		>
-			<TextField
-				label="Project name"
-				bind:value={name}
-				disabled={!can}
-				data-testid="project-name-input"
-			/>
-			<div class="text-xs text-muted">Its key is {p.key} and does not change.</div>
-			<Select
-				label="Colour tag"
-				value={tag}
-				options={TAGS.map((t) => ({ value: t, label: t === '' ? 'No colour' : t }))}
-				onchange={(v) => (tag = v)}
-				disabled={!can}
-				class="w-48"
-			/>
-			<Switch
-				label="This project is a web app"
-				hint="Web apps get UI shots and design checks."
-				bind:checked={webApp}
-				disabled={!can}
-			/>
-		</Section>
-
-		<Section
-			id="streams"
-			title="Streams and scopes"
-			text="The groups items are filed under, for example features with the scopes core and routes."
-			dirty={dirty.streams}
-			saving={st('streams').saving}
-			saved={st('streams').saved}
-			error={st('streams').error}
-			readonly={!can}
-			onsave={() => patchProject('streams', { streams: streams.filter((s) => s.stream.trim()) })}
-		>
-			{#each streams as s, i (i)}
-				<div
-					class="flex flex-wrap items-end gap-2 rounded-lg border border-line p-3"
-					data-testid="stream"
-				>
-					<TextField label="Stream" bind:value={s.stream} disabled={!can} class="w-44" />
-					<TagInput label="Scopes" bind:tags={s.scopes} class="min-w-56 flex-1" />
-					{#if can}
-						<Button
-							size="sm"
-							variant="ghost"
-							onclick={() => (streams = streams.filter((_, k) => k !== i))}>Remove</Button
-						>
-					{/if}
-				</div>
-			{/each}
-			{#if can}
-				<div>
-					<Button
-						size="sm"
-						onclick={() => (streams = [...streams, { stream: '', scopes: [] }])}
-						data-testid="add-stream">Add a stream</Button
-					>
-				</div>
-			{/if}
-		</Section>
-
-		<Section
-			id="agents"
-			title="Agents and closing"
-			text="Whether an agent may set an item to COMPLETED. Off keeps closing for people."
-			dirty={dirty.agents}
-			saving={st('agents').saving}
-			saved={st('agents').saved}
-			error={st('agents').error}
-			readonly={!can}
-			onsave={() => patchProject('agents', { agentsMayComplete: mayComplete })}
-		>
-			<Switch
-				label="Agents may set COMPLETED"
-				hint="An agent still has to confirm closing an item it is not working on."
-				bind:checked={mayComplete}
-				disabled={!can}
-			/>
-		</Section>
-
-		<Section
-			id="publishing"
-			title="GitHub publishing"
-			text="A readable reference copy of this project in a repository. It is not a backup."
-			dirty={dirty.publish}
-			saving={st('publishing').saving}
-			saved={st('publishing').saved}
-			error={st('publishing').error}
-			readonly={!can || !link}
-			onsave={() =>
-				save('publishing', `/projects/${key}/publish/settings`, {
-					autoPublish: auto,
-					delayMinutes: delay,
-					schedule: scheduleValue()
-				})}
-		>
-			{#if !data.publish?.configured}
-				<div class="text-sm text-muted">GitHub publishing is not set up on this server.</div>
-			{:else if !link}
-				<div class="text-sm text-muted">
-					No repository is connected. <a
-						class="text-accent-text hover:underline"
-						href={`/${org}/${key}/publish`}>Connect one on the Publish page.</a
-					>
-				</div>
-			{:else}
-				<div class="text-sm">
-					Publishing to <span class="font-mono text-xs">{link.repo}</span>.
-					<a class="text-accent-text hover:underline" href={`/${org}/${key}/publish`}
-						>Open the Publish page</a
-					>
-				</div>
-				{#if link.pausedReason}
-					<div
-						class="rounded-lg border border-line bg-warning-soft px-3 py-2 text-sm text-warning"
-						role="alert"
-					>
-						Automatic publish is paused. {link.pausedReason} Turn it on again to resume.
-					</div>
-				{/if}
-				<Switch
-					label="Publish automatically"
-					hint="After a change, after the delay below, unless you cancel it."
-					bind:checked={auto}
+	<SettingsShell>
+		{#if !p}
+			<EmptyState title="Not available" text="You do not have access to this project." />
+		{:else}
+			<Section
+				id="general"
+				title="General"
+				text="The name and colour tag people see in the project list."
+				dirty={dirty.general}
+				saving={st('general').saving}
+				saved={st('general').saved}
+				error={st('general').error}
+				readonly={!can}
+				onsave={() =>
+					patchProject('general', { name: name.trim(), colourTag: tag || null, webApp })}
+			>
+				<TextField
+					label="Project name"
+					bind:value={name}
 					disabled={!can}
+					data-testid="project-name-input"
 				/>
+				<div class="text-xs text-muted">Its key is {p.key} and does not change.</div>
 				<Select
-					label="Wait this long after a change"
-					value={String(delay)}
-					options={DELAYS.map((d) => ({
-						value: String(d),
-						label:
-							d >= 60
-								? `${d / 60} ${d === 60 ? 'hour' : 'hours'}`
-								: `${d} ${d === 1 ? 'minute' : 'minutes'}`
-					}))}
-					onchange={(v) => (delay = Number(v))}
+					label="Colour tag"
+					value={tag}
+					options={TAGS.map((t) => ({ value: t, label: t === '' ? 'No colour' : t }))}
+					onchange={(v) => (tag = v)}
 					disabled={!can}
 					class="w-48"
 				/>
-				<Switch label="Only publish inside a time window" bind:checked={windowed} disabled={!can} />
-				{#if windowed}
-					<div class="flex flex-wrap gap-1.5" role="group" aria-label="Days of the week">
-						{#each DAYS as d (d.n)}
-							<button
-								type="button"
-								role="checkbox"
-								aria-checked={days.includes(d.n)}
-								disabled={!can}
-								onclick={() => toggleDay(d.n)}
-								class="min-h-11 min-w-12 cursor-pointer rounded-lg border border-line bg-surface px-2 text-xs font-medium text-muted hover:bg-raised disabled:cursor-not-allowed disabled:opacity-50 aria-checked:border-accent aria-checked:bg-accent-soft aria-checked:text-accent-text"
-								>{d.label}</button
+				<Switch
+					label="This project is a web app"
+					hint="Web apps get UI shots and design checks."
+					bind:checked={webApp}
+					disabled={!can}
+				/>
+			</Section>
+
+			<Section
+				id="streams"
+				title="Streams and scopes"
+				text="The groups items are filed under, for example features with the scopes core and routes."
+				dirty={dirty.streams}
+				saving={st('streams').saving}
+				saved={st('streams').saved}
+				error={st('streams').error}
+				readonly={!can}
+				onsave={() => patchProject('streams', { streams: streams.filter((s) => s.stream.trim()) })}
+			>
+				{#each streams as s, i (i)}
+					<div
+						class="flex flex-wrap items-end gap-2 rounded-lg border border-line p-3"
+						data-testid="stream"
+					>
+						<TextField label="Stream" bind:value={s.stream} disabled={!can} class="w-44" />
+						<TagInput label="Scopes" bind:tags={s.scopes} class="min-w-56 flex-1" />
+						{#if can}
+							<Button
+								size="sm"
+								variant="ghost"
+								onclick={() => (streams = streams.filter((_, k) => k !== i))}>Remove</Button
 							>
-						{/each}
+						{/if}
 					</div>
-					<div class="flex flex-wrap items-end gap-2">
-						<TextField label="From" type="time" bind:value={from} disabled={!can} class="w-36" />
-						<TextField label="To" type="time" bind:value={to} disabled={!can} class="w-36" />
-						<Select
-							label="Time zone"
-							value={zone}
-							options={ZONES.map((z) => ({ value: z, label: z }))}
-							onchange={(v) => (zone = v)}
-							disabled={!can}
-							class="w-56"
-						/>
+				{/each}
+				{#if can}
+					<div>
+						<Button
+							size="sm"
+							onclick={() => (streams = [...streams, { stream: '', scopes: [] }])}
+							data-testid="add-stream">Add a stream</Button
+						>
 					</div>
 				{/if}
-			{/if}
-		</Section>
+			</Section>
 
-		<Section
-			id="tracking"
-			title="Tracking"
-			text="When an item in progress with no activity counts as quiet on the health page."
-			dirty={dirty.tracking}
-			saving={st('tracking').saving}
-			saved={st('tracking').saved}
-			error={st('tracking').error}
-			readonly={!can}
-			onsave={() => patchProject('tracking', { staleDays: stale })}
-		>
-			<Select
-				label="Quiet after"
-				value={String(stale)}
-				options={STALE.map((d) => ({
-					value: String(d),
-					label: `${d} ${d === 1 ? 'day' : 'days'}`
-				}))}
-				onchange={(v) => (stale = Number(v))}
-				disabled={!can}
-				class="w-48"
+			<Section
+				id="agents"
+				title="Agents and closing"
+				text="Whether an agent may set an item to COMPLETED. Off keeps closing for people."
+				dirty={dirty.agents}
+				saving={st('agents').saving}
+				saved={st('agents').saved}
+				error={st('agents').error}
+				readonly={!can}
+				onsave={() => patchProject('agents', { agentsMayComplete: mayComplete })}
+			>
+				<Switch
+					label="Agents may set COMPLETED"
+					hint="An agent still has to confirm closing an item it is not working on."
+					bind:checked={mayComplete}
+					disabled={!can}
+				/>
+			</Section>
+
+			<Section
+				id="publishing"
+				title="GitHub publishing"
+				text="A readable reference copy of this project in a repository. It is not a backup."
+				dirty={dirty.publish}
+				saving={st('publishing').saving}
+				saved={st('publishing').saved}
+				error={st('publishing').error}
+				readonly={!can || !link}
+				onsave={() =>
+					save('publishing', `/projects/${key}/publish/settings`, {
+						autoPublish: auto,
+						delayMinutes: delay,
+						schedule: scheduleValue()
+					})}
+			>
+				{#if !data.publish?.configured}
+					<div class="text-sm text-muted">GitHub publishing is not set up on this server.</div>
+				{:else if !link}
+					<div class="text-sm text-muted">
+						No repository is connected. <a
+							class="text-accent-text hover:underline"
+							href={`/${org}/${key}/publish`}>Connect one on the Publish page.</a
+						>
+					</div>
+				{:else}
+					<div class="text-sm">
+						Publishing to <span class="font-mono text-xs">{link.repo}</span>.
+						<a class="text-accent-text hover:underline" href={`/${org}/${key}/publish`}
+							>Open the Publish page</a
+						>
+					</div>
+					{#if link.pausedReason}
+						<div
+							class="rounded-lg border border-line bg-warning-soft px-3 py-2 text-sm text-warning"
+							role="alert"
+						>
+							Automatic publish is paused. {link.pausedReason} Turn it on again to resume.
+						</div>
+					{/if}
+					<Switch
+						label="Publish automatically"
+						hint="After a change, after the delay below, unless you cancel it."
+						bind:checked={auto}
+						disabled={!can}
+					/>
+					<Select
+						label="Wait this long after a change"
+						value={String(delay)}
+						options={DELAYS.map((d) => ({
+							value: String(d),
+							label:
+								d >= 60
+									? `${d / 60} ${d === 60 ? 'hour' : 'hours'}`
+									: `${d} ${d === 1 ? 'minute' : 'minutes'}`
+						}))}
+						onchange={(v) => (delay = Number(v))}
+						disabled={!can}
+						class="w-48"
+					/>
+					<Switch
+						label="Only publish inside a time window"
+						bind:checked={windowed}
+						disabled={!can}
+					/>
+					{#if windowed}
+						<div class="flex flex-wrap gap-1.5" role="group" aria-label="Days of the week">
+							{#each DAYS as d (d.n)}
+								<button
+									type="button"
+									role="checkbox"
+									aria-checked={days.includes(d.n)}
+									disabled={!can}
+									onclick={() => toggleDay(d.n)}
+									class="min-h-11 min-w-12 cursor-pointer rounded-lg border border-line bg-surface px-2 text-xs font-medium text-muted hover:bg-raised disabled:cursor-not-allowed disabled:opacity-50 aria-checked:border-accent aria-checked:bg-accent-soft aria-checked:text-accent-text"
+									>{d.label}</button
+								>
+							{/each}
+						</div>
+						<div class="flex flex-wrap items-end gap-2">
+							<TextField label="From" type="time" bind:value={from} disabled={!can} class="w-36" />
+							<TextField label="To" type="time" bind:value={to} disabled={!can} class="w-36" />
+							<Select
+								label="Time zone"
+								value={zone}
+								options={ZONES.map((z) => ({ value: z, label: z }))}
+								onchange={(v) => (zone = v)}
+								disabled={!can}
+								class="w-56"
+							/>
+						</div>
+					{/if}
+				{/if}
+			</Section>
+
+			<Section
+				id="tracking"
+				title="Tracking"
+				text="When an item in progress with no activity counts as quiet on the health page."
+				dirty={dirty.tracking}
+				saving={st('tracking').saving}
+				saved={st('tracking').saved}
+				error={st('tracking').error}
+				readonly={!can}
+				onsave={() => patchProject('tracking', { staleDays: stale })}
+			>
+				<Select
+					label="Quiet after"
+					value={String(stale)}
+					options={STALE.map((d) => ({
+						value: String(d),
+						label: `${d} ${d === 1 ? 'day' : 'days'}`
+					}))}
+					onchange={(v) => (stale = Number(v))}
+					disabled={!can}
+					class="w-48"
+				/>
+			</Section>
+
+			<Section
+				id="shots"
+				title="UI shots"
+				text="The themes a screen is shot in, and the pages new screens are compared with."
+				dirty={dirty.shots}
+				saving={st('shots').saving}
+				saved={st('shots').saved}
+				error={st('shots').error}
+				readonly={!can}
+				onsave={() =>
+					patchProject('shots', {
+						themes: themes.filter((t) => t.key.trim() && t.label.trim()),
+						referencePages: refs
+					})}
+			>
+				{#each themes as t, i (i)}
+					<div class="flex flex-wrap items-end gap-2" data-testid="theme-row">
+						<TextField label="Theme key" bind:value={t.key} disabled={!can} class="w-40" />
+						<TextField label="Theme name" bind:value={t.label} disabled={!can} class="w-48" />
+						{#if can}<Button
+								size="sm"
+								variant="ghost"
+								onclick={() => (themes = themes.filter((_, k) => k !== i))}>Remove</Button
+							>{/if}
+					</div>
+				{/each}
+				{#if can && themes.length < 8}
+					<div>
+						<Button size="sm" onclick={() => (themes = [...themes, { key: '', label: '' }])}
+							>Add a theme</Button
+						>
+					</div>
+				{/if}
+				<TagInput
+					label="Reference pages"
+					bind:tags={refs}
+					hint="Addresses inside your app, such as /settings. Press Enter after each."
+					validate={(t) => (/^\/\S{0,198}$/.test(t) ? null : 'Start with / and use no spaces')}
+				/>
+			</Section>
+
+			<BrowserChecks
+				{org}
+				projectKey={key}
+				webApp={p.webApp}
+				defaultTarget={p.defaultTarget}
+				can={can ?? false}
 			/>
-		</Section>
 
-		<Section
-			id="shots"
-			title="UI shots"
-			text="The themes a screen is shot in, and the pages new screens are compared with."
-			dirty={dirty.shots}
-			saving={st('shots').saving}
-			saved={st('shots').saved}
-			error={st('shots').error}
-			readonly={!can}
-			onsave={() =>
-				patchProject('shots', {
-					themes: themes.filter((t) => t.key.trim() && t.label.trim()),
-					referencePages: refs
-				})}
-		>
-			{#each themes as t, i (i)}
-				<div class="flex flex-wrap items-end gap-2" data-testid="theme-row">
-					<TextField label="Theme key" bind:value={t.key} disabled={!can} class="w-40" />
-					<TextField label="Theme name" bind:value={t.label} disabled={!can} class="w-48" />
-					{#if can}<Button
-							size="sm"
-							variant="ghost"
-							onclick={() => (themes = themes.filter((_, k) => k !== i))}>Remove</Button
-						>{/if}
-				</div>
-			{/each}
-			{#if can && themes.length < 8}
+			<Section id="trash" title="Trash" text="Items, tasks and files you remove stay for 30 days.">
 				<div>
-					<Button size="sm" onclick={() => (themes = [...themes, { key: '', label: '' }])}
-						>Add a theme</Button
+					<a class="text-sm text-accent-text hover:underline" href={`/${org}/${key}/trash`}
+						>Open the trash</a
 					>
 				</div>
-			{/if}
-			<TagInput
-				label="Reference pages"
-				bind:tags={refs}
-				hint="Addresses inside your app, such as /settings. Press Enter after each."
-				validate={(t) => (/^\/\S{0,198}$/.test(t) ? null : 'Start with / and use no spaces')}
-			/>
-		</Section>
+			</Section>
 
-		<BrowserChecks
-			{org}
-			projectKey={key}
-			webApp={p.webApp}
-			defaultTarget={p.defaultTarget}
-			can={can ?? false}
-		/>
-
-		<Section id="trash" title="Trash" text="Items, tasks and files you remove stay for 30 days.">
-			<div>
-				<a class="text-sm text-accent-text hover:underline" href={`/${org}/${key}/trash`}
-					>Open the trash</a
-				>
-			</div>
-		</Section>
-
-		<Section
-			id="export"
-			title="Export"
-			text="Download this project's public items. Private items are never included."
-		>
-			<div class="flex flex-wrap gap-2">
-				<Button href={`/${org}/${key}/export.json`} data-testid="export-json"
-					>Download the snapshot (JSON)</Button
-				>
-				<Button href={`/${org}/${key}/export.md`} data-testid="export-md"
-					>Download as Markdown</Button
-				>
-			</div>
-		</Section>
-	{/if}
-</div>
+			<Section
+				id="export"
+				title="Export"
+				text="Download this project's public items. Private items are never included."
+			>
+				<div class="flex flex-wrap gap-2">
+					<Button href={`/${org}/${key}/export.json`} data-testid="export-json"
+						>Download the snapshot (JSON)</Button
+					>
+					<Button href={`/${org}/${key}/export.md`} data-testid="export-md"
+						>Download as Markdown</Button
+					>
+				</div>
+			</Section>
+		{/if}
+	</SettingsShell>
+</PageFrame>

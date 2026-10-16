@@ -31,8 +31,8 @@
 
 <div class={cn('flex items-center justify-between gap-3 py-3', extra)}>
 	<span class="flex min-w-0 flex-col">
-		<span class="text-sm leading-5 font-medium text-ink">{label}</span>
-		{#if hint}<span class="text-xs leading-4 text-muted">{hint}</span>{/if}
+		<span class="text-sm font-medium text-ink">{label}</span>
+		{#if hint}<span class="text-xs text-muted">{hint}</span>{/if}
 	</span>
 	<!-- THE BUTTON IS THE 44 PX TOUCH TARGET, THE TRACK INSIDE IT IS THE DRAWN SWITCH -->
 	<button

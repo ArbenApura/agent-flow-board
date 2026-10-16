@@ -66,7 +66,7 @@
 	{#if form && 'step' in form && form.step === 'done'}
 		<p
 			role="status"
-			class="rounded-lg border border-line bg-success-soft p-3 text-sm leading-[22px] text-success"
+			class="rounded-lg border border-line bg-success-soft p-3 text-sm text-success"
 			data-testid="device-done"
 		>
 			{form.approved
@@ -74,10 +74,7 @@
 				: `${form.client} was refused.`}
 		</p>
 	{:else if confirm}
-		<div
-			class="mb-3 rounded-lg border border-line bg-raised p-3 text-sm leading-[22px]"
-			data-testid="device-info"
-		>
+		<div class="mb-3 rounded-lg border border-line bg-raised p-3 text-sm" data-testid="device-info">
 			<strong>{confirm.info.client}</strong> asked to sign in{confirm.info.origin
 				? ` from ${confirm.info.origin}`
 				: ''}. The code expires in {Math.ceil(confirm.info.expiresInSeconds / 60)} minutes.
@@ -94,7 +91,7 @@
 				bind:value={orgId}
 			/>
 			<fieldset class="flex flex-col">
-				<legend class="mb-1 text-xs leading-4 font-medium text-muted">What it may do</legend>
+				<legend class="mb-1 text-xs font-medium text-muted">What it may do</legend>
 				{#key org?.id}
 					{#each org?.caps ?? [] as c (c)}
 						<Checkbox
@@ -116,7 +113,7 @@
 		{#if form && 'message' in form && form.message}
 			<p
 				role="alert"
-				class="mb-3 rounded-lg border border-line bg-danger-soft p-3 text-sm leading-[22px] text-danger"
+				class="mb-3 rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
 				data-testid="device-error"
 			>
 				{form.message}

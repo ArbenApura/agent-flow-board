@@ -4,6 +4,9 @@
 	// -- ENVS -- //
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
+	import { cn } from '#lib/ui/cn.js';
 	import { DRIFT_TEXT, ago } from '#lib/board/status.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
@@ -18,6 +21,16 @@
 	const key = $derived(page.params.project ?? '');
 	const h = $derived(data.health);
 	const link = (ref: string) => `/${org}/${key}/${ref}`;
+	const tiles = $derived(
+		h
+			? [
+					{ label: 'Unrecorded commits', count: h.unrecordedCommits.length },
+					{ label: 'Stale claims', count: h.staleClaims.length },
+					{ label: 'Quiet items', count: h.quietItems.length },
+					{ label: 'Drift', count: h.drift.length }
+				]
+			: []
+	);
 	const total = $derived(
 		h
 			? h.unrecordedCommits.length +
@@ -33,15 +46,27 @@
 
 <svelte:head><title>Health, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<div class="mx-auto flex max-w-[960px] flex-col gap-4 px-4 py-6 max-sm:px-3.5">
-	<div>
-		<h1 class="text-xl leading-7 font-semibold sm:text-2xl sm:leading-8" data-testid="page-title">
-			Health
-		</h1>
-		<p class="text-sm leading-[22px] text-muted">
-			What needs a look in this project. Nothing here blocks any work.
-		</p>
-	</div>
+<PageFrame class="flex flex-col gap-4 py-8 pb-12">
+	<PageHeader
+		title="Health"
+		context="What needs a look in this project. Nothing here blocks any work."
+	/>
+
+	{#if h}
+		<ul class="grid grid-cols-2 gap-4 lg:grid-cols-4" data-testid="health-tiles">
+			{#each tiles as t (t.label)}
+				<li class="flex flex-col gap-1 rounded-xl border border-line bg-surface p-5" data-card>
+					<span
+						class={cn(
+							'text-2xl font-semibold tabular-nums',
+							t.count ? 'text-warning' : 'text-success'
+						)}>{t.count}</span
+					>
+					<span class="text-sm text-muted">{t.label}</span>
+				</li>
+			{/each}
+		</ul>
+	{/if}
 
 	{#if !h}
 		<EmptyState title="Not available" text="You do not have access to this project." />
@@ -55,9 +80,7 @@
 	{#if h}
 		{#if h.unrecordedCommits.length || h.unlinkedCommits}
 			<section class="flex flex-col gap-2" aria-label="Unrecorded commits" data-testid="unrecorded">
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-					Unrecorded commits
-				</h2>
+				<h2 class="text-lg font-semibold">Unrecorded commits</h2>
 				<ul class="rounded-xl border border-line bg-surface">
 					{#each h.unrecordedCommits as c (c.sha)}
 						<li
@@ -84,7 +107,7 @@
 
 		{#if h.staleClaims.length}
 			<section class="flex flex-col gap-2" aria-label="Stale claims" data-testid="stale-claims">
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">Stale claims</h2>
+				<h2 class="text-lg font-semibold">Stale claims</h2>
 				<ul class="rounded-xl border border-line bg-surface">
 					{#each h.staleClaims as c (c.sessionId)}
 						<li
@@ -111,9 +134,7 @@
 				aria-label="Steps without evidence"
 				data-testid="no-evidence"
 			>
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">
-					Steps without evidence
-				</h2>
+				<h2 class="text-lg font-semibold">Steps without evidence</h2>
 				<ul class="rounded-xl border border-line bg-surface">
 					{#each h.stepsWithoutEvidence as s (s.itemRef + s.key)}
 						<li
@@ -134,7 +155,7 @@
 
 		{#if h.quietItems.length}
 			<section class="flex flex-col gap-2" aria-label="Quiet items" data-testid="quiet">
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">Quiet items</h2>
+				<h2 class="text-lg font-semibold">Quiet items</h2>
 				<div class="text-xs text-muted">
 					In progress with no activity for {h.project.staleDays} days or more.
 				</div>
@@ -158,7 +179,7 @@
 
 		{#if h.drift.length}
 			<section class="flex flex-col gap-2" aria-label="Drift" data-testid="drift-list">
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">Drift</h2>
+				<h2 class="text-lg font-semibold">Drift</h2>
 				<ul class="rounded-xl border border-line bg-surface">
 					{#each h.drift as d (d.ref)}
 						<li
@@ -182,7 +203,7 @@
 
 		{#if h.publish && (h.publish.pausedReason || h.publish.failedRuns.length)}
 			<section class="flex flex-col gap-2" aria-label="Publishing" data-testid="publish-health">
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">Publishing</h2>
+				<h2 class="text-lg font-semibold">Publishing</h2>
 				<div class="rounded-xl border border-line bg-warning-soft px-3 py-2 text-sm text-warning">
 					{#if h.publish.pausedReason}Automatic publish to {h.publish.repo} is paused. {h.publish
 							.pausedReason}{:else}The last publish to {h.publish.repo} failed.{/if}
@@ -193,7 +214,7 @@
 
 		{#if h.backup && !h.backup.ok}
 			<section class="flex flex-col gap-2" aria-label="Backups" data-testid="backup-health">
-				<h2 class="text-base leading-6 font-semibold sm:text-lg sm:leading-[26px]">Backups</h2>
+				<h2 class="text-lg font-semibold">Backups</h2>
 				<div
 					class="rounded-xl border border-line bg-danger-soft px-3 py-2 text-sm text-danger"
 					role="alert"
@@ -203,4 +224,4 @@
 			</section>
 		{/if}
 	{/if}
-</div>
+</PageFrame>

@@ -39,6 +39,12 @@ const rgb = (hex: string) => {
 	return `rgb(${r}, ${g}, ${b})`;
 };
 
+// Opens the settings tab of one section. Sections stay mounted, so edits typed in another tab are kept
+const tab = async (p: import('@playwright/test').Page, id: string) => {
+	await p.getByTestId(`settings-tab-${id}`).click();
+	await expect(p.getByTestId(`section-${id}`)).toBeVisible();
+};
+
 test('M8 an organisation: each section saves on its own, the palette preview shows both modes and persists, the logo and limits work', async ({
 	browser,
 	baseURL
@@ -48,15 +54,18 @@ test('M8 an organisation: each section saves on its own, the palette preview sho
 	await page.goto(`/${slug}/settings`);
 	await expect(page.getByTestId('page-title')).toHaveText('Organisation settings');
 	// A first project, made from the Projects section
+	await tab(page, 'projects');
 	await page.getByTestId('project-key').fill('AUD');
 	await page.getByTestId('project-name').fill('Audit project');
 	await page.getByTestId('project-create').click();
 	await expect(page.getByText('Audit project').first()).toBeVisible();
 
 	// The name saves alone: a limit changed and saved next to an unsaved name leaves that name unsaved
+	await tab(page, 'general');
 	await page.getByTestId('org-name-input').fill('Renamed organisation');
 	await expect(page.getByTestId('save-general')).toBeEnabled();
 	await expect(page.getByTestId('save-palette')).toBeDisabled();
+	await tab(page, 'limits');
 	await page.getByRole('button', { name: 'Longest life of an access token' }).click();
 	await page.getByRole('option', { name: '14 days' }).click();
 	await page.getByRole('switch', { name: 'Guests may be invited' }).click();
@@ -65,8 +74,10 @@ test('M8 an organisation: each section saves on its own, the palette preview sho
 	let saved = await (await page.request.get(`${api}/settings`)).json();
 	expect(saved.name).toBe(`Settings ${slug}`);
 	expect(saved.settings).toEqual({ tokenMaxDays: 14, allowGuestInvites: false });
+	await tab(page, 'general');
 	await expect(page.getByTestId('org-name-input')).toHaveValue('Renamed organisation');
 	await expect(page.getByTestId('save-general')).toBeEnabled();
+	await tab(page, 'general');
 	await page.getByTestId('save-general').click();
 	await expect(page.getByTestId('saved-general')).toBeVisible();
 	await expect(page.getByTestId('org-name')).toHaveText('Renamed organisation');
@@ -89,6 +100,7 @@ test('M8 an organisation: each section saves on its own, the palette preview sho
 
 	// The palette: the live preview shows both modes before anything is saved
 	const rose = generatePalette('#e11d48');
+	await tab(page, 'palette');
 	await page.getByRole('radio', { name: 'Rose' }).click();
 	const swatch = (mode: string) =>
 		page.getByTestId(`preview-${mode}`).locator('span.bg-accent').first();
@@ -143,11 +155,14 @@ test('M8 an organisation: each section saves on its own, the palette preview sho
 	await expect(page.getByTestId('org-logo')).toHaveCount(0);
 
 	// Email: the test mail says it was sent, and shows up in the outbox
+	await tab(page, 'email');
 	await page.getByTestId('test-email').click();
 	await expect(page.getByTestId('test-email-result')).toContainText('Sent to');
 	// Backups are not set up in the preview, and the page says so
+	await tab(page, 'backups');
 	await expect(page.getByTestId('backups-off')).toBeVisible();
 	// The audit log lists what was changed here, and filters by project
+	await tab(page, 'audit');
 	await expect(page.getByTestId('audit-list')).toContainText('changed the organisation settings');
 	await page.getByRole('button', { name: 'Project', exact: true }).click();
 	await page.getByRole('option', { name: 'AUD' }).click();
@@ -177,6 +192,7 @@ test('M8 a project: the Agents may set COMPLETED switch, the publish switch with
 	await expect(page.getByTestId('page-title')).toHaveText('Project settings');
 
 	// The switch persists: off, saved, reload, still off, then back on
+	await tab(page, 'agents');
 	const agents = page.getByRole('switch', { name: 'Agents may set COMPLETED' });
 	await expect(agents).toHaveAttribute('aria-checked', 'true');
 	await expect(page.getByTestId('save-agents')).toBeDisabled();
@@ -196,6 +212,7 @@ test('M8 a project: the Agents may set COMPLETED switch, the publish switch with
 	expect((await project()).agentsMayComplete).toBe(true);
 
 	// Automatic publish: on, a delay and a schedule, all saved by their own section
+	await tab(page, 'publishing');
 	await expect(page.getByRole('switch', { name: 'Publish automatically' })).toHaveAttribute(
 		'aria-checked',
 		'false'
@@ -247,7 +264,9 @@ test('M8 a project: the Agents may set COMPLETED switch, the publish switch with
 	);
 
 	// Each section saves alone: an unsaved name stays unsaved while the tracking section saves
+	await tab(page, 'general');
 	await page.getByTestId('project-name-input').fill('Name typed but not saved');
+	await tab(page, 'tracking');
 	await page.getByRole('button', { name: 'Quiet after' }).click();
 	await page.getByRole('option', { name: '7 days' }).click();
 	await page.getByTestId('save-tracking').click();
@@ -255,6 +274,7 @@ test('M8 a project: the Agents may set COMPLETED switch, the publish switch with
 	expect(await project()).toMatchObject({ staleDays: 7, name: `Settings ${key}` });
 	await expect(page.getByTestId('save-general')).toBeEnabled();
 	// Streams and UI shots
+	await tab(page, 'streams');
 	await page.getByTestId('add-stream').click();
 	await page.getByLabel('Stream', { exact: true }).fill('features');
 	await page.getByRole('textbox', { name: 'Scopes' }).fill('core');
@@ -262,6 +282,7 @@ test('M8 a project: the Agents may set COMPLETED switch, the publish switch with
 	await page.getByTestId('save-streams').click();
 	await expect(page.getByTestId('saved-streams')).toBeVisible();
 	expect((await project()).streams).toEqual([{ stream: 'features', scopes: ['core'] }]);
+	await tab(page, 'shots');
 	await page.getByRole('textbox', { name: 'Reference pages' }).fill('/acme/CKT');
 	await page.getByRole('textbox', { name: 'Reference pages' }).press('Enter');
 	await page.getByTestId('save-shots').click();
@@ -307,6 +328,7 @@ test('M8 your own settings: name, theme, accent, notifications, password, sessio
 	await page.reload();
 	await expect(page.getByTestId('profile-name')).toHaveValue('Renamed Person');
 	// Theme: dark applies at once and stays after saving and reloading
+	await tab(page, 'appearance');
 	await page.getByRole('radio', { name: 'Dark' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-mode', 'dark');
 	await page.getByTestId('save-appearance').click();
@@ -328,14 +350,17 @@ test('M8 your own settings: name, theme, accent, notifications, password, sessio
 		)
 		.toBe(violet.light.accent);
 	// Notifications and the check target
+	await tab(page, 'notifications');
 	await page.getByRole('switch', { name: 'Backup problems' }).click();
 	await page.getByTestId('save-notifications').click();
 	await expect(page.getByTestId('saved-notifications')).toBeVisible();
+	await tab(page, 'checks');
 	await page.getByRole('button', { name: 'Run checks on' }).click();
 	await page.getByRole('option', { name: 'Build preview' }).click();
 	await page.getByTestId('save-checks').click();
 	await expect(page.getByTestId('saved-checks')).toBeVisible();
 	await page.reload();
+	await tab(page, 'notifications');
 	await expect(page.getByRole('switch', { name: 'Backup problems' })).toHaveAttribute(
 		'aria-checked',
 		'false'
@@ -344,13 +369,16 @@ test('M8 your own settings: name, theme, accent, notifications, password, sessio
 		'aria-checked',
 		'true'
 	);
+	await tab(page, 'checks');
 	await expect(page.getByRole('button', { name: 'Run checks on' })).toContainText('Build preview');
+	await tab(page, 'appearance');
 	await expect(page.getByRole('radio', { name: 'Violet' })).toHaveAttribute('aria-checked', 'true');
 	// Sessions: sign in from a second browser, see both, end the other one
 	const other = await browser.newContext({ baseURL });
 	const op = await other.newPage();
 	await signIn(op, email, PASSWORD);
 	await page.reload();
+	await tab(page, 'sessions');
 	await expect(page.getByTestId('session')).toHaveCount(2);
 	await expect(page.getByTestId('session').filter({ hasText: 'this one' })).toHaveCount(1);
 	await page.getByTestId('end-others').click();
@@ -360,6 +388,7 @@ test('M8 your own settings: name, theme, accent, notifications, password, sessio
 	await expect(op).toHaveURL(/sign-in/);
 	await other.close();
 	// Password: a wrong current one is refused with a plain message, the right one changes it
+	await tab(page, 'signin');
 	await page.getByTestId('password-current').fill('definitely not it');
 	await page.getByTestId('password-new').fill('another long password');
 	await page.getByTestId('save-signin').click();
@@ -393,6 +422,7 @@ test('M8 your own settings: name, theme, accent, notifications, password, sessio
 		})
 	).json();
 	await page.goto('/settings');
+	await tab(page, 'tools');
 	await expect(page.getByTestId('tool')).toContainText('my tool');
 	expect(
 		(

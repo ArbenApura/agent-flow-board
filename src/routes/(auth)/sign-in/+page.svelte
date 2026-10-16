@@ -32,7 +32,7 @@
 	{#if data.reset}
 		<p
 			role="status"
-			class="mb-4 rounded-lg border border-line bg-success-soft p-3 text-sm leading-[22px] text-success"
+			class="mb-4 rounded-lg border border-line bg-success-soft p-3 text-sm text-success"
 		>
 			Your password was changed. Sign in with the new one.
 		</p>
@@ -40,7 +40,7 @@
 	{#if form?.message}
 		<p
 			role="alert"
-			class="mb-4 rounded-lg border border-line bg-danger-soft p-3 text-sm leading-[22px] text-danger"
+			class="mb-4 rounded-lg border border-line bg-danger-soft p-3 text-sm text-danger"
 			data-testid="auth-error"
 		>
 			{form.message}
@@ -76,9 +76,7 @@
 			bind:value={password}
 		/>
 		<Button type="submit" variant="primary" loading={busy} class="w-full">Sign in</Button>
-		<a href="/reset" class="text-sm leading-[22px] text-accent-text hover:underline"
-			>Forgot your password?</a
-		>
+		<a href="/reset" class="text-sm text-accent-text hover:underline">Forgot your password?</a>
 	</form>
 	{#if form?.code === 'UNVERIFIED'}
 		<form method="POST" action="?/resend" class="mt-3">

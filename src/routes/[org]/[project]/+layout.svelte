@@ -5,6 +5,7 @@
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import { connectStream } from '#lib/realtime/stream.svelte.js';
 	import OfflineBanner from '#lib/ui/OfflineBanner.svelte';
 	import PermissionDenied from '#lib/ui/PermissionDenied.svelte';
@@ -37,9 +38,9 @@
 <OfflineBanner liveLost={live.lost} onreconnect={refetch} />
 
 {#if data.denied}
-	<div class="mx-auto max-w-[720px] px-4 py-6 max-sm:px-3.5">
+	<PageFrame class="flex flex-col gap-5 py-8 pb-12">
 		<PermissionDenied needed={data.denied.needed} current={data.denied.role} what="this project" />
-	</div>
+	</PageFrame>
 {:else}
 	{@render children()}
 {/if}
