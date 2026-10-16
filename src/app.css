@@ -156,8 +156,9 @@
 }
 
 html {
-	/* THE SCROLLBAR'S WIDTH IS ALWAYS RESERVED, SO A PAGE THAT NEEDS ONE DOES NOT SHIFT SIDEWAYS FROM A PAGE THAT DOES NOT */
-	scrollbar-gutter: stable;
+	/* NO RESERVED GUTTER: ON A PAGE THAT DOES NOT SCROLL IT SHOWED AS AN EMPTY STRIP AT THE RIGHT EDGE. A THIN SCROLLBAR IN THE THEME'S LINE COLOUR TAKES LITTLE ROOM WHEN A PAGE DOES SCROLL */
+	scrollbar-width: thin;
+	scrollbar-color: var(--line) transparent;
 	font-family: var(--font-sans);
 	-webkit-font-smoothing: antialiased;
 	text-rendering: optimizeLegibility;

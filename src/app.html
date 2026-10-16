@@ -18,6 +18,15 @@
 			type="font/woff2"
 			crossorigin
 		/>
+		<!-- THE BROWSER PAINTS ITS OWN CANVAS (WHITE UNLESS THE PAGE SAYS DARK) UNTIL THE STYLESHEET ARRIVES, SO THE MODE IS TOLD HERE, INLINE, BEFORE ANY FILE LOADS. NO COLOUR VALUE NEEDED, THE TOKENS TAKE OVER FROM THERE -->
+		<style>
+			html[data-mode='dark'] {
+				color-scheme: dark;
+			}
+			html[data-mode='light'] {
+				color-scheme: light;
+			}
+		</style>
 		<script>
 			%afb.modescript%
 		</script>
