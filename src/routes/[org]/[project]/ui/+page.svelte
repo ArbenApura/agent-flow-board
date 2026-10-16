@@ -5,6 +5,7 @@
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { ago } from '#lib/board/status.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
@@ -27,14 +28,11 @@
 
 <svelte:head><title>UI, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<PageFrame class="flex flex-col gap-4 py-8 pb-12">
-	<div>
-		<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">UI</h1>
-		<p class="text-sm text-muted">
-			The newest screens of every item, measured against the project scale and the pages around
-			them.
-		</p>
-	</div>
+<PageFrame class="flex flex-col gap-4 pb-12">
+	<PageHeader
+		title="UI"
+		context="The newest screens of every item, measured against the project scale and the pages around them."
+	/>
 
 	{#if !ui}
 		<EmptyState title="Not available" text="You do not have access to this project." />

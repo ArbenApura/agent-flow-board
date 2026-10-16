@@ -89,3 +89,34 @@ test('M2 overlays: a dialog is a bottom sheet on a phone and a centred panel on 
 		await ctx.close();
 	}
 });
+
+test('M2 the command palette opens with / and Ctrl+K, searches, and moves with the keyboard', async ({
+	browser,
+	baseURL
+}) => {
+	const ctx = await browser.newContext({ baseURL, viewport: { width: 1440, height: 900 } });
+	const page = await ctx.newPage();
+	await signIn(page, 'owner@acme.example');
+	await page.goto('/acme/CKT');
+	// A key pressed before the page has hydrated reaches nothing
+	await page.waitForLoadState('networkidle');
+	// Before anything is typed the pages of the project are listed
+	await page.keyboard.press('/');
+	await expect(page.getByTestId('palette-input')).toBeFocused();
+	await expect(page.getByTestId('palette-entry').first()).toContainText('Registry');
+	await page.keyboard.press('Escape');
+	await expect(page.getByTestId('palette')).toHaveCount(0);
+	// Typing searches the organisation, and Enter follows the highlighted result
+	await page.keyboard.press('Control+k');
+	await page.getByTestId('palette-input').fill('promo');
+	await expect(page.getByTestId('palette-entry').first()).toContainText('Promo codes');
+	await page.keyboard.press('Enter');
+	await expect(page).toHaveURL(/\/acme\/CKT\/CKT-3$/);
+	// A slash typed into a text field is text, not a shortcut
+	await page.goto('/acme/CKT');
+	await page.waitForLoadState('networkidle');
+	await page.getByTestId('filter-q').fill('a/b');
+	await expect(page.getByTestId('palette')).toHaveCount(0);
+	await expect(page.getByTestId('filter-q')).toHaveValue('a/b');
+	await ctx.close();
+});

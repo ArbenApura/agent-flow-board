@@ -159,7 +159,7 @@
 <svelte:head><title>Your settings</title></svelte:head>
 
 <PageFrame tag="main" class="pb-12">
-	<header class="flex items-center justify-between gap-3">
+	<header class="flex items-center justify-between gap-3 pt-6">
 		<a href="/" class="flex items-center gap-2 font-bold"><Mark size={24} /> agent-flow-board</a>
 		<a class="text-sm text-accent-text hover:underline" href="/">All organisations</a>
 	</header>

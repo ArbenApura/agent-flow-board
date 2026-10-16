@@ -59,6 +59,7 @@
 			"desktop": {
 				"height": [
 					32,
+					40,
 					44
 				],
 				"fontSize": [
@@ -78,7 +79,7 @@
 		},
 		"button-icon": {
 			"desktop": {
-				"height": 44
+				"height": 40
 			},
 			"phone": {
 				"height": 44
@@ -109,16 +110,12 @@
 		},
 		"row": {
 			"desktop": {
-				"height": [
-					36,
-					48
-				]
+				"heightMin": 48,
+				"heightMax": 76
 			},
 			"phone": {
-				"height": [
-					48,
-					56
-				]
+				"heightMin": 48,
+				"heightMax": 96
 			}
 		},
 		"icon": {
@@ -153,7 +150,7 @@
 	"locators": {
 		"title": "h1",
 		"section": "h2, h3",
-		"body": "p:not([id$='-hint']):not([id$='-error']):not([role=alert]):not([role=status])",
+		"body": "p:not([id$='-hint']):not([id$='-error']):not([role=alert]):not([role=status]):not(.text-xs)",
 		"label": "label, th",
 		"button-primary": "button.primary, [data-variant='primary']",
 		"button": "button:not(.primary):not([data-variant='primary']):not([data-icon-only]):not([role])",

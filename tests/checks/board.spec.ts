@@ -212,6 +212,7 @@ test('M6 tasks: add one, change its status, and the empty state shows first', as
 	await expect(owner.page.getByText('No items in this project yet')).toBeVisible();
 	await owner.page.goto(`/acme/${key}/tasks`);
 	await expect(owner.page.getByText('No tasks yet')).toBeVisible();
+	await owner.page.getByTestId('new-task').click();
 	await owner.page.getByTestId('new-task-title').fill('Write the launch note');
 	await owner.page.getByTestId('new-task-submit').click();
 	await expect(owner.page.getByTestId('task')).toContainText('Write the launch note');

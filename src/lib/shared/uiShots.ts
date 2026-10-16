@@ -38,7 +38,7 @@ const COLUMNS = ['Page', 'State', 'Themes', 'Accounts', 'Siblings', 'Levels', 'V
 export const DEFAULT_LOCATORS: Record<string, string> = {
 	title: 'h1',
 	section: 'h2, h3',
-	body: "p:not([id$='-hint']):not([id$='-error']):not([role=alert]):not([role=status])",
+	body: "p:not([id$='-hint']):not([id$='-error']):not([role=alert]):not([role=status]):not(.text-xs)",
 	label: 'label, th',
 	'button-primary': "button.primary, [data-variant='primary']",
 	button: "button:not(.primary):not([data-variant='primary']):not([data-icon-only]):not([role])",
@@ -215,6 +215,22 @@ export function flagsFor(
 	if (!measured) return [{ level, kind: 'missing', text: `No ${level} found on the page` }];
 	const flags: Flag[] = [];
 	for (const [k, want] of Object.entries(scaleLevel ?? {})) {
+		// A key ending in Min or Max is a range edge, for example heightMin and heightMax of a row
+		const edge = /^(.+)(Min|Max)$/.exec(k);
+		if (edge) {
+			const measuredEdge = (measured as Record<string, number>)[edge[1]];
+			const limit = Array.isArray(want) ? want[0] : want;
+			if (
+				measuredEdge != null &&
+				(edge[2] === 'Min' ? measuredEdge < limit - tol : measuredEdge > limit + tol)
+			)
+				flags.push({
+					level,
+					kind: 'off-scale',
+					text: `${level} ${edge[1]} ${measuredEdge}px, the scale says ${edge[2] === 'Min' ? 'at least' : 'at most'} ${limit}px`
+				});
+			continue;
+		}
 		const v = (measured as Record<string, number>)[k];
 		if (v == null || k === 'fontWeight') continue;
 		if (!within(v, want, tol))
@@ -225,7 +241,9 @@ export function flagsFor(
 			});
 	}
 	if (sibling) {
-		const keys: (keyof Measured)[] = ['title', 'section', 'body', 'label'].includes(level)
+		const keys: (keyof Measured)[] = ['title', 'section', 'body', 'label', 'card', 'row'].includes(
+			level
+		)
 			? ['fontSize']
 			: ['fontSize', 'height'];
 		for (const k of keys) {

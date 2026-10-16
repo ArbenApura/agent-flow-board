@@ -6,12 +6,17 @@
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
+	import Avatar from '#lib/ui/Avatar.svelte';
+	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
+	// -- DEP-COMPONENTS -- //
+	import Plus from 'phosphor-svelte/lib/Plus';
 
 	// -- REQUIRED PROPS -- //
 
@@ -26,6 +31,7 @@
 	let title = $state('');
 	let error = $state('');
 	let busy = $state(false);
+	let adding = $state(false);
 	/** The status a change asked for, shown at once while the server answers. */
 	let pending = $state<Record<string, string>>({});
 
@@ -44,6 +50,7 @@
 		try {
 			await api(org, `/projects/${key}/tasks`, { body: { title: title.trim() }, key: newKey() });
 			title = '';
+			adding = false;
 			await invalidate('afb:project');
 		} catch (e) {
 			error = e instanceof ApiError ? e.message : 'The task was not added.';
@@ -67,42 +74,31 @@
 
 <svelte:head><title>Tasks, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<PageFrame class="flex flex-col gap-4 py-8 pb-12">
-	<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">Tasks</h1>
-
-	{#if canWrite}
-		<form
-			class="flex items-end gap-2"
-			onsubmit={(e) => {
-				e.preventDefault();
-				void add();
-			}}
-		>
-			<TextField
-				label="Add a task"
-				bind:value={title}
-				{error}
-				class="flex-1"
-				minlength={3}
-				required
-				data-testid="new-task-title"
-			/>
-			<Button type="submit" variant="primary" loading={busy} data-testid="new-task-submit"
-				>Add</Button
-			>
-		</form>
-	{/if}
+<PageFrame class="flex flex-col gap-4 pb-12">
+	<PageHeader
+		title="Tasks"
+		context={`${data.tasks.length} ${data.tasks.length === 1 ? 'task' : 'tasks'}, small jobs outside any plan.`}
+	>
+		{#snippet actions()}
+			{#if canWrite}
+				<Button variant="primary" onclick={() => (adding = true)} data-testid="new-task">
+					<Plus size={16} /> New task
+				</Button>
+			{/if}
+		{/snippet}
+	</PageHeader>
 
 	{#if data.tasks.length === 0}
 		<EmptyState
+			kind="inbox"
 			title="No tasks yet"
-			text="Tasks are small jobs outside any plan. Add one above, or link it to an item later."
+			text="Tasks are small jobs outside any plan. Add one, or link it to an item later."
 		/>
 	{:else}
 		<ul class="rounded-xl border border-line bg-surface" data-testid="task-list">
 			{#each data.tasks as t (t.id)}
 				<li
-					class="flex min-h-12 flex-wrap items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
+					class="flex min-h-14 flex-wrap items-center gap-4 border-b border-line px-4 py-3 last:border-b-0"
 					data-row
 					data-testid="task"
 				>
@@ -122,7 +118,11 @@
 							{/if}
 						{/each}
 						{#if t.assigneeId && data.people[t.assigneeId]}
-							<span class="ml-1 text-xs text-muted">{data.people[t.assigneeId]}</span>
+							<span class="ml-2 inline-flex items-center gap-1.5 align-middle text-xs text-muted"
+								><Avatar name={data.people[t.assigneeId]} size={24} />{data.people[
+									t.assigneeId
+								]}</span
+							>
 						{/if}
 					</span>
 					<Select
@@ -148,3 +148,28 @@
 		</ul>
 	{/if}
 </PageFrame>
+
+<ResponsiveModal open={adding} onclose={() => (adding = false)} title="New task" size="sm" {busy}>
+	<form
+		class="flex flex-col gap-4"
+		onsubmit={(e) => {
+			e.preventDefault();
+			void add();
+		}}
+	>
+		<TextField
+			label="What is the task"
+			bind:value={title}
+			{error}
+			minlength={3}
+			required
+			data-testid="new-task-title"
+		/>
+		<div class="flex justify-end gap-2">
+			<Button onclick={() => (adding = false)} disabled={busy}>Cancel</Button>
+			<Button type="submit" variant="primary" loading={busy} data-testid="new-task-submit"
+				>Add task</Button
+			>
+		</div>
+	</form>
+</ResponsiveModal>

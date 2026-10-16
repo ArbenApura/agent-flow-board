@@ -6,6 +6,7 @@
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import PageFrame from '#lib/ui/PageFrame.svelte';
+	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import Badge from '#lib/ui/Badge.svelte';
@@ -141,15 +142,11 @@
 
 <svelte:head><title>Publish, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<PageFrame class="flex flex-col gap-4 py-8 pb-12">
-	<div>
-		<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">
-			Publish
-		</h1>
-		<p class="text-sm text-muted">
-			A readable reference copy of this project in a GitHub repository. It is not a backup.
-		</p>
-	</div>
+<PageFrame class="flex flex-col gap-4 pb-12">
+	<PageHeader
+		title="Publish"
+		context="A readable reference copy of this project in a GitHub repository. It is not a backup."
+	/>
 
 	{#if !pub}
 		<EmptyState title="Not available" text="You do not have access to this project." />

@@ -85,9 +85,10 @@
 	{:else}
 		<ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{#each data.orgs as o (o.id)}
-				<li data-row>
+				<li>
 					<a
 						href={`/${o.slug}`}
+						data-card
 						class="flex items-center gap-4 rounded-xl border border-line bg-surface p-5 transition-colors hover:border-muted"
 					>
 						<Avatar name={o.name} size={40} kind="agent" />

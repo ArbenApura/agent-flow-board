@@ -46,7 +46,7 @@
 
 <svelte:head><title>Health, {data.summary?.project.name ?? ''}</title></svelte:head>
 
-<PageFrame class="flex flex-col gap-4 py-8 pb-12">
+<PageFrame class="flex flex-col gap-4 pb-12">
 	<PageHeader
 		title="Health"
 		context="What needs a look in this project. Nothing here blocks any work."

@@ -32,6 +32,9 @@
 	let switcher = $state(false);
 	let more = $state(false);
 	let account = $state(false);
+	let palette = $state(false);
+	/** The palette is loaded the first time it opens, so it is not in the first load of every page. */
+	let Palette = $state<(typeof import('#lib/board/CommandPalette.svelte'))['default'] | null>(null);
 
 	// -- REACTIVE STATES -- //
 
@@ -62,11 +65,30 @@
 
 	// -- FUNCTIONS -- //
 
+	async function openPalette() {
+		Palette ??= (await import('#lib/board/CommandPalette.svelte')).default;
+		palette = true;
+	}
+
+	// "/" and Ctrl or Cmd with K open the search from anywhere that is not a text field
+	function onShortcut(e: KeyboardEvent) {
+		const target = e.target as HTMLElement | null;
+		const typing = !!target?.closest('input, textarea, select, [contenteditable="true"]');
+		if (
+			(e.key === 'k' && (e.ctrlKey || e.metaKey)) ||
+			(e.key === '/' && !typing && !e.metaKey && !e.ctrlKey)
+		) {
+			e.preventDefault();
+			void openPalette();
+		}
+	}
+
 	const active = (t: { href: string; exact?: boolean }) =>
 		t.exact ? page.url.pathname === t.href : page.url.pathname.startsWith(t.href);
 </script>
 
 <svelte:head><title>{data.org.name}</title></svelte:head>
+<svelte:window onkeydown={onShortcut} />
 
 <div class="flex min-h-dvh flex-col bg-bg">
 	<header class="sticky top-0 z-30 border-b border-line bg-surface">
@@ -191,10 +213,19 @@
 						href={`${base}/search`}
 						aria-label="Search"
 						data-testid="search-link"
+						onclick={(e: MouseEvent) => {
+							// A plain click opens the palette. A modified click or no JavaScript still goes to the search page
+							if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+							e.preventDefault();
+							void openPalette();
+						}}
 						class="text-muted max-md:size-10 max-md:px-0 md:w-52 md:justify-start"
 					>
 						<MagnifyingGlass size={18} />
 						<span class="max-md:hidden">Search</span>
+						<kbd class="ml-auto rounded border border-line px-1.5 text-xs text-muted max-md:hidden"
+							>/</kbd
+						>
 					</Button>
 					<div class="max-md:hidden">
 						<Popover bind:open={account} placement="bottom-end" role="dialog" label="Account">
@@ -332,3 +363,7 @@
 		</form>
 	</nav>
 </ResponsiveModal>
+
+{#if Palette}
+	<Palette open={palette} onclose={() => (palette = false)} org={data.org.slug} pages={tabs} />
+{/if}

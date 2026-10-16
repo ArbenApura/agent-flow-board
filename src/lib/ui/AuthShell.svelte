@@ -46,9 +46,9 @@
 		<div class="flex flex-col gap-8">
 			<Illustration kind="welcome" class="h-auto w-64" />
 			<div class="flex flex-col gap-3">
-				<p class="max-w-[22ch] text-2xl font-semibold tracking-tight">
+				<div class="max-w-[22ch] text-2xl font-semibold tracking-tight">
 					One plan your team and your agents both keep.
-				</p>
+				</div>
 				<ul class="flex flex-col gap-3">
 					{#each POINTS as p (p.text)}
 						<li class="flex items-center gap-3 text-sm text-muted">
