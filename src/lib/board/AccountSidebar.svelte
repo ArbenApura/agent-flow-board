@@ -23,7 +23,7 @@
 	} = $props();
 </script>
 
-<!-- THE SIDEBAR OF THE PAGES THAT BELONG TO NO ORGANISATION. THE ORGANISATIONS OF THE PERSON, THEN CONNECT A TOOL AND THE PERSON'S OWN SETTINGS -->
+<!-- THE SIDEBAR OF THE PAGES THAT BELONG TO NO ORGANISATION. THE ORGANISATIONS OF THE PERSON, THEN AT THE FOOT CONNECT A TOOL AND THE PERSON'S OWN SETTINGS, IN THE ORDER OF AN ORGANISATION'S FOOT -->
 <SidebarShell name="Agent Flow Board" href="/" {me}>
 	<nav class="flex flex-col gap-1" aria-label="Account">
 		<SidebarRow
@@ -32,6 +32,25 @@
 			icon={Building2}
 			active={page.url.pathname === '/'}
 		/>
+	</nav>
+
+	{#if orgs.length}
+		<nav class="flex flex-col gap-1" aria-label="Your organisations" data-testid="org-list">
+			<SidebarHeading label="Your organisations" />
+			{#each orgs as o (o.id)}
+				<a
+					href={`/${o.slug}`}
+					title={o.name}
+					class="flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-sm text-muted transition-colors hover:bg-raised hover:text-ink"
+				>
+					<OrgTile name={o.name} slug={o.slug} logo={o.logo} />
+					<span class={LABEL}>{o.name}</span>
+				</a>
+			{/each}
+		</nav>
+	{/if}
+
+	<nav class="mt-auto flex flex-col gap-1" aria-label="Settings">
 		<SidebarRow
 			href="/connect"
 			label="Connect a tool"
@@ -45,20 +64,4 @@
 			active={page.url.pathname.startsWith('/settings')}
 		/>
 	</nav>
-
-	{#if orgs.length}
-		<nav class="flex flex-col gap-1" aria-label="Your organisations" data-testid="org-list">
-			<SidebarHeading label="Your organisations" />
-			{#each orgs as o (o.id)}
-				<a
-					href={`/${o.slug}`}
-					title={o.name}
-					class="flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-sm text-ink transition-colors hover:bg-raised"
-				>
-					<OrgTile name={o.name} slug={o.slug} logo={o.logo} />
-					<span class={LABEL}>{o.name}</span>
-				</a>
-			{/each}
-		</nav>
-	{/if}
 </SidebarShell>

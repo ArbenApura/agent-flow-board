@@ -69,7 +69,7 @@
 </script>
 
 <!-- THE SIDEBAR OF AN ORGANISATION. ITS PROJECTS WITH THE PAGES OF THE OPEN ONE UNDER IT, THEN SETTINGS -->
-<SidebarShell name={org.name} logo={org.logo} href={base} {me}>
+<SidebarShell name={org.name} logo={org.logo} slug={base.slice(1)} href={base} {me}>
 	<nav class="flex flex-col gap-1" aria-label="Organisation">
 		<SidebarRow href={base} label="Projects" icon={House} active={page.url.pathname === base} />
 	</nav>
@@ -84,8 +84,8 @@
 					title={`${p.key} ${p.name}`}
 					aria-current={open && tabs.every((t) => !active(t)) ? 'page' : undefined}
 					class={cn(
-						'flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-[11px] text-sm text-ink transition-colors hover:bg-raised',
-						open && 'font-medium'
+						'flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-[11px] text-sm text-muted transition-colors hover:bg-raised hover:text-ink',
+						open && 'font-medium text-ink'
 					)}
 				>
 					<span class={cn('size-2 shrink-0 rounded-full', tagDot(p.colourTag))}></span>
@@ -116,13 +116,13 @@
 	{/if}
 
 	<nav class="mt-auto flex flex-col gap-1" aria-label="Settings">
+		<SidebarRow href={`/connect?org=${base.slice(1)}`} label="Connect a tool" icon={Plug} />
 		<SidebarRow
 			href={`${base}/settings`}
 			label="Organisation settings"
 			icon={Settings}
 			active={page.url.pathname === `${base}/settings`}
 		/>
-		<SidebarRow href={`/connect?org=${base.slice(1)}`} label="Connect a tool" icon={Plug} />
 		<SidebarRow href="/" label="All organisations" icon={Building2} />
 	</nav>
 </SidebarShell>

@@ -26,7 +26,7 @@
 	title={label}
 	aria-current={active ? 'page' : undefined}
 	class={cn(
-		'flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-[11px] text-sm text-muted hover:bg-raised hover:text-ink',
+		'flex h-9 cursor-pointer items-center gap-2.5 rounded-lg px-[11px] text-sm text-muted transition-colors hover:bg-raised hover:text-ink',
 		active &&
 			'bg-accent-soft font-medium text-accent-text hover:bg-accent-soft hover:text-accent-text'
 	)}

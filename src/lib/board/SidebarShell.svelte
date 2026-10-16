@@ -5,6 +5,7 @@
 	import { LABEL } from '#lib/board/sidebar-classes.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Avatar from '#lib/ui/Avatar.svelte';
+	import OrgTile from '#lib/board/OrgTile.svelte';
 	import Mark from '#lib/ui/Mark.svelte';
 	import Popover from '#lib/ui/Popover.svelte';
 	// -- DEP-COMPONENTS -- //
@@ -17,6 +18,7 @@
 	let {
 		name,
 		logo,
+		slug,
 		href,
 		me,
 		children
@@ -24,6 +26,8 @@
 		/** The name at the top: the organisation, or the product on the account pages. */
 		name: string;
 		logo?: string | null;
+		/** Set on an organisation's sidebar, so the header shows the same tile as the organisation list. */
+		slug?: string;
 		href: string;
 		me: { name: string; email: string };
 		/** The links and lists of the body. */
@@ -44,15 +48,15 @@
 	>
 		<a
 			{href}
-			class="flex h-[65px] shrink-0 items-center gap-2.5 border-b border-line px-[18px] text-base font-semibold text-ink"
+			class={cn(
+				'flex h-[65px] shrink-0 items-center gap-2.5 border-b border-line text-base font-semibold text-ink',
+				slug ? 'px-5' : 'px-[18px]'
+			)}
 		>
-			{#if logo}
-				<img
-					src={logo}
-					alt=""
-					class="size-7 shrink-0 rounded-md object-contain"
-					data-testid="org-logo"
-				/>
+			{#if slug}
+				<span class="contents" data-testid={logo ? 'org-logo' : undefined}>
+					<OrgTile {name} {slug} {logo} />
+				</span>
 			{:else}
 				<Mark size={28} class="shrink-0" />
 			{/if}
@@ -67,7 +71,7 @@
 
 		<!-- THE FOOT OF THE SIDEBAR. THE ACCOUNT WITH ITS MENU -->
 		<div class="flex shrink-0 flex-col gap-1 border-t border-line p-3">
-			<Popover bind:open={account} placement="top-start" role="dialog" label="Account">
+			<Popover bind:open={account} placement="top-start" role="dialog" label="Account" offset={12}>
 				{#snippet trigger({ props, toggle })}
 					<button
 						type="button"
