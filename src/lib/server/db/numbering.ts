@@ -5,9 +5,7 @@
 // -- TYPES -- //
 import type { Tx } from './client';
 // -- DEP-MODULES -- //
-import { eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
-import { project } from './schema';
+import { sql } from 'drizzle-orm';
 
 // -- FUNCTIONS -- //
 
@@ -36,18 +34,18 @@ function assertUuid(value: string, name: string) {
 	if (!UUID.test(value)) throw new Error(`${name} must be a UUID`);
 }
 
-/** The next item number and its readable reference, for example { number: 142, ref: 'HAPR-142' }. */
+/**
+ * The next item number of the project, for example { number: 142 }. It is the per project order and no longer part of the
+ * reference: a new item's reference is a clock stamp (db/flowId.ts, FLOW-20261017-0950).
+ */
 export async function allocateItemNumber(
 	tx: Tx,
 	orgId: string,
 	projectId: string
-): Promise<{ number: number; ref: string }> {
+): Promise<{ number: number }> {
 	assertUuid(orgId, 'orgId');
 	assertUuid(projectId, 'projectId');
-	const [p] = await tx.select({ key: project.key }).from(project).where(eq(project.id, projectId));
-	if (!p) throw new Error('Project not found');
-	const number = await take(tx, orgId, projectId, 'next');
-	return { number, ref: `${p.key}-${number}` };
+	return { number: await take(tx, orgId, projectId, 'next') };
 }
 
 /** The next task number in the project. */

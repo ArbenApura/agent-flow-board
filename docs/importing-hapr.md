@@ -23,7 +23,7 @@ Run it again and it skips every item that already has its FLOW id: a half finish
 
 ## What it makes
 
-- Each HAPR item becomes an item numbered `HAPR-1` upward in id order. Every FLOW id and every legacy `FEAT-nnn` number answers to it.
+- Each HAPR item becomes an item numbered `HAPR-1` upward in id order (its number, used for order). Its reference is the project key and the real moment of its FLOW id in UTC: `FLOW-20261014-1047` was written in +08:00, so it becomes `HAPR-20261014-0247` (a `-b` after the FLOW id is kept). The FLOW id, the old `HAPR-1` form and every legacy `FEAT-nnn` number stay as aliases, so each of them still finds the item.
 - The plan becomes phases, steps and manual checks, keeping their states, and the frozen percent of a closed legacy item. Notes under a waived or superseded step become its reason.
 - ADRs and the "Settled without asking" table become decisions. The six documents and any other Markdown file in the item folder are also kept whole as documents (`spec`, `plan` as written, `progress`, `validation`, `references`, one for each extra file), so nothing in an old format is lost. Text is stored with the byte order mark dropped and line breaks as LF.
 - History, `LOG.md` lines and creation become activity events with their old dates. They carry the actor label "HAPR import" and cannot be undone.

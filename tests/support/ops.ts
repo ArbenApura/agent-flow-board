@@ -24,7 +24,7 @@ let counter = 0;
 export async function makeWorld(db: TestDb): Promise<World> {
 	const n = ++counter;
 	const hex = (k: number) =>
-		`00000000-0000-4000-8${String(n % 10)}00-${String(k).padStart(12, '0')}`;
+		`00000000-0000-4000-8${String(n % 10)}0${String(Math.floor(n / 10) % 10)}-${String(k).padStart(12, '0')}`;
 	const orgId = hex(1);
 	const projectId = hex(11);
 	const otherOrg = hex(2);

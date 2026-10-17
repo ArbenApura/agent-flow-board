@@ -8,6 +8,7 @@ import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, sql } from 'dri
 import { z } from 'zod';
 // -- MODULES -- //
 import { allocateItemNumber } from '../db/numbering';
+import { RefSuffixesTaken, freeRefs, insertItemWithFreshRef } from '../db/flowId';
 import { recalcItem } from '../db/calc';
 import { appendEvent } from '../db/events';
 import { decision, item, itemAlias, manualCheck, phase, section, step, task } from '../db/schema';
@@ -106,6 +107,32 @@ const PATCHABLE = [
 
 export { canSeeItem };
 
+const refsExhausted = () =>
+	new OpError('CONFLICT', 'Every suffix for this minute is taken. Wait a minute and retry.');
+
+/**
+ * The first alias that equals, in any case, one of the references this item may take (the first free one, or a later one if a
+ * concurrent create wins the first) or the reference of an item of the org.
+ */
+async function aliasClash(
+	tx: Tx,
+	orgId: string,
+	aliases: string[],
+	ownRefs: string[]
+): Promise<string | null> {
+	if (!aliases.length) return null;
+	const mine = new Set(ownRefs.map((r) => r.toUpperCase()));
+	const own = aliases.find((a) => mine.has(a.toUpperCase()));
+	if (own) return own;
+	const upper = aliases.map((a) => a.toUpperCase());
+	const [hit] = await tx
+		.select({ ref: item.ref })
+		.from(item)
+		.where(and(eq(item.orgId, orgId), inArray(sql`upper(${item.ref})`, upper)))
+		.limit(1);
+	return hit ? (aliases.find((a) => a.toUpperCase() === hit.ref.toUpperCase()) ?? hit.ref) : null;
+}
+
 /** Everything an event needs to say who acted. */
 export function actorFields(ctx: Ctx) {
 	return {
@@ -136,7 +163,11 @@ export function checkVersion(
 	}
 }
 
-export async function createItem(ctx: Ctx, raw: CreateItemInput) {
+/**
+ * Creates an item. Its reference is the project key and the creation minute in UTC (HAPR-20261017-0950, -b when the minute is taken).
+ * `now` is for tests that fix the clock; it is not part of the input, so a caller of the API cannot set it.
+ */
+export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?: Date } = {}) {
 	const input = createItemInput.parse(raw);
 	return run(ctx, async (tx) =>
 		idempotent(ctx, tx, async () => {
@@ -145,14 +176,22 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput) {
 			await rateLimit(tx, ctx, 'write');
 			await rateLimit(tx, ctx, 'create');
 			await requireOrgMember(tx, ctx, input.assigneeId);
-			const { number, ref } = await allocateItemNumber(tx, ctx.orgId, proj.id);
-			const [created] = await tx
-				.insert(item)
-				.values({
+			const { number } = await allocateItemNumber(tx, ctx.orgId, proj.id);
+			const candidates = await freeRefs(tx, ctx.orgId, proj.key, options.now ?? new Date());
+			if (!candidates.length) throw refsExhausted();
+			// An alias that equals the reference of an item would be shadowed by it, so it is refused
+			const clash = await aliasClash(tx, ctx.orgId, input.aliases, candidates);
+			if (clash)
+				throw new OpError(
+					'INVALID',
+					`"${clash}" is already the reference of an item, so it cannot be an alias.`
+				);
+			let created: ItemRow;
+			try {
+				created = await insertItemWithFreshRef(tx, candidates, {
 					orgId: ctx.orgId,
 					projectId: proj.id,
 					number,
-					ref,
 					title: input.title,
 					tabName: input.tabName ?? tabNameFromTitle(input.title),
 					stream: input.stream,
@@ -161,8 +200,12 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput) {
 					branchNote: input.branchNote ?? null,
 					assigneeId: input.assigneeId ?? null,
 					createdBy: ctx.actor.userId
-				})
-				.returning();
+				});
+			} catch (error) {
+				if (error instanceof RefSuffixesTaken) throw refsExhausted();
+				throw error;
+			}
+			const ref = created.ref;
 			let position = 0;
 			for (const p of input.phases) {
 				const [ph] = await tx
@@ -313,7 +356,7 @@ export async function listItems(ctx: Ctx, raw: z.input<typeof listItemsInput>) {
 			input.stream ? eq(item.stream, input.stream) : undefined,
 			input.scope ? eq(item.scope, input.scope) : undefined,
 			input.q?.trim()
-				? sql`(${item.ref} ilike ${escapeLike(input.q.trim()) + '%'} or ${item.title} ilike ${'%' + escapeLike(input.q.trim()) + '%'})`
+				? sql`(${item.ref} ilike ${escapeLike(input.q.trim()) + '%'} or ${item.title} ilike ${'%' + escapeLike(input.q.trim()) + '%'} or exists (select 1 from item_alias a where a.item_id = ${item.id} and a.alias ilike ${escapeLike(input.q.trim()) + '%'}))`
 				: undefined,
 			seeAll
 				? undefined

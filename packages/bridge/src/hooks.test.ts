@@ -374,6 +374,10 @@ describe('the git hook', () => {
 		expect(checkCommit('Fix the cards')).toMatch(/names no board item/);
 		expect(checkCommit('Fix the cards\n\nItem: CKT-12')).toBeNull();
 		expect(checkCommit('Fix the cards (CKT-12)')).toBeNull();
+		// The stamp form of a new item, with and without a suffix (FLOW-20261017-0950)
+		expect(checkCommit('Fix the cards (HAPR-20261017-0950)')).toBeNull();
+		expect(checkCommit('Fix the cards (HAPR-20261017-0950-b)')).toBeNull();
+		expect(checkCommit('Fix the cards\n\nItem: HAPR-20261017-0950')).toBeNull();
 		expect(checkCommit('Refs: FLOW-20261015-1120')).toBeNull();
 		expect(checkCommit('Mentions CKT-12 in a sentence')).toMatch(/names no board item/);
 	});

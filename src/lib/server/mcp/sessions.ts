@@ -19,7 +19,7 @@ export const SESSION_PREFIX = 's_';
 
 // -- FUNCTIONS -- //
 
-/** The title a session shows: TAB_NAME: REF, for example ROOM_TYPES: HAPR-142 (SPEC 7.1). */
+/** The title a session shows: TAB_NAME: REF, for example ROOM_TYPES: HAPR-20261017-0950 (SPEC 7.1). */
 export const displayTitle = (tabName: string | null, ref: string) => `${tabName ?? 'ITEM'}: ${ref}`;
 
 export type SessionInfo = {

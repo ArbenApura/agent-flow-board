@@ -58,6 +58,8 @@ describe('REST API', () => {
 	let w: World;
 	const storage = memoryStorage(SECRET);
 	let deps: ApiDeps;
+	/** The reference the first test gives its item; the later tests read it. */
+	let apiRef = '';
 	beforeAll(async () => {
 		db = await makePglite();
 		w = await makeWorld(db);
@@ -136,7 +138,9 @@ describe('REST API', () => {
 		});
 		expect(created.status).toBe(200);
 		const ref = (created.body as { ref: string }).ref;
-		expect(ref).toBe('API-1');
+		// A new item is named from the project key and the minute it was made in UTC
+		expect(ref).toMatch(/^API-\d{8}-\d{4}(-[a-z])?$/);
+		apiRef = ref;
 		const rec = await call('POST', `${base()}/items/${ref}/record`, {
 			as: 'member',
 			body: { marks: [{ key: '1.1', mark: 'done' }] }
@@ -173,7 +177,7 @@ describe('REST API', () => {
 			).status
 		).toBe(400);
 		expect((await call('GET', `${base()}/items/NO-1`, { as: 'member' })).status).toBe(404);
-		const wrong = await call('PUT', `${base()}/items/API-1`, { as: 'member', body: {} });
+		const wrong = await call('PUT', `${base()}/items/${apiRef}`, { as: 'member', body: {} });
 		expect(wrong.status).toBe(405);
 		expect(wrong.headers?.allow).toBe('GET, PATCH, DELETE');
 		expect((await call('GET', '/nothing', { as: 'member' })).status).toBe(404);
@@ -183,7 +187,7 @@ describe('REST API', () => {
 		const asOther = await handleApi(
 			{
 				method: 'GET',
-				path: `${base()}/items/API-1`,
+				path: `${base()}/items/${apiRef}`,
 				query: {},
 				headers: new Headers(),
 				body: new Uint8Array(),
@@ -231,17 +235,17 @@ describe('REST API', () => {
 	});
 
 	it('a stale write is a 409 with the current version', async () => {
-		const got = await call('GET', `${base()}/items/API-1`, { as: 'member' });
+		const got = await call('GET', `${base()}/items/${apiRef}`, { as: 'member' });
 		const v = (got.body as { item: { version: number } }).item.version;
 		expect(
 			(
-				await call('PATCH', `${base()}/items/API-1`, {
+				await call('PATCH', `${base()}/items/${apiRef}`, {
 					as: 'member',
 					body: { title: 'Renamed over REST', expectVersion: v }
 				})
 			).status
 		).toBe(200);
-		const stale = await call('PATCH', `${base()}/items/API-1`, {
+		const stale = await call('PATCH', `${base()}/items/${apiRef}`, {
 			as: 'member',
 			body: { title: 'Stale over REST', expectVersion: v }
 		});
@@ -268,14 +272,14 @@ describe('REST API', () => {
 			).status
 		).toBe(403);
 		// It can read and write what its permissions list
-		expect((await call('GET', `${base()}/items/API-1`, { token })).status).toBe(200);
-		const rec = await call('POST', `${base()}/items/API-1/record`, {
+		expect((await call('GET', `${base()}/items/${apiRef}`, { token })).status).toBe(200);
+		const rec = await call('POST', `${base()}/items/${apiRef}/record`, {
 			token,
 			body: { marks: [{ key: '1.2', mark: 'done' }] }
 		});
 		expect(rec.status).toBe(200);
 		// But not what it does not list
-		const done = await call('POST', `${base()}/items/API-1/status`, {
+		const done = await call('POST', `${base()}/items/${apiRef}/status`, {
 			token,
 			body: { status: 'COMPLETED', note: 'Closed by token' }
 		});
@@ -289,7 +293,7 @@ describe('REST API', () => {
 		).toBe(404);
 		// Revoked tokens stop at once
 		expect((await call('DELETE', `${base()}/tokens/${id}`, { as: 'member' })).status).toBe(200);
-		expect((await call('GET', `${base()}/items/API-1`, { token })).status).toBe(401);
+		expect((await call('GET', `${base()}/items/${apiRef}`, { token })).status).toBe(401);
 	});
 
 	it('COMPLETED over REST: refused while steps are open, refused to agents when the project keeps it for people, allowed to a person', async () => {
@@ -341,7 +345,7 @@ describe('REST API', () => {
 	});
 
 	it('uploads an attachment, hands out a signed link, and lets a person undo a change over REST', async () => {
-		const up = await call('POST', `${base()}/items/API-1/attachments`, {
+		const up = await call('POST', `${base()}/items/${apiRef}/attachments`, {
 			as: 'member',
 			query: { filename: 'proof.txt', caption: 'The proof' },
 			bytes: new TextEncoder().encode('proof text')
@@ -359,7 +363,7 @@ describe('REST API', () => {
 		);
 		const log = await call('GET', `${base()}/projects/API/events`, {
 			as: 'member',
-			query: { item: 'API-1' }
+			query: { item: apiRef }
 		});
 		const rename = (log.body as { id: number; verb: string; label: string }[]).find(
 			(e) => e.verb === 'item.update' && e.label === 'undoable'

@@ -53,7 +53,8 @@ describe.each([
 
 	async function newItem(title: string) {
 		return withTenant(db, tenant(), async (tx) => {
-			const { number, ref } = await allocateItemNumber(tx, s.orgA, s.projectA);
+			const { number } = await allocateItemNumber(tx, s.orgA, s.projectA);
+			const ref = `AAA-${number}`;
 			const [row] = await tx
 				.insert(item)
 				.values({ orgId: s.orgA, projectId: s.projectA, number, ref, title })

@@ -31,7 +31,9 @@ import {
 	uiChange,
 	uiShotRun
 } from '../src/lib/server/db/schema';
+import { freeRefs, insertItemWithFreshRef } from '../src/lib/server/db/flowId';
 import { withTenant } from '../src/lib/server/db/tenant';
+import { legacyMoment } from '../src/lib/shared/ref';
 import { createOrg, listMyOrgs } from '../src/lib/server/orgs/orgs';
 import { attachmentBytes } from './read';
 import { readBytes, sha256 } from './fsro';
@@ -186,7 +188,8 @@ async function writeItem(
 	const j: ItemJson | null = full ? full.json : null;
 	const flowId = j?.id ?? removed!.id;
 	const legacyId = j ? j.legacyId : removed!.legacyId;
-	const ref = `${o.project.key}-${number}`;
+	// Set when the item is inserted: its reference is the project key and the real moment of its legacy id, in UTC
+	let ref = '';
 	const itemId = randomUUID();
 	const created = dayStart(j?.created ?? dateOfId(flowId));
 	const updated = j ? new Date(j.updated) : dayStart(removed!.updated.slice(0, 10));
@@ -195,12 +198,30 @@ async function writeItem(
 		o.handle,
 		{ orgId: ids.orgId, projectId: ids.projectId, userId: o.ownerUserId },
 		async (tx) => {
-			await tx.insert(item).values({
+			// The reference comes from the legacy id's own date and time (+08:00, read as UTC), with the same candidate rules and
+			// savepoint retry as a new item, so importing into an org that already has items never stops halfway. An id without a valid time
+			// falls back to the creation day and is listed.
+			const moment = legacyMoment(flowId);
+			if (!moment)
+				notes.push(
+					`${flowId}: no valid time in the id, so its reference came from its creation day`
+				);
+			const free = await freeRefs(
+				tx,
+				ids.orgId,
+				o.project.key,
+				moment?.at ?? created,
+				moment?.suffix ?? ''
+			);
+			const oldRef = `${o.project.key}-${number}`;
+			// More than 26 in one minute is not expected; the old form keeps the item reachable and is listed
+			if (!free.length)
+				notes.push(`${flowId}: every suffix of its minute is taken, so it kept ${oldRef}`);
+			const row = await insertItemWithFreshRef(tx, free.length ? free : [oldRef], {
 				id: itemId,
 				orgId: ids.orgId,
 				projectId: ids.projectId,
 				number,
-				ref,
 				title: j?.title ?? ('removed' in src ? src.title : flowId),
 				tabName: j?.tabName ?? null,
 				stream: j?.stream ?? removed!.stream,
@@ -214,7 +235,11 @@ async function writeItem(
 				updatedAt: updated,
 				lastActivityAt: updated
 			});
-			const aliases = new Set<string>([flowId]);
+			ref = row.ref;
+			// The old reference stays as an alias too, so anything that used HAPR-2 keeps finding the item
+			const aliases = new Set<string>(
+				[flowId, oldRef].filter((a) => a.toUpperCase() !== ref.toUpperCase())
+			);
 			if (legacyId) aliases.add(legacyId);
 			for (const m of idMap) if (m.flow === flowId) aliases.add(m.legacy);
 			for (const alias of aliases)

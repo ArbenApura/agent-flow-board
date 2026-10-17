@@ -122,7 +122,13 @@ describe.each([
 
 	it('numbers items in id order and answers to the FLOW id and the legacy number', async () => {
 		const got = await rows((tx) => tx.select().from(item));
-		expect(got.map((i) => i.ref).sort()).toEqual(['HAPR-1', 'HAPR-2', 'HAPR-3', 'HAPR-4']);
+		// A reference is the project key and the real moment of the legacy id, in UTC: FLOW-20260925-1000 is 10:00 in +08:00, so 02:00
+		expect(got.map((i) => i.ref).sort()).toEqual([
+			'HAPR-20260921-0605',
+			'HAPR-20260925-0200',
+			'HAPR-20261010-0100',
+			'HAPR-20261011-0000'
+		]);
 		const [removed] = await rows((tx) => tx.select().from(item).where(eq(item.number, 1)));
 		expect(removed.title).toBe('sourcing-requirements-refactor');
 		expect(removed.status).toBe('COMPLETED');
@@ -135,18 +141,25 @@ describe.each([
 			.sort();
 		expect(aliases).toEqual(
 			[
-				'FEAT-003=HAPR-1',
-				'FEAT-016=HAPR-2',
-				'FLOW-20260921-1405=HAPR-1',
-				'FLOW-20260925-1000=HAPR-2',
-				'FLOW-20261010-0900=HAPR-3',
-				'FLOW-20261011-0800=HAPR-4'
+				'FEAT-003=HAPR-20260921-0605',
+				'FEAT-016=HAPR-20260925-0200',
+				'FLOW-20260921-1405=HAPR-20260921-0605',
+				'FLOW-20260925-1000=HAPR-20260925-0200',
+				'FLOW-20261010-0900=HAPR-20261010-0100',
+				'FLOW-20261011-0800=HAPR-20261011-0000',
+				// The old project key and number stay as aliases too
+				'HAPR-1=HAPR-20260921-0605',
+				'HAPR-2=HAPR-20260925-0200',
+				'HAPR-3=HAPR-20261010-0100',
+				'HAPR-4=HAPR-20261011-0000'
 			].sort()
 		);
 	});
 
 	it('keeps the plan: states, notes as reasons, manual checks, and a frozen percent for the legacy item', async () => {
-		const [fresh] = await rows((tx) => tx.select().from(item).where(eq(item.ref, 'HAPR-3')));
+		const [fresh] = await rows((tx) =>
+			tx.select().from(item).where(eq(item.ref, 'HAPR-20261010-0100'))
+		);
 		expect(fresh).toMatchObject({
 			status: 'IN PROGRESS',
 			tabName: 'NEW_THING',
@@ -168,14 +181,20 @@ describe.each([
 			reason: 'Arben, 2026-10-11, not needed any more'
 		});
 		expect(byKey['2.2'].state).toBe('superseded');
-		const [legacy] = await rows((tx) => tx.select().from(item).where(eq(item.ref, 'HAPR-2')));
+		const [legacy] = await rows((tx) =>
+			tx.select().from(item).where(eq(item.ref, 'HAPR-20260925-0200'))
+		);
 		expect(legacy).toMatchObject({ legacyPercent: 100, percent: 100, status: 'COMPLETED' });
-		const [priv] = await rows((tx) => tx.select().from(item).where(eq(item.ref, 'HAPR-4')));
+		const [priv] = await rows((tx) =>
+			tx.select().from(item).where(eq(item.ref, 'HAPR-20261011-0000'))
+		);
 		expect(priv.visibility).toBe('private');
 	});
 
 	it('reads decisions in both styles, the settled table, and keeps unstructured text whole', async () => {
-		const [fresh] = await rows((tx) => tx.select().from(item).where(eq(item.ref, 'HAPR-3')));
+		const [fresh] = await rows((tx) =>
+			tx.select().from(item).where(eq(item.ref, 'HAPR-20261010-0100'))
+		);
 		const decs = await rows((tx) =>
 			tx.select().from(decision).where(eq(decision.itemId, fresh.id))
 		);
@@ -192,13 +211,15 @@ describe.each([
 			['Who owns it?', 'The core team', 'the register | row 4']
 		]);
 		const sections = await db.admin.query<{ slug: string; body: string }>(
-			`select slug, body from section where item_id in (select id from item where ref = 'HAPR-2')`
+			`select slug, body from section where item_id in (select id from item where ref = 'HAPR-20260925-0200')`
 		);
 		expect(sections.find((s) => s.slug === 'decisions')?.body).toContain('We chose the simple way');
 	});
 
 	it('turns history and log lines into events with their old dates, and drops the generated block of PROGRESS.md', async () => {
-		const [fresh] = await rows((tx) => tx.select().from(item).where(eq(item.ref, 'HAPR-3')));
+		const [fresh] = await rows((tx) =>
+			tx.select().from(item).where(eq(item.ref, 'HAPR-20261010-0100'))
+		);
 		const events = await rows((tx) => tx.select().from(event).where(eq(event.itemId, fresh.id)));
 		expect(events.map((e) => e.verb).sort()).toEqual([
 			'item.create',
@@ -240,7 +261,9 @@ describe.each([
 	});
 
 	it('reads a file written with a byte order mark and Windows line breaks as plain text with LF', async () => {
-		const [win] = await rows((tx) => tx.select().from(item).where(eq(item.ref, 'HAPR-4')));
+		const [win] = await rows((tx) =>
+			tx.select().from(item).where(eq(item.ref, 'HAPR-20261011-0000'))
+		);
 		const [spec] = await db.admin.query<{ body: string }>(
 			`select body from section where item_id = '${win.id}' and slug = 'spec'`
 		);
@@ -248,7 +271,9 @@ describe.each([
 	});
 
 	it('keeps the UI changes table, the attachments (public and private) and the run results with their pictures', async () => {
-		const [fresh] = await rows((tx) => tx.select().from(item).where(eq(item.ref, 'HAPR-3')));
+		const [fresh] = await rows((tx) =>
+			tx.select().from(item).where(eq(item.ref, 'HAPR-20261010-0100'))
+		);
 		const ui = await rows((tx) => tx.select().from(uiChange).where(eq(uiChange.itemId, fresh.id)));
 		expect(ui).toHaveLength(5);
 		expect(ui.map((u) => u.page)).toEqual([
@@ -364,7 +389,9 @@ describe.each([
 	});
 
 	it('finds a changed step, a changed file in storage and a missing event, each by its content', async () => {
-		const [fresh] = await rows((tx) => tx.select().from(item).where(eq(item.ref, 'HAPR-3')));
+		const [fresh] = await rows((tx) =>
+			tx.select().from(item).where(eq(item.ref, 'HAPR-20261010-0100'))
+		);
 		const opts = {
 			handle: db,
 			storage,

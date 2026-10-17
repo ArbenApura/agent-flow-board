@@ -79,6 +79,12 @@ describe('small helpers', () => {
 		expect(
 			trailerRefs('feat: a thing (FLOW-20261015-1120)\n\nRefs: CKT-3, WEB-9\nCloses: CKT-3')
 		).toEqual(['CKT-3', 'WEB-9', 'FLOW-20261015-1120']);
+		// The stamp form of a new item, with and without a suffix (FLOW-20261017-0950)
+		expect(trailerRefs('Fix cards (HAPR-20261017-0950)')).toEqual(['HAPR-20261017-0950']);
+		expect(trailerRefs('Fix cards\n\nRefs: HAPR-20261017-0950-b, CKT-3')).toEqual([
+			'HAPR-20261017-0950-b',
+			'CKT-3'
+		]);
 		expect(trailerRefs('Mentions CKT-12 in the middle of a sentence')).toEqual([]);
 		const ok = checkSummary([{ sha: 'a'.repeat(40), itemRef: 'CKT-1', recorded: true }], []);
 		expect(ok.conclusion).toBe('success');

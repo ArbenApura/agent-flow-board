@@ -25,6 +25,8 @@
 		"perf": "node tests/perf/run.mjs",
 		"ui-shots": "tsx tests/ui-shots/run.ts",
 		"db": "tsx scripts/db.ts",
+		"db:rename-refs": "tsx scripts/rename-item-refs.ts",
+		"db:local:rename-refs": "cross-env DATABASE_URL=postgres://postgres:localpostgrespassword@127.0.0.1:5433/afb AFB_ALLOW_RENAME_REMOTE=1 tsx scripts/rename-item-refs.ts",
 		"db:up": "docker compose -f deploy/local/compose.yaml up -d --wait",
 		"db:down": "docker compose -f deploy/local/compose.yaml down",
 		"db:local:reset": "docker compose -f deploy/local/compose.yaml down -v && yarn db:up && yarn db:local:migrate",

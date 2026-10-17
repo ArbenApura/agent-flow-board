@@ -49,7 +49,7 @@ export const item = tenantTable(
 		projectId: projectId(),
 		/** Per project number, from the locked project_counter row. */
 		number: integer('number').notNull(),
-		/** The readable reference, for example HAPR-142. Unique inside the org. */
+		/** The readable reference, for example HAPR-20261017-0950 (the project key and the minute it was made, in UTC); older items may still carry HAPR-142. Unique inside the org. */
 		ref: text('ref').notNull(),
 		title: text('title').notNull(),
 		/** 1 to 3 words, UPPERCASE with underscores, at most 30 characters (SPEC 5). */

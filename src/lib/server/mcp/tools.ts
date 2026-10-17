@@ -93,7 +93,7 @@ const need = (named: string | undefined, claimed: string | null): string => {
 	if (!name) throw new OpError('INVALID', 'Name an item, or claim one with work_start.');
 	return name;
 };
-const itemName = z.string().describe('An item id, reference (CKT-12) or an old alias');
+const itemName = z.string().describe('An item id, reference (CKT-20261017-0950) or an old alias');
 
 // -- FUNCTIONS -- //
 

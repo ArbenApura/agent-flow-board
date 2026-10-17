@@ -56,7 +56,7 @@ export function uninstallGitHook(repo: string): boolean {
 /** The warning for a commit message, or null when it names an item. */
 export function checkCommit(message: string): string | null {
 	if (TRAILER.test(message) || SUBJECT_REF.test((message.split('\n')[0] ?? '').trim())) return null;
-	return 'This commit names no board item. Add a line such as "Item: CKT-12" to the message, or ignore this when the work belongs to no item. The board only warns.';
+	return 'This commit names no board item. Add a line such as "Item: CKT-20261017-0950" to the message, or ignore this when the work belongs to no item. The board only warns.';
 }
 
 export function lastCommitMessage(repo: string): string {

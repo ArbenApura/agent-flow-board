@@ -46,6 +46,20 @@ To run against Supabase instead, put `AFB_BASE_URL=http://localhost:5180`, a `BE
 
 The database is PostgreSQL on Supabase (the session pooler, port 5432). `DATABASE_URL` in `.env` points at it, so the dev server and the build preview on 5180 both use it, and `AFB_DB_DIR` is ignored while `DATABASE_URL` is set. A local PGlite database (a folder, or in memory with `AFB_DB_DIR=memory`) is used only when `DATABASE_URL` is empty, and only for tests and offline work. `AFB_AUTO_MIGRATE=1` and `AFB_SEED_DEMO=1` act on whichever database is in use, so leave them out of any `.env` that points at data you want to keep. After `yarn db migrate`, run `deploy/supabase/lock-public-api.sql` as the `postgres` role (see [docs/cloudflare.md](docs/cloudflare.md)). Every variable is described in `src/env.ts`, and a missing required one stops the app at start with a plain message.
 
+### Item references
+
+A new item is named from its project key and the minute it was made in UTC, for example `HAPR-20261017-0950`. When two items of one project share a minute the second is `HAPR-20261017-0950-b`, then `-c`, up to `-z`. Older items were named `HAPR-2`, a key and a number. Every old name keeps working, because renaming an item keeps its old reference (and any HAPR Board id such as `FLOW-20261014-1047`) as an alias.
+
+One script renames the older items. It is a dry run unless you add `--apply`: it prints, per organisation, what would change and writes nothing.
+
+```
+yarn db:local:rename-refs            # the local Docker database: dry run, prints every rename
+yarn db:local:rename-refs --apply    # makes the changes, one transaction per organisation
+yarn db:rename-refs                  # the local PGlite folder (.afb/dev-db), or the DATABASE_URL set in your shell (it does not read .env)
+```
+
+An imported plan takes the date and time of its HAPR Board id (the Board wrote it in +08:00, so `FLOW-20261014-1047` becomes `HAPR-20261014-0247`); an item made here takes its creation time. An item already in the new form is left alone, so a second run changes nothing. For any `DATABASE_URL` other than the local script, `--apply` also needs `AFB_ALLOW_RENAME_REMOTE=1`. **Never run it with `--apply` on a real database before reading its dry run, and only when the owner has said to.** It reads the list of organisations with the owner connection and does everything else as `app_runtime`.
+
 ## The gates
 
 | Command                                       | What it checks                                                             |

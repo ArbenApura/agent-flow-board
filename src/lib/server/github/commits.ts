@@ -150,7 +150,7 @@ export function checkSummary(
 	for (const r of rows) {
 		if (!r.itemRef)
 			lines.push(
-				`- ${r.sha.slice(0, 7)} is not linked to any item. Name one in the message (Item: CKT-12) or claim it before committing.`
+				`- ${r.sha.slice(0, 7)} is not linked to any item. Name one in the message (Item: CKT-20261017-0950) or claim it before committing.`
 			);
 		else if (!r.recorded)
 			lines.push(
