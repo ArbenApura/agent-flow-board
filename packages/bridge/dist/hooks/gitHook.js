@@ -15,41 +15,42 @@ const TRAILER = /^(?:board-item|items?|refs?|closes|fixes)\s*:\s*\S/im;
 const SUBJECT_REF = /\([A-Za-z][A-Za-z0-9]{1,9}-[A-Za-z0-9][A-Za-z0-9-]{0,30}\)\s*$/;
 // -- FUNCTIONS -- //
 function hookPath(repo) {
-	const rel = execFileSync('git', ['-C', repo, 'rev-parse', '--git-path', 'hooks/post-commit'], {
-		encoding: 'utf8'
-	}).trim();
-	return resolve(repo, rel);
+    const rel = execFileSync('git', ['-C', repo, 'rev-parse', '--git-path', 'hooks/post-commit'], {
+        encoding: 'utf8'
+    }).trim();
+    return resolve(repo, rel);
 }
 /** Adds the warning to the repository's post-commit hook, next to anything already there. Returns the file. */
 export function installGitHook(repo) {
-	const path = hookPath(repo);
-	const existing = existsSync(path) ? readFileSync(path, 'utf8') : null;
-	if (existing?.includes(START)) return { path, created: false };
-	mkdirSync(dirname(path), { recursive: true });
-	const head = existing ?? '#!/bin/sh\n';
-	writeFileSync(path, `${head.replace(/\n*$/, '\n')}\n${BLOCK}\n`);
-	chmodSync(path, 0o755);
-	return { path, created: existing === null };
+    const path = hookPath(repo);
+    const existing = existsSync(path) ? readFileSync(path, 'utf8') : null;
+    if (existing?.includes(START))
+        return { path, created: false };
+    mkdirSync(dirname(path), { recursive: true });
+    const head = existing ?? '#!/bin/sh\n';
+    writeFileSync(path, `${head.replace(/\n*$/, '\n')}\n${BLOCK}\n`);
+    chmodSync(path, 0o755);
+    return { path, created: existing === null };
 }
 /** Removes only the block this tool wrote. A hook that held nothing else is left empty of it. */
 export function uninstallGitHook(repo) {
-	const path = hookPath(repo);
-	if (!existsSync(path)) return false;
-	const text = readFileSync(path, 'utf8');
-	if (!text.includes(START)) return false;
-	const start = text.indexOf(START);
-	const end = text.indexOf(END, start);
-	writeFileSync(
-		path,
-		(text.slice(0, start) + text.slice(end + END.length)).replace(/\n{3,}/g, '\n\n')
-	);
-	return true;
+    const path = hookPath(repo);
+    if (!existsSync(path))
+        return false;
+    const text = readFileSync(path, 'utf8');
+    if (!text.includes(START))
+        return false;
+    const start = text.indexOf(START);
+    const end = text.indexOf(END, start);
+    writeFileSync(path, (text.slice(0, start) + text.slice(end + END.length)).replace(/\n{3,}/g, '\n\n'));
+    return true;
 }
 /** The warning for a commit message, or null when it names an item. */
 export function checkCommit(message) {
-	if (TRAILER.test(message) || SUBJECT_REF.test((message.split('\n')[0] ?? '').trim())) return null;
-	return 'This commit names no board item. Add a line such as "Item: CKT-12" to the message, or ignore this when the work belongs to no item. The board only warns.';
+    if (TRAILER.test(message) || SUBJECT_REF.test((message.split('\n')[0] ?? '').trim()))
+        return null;
+    return 'This commit names no board item. Add a line such as "Item: CKT-20261017-0950" to the message, or ignore this when the work belongs to no item. The board only warns.';
 }
 export function lastCommitMessage(repo) {
-	return execFileSync('git', ['-C', repo, 'log', '-1', '--format=%B'], { encoding: 'utf8' });
+    return execFileSync('git', ['-C', repo, 'log', '-1', '--format=%B'], { encoding: 'utf8' });
 }
