@@ -7,11 +7,14 @@
 	let {
 		value,
 		label,
+		fill = 'bg-accent',
 		class: extra
 	}: {
 		/** 0 to 100. */
 		value: number;
 		label: string;
+		/** A background class for the filled part. Defaults to the accent. */
+		fill?: string;
 		class?: string;
 	} = $props();
 
@@ -30,5 +33,5 @@
 	class={cn('h-1.5 w-full overflow-hidden rounded-full bg-raised', extra)}
 >
 	<!-- DYNAMIC RUNTIME WIDTH -->
-	<div class="h-full rounded-full bg-accent" style="width:{pct}%"></div>
+	<div class={cn('h-full rounded-full', fill)} style="width:{pct}%"></div>
 </div>

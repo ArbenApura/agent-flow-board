@@ -20,6 +20,9 @@
 	--success-soft: #ddf3e4;
 	--info: #1565c0;
 	--info-soft: #dcebfa;
+	/* BOARD ONLY, FIXED FOR EVERY ORG PALETTE: TESTING AND ON HOLD NEED THEIR OWN HUES SO NO TWO STATUSES SHARE A COLOUR */
+	--testing: #6d28d9;
+	--hold: #be185d;
 	--overlay: rgb(10 12 16 / 0.45);
 	--ripple: rgb(22 24 29 / 0.14);
 	--shadow-pop: 0 8px 24px rgb(0 0 0 / 0.12);
@@ -54,6 +57,8 @@
 	--success-soft: #123322;
 	--info: #79b8ff;
 	--info-soft: #12294a;
+	--testing: #a78bfa;
+	--hold: #f472b6;
 	--overlay: rgb(0 0 0 / 0.6);
 	--ripple: rgb(236 238 241 / 0.16);
 	--shadow-pop: 0 8px 24px rgb(0 0 0 / 0.5);
@@ -86,6 +91,8 @@
 	--color-success-soft: var(--success-soft);
 	--color-info: var(--info);
 	--color-info-soft: var(--info-soft);
+	--color-testing: var(--testing);
+	--color-hold: var(--hold);
 	--color-band: var(--band);
 	--color-bar: var(--bar);
 }

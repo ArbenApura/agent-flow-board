@@ -6,10 +6,12 @@ import { sql } from 'drizzle-orm';
 // -- MODULES -- //
 import { getAuth } from '#lib/server/auth/index.js';
 import { getDb } from '#lib/server/db/index.js';
+import { continueChoice } from '#lib/server/db/zod.js';
 import { userPref } from '#lib/server/db/schema/index.js';
 import { withTenant } from '#lib/server/db/tenant.js';
 import { listTokens } from '#lib/server/ops/tokens.js';
 import { listMyOrgs } from '#lib/server/orgs/orgs.js';
+import { saveContinueChoice } from '#lib/server/web/continuePref.js';
 import { requireUser } from '#lib/server/web/ctx.js';
 import { MODE_COOKIE, parseMode } from '#lib/theme/mode.js';
 
@@ -129,6 +131,20 @@ export const actions: Actions = {
 		} catch (e) {
 			return fail(400, { message: messageOf(e, 'The other sessions could not be ended.') });
 		}
+	},
+
+	/** The tool and the way "Continue with" starts with. Only these two columns change. */
+	continue: async ({ locals, request }) => {
+		const user = requireUser(locals, '/settings');
+		const f = await request.formData();
+		const parsed = continueChoice.safeParse({
+			continueTool: f.get('continueTool'),
+			continueMode: f.get('continueMode')
+		});
+		if (!parsed.success)
+			return fail(400, { message: parsed.error.issues[0]?.message ?? 'Pick a tool and a way.' });
+		await saveContinueChoice(user.id, parsed.data);
+		return { saved: 'continue' };
 	},
 
 	prefs: async ({ locals, request, cookies }) => {

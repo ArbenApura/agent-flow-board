@@ -239,6 +239,7 @@
 <div class="flex flex-col gap-6" data-testid="plan-tab">
 	{#if detail.phases.length === 0}
 		<EmptyState
+			kind="plan"
 			title="This item has no phases yet"
 			text="A plan is phases with steps. Add the first phase here, or let a connected tool write it."
 		>
@@ -276,6 +277,7 @@
 
 	{#if show === 'open' && phases.length > 0 && shownPhases.length === 0}
 		<EmptyState
+			kind="plan"
 			title="All steps are done"
 			text="Nothing is open in this plan. Switch to all steps to see them."
 		/>

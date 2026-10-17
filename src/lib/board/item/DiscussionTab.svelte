@@ -70,7 +70,11 @@
 	{/if}
 
 	{#if extras.comments.length === 0}
-		<EmptyState title="No comments yet" text="Questions and notes about this item go here." />
+		<EmptyState
+			kind="discussion"
+			title="No comments yet"
+			text="Questions and notes about this item go here."
+		/>
 	{:else}
 		<ul class="flex flex-col gap-4">
 			{#each extras.comments as c (c.id)}

@@ -16,6 +16,7 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 // -- MODULES -- //
+import { CONTINUE_MODES, CONTINUE_TOOL_IDS } from '../../../shared/continue';
 import { ROLES, id, oneOf, stamps, tenantTable, version } from './helpers';
 
 // -- TYPES -- //
@@ -215,15 +216,25 @@ export const orgDeletionLog = tenantTable(
 
 // -- USER PREFERENCES (one row per person, readable by that person only) -- //
 
-export const userPref = pgTable('user_pref', {
-	userId: text('user_id')
-		.primaryKey()
-		.references(() => user.id, { onDelete: 'cascade' }),
-	themeMode: text('theme_mode').notNull().default('system'),
-	accent: text('accent'),
-	checkTarget: text('check_target'),
-	notifications: jsonb('notifications')
-		.notNull()
-		.default(sql`'{}'::jsonb`),
-	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
-});
+export const userPref = pgTable(
+	'user_pref',
+	{
+		userId: text('user_id')
+			.primaryKey()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		themeMode: text('theme_mode').notNull().default('system'),
+		accent: text('accent'),
+		checkTarget: text('check_target'),
+		notifications: jsonb('notifications')
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		/** The tool the "Continue with" action starts with, and how it carries on (FLOW-20261017-0916). */
+		continueTool: text('continue_tool').notNull().default('claude-code'),
+		continueMode: text('continue_mode').notNull().default('vscode'),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [
+		oneOf('user_pref_continue_tool_chk', t.continueTool, CONTINUE_TOOL_IDS),
+		oneOf('user_pref_continue_mode_chk', t.continueMode, CONTINUE_MODES)
+	]
+);

@@ -203,15 +203,21 @@
 	/>
 
 	{#if !pub}
-		<EmptyState title="Not available" text="You do not have access to this project." />
+		<EmptyState
+			kind="locked"
+			title="Not available"
+			text="You do not have access to this project."
+		/>
 	{:else if !pub.configured}
 		<EmptyState
+			kind="unplugged"
 			title="GitHub publishing is not set up on this server"
 			text="An operator adds the GitHub App settings to the server first. Plans stay in this app either way."
 		/>
 	{:else if !link}
 		{#if !pub.canPublish}
 			<EmptyState
+				kind="repo"
 				title="No repository is connected"
 				text="An admin or owner can connect a GitHub repository to publish this project."
 			/>

@@ -52,7 +52,10 @@
 <div
 	role="radiogroup"
 	aria-label={label}
-	class={cn('inline-flex rounded-lg border border-line bg-raised p-0.5', extra)}
+	class={cn(
+		'inline-flex h-10 shrink-0 items-stretch rounded-lg border border-line bg-raised p-0.5 max-sm:h-11',
+		extra
+	)}
 >
 	{#each options as opt, i (opt.value)}
 		<button
@@ -63,7 +66,7 @@
 			onclick={() => pick(opt.value)}
 			onkeydown={(e) => onKey(e, i)}
 			class={cn(
-				'h-9 min-w-16 cursor-pointer rounded-md px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent max-sm:h-11',
+				'h-full min-w-16 cursor-pointer rounded-md px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
 				value === opt.value
 					? 'bg-surface text-ink shadow-[0_0_0_1px_var(--line)]'
 					: 'text-muted hover:text-ink'

@@ -146,6 +146,7 @@
 	{/if}
 	{#if detail.sections.length === 0}
 		<EmptyState
+			kind="docs"
 			title="No documents yet"
 			text="Sections hold the spec, the plan notes and the validation steps of this item, written in Markdown."
 		/>

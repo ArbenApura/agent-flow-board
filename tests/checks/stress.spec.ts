@@ -53,54 +53,21 @@ for (const width of [1440, 390]) {
 	});
 }
 
-test('M2 the board drawer opens from a card, has its own address, and Back closes it', async ({
-	browser,
-	baseURL
-}) => {
+test('M2 a board card opens the item page directly', async ({ browser, baseURL }) => {
 	const ctx = await browser.newContext({ baseURL, viewport: { width: 1440, height: 900 } });
 	const page = await ctx.newPage();
 	await signIn(page, 'owner@acme.example');
 	await page.goto('/acme/CKT');
 	await page.getByTestId('item-card').first().click();
-	await expect(page).toHaveURL(/item=CKT-\d/);
-	const peek = page.getByTestId('item-peek');
-	await expect(peek).toBeVisible();
-	await expect(peek.getByRole('progressbar')).toBeVisible();
-	// A shared link opens the same drawer
-	const link = page.url();
-	await page.goto('/acme/CKT');
-	await expect(page.getByTestId('item-peek')).toHaveCount(0);
-	await page.goto(link);
-	await expect(page.getByTestId('item-peek')).toBeVisible();
-	// Escape closes it and clears the address
-	await page.keyboard.press('Escape');
-	await expect(page.getByTestId('item-peek')).toHaveCount(0);
-	await expect(page).not.toHaveURL(/item=/);
-	// The full page is one click away
-	await page.getByTestId('item-card').first().click();
-	await page.getByTestId('peek-open').click();
 	await expect(page).toHaveURL(/\/acme\/CKT\/CKT-\d+$/);
 	await ctx.close();
 });
 
-test('M2 a stale settings tab opens the first tab, and Back closes the board drawer', async ({
-	browser,
-	baseURL
-}) => {
+test('M2 a stale settings tab opens the first tab', async ({ browser, baseURL }) => {
 	const ctx = await browser.newContext({ baseURL, viewport: { width: 1440, height: 900 } });
 	const page = await ctx.newPage();
 	await signIn(page, 'owner@acme.example');
 	await page.goto('/acme/settings?tab=no-such-section');
 	await expect(page.getByTestId('section-general')).toBeVisible();
-	await page.goto('/acme/CKT');
-	await page.getByTestId('item-card').first().click();
-	await expect(page.getByTestId('item-peek')).toBeVisible();
-	await page.goBack();
-	await expect(page.getByTestId('item-peek')).toHaveCount(0);
-	await expect(page).toHaveURL(/\/acme\/CKT$/);
-	// A link to an item that does not exist leaves no drawer and no stuck address
-	await page.goto('/acme/CKT?item=ZZZ-9999');
-	await expect(page.getByTestId('item-peek')).toHaveCount(0);
-	await expect(page).not.toHaveURL(/item=/);
 	await ctx.close();
 });

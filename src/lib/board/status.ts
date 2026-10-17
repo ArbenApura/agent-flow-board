@@ -40,6 +40,27 @@ export const STATUS_TONE: Record<Status, Tone> = {
 	REMOVED: 'danger'
 };
 
+/** The dot and the top edge of a status on the board. Fixed status tokens, never the org accent. */
+export const STATUS_STYLE: Record<Status, { dot: string; top: string; rail: string }> = {
+	PLANNED: { dot: 'bg-muted', top: 'border-t-muted', rail: 'bg-muted' },
+	'IN PROGRESS': { dot: 'bg-info', top: 'border-t-info', rail: 'bg-info' },
+	TESTING: { dot: 'bg-testing', top: 'border-t-testing', rail: 'bg-testing' },
+	'IN REVIEW': { dot: 'bg-warning', top: 'border-t-warning', rail: 'bg-warning' },
+	'ON HOLD': { dot: 'bg-hold', top: 'border-t-hold', rail: 'bg-hold' },
+	COMPLETED: { dot: 'bg-success', top: 'border-t-success', rail: 'bg-success' },
+	REMOVED: { dot: 'bg-danger', top: 'border-t-danger', rail: 'bg-danger' }
+};
+
+/** The column widths of the list view, shared by its header and its rows so they line up. Smaller screens drop the wider columns. */
+export const LIST_COLS = {
+	// Room for a stamped reference such as HAPR-20261017-0950-b (about 20 characters in mono); on a phone it wraps at its dashes
+	ref: 'w-40 shrink-0 max-sm:w-28',
+	status: 'w-32 shrink-0',
+	progress: 'w-44 shrink-0 max-lg:hidden',
+	area: 'w-40 shrink-0 max-md:hidden',
+	updated: 'w-28 shrink-0 text-right max-sm:hidden'
+};
+
 /** The dot colour of a project's colour tag. Tokens only, so the dot follows the theme. */
 export const TAG_DOT: Record<string, string> = {
 	blue: 'bg-info',

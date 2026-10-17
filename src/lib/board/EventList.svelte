@@ -123,7 +123,7 @@
 
 {#if events.length === 0}
 	<EmptyState
-		kind="inbox"
+		kind="events"
 		title="Nothing has happened here yet"
 		text="Changes to this project show up here, newest first."
 	/>

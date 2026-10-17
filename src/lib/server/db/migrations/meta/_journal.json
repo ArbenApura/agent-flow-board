@@ -43,6 +43,13 @@
 			"when": 1792167335105,
 			"tag": "0005_big_the_watchers",
 			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1792200164620,
+			"tag": "0006_cooing_skin",
+			"breakpoints": true
 		}
 	]
 }

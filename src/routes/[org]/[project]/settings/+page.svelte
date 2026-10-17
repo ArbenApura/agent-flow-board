@@ -10,6 +10,7 @@
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import { tagDot } from '#lib/board/status.js';
 	import BrowserChecks from '#lib/settings/BrowserChecks.svelte';
 	import { canon, createFollower } from '#lib/settings/follow.js';
 	import Section from '#lib/settings/Section.svelte';
@@ -29,6 +30,8 @@
 	import Activity from '@lucide/svelte/icons/activity';
 	import Image from '@lucide/svelte/icons/image';
 	import Download from '@lucide/svelte/icons/download';
+	import Trash from '@lucide/svelte/icons/trash';
+	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 
 	// -- REQUIRED PROPS -- //
 
@@ -193,7 +196,11 @@
 
 	<SettingsShell>
 		{#if !p}
-			<EmptyState title="Not available" text="You do not have access to this project." />
+			<EmptyState
+				kind="locked"
+				title="Not available"
+				text="You do not have access to this project."
+			/>
 		{:else}
 			<Section
 				id="general"
@@ -210,19 +217,24 @@
 			>
 				<TextField
 					label="Project name"
+					hint={`Its key is ${p.key} and does not change.`}
 					bind:value={name}
 					disabled={!can}
 					data-testid="project-name-input"
 				/>
-				<div class="text-xs text-muted">Its key is {p.key} and does not change.</div>
+
 				<SelectField
 					label="Colour tag"
 					hint="A small dot beside the project name in the project list."
 					value={tag}
-					options={TAGS.map((t) => ({ value: t, label: t === '' ? 'No colour' : t }))}
+					options={TAGS.map((t) => ({
+						value: t,
+						label: t === '' ? 'No colour' : t.charAt(0).toUpperCase() + t.slice(1),
+						dot: t === '' ? undefined : tagDot(t)
+					}))}
 					onchange={(v) => (tag = v)}
 					disabled={!can}
-					class="w-48"
+					class="max-w-96"
 				/>
 				<Switch
 					label="This project is a web app"
@@ -459,10 +471,15 @@
 				can={can ?? false}
 			/>
 
-			<Section id="trash" title="Trash" text="Items, tasks and files you remove stay for 30 days.">
+			<Section
+				id="trash"
+				icon={Trash}
+				title="Trash"
+				text="Items, tasks and files you remove stay for 30 days."
+			>
 				<div>
-					<a class="text-sm text-accent-text hover:underline" href={`/${org}/${key}/trash`}
-						>Open the trash</a
+					<Button href={`/${org}/${key}/trash`} data-testid="open-trash"
+						>Open the trash <ArrowRight size={16} /></Button
 					>
 				</div>
 			</Section>

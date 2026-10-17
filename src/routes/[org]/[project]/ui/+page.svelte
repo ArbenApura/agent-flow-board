@@ -36,9 +36,14 @@
 	/>
 
 	{#if !ui}
-		<EmptyState title="Not available" text="You do not have access to this project." />
+		<EmptyState
+			kind="locked"
+			title="Not available"
+			text="You do not have access to this project."
+		/>
 	{:else if ui.runs.length === 0}
 		<EmptyState
+			kind="shots"
 			title="No UI shots yet"
 			text="Open an item that adds or changes a screen, list its pages on the UI changes tab, and run the shots."
 		/>

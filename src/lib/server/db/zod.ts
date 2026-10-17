@@ -5,6 +5,7 @@
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-zod';
 import { z } from 'zod';
 // -- MODULES -- //
+import { CONTINUE_MODES, CONTINUE_TOOL_IDS, validPair } from '../../shared/continue';
 import {
 	STATE_STEP,
 	TAB_NAME,
@@ -31,7 +32,8 @@ import {
 	session,
 	step,
 	task,
-	uiChange
+	uiChange,
+	userPref
 } from './schema';
 
 // -- CONSTANTS -- //
@@ -127,5 +129,20 @@ export const uiChangeInput = z.object({
 });
 export const uiChangeInsert = createInsertSchema(uiChange);
 export type UiChangeInput = z.infer<typeof uiChangeInput>;
+
+/**
+ * The "Continue with" choice of a person: a tool and a way. Open in VS Code is only valid with a tool that has the link.
+ * Built from the user_pref table, so the enums are the same list the database check uses.
+ */
+export const continueChoice = createUpdateSchema(userPref, {
+	continueTool: z.enum(CONTINUE_TOOL_IDS),
+	continueMode: z.enum(CONTINUE_MODES)
+})
+	.pick({ continueTool: true, continueMode: true })
+	.required()
+	.refine((v) => validPair(v.continueTool, v.continueMode), {
+		message: 'Open in VS Code works with Claude Code only. Pick Copy command or Copy prompt.',
+		path: ['continueMode']
+	});
 
 export { tabName as tabNameSchema };

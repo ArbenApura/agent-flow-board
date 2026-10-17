@@ -136,6 +136,7 @@
 
 	{#if extras.attachments.length === 0}
 		<EmptyState
+			kind="files"
 			title="No files attached"
 			text="Screenshots, documents and check results attached to this item appear here. Files are private by default."
 		/>

@@ -77,6 +77,7 @@
 
 	{#if detail.decisions.length === 0}
 		<EmptyState
+			kind="decisions"
 			title="No decisions recorded"
 			text="Decisions explain why the work is built the way it is. Choices made without asking go in the settled list, so they can be overruled."
 		/>

@@ -70,6 +70,16 @@ Every page after sign in sits in one shell, a sidebar on the left and a top bar 
 - **The loading placeholder draws this shell** (`#afb-boot` in `src/app.html`): the rail, the top bar and the shape the page had last time. A new page shape adds its own block there and sets `data-org` in the boot script.
 - **Database round trips are a design input.** The database can be far from the person developing, so a page that makes many queries in a row is slow. Run independent loads in parallel and avoid a transaction for a check that rarely changes.
 
+## Continue with
+
+`ContinueDialog` (`src/lib/board/`) hands an item to the person's coding tool: Claude Code by default, or Codex, Gemini CLI or a plain copy. The tool and the usual way are set per person in Your settings, "Continue with".
+
+- It shows as a small secondary button next to "Change status" on the item page, and as a small play button on a board card (on hover on a wide screen, always on a phone at 44 px). The card button is a sibling of the card link and never inside it, so a click cannot open the item or start a drag. It is never the primary action.
+- The dialog follows the other dialogs: a way picker, one primary button named for the way, and a normal secondary Cancel beside it, right aligned.
+- Only a person who can write sees it, and never on a COMPLETED or REMOVED item.
+- The web app cannot start a terminal on a PC, so there is no "run" button. The ways are Open in VS Code (Claude Code only), Copy command and Copy prompt. On a touch screen Copy prompt comes first.
+- **Free text never goes into a shell command.** The copied command carries only the item reference and fixed words. The title and the address appear in Copy prompt and the VS Code link only, with control characters removed and a length cap. See `src/lib/shared/continue.ts`.
+
 ## Background mesh
 
 `src/lib/ui/MeshField.svelte` draws a full page square mesh on a canvas, mounted first inside `AuthShell`'s `<main>`.
@@ -161,7 +171,7 @@ Spacing steps are 4, 8, 12, 16, 24, 32. Radius is 6 (chips and small controls), 
 
 ### Container (ADR-003)
 
-One frame holds the navigation and every page: max width 1280 px including the gutters, gutters 32 px on a desktop and 16 px on a phone, centred. It is `PageFrame` (`data-testid="page-frame"`; the navigation uses the same component as `nav-frame`). No page has its own width. A screen that reads best narrow keeps the frame and uses columns inside it. The page header (`PageHeader`) is the same on every page: title, one line of context, actions on the right. `tests/checks/frame.spec.ts` checks the left edge and width on every screen.
+One frame holds the navigation and every page: max width 1440 px including the gutters, gutters 32 px on a desktop and 16 px on a phone, centred. It is `PageFrame` (`data-testid="page-frame"`; the navigation uses the same component as `nav-frame`). No page has its own width. A screen that reads best narrow keeps the frame and uses columns inside it. The page header (`PageHeader`) is the same on every page: title, one line of context, actions on the right. `tests/checks/frame.spec.ts` checks the left edge and width on every screen.
 
 ### Disclosure (ADR-004)
 

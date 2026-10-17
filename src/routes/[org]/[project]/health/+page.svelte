@@ -107,9 +107,14 @@
 	{/if}
 
 	{#if !h}
-		<EmptyState title="Not available" text="You do not have access to this project." />
+		<EmptyState
+			kind="locked"
+			title="Not available"
+			text="You do not have access to this project."
+		/>
 	{:else if total === 0}
 		<EmptyState
+			kind="health"
 			title="Nothing needs attention"
 			text="Every commit is recorded, no claim is stale, and no item has drifted from its steps."
 		/>

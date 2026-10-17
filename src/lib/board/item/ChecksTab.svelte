@@ -261,6 +261,7 @@
 
 		{#if autoChecks.length === 0}
 			<EmptyState
+				kind="checks"
 				title="No automatic checks on this item"
 				text="A manual check marked [auto] can have a browser check. Add one to the plan first, then write its script here."
 			/>

@@ -13,7 +13,6 @@
 	import { styleFor } from '#lib/theme/css.js';
 	// -- COMPONENTS -- //
 	import ConfirmHost from '#lib/ui/ConfirmHost.svelte';
-	import Texture from '#lib/ui/Texture.svelte';
 	import Toaster from '#lib/ui/Toaster.svelte';
 
 	// -- REQUIRED PROPS -- //
@@ -55,7 +54,6 @@
 	{/if}
 </svelte:head>
 
-<Texture />
 <!-- A THIN PROGRESS BAR AT THE TOP WHILE ANOTHER PAGE LOADS, SO A CLICK ANSWERS AT ONCE -->
 {#if navigating.to}
 	<div

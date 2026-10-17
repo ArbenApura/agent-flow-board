@@ -78,6 +78,7 @@
 		<div class="grid items-stretch gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
 			<Card class="flex items-center justify-center">
 				<EmptyState
+					kind="projects"
 					title={canCreate ? 'Create your first project' : 'No projects yet'}
 					text={canCreate
 						? 'A project keeps the plans from your tools and your team in one place.'

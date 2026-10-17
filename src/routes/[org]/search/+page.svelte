@@ -60,6 +60,7 @@
 		<p class="text-sm text-muted">Type a word or a reference. Quotes find an exact phrase.</p>
 	{:else if data.hits.length === 0}
 		<EmptyState
+			kind="search"
 			title="Nothing found"
 			text={`No item, document, decision or task matches "${data.q}". Try fewer or different words.`}
 		/>

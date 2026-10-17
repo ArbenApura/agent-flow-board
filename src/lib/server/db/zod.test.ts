@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tabNameFromTitle } from '../../shared/uiChange';
-import { itemInsert, projectInsert, tabNameSchema, uiChangeInput } from './zod';
+import { continueChoice, itemInsert, projectInsert, tabNameSchema, uiChangeInput } from './zod';
 
 const ids = {
 	orgId: '00000000-0000-4000-8000-000000000001',
@@ -69,5 +69,34 @@ describe('project and UI change rules', () => {
 	it('refuses a state step that is not click, wait or scroll, and a route outside the app', () => {
 		expect(uiChangeInput.safeParse({ ...row, stateRecipe: 'submit:form' }).success).toBe(false);
 		expect(uiChangeInput.safeParse({ ...row, page: 'sign-in' }).success).toBe(false);
+	});
+});
+
+describe('continue choice', () => {
+	it('accepts a tool with a way it can do', () => {
+		for (const ok of [
+			{ continueTool: 'claude-code', continueMode: 'vscode' },
+			{ continueTool: 'claude-code', continueMode: 'command' },
+			{ continueTool: 'codex', continueMode: 'command' },
+			{ continueTool: 'other', continueMode: 'prompt' }
+		])
+			expect(continueChoice.safeParse(ok).success, JSON.stringify(ok)).toBe(true);
+	});
+	it('refuses Open in VS Code for a tool that has no link', () => {
+		expect(
+			continueChoice.safeParse({ continueTool: 'codex', continueMode: 'vscode' }).success
+		).toBe(false);
+		expect(
+			continueChoice.safeParse({ continueTool: 'gemini', continueMode: 'vscode' }).success
+		).toBe(false);
+	});
+	it('refuses an unknown tool or way and a missing field', () => {
+		expect(continueChoice.safeParse({ continueTool: 'x', continueMode: 'prompt' }).success).toBe(
+			false
+		);
+		expect(continueChoice.safeParse({ continueTool: 'codex', continueMode: 'run' }).success).toBe(
+			false
+		);
+		expect(continueChoice.safeParse({ continueTool: 'codex' }).success).toBe(false);
 	});
 });

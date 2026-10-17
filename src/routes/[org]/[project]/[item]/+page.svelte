@@ -8,9 +8,17 @@
 	// -- MODULES -- //
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { clearCache } from '#lib/board/swr.js';
+	import ContinueDialog from '#lib/board/ContinueDialog.svelte';
 	import EventList from '#lib/board/EventList.svelte';
 	import PlanTab from '#lib/board/item/PlanTab.svelte';
 	import { DRIFT_TEXT, STATUSES, STATUS_TONE, type Status } from '#lib/board/status.js';
+	import {
+		ACTION_LABEL,
+		CONTINUE_ACTIONS,
+		parseMode,
+		parseTool,
+		type ContinueAction
+	} from '#lib/shared/continue.js';
 	import ActionMenu from '#lib/ui/ActionMenu.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -29,6 +37,11 @@
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
 	import Activity from '@lucide/svelte/icons/activity';
+	import CheckCheck from '@lucide/svelte/icons/check-check';
+	import CircleHelp from '@lucide/svelte/icons/circle-help';
+	import MessageCircle from '@lucide/svelte/icons/message-circle';
+	import Play from '@lucide/svelte/icons/play';
+	import Target from '@lucide/svelte/icons/target';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Gavel from '@lucide/svelte/icons/gavel';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
@@ -83,6 +96,8 @@
 
 	let tabRow = $state<HTMLElement>();
 	let statusOpen = $state(false);
+	let continueOpen = $state(false);
+	let continueAction = $state<ContinueAction>('resume');
 	let nextStatus = $state('');
 	let note = $state('');
 	let statusError = $state('');
@@ -97,6 +112,28 @@
 	// -- REACTIVE STATES -- //
 
 	const d = $derived(data.detail as ItemView | null);
+	// "Continue with" hands the item to the person's coding tool. Not for a closed item.
+	const continueTool = $derived(parseTool(data.continueTool));
+	const ACTION_ICON = {
+		resume: Play,
+		ask: MessageCircle,
+		audit: CheckCheck,
+		critic: Target,
+		interview: CircleHelp
+	};
+	function openContinue(a: ContinueAction) {
+		continueAction = a;
+		continueOpen = true;
+	}
+	const continueItem = $derived(
+		d ? { ref: d.item.ref, title: d.item.title, href: page.url.pathname } : null
+	);
+	const canContinue = $derived(
+		!!d &&
+			(d.caps.includes('write') ?? false) &&
+			d.item.status !== 'COMPLETED' &&
+			d.item.status !== 'REMOVED'
+	);
 
 	// The streamed part (discussion, files, activity) is kept as the last answer that arrived. Every change in the project
 	// fetches a new promise, and a promise that is still pending would swap the tab for a skeleton and throw away a comment
@@ -291,8 +328,8 @@
 				<circle cx="200" cy="40" r="80" />
 				<circle cx="200" cy="40" r="105" />
 			</svg>
-			<div class="flex items-start justify-between gap-4">
-				<div class="min-w-0">
+			<div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+				<div class="min-w-0 flex-1 basis-72">
 					<a
 						href={`/${org}/${d.project.key}`}
 						class="mb-1 inline-block text-sm text-accent-text hover:underline">{d.project.name}</a
@@ -312,6 +349,28 @@
 						{d.item.title}
 					</h1>
 				</div>
+				<!-- THE WORKFLOWS A CODING TOOL CAN RUN FOR THIS ITEM. RESUME IS THE ONE PRIMARY ACTION OF THE PAGE -->
+				{#if canContinue}
+					<div
+						class="flex flex-wrap items-center gap-2"
+						role="group"
+						aria-label="Continue with a coding tool"
+						data-testid="continue-actions"
+					>
+						{#each CONTINUE_ACTIONS as a (a)}
+							{@const Icon = ACTION_ICON[a]}
+							<Button
+								size="sm"
+								variant={a === 'resume' ? 'primary' : 'secondary'}
+								onclick={() => openContinue(a)}
+								data-testid={`continue-${a}`}
+							>
+								<Icon size={16} aria-hidden="true" />
+								{ACTION_LABEL[a]}
+							</Button>
+						{/each}
+					</div>
+				{/if}
 				{#if env.canWrite}
 					<ActionMenu
 						label="Item actions"
@@ -501,6 +560,15 @@
 			{/if}
 		{/if}
 	</PageFrame>
+
+	<ContinueDialog
+		open={continueOpen}
+		onclose={() => (continueOpen = false)}
+		item={continueItem}
+		action={continueAction}
+		tool={continueTool}
+		mode={parseMode(data.continueMode)}
+	/>
 
 	<ResponsiveModal
 		open={statusOpen}

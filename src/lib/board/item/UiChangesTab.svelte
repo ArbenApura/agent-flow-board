@@ -419,6 +419,7 @@
 				{/each}
 				{#if pages.length === 0}
 					<EmptyState
+						kind="shots"
 						title="Nothing was measured at this width"
 						text="The table lists other widths or themes. Pick one of them above."
 					/>

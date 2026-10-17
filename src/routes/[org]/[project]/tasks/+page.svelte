@@ -110,7 +110,7 @@
 
 	{#if data.tasks.length === 0}
 		<EmptyState
-			kind="inbox"
+			kind="tasks"
 			title="No tasks yet"
 			text="Tasks are small jobs outside any plan. Add one, or link it to an item later."
 		/>

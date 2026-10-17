@@ -14,6 +14,11 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
+	// -- DEP-COMPONENTS -- //
+	import Globe from '@lucide/svelte/icons/globe';
+	import MonitorCheck from '@lucide/svelte/icons/monitor-check';
+	import Ruler from '@lucide/svelte/icons/ruler';
+	import Users from '@lucide/svelte/icons/users';
 
 	// -- TYPES -- //
 
@@ -245,6 +250,7 @@
 {:else}
 	<Section
 		id="checks-target"
+		icon={MonitorCheck}
 		title="Browser checks"
 		text="Where a check runs when nobody picks a target. The build preview never waits for a push or a deploy."
 		dirty={target !== defaultTarget}
@@ -265,6 +271,7 @@
 
 	<Section
 		id="environments"
+		icon={Globe}
 		title="Environments"
 		text="The addresses checks and UI shots open. A production site is read only unless you allow writes on purpose."
 	>
@@ -339,6 +346,7 @@
 
 	<Section
 		id="accounts"
+		icon={Users}
 		title="Test accounts"
 		text="People a run signs in as. The runner signs in for the script, which never sees the password. A saved password cannot be read back."
 	>
@@ -362,30 +370,22 @@
 		{/if}
 		{#if can}
 			<div class="flex flex-col gap-3 rounded-lg border border-line p-3">
-				<div class="flex flex-wrap items-end gap-2">
-					<TextField
-						label="Name"
-						bind:value={accName}
-						hint="default is used when a page names no account"
-						class="w-44"
-						data-testid="account-name"
-					/>
-					<TextField
-						label="Email"
-						type="email"
-						bind:value={accEmail}
-						class="min-w-56 flex-1"
-						data-testid="account-email"
-					/>
+				<!-- THREE FIELDS ON ONE GRID, SO THE LABELS AND THE FIELDS SHARE ONE TOP EDGE -->
+				<div class="grid items-start gap-3 sm:grid-cols-[11rem_1fr_1fr]">
+					<TextField label="Name" bind:value={accName} data-testid="account-name" />
+					<TextField label="Email" type="email" bind:value={accEmail} data-testid="account-email" />
 					<TextField
 						label="Password"
 						type="password"
 						autocomplete="new-password"
 						bind:value={accPassword}
-						class="min-w-48 flex-1"
 						data-testid="account-password"
 					/>
 				</div>
+				<p class="text-xs text-muted">
+					The account named default is used when a page names no account. A password needs at least
+					8 characters.
+				</p>
 				<div class="flex items-center gap-3">
 					<Button
 						variant="primary"
@@ -404,6 +404,7 @@
 
 	<Section
 		id="scale"
+		icon={Ruler}
 		title="Design scale"
 		text="The sizes your reference pages really use. UI shots flag a screen that steps off them. A level seen on fewer than 3 pages is left out."
 	>

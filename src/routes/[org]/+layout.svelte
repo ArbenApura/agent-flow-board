@@ -72,7 +72,9 @@
 		const path = page.url.pathname;
 		if (current) {
 			const tab = tabs.find((t) => (t.exact ? path === t.href : path.startsWith(t.href)));
+			// The organisation comes first, so a project page never shows one lone word in the bar
 			return [
+				{ label: data.org.name, href: base },
 				{ label: current.name, href: `${base}/${current.key}` },
 				...(tab && !tab.exact ? [{ label: tab.label, href: tab.href }] : [])
 			];

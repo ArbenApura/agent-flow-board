@@ -85,7 +85,7 @@
 <PageFrame class="flex flex-col gap-6 pb-12">
 	<PageHeader
 		title="Connect a tool"
-		context="Pick the tool you work in. Most sign you in through your browser."
+		context="Pick the tool you work in. Once it is connected, Continue with on an item starts it. Your usual tool is set in Your settings."
 		class="mb-0!"
 	>
 		{#snippet actions()}
@@ -136,6 +136,7 @@
 	{#if !data.org}
 		<Card padded={false}
 			><EmptyState
+				kind="org"
 				title="Create an organisation first"
 				text="Tools connect to one organisation. Create or join one, then come back here."
 			>

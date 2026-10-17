@@ -1,7 +1,13 @@
 <script module lang="ts">
 	// -- TYPES -- //
 
-	export type SelectOption = { value: string; label: string; hint?: string; disabled?: boolean };
+	export type SelectOption = {
+		value: string;
+		label: string;
+		hint?: string;
+		disabled?: boolean;
+		dot?: string;
+	};
 </script>
 
 <script lang="ts">
@@ -107,7 +113,11 @@
 				selected ? 'text-ink' : 'text-muted'
 			)}
 		>
-			<span class="truncate">{selected?.label ?? placeholder}</span>
+			<span class="flex min-w-0 items-center gap-2">
+				{#if selected?.dot}<span class={cn('size-2.5 shrink-0 rounded-full', selected.dot)}
+					></span>{/if}
+				<span class="truncate">{selected?.label ?? placeholder}</span>
+			</span>
 			<ChevronDown size={16} class="shrink-0 text-muted" />
 		</button>
 	{/snippet}
@@ -129,9 +139,12 @@
 					opt.disabled && 'cursor-not-allowed opacity-50'
 				)}
 			>
-				<span class="flex min-w-0 flex-col">
-					<span class="truncate">{opt.label}</span>
-					{#if opt.hint}<span class="truncate text-xs text-muted">{opt.hint}</span>{/if}
+				<span class="flex min-w-0 items-center gap-2">
+					{#if opt.dot}<span class={cn('size-2.5 shrink-0 rounded-full', opt.dot)}></span>{/if}
+					<span class="flex min-w-0 flex-col">
+						<span class="truncate">{opt.label}</span>
+						{#if opt.hint}<span class="truncate text-xs text-muted">{opt.hint}</span>{/if}
+					</span>
 				</span>
 				{#if opt.value === value}<Check size={16} class="shrink-0 text-accent-text" />{/if}
 			</div>

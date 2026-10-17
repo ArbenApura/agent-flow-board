@@ -55,10 +55,9 @@
 </script>
 
 <div class={cn('flex flex-col gap-1.5', extra)}>
-	<div class="flex items-baseline justify-between gap-3">
-		<label for={uid} class={cn('text-xs font-medium text-ink', hideLabel && 'sr-only')}
-			>{label}</label
-		>
+	<!-- A hidden label row leaves the layout, so it does not push the field down by one gap -->
+	<div class={cn('flex items-baseline justify-between gap-3', hideLabel && 'sr-only')}>
+		<label for={uid} class="text-xs font-medium text-ink">{label}</label>
 		{#if labelEnd}{@render labelEnd()}{/if}
 	</div>
 	<div class="group relative">
