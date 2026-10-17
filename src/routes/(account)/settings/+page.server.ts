@@ -4,6 +4,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { fail } from '@sveltejs/kit';
 import { sql } from 'drizzle-orm';
 // -- MODULES -- //
+import { avatarVersion } from '#lib/board/pictures.js';
 import { getAuth } from '#lib/server/auth/index.js';
 import { getDb } from '#lib/server/db/index.js';
 import { continueChoice } from '#lib/server/db/zod.js';
@@ -53,7 +54,7 @@ export const load: PageServerLoad = async ({ locals, request, url, depends }) =>
 	}
 	const p = pref[0];
 	return {
-		me: { name: user.name, email: user.email },
+		me: { id: user.id, name: user.name, email: user.email, imageV: avatarVersion(user) },
 		sessions: sessions.map((s) => ({
 			token: s.token,
 			current: s.token === locals.session?.token,

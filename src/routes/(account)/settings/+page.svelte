@@ -7,7 +7,7 @@
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
-	import { ApiError, api } from '#lib/board/api.js';
+	import { ApiError, api, deletePicture, putPicture } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import { createFollower } from '#lib/settings/follow.js';
 	import { postAction } from '#lib/settings/post.js';
@@ -38,6 +38,7 @@
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import GoogleLogo from '#lib/ui/GoogleLogo.svelte';
 	import PasswordStrength from '#lib/ui/PasswordStrength.svelte';
+	import PictureUpload from '#lib/ui/PictureUpload.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import SelectField from '#lib/ui/SelectField.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
@@ -138,6 +139,20 @@
 		follow('backupAlerts', prefs.notifications.backupAlerts, (v) => (backupAlerts = v));
 		follow('publishPaused', prefs.notifications.publishPaused, (v) => (publishPaused = v));
 	});
+
+	/** Sets or removes the avatar at once: a picture is not a form field, so it has no Save button. The layout is read again so the top bar changes too. */
+	async function changeAvatar(work: () => Promise<void>, ok: string) {
+		try {
+			await toast.promise(work(), {
+				loading: 'Working on it...',
+				success: ok,
+				error: (e) => (e instanceof ApiError ? e.message : 'That did not work.')
+			});
+			await invalidateAll();
+		} catch {
+			// The promise toast already shows the failure
+		}
+	}
 
 	/** The logo of the organisation a token belongs to, from the list the layout already loaded. */
 	const logoOf = (slug: string) => data.orgs.find((o) => o.slug === slug)?.logo ?? null;
@@ -300,13 +315,36 @@
 			onsave={() => run('profile', 'profile', { name: name.trim() }, 'Name saved.')}
 		>
 			<IdentityHeader title={data.me.name} subtitle={data.me.email}>
-				{#snippet lead()}<Avatar name={data.me.name} size={40} />{/snippet}
+				{#snippet lead()}<Avatar
+						name={data.me.name}
+						userId={data.me.id}
+						v={data.me.imageV}
+						size={40}
+					/>{/snippet}
 				<Badge
 					>Member of {orgCount}
 					{orgCount === 1 ? 'organisation' : 'organisations'}</Badge
 				>
 			</IdentityHeader>
 			<TextField label="Your name" bind:value={name} data-testid="profile-name" />
+			<PictureUpload
+				label="Picture"
+				hint="Saves as soon as you choose a file. A PNG, JPEG or WebP under 200 KB"
+				removeLabel="Remove the picture"
+				hasPicture={Boolean(data.me.imageV)}
+				canEdit
+				testid="avatar"
+				onupload={(f) => changeAvatar(() => putPicture('/me/avatar', f), 'Picture saved.')}
+				onremove={() => changeAvatar(() => deletePicture('/me/avatar'), 'Picture removed.')}
+			>
+				{#snippet preview()}<Avatar
+						name={data.me.name}
+						userId={data.me.id}
+						v={data.me.imageV}
+						size={40}
+					/>{/snippet}
+			</PictureUpload>
+			<div class="text-xs text-muted">Everyone you share an organisation with sees it.</div>
 			<div class="text-xs text-muted">Signed in as {data.me.email}</div>
 		</Section>
 

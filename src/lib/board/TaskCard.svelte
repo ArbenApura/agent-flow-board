@@ -13,6 +13,7 @@
 		task,
 		refs,
 		assignee,
+		assigneeV,
 		hrefFor,
 		onopen,
 		dragEnabled = false,
@@ -23,6 +24,8 @@
 		refs: Record<string, string>;
 		/** The name of the person the task is assigned to, when there is one. */
 		assignee?: string;
+		/** The version of the assignee's avatar, when they have one. */
+		assigneeV?: number | null;
 		hrefFor: (ref: string) => string;
 		onopen: (id: string) => void;
 		/** A board card can be dragged to another status column. */
@@ -99,7 +102,9 @@
 				>
 			{/each}
 			{#if assignee}
-				<span class="ml-auto"><Avatar name={assignee} size={24} /></span>
+				<span class="ml-auto"
+					><Avatar name={assignee} userId={task.assigneeId} v={assigneeV} size={24} /></span
+				>
 			{/if}
 		</span>
 	{/if}

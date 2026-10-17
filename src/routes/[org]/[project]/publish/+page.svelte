@@ -9,6 +9,12 @@
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import {
+		DEFAULT_PUBLISH_BRANCH,
+		DEFAULT_PUBLISH_FOLDER,
+		branchProblem,
+		folderProblem
+	} from '#lib/board/gitBranch.js';
 	import { ago } from '#lib/board/status.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -20,10 +26,15 @@
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
 	import GitBranch from '@lucide/svelte/icons/git-branch';
+	import Unplug from '@lucide/svelte/icons/unplug';
 
 	// -- REQUIRED PROPS -- //
 
 	let { data }: PageProps = $props();
+
+	// -- CONSTANTS -- //
+
+	const LIST_LIMIT = 8;
 
 	// -- STATES -- //
 
@@ -31,10 +42,15 @@
 	let error = $state('');
 	let installationId = $state('');
 	let repoName = $state('');
+	// The target of the copy. Kept in state so a failed connect does not lose what was typed
+	let branchName = $state(DEFAULT_PUBLISH_BRANCH);
+	let folderName = $state(DEFAULT_PUBLISH_FOLDER);
 	let laterOpen = $state(false);
 	let laterAt = $state('');
 	let laterError = $state('');
 	let disconnecting = $state(false);
+	// A long list of changes shows its first rows only, so the page stays short
+	let showAllChanges = $state(false);
 
 	// -- REACTIVE STATES -- //
 
@@ -44,6 +60,24 @@
 	const link = $derived(pub?.link ?? null);
 	const preview = $derived(data.preview);
 	const base = $derived(`/api/v1/orgs/${org}/projects/${key}/publish`);
+	// The same rules the server checks, so a bad name is shown before the round trip. The default branch itself is refused by the server
+	const branchError = $derived(branchProblem(branchName.trim()));
+	const folderError = $derived(folderProblem(folderName.trim()));
+	const targetInvalid = $derived(Boolean(branchError || folderError));
+	const changeRows = $derived([
+		...(preview?.diff.added ?? []).map((ref) => ({ ref, label: 'new', tone: 'success' as const })),
+		...(preview?.diff.changed ?? []).map((ref) => ({
+			ref,
+			label: 'changed',
+			tone: 'info' as const
+		})),
+		...(preview?.diff.removed ?? []).map((ref) => ({
+			ref,
+			label: 'removed',
+			tone: 'danger' as const
+		}))
+	]);
+	const shownRows = $derived(showAllChanges ? changeRows : changeRows.slice(0, LIST_LIMIT));
 	const tone = (s: string) =>
 		s === 'done'
 			? 'success'
@@ -93,9 +127,15 @@
 	async function connect(repo: string, installation: string) {
 		try {
 			await toast.promise(
-				call('/link', { method: 'PUT', body: { installationId: installation, repo } }).then(
-					settled
-				),
+				call('/link', {
+					method: 'PUT',
+					body: {
+						installationId: installation,
+						repo,
+						branch: branchName.trim(),
+						path: folderName.trim()
+					}
+				}).then(settled),
 				{
 					loading: `Connecting to ${repo}...`,
 					success: `Connected to ${repo}.`,
@@ -195,6 +235,36 @@
 
 <svelte:head><title>Publish, {data.summary?.project.name ?? ''}</title></svelte:head>
 
+<!-- WHERE THE COPY GOES: ONE PAIR OF FIELDS FOR EVERY WAY OF CONNECTING -->
+{#snippet target()}
+	<div class="flex flex-col gap-2" data-testid="publish-target">
+		<div class="flex flex-wrap items-start gap-2">
+			<TextField
+				label="Which branch should it write to?"
+				placeholder="For example flow-plans"
+				bind:value={branchName}
+				error={branchError || undefined}
+				class="min-w-56 flex-1"
+				data-testid="publish-branch"
+				required
+			/>
+			<TextField
+				label="Which folder inside the repository?"
+				placeholder="For example board"
+				bind:value={folderName}
+				error={folderError || undefined}
+				class="min-w-56 flex-1"
+				data-testid="publish-folder"
+				required
+			/>
+		</div>
+		<p class="text-xs text-muted">
+			The default branch is never written. A branch that does not exist yet is made for you. Each
+			publish replaces everything in the folder, so pick one that holds only this copy.
+		</p>
+	</div>
+{/snippet}
+
 <PageFrame class="flex flex-col gap-4 pb-12">
 	<PageHeader
 		class="mb-2!"
@@ -230,6 +300,7 @@
 				<div class="flex flex-col gap-3">
 					{#if data.repos.length}
 						<p class="text-sm text-muted">Pick the repository to publish into.</p>
+						{@render target()}
 						<ul class="rounded-lg border border-line" data-testid="repo-list">
 							{#each data.repos as r (r.fullName)}
 								<li
@@ -243,7 +314,7 @@
 									<Button
 										size="sm"
 										variant="primary"
-										disabled={busy}
+										disabled={busy || targetInvalid}
 										onclick={() => connect(r.fullName, data.installation ?? '')}>Connect</Button
 									>
 								</li>
@@ -258,8 +329,11 @@
 								Install the GitHub App on the repository you want, then come back here to pick it.
 							</p>
 							<div>
-								<Button variant="primary" href={`/github/install?org=${org}&project=${key}`}
-									>Install the GitHub App</Button
+								<!-- A server endpoint, not a page: the router would show its own 404, so the browser loads it -->
+								<Button
+									variant="primary"
+									href={`/github/install?org=${org}&project=${key}`}
+									data-sveltekit-reload>Install the GitHub App</Button
 								>
 							</div>
 						{/if}
@@ -270,6 +344,7 @@
 								void connect(repoName.trim(), installationId.trim());
 							}}
 						>
+							<div class="w-full">{@render target()}</div>
 							<TextField
 								label="Installation number"
 								placeholder="For example 12345678"
@@ -286,8 +361,12 @@
 								data-testid="repo-name"
 								required
 							/>
-							<Button type="submit" variant="primary" loading={busy} data-testid="connect-repo"
-								>Connect</Button
+							<Button
+								type="submit"
+								variant="primary"
+								loading={busy}
+								disabled={targetInvalid}
+								data-testid="connect-repo">Connect</Button
 							>
 						</form>
 					{/if}
@@ -317,7 +396,10 @@
 				></span
 			>
 			{#if pub.canPublish}
-				<Button size="sm" variant="ghost" onclick={() => (disconnecting = true)}>Disconnect</Button>
+				<!-- A SECONDARY BUTTON WITH ITS ICON, IN THE DANGER INK: IT ENDS THE CONNECTION, SO IT IS NEVER READ AS PLAIN TEXT -->
+				<Button class="text-danger" onclick={() => (disconnecting = true)} data-testid="disconnect">
+					<Unplug size={16} aria-hidden="true" />Disconnect
+				</Button>
 			{/if}
 		</section>
 
@@ -334,64 +416,55 @@
 			</p>{/if}
 
 		{#if pub.canPublish && preview}
-			<section class="flex flex-col gap-2" aria-label="What would change">
-				<h2 class="text-lg font-semibold">What would change</h2>
-				{#if preview.diff.total === 0}
-					<p class="text-sm text-muted" data-testid="no-changes">
-						Nothing has changed since the last publish.
+			<section class="flex flex-col gap-3" aria-label="What would change">
+				<div class="flex flex-col gap-1">
+					<h2 class="text-lg font-semibold">What would change</h2>
+					<p class="text-sm text-muted" data-testid="change-summary">
+						{#if preview.diff.total === 0}
+							<span data-testid="no-changes">Nothing has changed since the last publish.</span>
+						{:else}
+							{preview.diff.added.length} new, {preview.diff.changed.length} changed, {preview.diff
+								.removed.length} removed.
+						{/if}
+						{preview.itemCount} public {preview.itemCount === 1 ? 'item' : 'items'}, {preview.fileCount}
+						files.
+						{#if preview.privateItems}{preview.privateItems} private
+							{preview.privateItems === 1 ? 'item stays' : 'items stay'} out.{/if}
 					</p>
-				{:else}
+				</div>
+				<!-- THE ACTIONS COME BEFORE THE LIST, SO A LONG LIST NEVER PUSHES THEM OFF THE SCREEN -->
+				<div class="flex flex-wrap gap-2">
+					<Button variant="primary" loading={busy} onclick={publishNow} data-testid="publish-now"
+						>Publish now</Button
+					>
+					<Button onclick={() => (laterOpen = true)} data-testid="publish-later"
+						>Publish later</Button
+					>
+				</div>
+				{#if changeRows.length}
 					<ul
 						class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
 						data-testid="diff"
 					>
-						{#each preview.diff.added as r (r)}
+						{#each shownRows as row (row.ref)}
 							<li
-								class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
+								class="flex min-h-10 items-center gap-3 border-b border-line px-3 py-1.5 last:border-b-0"
 								data-row
 							>
-								<span class="w-24 shrink-0 font-mono text-xs text-muted">{r}</span><Badge
-									tone="success">new</Badge
-								>
-							</li>
-						{/each}
-						{#each preview.diff.changed as r (r)}
-							<li
-								class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-								data-row
-							>
-								<span class="w-24 shrink-0 font-mono text-xs text-muted">{r}</span><Badge
-									tone="info">changed</Badge
-								>
-							</li>
-						{/each}
-						{#each preview.diff.removed as r (r)}
-							<li
-								class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-								data-row
-							>
-								<span class="w-24 shrink-0 font-mono text-xs text-muted">{r}</span><Badge
-									tone="danger">removed</Badge
-								>
+								<span class="min-w-0 flex-1 truncate font-mono text-xs text-muted">{row.ref}</span>
+								<Badge tone={row.tone}>{row.label}</Badge>
 							</li>
 						{/each}
 					</ul>
+					{#if changeRows.length > LIST_LIMIT}
+						<div>
+							<Button size="sm" onclick={() => (showAllChanges = !showAllChanges)}
+								>{showAllChanges ? 'Show fewer' : `Show all ${changeRows.length}`}</Button
+							>
+						</div>
+					{/if}
 				{/if}
-				<div class="text-xs text-muted">
-					{preview.itemCount} public {preview.itemCount === 1 ? 'item' : 'items'}, {preview.fileCount}
-					files.
-					{#if preview.privateItems}{preview.privateItems} private
-						{preview.privateItems === 1 ? 'item stays' : 'items stay'} out.{/if}
-				</div>
 			</section>
-
-			<div class="flex flex-wrap gap-2">
-				<Button variant="primary" loading={busy} onclick={publishNow} data-testid="publish-now"
-					>Publish now</Button
-				>
-				<Button onclick={() => (laterOpen = true)} data-testid="publish-later">Publish later</Button
-				>
-			</div>
 		{/if}
 
 		{#if pub.pending}

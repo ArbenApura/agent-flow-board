@@ -76,7 +76,7 @@ const theme: Handle = ({ event, resolve }) => {
 
 /** Paths that are not app pages, so a document request to them still reads the session. */
 const NOT_A_SHELL =
-	/^\/(api|oauth|mcp|github|internal|\.well-known|healthz)(\/|$)|\/shot\/|\/stream$|\.(json|md)$/;
+	/^\/(api|oauth|mcp|github|internal|\.well-known|healthz|pictures)(\/|$)|\/shot\/|\/stream$|\.(json|md)$/;
 
 /**
  * The app is a client rendered shell, so a browser asking for a page gets the same small HTML whoever asks and no database call is

@@ -9,6 +9,7 @@
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import { activityText } from '#lib/board/projects.js';
 	import { slimItem } from '#lib/board/rows.js';
 	import { parseMode, parseTool } from '#lib/shared/continue.js';
 	import BoardColumn from '#lib/board/BoardColumn.svelte';
@@ -298,7 +299,16 @@
 					class="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-line bg-raised px-3 py-1.5 transition-colors hover:border-[var(--muted)] sm:min-h-0"
 				>
 					<span class="font-mono text-xs text-muted">{r.itemRef}</span>
-					<RunningBadge tool={r.tool} title={r.title} phase={r.phase ?? undefined} />
+					<RunningBadge
+						tool={r.tool}
+						title={r.title}
+						phase={r.phase ?? undefined}
+						staleMinutes={r.staleMinutes}
+						reviewIdle={r.reviewIdle}
+						age={`Started ${new Date(r.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. ${activityText(r.lastSeenAt)}.`}
+					/>
+					<!-- HOW OLD THE CLAIM IS, AS TEXT SO A PHONE CAN READ IT -->
+					<span class="text-xs text-muted">{activityText(r.lastSeenAt)}</span>
 				</a>
 			{/each}
 		</section>

@@ -1,6 +1,7 @@
 // -- DEP-TYPES -- //
 import type { LayoutServerLoad } from './$types';
 // -- MODULES -- //
+import { avatarVersion } from '#lib/board/pictures.js';
 import { purgeTrashIfDue } from '#lib/server/ops/history.js';
 import { listProjects } from '#lib/server/ops/projects.js';
 import { orgContext } from '#lib/server/web/ctx.js';
@@ -17,13 +18,14 @@ export const load: LayoutServerLoad = async ({ params, locals, url }) => {
 	return {
 		orgPalette: palette,
 		org,
-		me: { id: user.id, name: user.name, email: user.email },
+		me: { id: user.id, name: user.name, email: user.email, imageV: avatarVersion(user) },
 		projects: projects.map((p) => ({
 			id: p.id,
 			key: p.key,
 			name: p.name,
 			colourTag: p.colourTag,
-			webApp: p.webApp
+			webApp: p.webApp,
+			logoV: p.logoV
 		}))
 	};
 };

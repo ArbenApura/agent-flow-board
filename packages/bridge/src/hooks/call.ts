@@ -11,7 +11,7 @@ import { configDir } from '../tokenStore.js';
 
 export type HookEvent = {
 	tool: 'claude-code' | 'antigravity' | 'gemini';
-	event: 'start' | 'prompt' | 'tool' | 'closing' | 'stop';
+	event: 'start' | 'prompt' | 'tool' | 'closing' | 'stop' | 'end';
 	externalId: string;
 	cwd?: string;
 	subagent?: boolean;
@@ -24,7 +24,14 @@ export type HookEvent = {
 		| { kind: 'read' };
 	closing?: { item: string; status: string }[];
 };
-export type HookAnswer = { context?: string; title?: string; ask?: string; block?: string };
+export type HookAnswer = {
+	context?: string;
+	title?: string;
+	ask?: string;
+	block?: string;
+	/** Progress first: finished work is not recorded yet. Shown to the agent right after an edit, never blocks. */
+	nudge?: string;
+};
 
 // -- CONSTANTS -- //
 

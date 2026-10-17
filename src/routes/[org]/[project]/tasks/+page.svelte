@@ -187,6 +187,8 @@
 
 	const hrefFor = (ref: string) => `${base}/${ref}`;
 	const nameOf = (id: string | null) => (id ? data.people[id] : undefined);
+	/** The version of a person's avatar, or undefined when they have none. */
+	const vOf = (id: string | null) => (id ? data.peopleV[id] : undefined);
 
 	/** Shows the new status at once. Only the newest ask for a task may clear or undo it, so a quick second drag never flickers. */
 	async function setStatus(id: string, status: string) {
@@ -371,6 +373,7 @@
 		task={t}
 		refs={data.refs}
 		assignee={nameOf(t.assigneeId)}
+		assigneeV={vOf(t.assigneeId)}
 		{hrefFor}
 		onopen={openTask}
 		dragEnabled={drag && canWrite}
@@ -618,7 +621,12 @@
 							>
 						{/each}
 						{#if nameOf(t.assigneeId)}
-							<Avatar name={nameOf(t.assigneeId) ?? ''} size={24} />
+							<Avatar
+								name={nameOf(t.assigneeId) ?? ''}
+								userId={t.assigneeId}
+								v={vOf(t.assigneeId)}
+								size={24}
+							/>
 						{/if}
 						<Select
 							label={`Status of T-${t.number}`}
@@ -711,7 +719,12 @@
 					{#if nameOf(t.assigneeId)}
 						<dt class="text-muted">Assigned to</dt>
 						<dd class="inline-flex items-center gap-2 text-ink">
-							<Avatar name={nameOf(t.assigneeId) ?? ''} size={24} />{nameOf(t.assigneeId)}
+							<Avatar
+								name={nameOf(t.assigneeId) ?? ''}
+								userId={t.assigneeId}
+								v={vOf(t.assigneeId)}
+								size={24}
+							/>{nameOf(t.assigneeId)}
 						</dd>
 					{/if}
 					{#if t.groupName}

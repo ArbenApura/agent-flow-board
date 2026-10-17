@@ -30,7 +30,7 @@
 		/** Set on an organisation's sidebar, so the header shows the same tile as the organisation list. */
 		slug?: string;
 		href: string;
-		me: { name: string; email: string };
+		me: { id?: string; name: string; email: string; imageV?: number | null };
 		/** The links and lists of the body. */
 		children: Snippet;
 	} = $props();
@@ -82,7 +82,13 @@
 						class="flex w-full cursor-pointer items-center gap-2.5 rounded-lg p-1 text-left transition-colors hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
 						{...props}
 					>
-						<Avatar name={me.name || me.email} size={32} class="shrink-0" />
+						<Avatar
+							name={me.name || me.email}
+							userId={me.id}
+							v={me.imageV}
+							size={32}
+							class="shrink-0"
+						/>
 						<span class={cn('flex min-w-0 flex-1 flex-col leading-tight', LABEL)}>
 							<span class="truncate text-sm font-medium text-ink">{me.name}</span>
 							<span class="truncate text-xs text-muted" data-testid="signed-in-as">{me.email}</span>
@@ -93,7 +99,7 @@
 				{#snippet children({ close })}
 					<div class="min-w-64 p-1">
 						<div class="flex items-center gap-3 border-b border-line px-2.5 pt-2 pb-3">
-							<Avatar name={me.name || me.email} size={40} />
+							<Avatar name={me.name || me.email} userId={me.id} v={me.imageV} size={40} />
 							<div class="min-w-0">
 								<p class="truncate text-sm font-medium text-ink">{me.name}</p>
 								<p class="truncate text-xs text-muted">{me.email}</p>

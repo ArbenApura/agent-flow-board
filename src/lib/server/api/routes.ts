@@ -91,6 +91,7 @@ import {
 	setPublishSettings,
 	unlinkRepo
 } from '../github/publish';
+import { clearProjectLogo, setProjectLogo } from '../ops/pictures';
 import {
 	auditInput,
 	clearOrgLogo,
@@ -634,6 +635,26 @@ export const routes: Route[] = [
 		tag: 'Settings',
 		sessionOnly: true,
 		handler: ({ ctx }) => clearOrgLogo(ctx)
+	},
+	{
+		method: 'PUT',
+		path: '/orgs/{org}/projects/{project}/logo',
+		summary:
+			'Set the logo of a project (needs the manage right on it). Send the picture bytes as the body with its type in the query (PNG, JPEG or WebP, 200 KB at most).',
+		tag: 'Projects',
+		sessionOnly: true,
+		upload: true,
+		query: z.object({ type: z.string() }),
+		handler: ({ ctx, params, query, bytes }) =>
+			setProjectLogo(ctx, params.project, bytes ?? new Uint8Array(), query.type ?? '')
+	},
+	{
+		method: 'DELETE',
+		path: '/orgs/{org}/projects/{project}/logo',
+		summary: 'Remove the logo of a project',
+		tag: 'Projects',
+		sessionOnly: true,
+		handler: ({ ctx, params }) => clearProjectLogo(ctx, params.project)
 	},
 	{
 		method: 'GET',

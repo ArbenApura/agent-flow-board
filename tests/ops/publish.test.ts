@@ -14,11 +14,20 @@ import { createItem, updateItem } from '../../src/lib/server/ops/items';
 import { recordSteps } from '../../src/lib/server/ops/steps';
 import { githubLink, publishRun } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
-import { appJwt, blobSha, createGithubApi, pkcs1ToPkcs8 } from '../../src/lib/server/github/app';
+import {
+	TREE_CHUNK_ENTRIES,
+	appJwt,
+	blobSha,
+	chunkTreeEntries,
+	createGithubApi,
+	pkcs1ToPkcs8
+} from '../../src/lib/server/github/app';
 import { renderExport, loadPublishable, diffHashes } from '../../src/lib/server/github/export';
+import { DEFAULT_PUBLISH_BRANCH, isGitBranchName } from '../../src/lib/board/gitBranch';
 import { appManifest, signState, verifyState } from '../../src/lib/server/github/install';
 import { SCHEDULE_JOB, registerPublishJobs } from '../../src/lib/server/github/jobs';
 import {
+	DEFAULT_BRANCH_REFUSAL,
 	FAILURES_BEFORE_PAUSE,
 	cancelPublish,
 	linkRepo,
@@ -115,6 +124,111 @@ describe('the GitHub App client', () => {
 			defaultBranch: 'main'
 		});
 		expect((await api.listInstallationRepos(INSTALL)).map((r) => r.fullName)).toEqual(['o/r']);
+	});
+
+	it('makes a dedicated branch from the default one, leaves an existing branch alone and reads a branch with a slash', async () => {
+		const mock = createGithubMock();
+		mock.seed('o/r', { files: { 'README.md': '# mine\n' } });
+		const api = createGithubApi({ apiUrl: 'http://gh', appId: '1', privateKey: PKCS8 }, mock.fetch);
+		expect(await api.createBranch(INSTALL, 'o/r', 'board-publish', 'main')).toEqual({
+			created: true
+		});
+		expect(mock.filesOf('o/r', 'board-publish')).toEqual({ 'README.md': '# mine\n' });
+		// A second call, or a person who made the branch first, changes nothing
+		expect(await api.createBranch(INSTALL, 'o/r', 'board-publish', 'main')).toEqual({
+			created: false
+		});
+		// A slash stays a slash in the ref path, so feat/x can be made and then written to
+		expect(await api.createBranch(INSTALL, 'o/r', 'feat/x', 'main')).toEqual({ created: true });
+		const wrote = await api.commitFiles(
+			INSTALL,
+			'o/r',
+			'feat/x',
+			{ 'a.md': 'A\n' },
+			{ prefix: 'board', message: 'm' }
+		);
+		expect(wrote.changed).toEqual(['board/a.md']);
+		expect(mock.filesOf('o/r', 'feat/x')['board/a.md']).toBe('A\n');
+		// Nothing of this touched the default branch
+		expect(mock.filesOf('o/r')).toEqual({ 'README.md': '# mine\n' });
+	});
+
+	it('treats a branch that appears between the check and the create as made, and says plainly when the repo has no commit', async () => {
+		const mock = createGithubMock();
+		mock.seed('o/r', {});
+		const racing = ((u: string, i: RequestInit) => {
+			// The ref exists by the time the POST arrives, as when two connects race
+			if (i?.method === 'POST' && u.endsWith('/git/refs'))
+				return mock.fetch(u, i).then(() => mock.fetch(u, i));
+			return mock.fetch(u, i);
+		}) as never;
+		const api = createGithubApi({ apiUrl: 'http://gh', appId: '1', privateKey: PKCS8 }, racing);
+		expect(await api.createBranch(INSTALL, 'o/r', 'race', 'main')).toEqual({ created: false });
+		mock.seed('o/empty', { empty: true });
+		await expect(api.createBranch(INSTALL, 'o/empty', 'board-publish', 'main')).rejects.toThrow(
+			/no commit on "main"/
+		);
+	});
+
+	it('says a network failure plainly with its reason and marks it retryable, instead of a bare "fetch failed"', async () => {
+		const reset = (() =>
+			Promise.reject(
+				new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } })
+			)) as unknown as typeof fetch;
+		const api = createGithubApi({ apiUrl: 'http://gh', appId: '1', privateKey: PKCS8 }, reset);
+		await expect(api.getRepo(INSTALL, 'o/r')).rejects.toMatchObject({
+			name: 'GithubError',
+			retryable: true,
+			message: 'GitHub could not be reached (ECONNRESET).'
+		});
+		const slow = (() =>
+			Promise.reject(
+				new DOMException('signal timed out', 'TimeoutError')
+			)) as unknown as typeof fetch;
+		const late = createGithubApi({ apiUrl: 'http://gh', appId: '1', privateKey: PKCS8 }, slow);
+		await expect(late.getRepo(INSTALL, 'o/r')).rejects.toThrow(
+			/could not be reached \(timed out\)/
+		);
+	});
+
+	it('writes a big project in several tree calls, so GitHub never times out, and the result holds every file', async () => {
+		const mock = createGithubMock();
+		mock.seed('o/big', { files: { 'README.md': '# mine\n', 'board/old.md': 'old\n' } });
+		const api = createGithubApi({ apiUrl: 'http://gh', appId: '1', privateKey: PKCS8 }, mock.fetch);
+		const files: Record<string, string> = {};
+		for (let i = 0; i < 250; i++) files[`items/I-${i}/PLAN.md`] = `plan ${i}\n`;
+		const wrote = await api.commitFiles(INSTALL, 'o/big', 'main', files, {
+			prefix: 'board',
+			message: 'big'
+		});
+		expect(wrote.changed).toHaveLength(250);
+		expect(wrote.deleted).toEqual(['board/old.md']);
+		const treeCalls = mock.calls.filter((c: string) => /^POST .*\/git\/trees$/.test(c));
+		expect(treeCalls.length).toBeGreaterThanOrEqual(Math.ceil(251 / TREE_CHUNK_ENTRIES));
+		const after = mock.filesOf('o/big');
+		expect(Object.keys(after)).toHaveLength(251);
+		expect(after['board/items/I-249/PLAN.md']).toBe('plan 249\n');
+		expect(after['README.md']).toBe('# mine\n');
+	});
+
+	it('splits tree entries by count and by size, keeping their order', () => {
+		const small = Array.from({ length: 230 }, (_, i) => ({ path: `a${i}`, content: 'x' }));
+		expect(chunkTreeEntries(small).map((c) => c.length)).toEqual([100, 100, 30]);
+		const big = [1, 2, 3].map((i) => ({ path: `b${i}`, content: 'y'.repeat(400_000) }));
+		expect(chunkTreeEntries(big).map((c) => c.length)).toEqual([1, 1, 1]);
+		expect(chunkTreeEntries([])).toEqual([]);
+		expect(
+			chunkTreeEntries(small)
+				.flat()
+				.map((e) => e.path)
+		).toEqual(small.map((e) => e.path));
+	});
+
+	it('knows which names git accepts as a branch', () => {
+		for (const ok of ['board-publish', 'flow-plans', 'feat/x', 'a.b', 'v1.2/x'])
+			expect(isGitBranchName(ok)).toBe(true);
+		for (const bad of ['a..b', '/x', 'x/', 'x//y', '.x', 'x/.y', '-x', 'x.', 'x.lock', 'a/b.lock'])
+			expect(isGitBranchName(bad)).toBe(false);
 	});
 
 	it('says what is wrong in plain words: an empty repo, a missing repo, bad credentials, a bad name', async () => {
@@ -234,7 +348,7 @@ describe.each([
 		...w.ctx(who),
 		services: { github, jobs, storage, baseUrl: 'http://localhost' }
 	});
-	const repoFiles = () => mock.filesOf('acme/board');
+	const repoFiles = () => mock.filesOf('acme/board', DEFAULT_PUBLISH_BRANCH);
 	const link = () =>
 		withTenant(db, { orgId: w.orgId }, async (tx) => (await tx.select().from(githubLink))[0]);
 	const runs = () =>
@@ -276,7 +390,7 @@ describe.each([
 		const row = await linkRepo(admin(), input);
 		expect(row).toMatchObject({
 			repo: 'acme/board',
-			branch: 'main',
+			branch: DEFAULT_PUBLISH_BRANCH,
 			path: 'board',
 			repoVisibility: 'private',
 			autoPublish: false
@@ -290,6 +404,40 @@ describe.each([
 		expect(state.configured).toBe(true);
 		expect(state.canPublish).toBe(false);
 		expect(state.link?.repo).toBe('acme/board');
+	});
+
+	it('never connects to the default branch, makes the dedicated branch only for a person who may publish, and reuses one that exists', async () => {
+		mock.seed('acme/lane', { private: true });
+		const base = { project: w.projectKey, installationId: INSTALL, repo: 'acme/lane' };
+		const branchesOf = () => [...mock.repos.get('acme/lane')!.refs.keys()].sort();
+		// The default branch is refused whatever its case, and nothing is created
+		for (const branch of ['main', 'MAIN'])
+			await expect(linkRepo(admin(), { ...base, branch })).rejects.toMatchObject({
+				code: 'INVALID',
+				message: DEFAULT_BRANCH_REFUSAL
+			});
+		await expect(linkRepo(admin(), { ...base, branch: 'a..b' })).rejects.toThrow();
+		// Someone without the publish capability creates no branch in the real repository
+		for (const who of ['member', 'viewer'] as const)
+			await expect(linkRepo(admin(who), base)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+		expect(branchesOf()).toEqual(['main']);
+		// An admin gets the default dedicated branch, made from the default branch
+		const made = await linkRepo(admin(), base);
+		expect(made.branch).toBe(DEFAULT_PUBLISH_BRANCH);
+		expect(branchesOf()).toEqual(['board-publish', 'main']);
+		// A branch that already exists (like flow-plans) is reused as it is
+		mock.repos
+			.get('acme/lane')!
+			.refs.set('flow-plans', mock.repos.get('acme/lane')!.refs.get('main')!);
+		const reused = await linkRepo(admin(), { ...base, branch: 'flow-plans', path: 'board' });
+		expect(reused.branch).toBe('flow-plans');
+		expect(branchesOf()).toEqual(['board-publish', 'flow-plans', 'main']);
+		// Put the project back on its usual repository for the tests that follow
+		await linkRepo(admin(), {
+			project: w.projectKey,
+			installationId: INSTALL,
+			repo: 'acme/board'
+		});
 	});
 
 	it('Publish now writes Markdown and a JSON snapshot, leaves private items out, and an unchanged project writes nothing', async () => {
@@ -368,7 +516,7 @@ describe.each([
 		expect(second.run.state).toBe('done');
 		expect(second.run.commitSha).toBeNull();
 		expect(second.run.message).toMatch(/Nothing had changed/);
-		expect(Object.keys(mock.filesOf('acme/board')).length).toBe(Object.keys(files).length);
+		expect(Object.keys(repoFiles()).length).toBe(Object.keys(files).length);
 	});
 
 	it('shows what changed since the last publish and writes only that, and removes an item that turns private', async () => {
@@ -584,6 +732,49 @@ describe.each([
 		expect(SCHEDULE_JOB).toBe('publish.schedule');
 	});
 
+	it('a link that was made on the default branch, or a default branch renamed to the linked one, writes nothing', async () => {
+		const guardKey = 'acme/guard';
+		mock.seed(guardKey, { private: true });
+		await linkRepo(admin(), { project: w.projectKey, installationId: INSTALL, repo: guardKey });
+		// The default branch becomes the linked branch, as a rename on GitHub would do
+		const repo = mock.repos.get(guardKey)!;
+		const before = JSON.stringify(mock.filesOf(guardKey, DEFAULT_PUBLISH_BRANCH));
+		repo.branch = DEFAULT_PUBLISH_BRANCH;
+		const refused = await requestPublish(admin(), { project: w.projectKey });
+		expect(refused.run.state).toBe('failed');
+		expect(refused.run.error).toBe(DEFAULT_BRANCH_REFUSAL);
+		expect(JSON.stringify(mock.filesOf(guardKey, DEFAULT_PUBLISH_BRANCH))).toBe(before);
+		expect((await link()).failures).toBe(0);
+		// An automatic publish meeting the same refusal pauses itself and says why, instead of retrying or counting a failure
+		await setPublishSettings(admin(), {
+			project: w.projectKey,
+			autoPublish: true,
+			delayMinutes: 1
+		});
+		const loaded = await withTenant(db, { orgId: w.orgId }, (tx) =>
+			loadPublishable(tx, w.projectId)
+		);
+		await updateItem(w.ctx('member'), {
+			item: loaded.items[0].item.ref,
+			title: 'Changed for the default branch guard'
+		});
+		const at = new Date();
+		const ctxFor = () => ({
+			payload: { orgId: w.orgId, projectId: w.projectId },
+			tenant: <T>(fn: (tx: never) => Promise<T>) =>
+				withTenant(db, { orgId: w.orgId, projectId: w.projectId }, fn as never)
+		});
+		expect((await scheduleAutoPublish(ctxFor(), jobs, at)).scheduled).toBe(true);
+		await jobs.drain(new Date(at.getTime() + 90_000));
+		const stopped = await link();
+		expect(stopped.pausedReason).toBe(DEFAULT_BRANCH_REFUSAL);
+		expect(stopped.failures).toBe(0);
+		expect(JSON.stringify(mock.filesOf(guardKey, DEFAULT_PUBLISH_BRANCH))).toBe(before);
+		await setPublishSettings(admin(), { project: w.projectKey, autoPublish: false });
+		repo.branch = 'main';
+		await linkRepo(admin(), { project: w.projectKey, installationId: INSTALL, repo: 'acme/board' });
+	});
+
 	it('a schedule moves the run into its window', async () => {
 		const ctxFor = () => ({
 			payload: { orgId: w.orgId, projectId: w.projectId },
@@ -623,7 +814,7 @@ describe.each([
 		const refused = await requestPublish(admin(), { project: w.projectKey });
 		expect(refused.run.state).toBe('failed');
 		expect(refused.run.error).toMatch(/Nothing was published/);
-		expect(Object.keys(mock.filesOf('acme/open'))).toEqual(['README.md']);
+		expect(Object.keys(mock.filesOf('acme/open', DEFAULT_PUBLISH_BRANCH))).toEqual(['README.md']);
 		// Making the private item public is not enough while a private file remains
 		const secret = await withTenant(db, { orgId: w.orgId }, async (tx) => {
 			const { item } = await import('../../src/lib/server/db/schema');
@@ -655,7 +846,9 @@ describe.each([
 		await setAttachmentVisibility(admin('member'), att.id, 'public');
 		const ok = await requestPublish(admin(), { project: w.projectKey });
 		expect(ok.run.state).toBe('done');
-		expect(Object.keys(mock.filesOf('acme/open')).some((p) => p.endsWith('.png'))).toBe(false);
+		expect(
+			Object.keys(mock.filesOf('acme/open', DEFAULT_PUBLISH_BRANCH)).some((p) => p.endsWith('.png'))
+		).toBe(false);
 		// The visibility is read fresh from GitHub on every run: the repo turns private behind our back
 		mock.repos.get('acme/open')!.private = true;
 		await requestPublish(admin(), { project: w.projectKey });

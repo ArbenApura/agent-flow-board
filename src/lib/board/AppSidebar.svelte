@@ -7,6 +7,7 @@
 	import { LABEL } from '#lib/board/sidebar-classes.js';
 	import { cn } from '#lib/ui/cn.js';
 	import SidebarRow from '#lib/board/SidebarRow.svelte';
+	import ProjectTile from '#lib/board/ProjectTile.svelte';
 	import SidebarShell from '#lib/board/SidebarShell.svelte';
 	// -- DEP-COMPONENTS -- //
 	import Activity from '@lucide/svelte/icons/activity';
@@ -37,9 +38,15 @@
 		base
 	}: {
 		org: { name: string; logo?: string | null };
-		projects: { id: string; key: string; name: string; colourTag: string | null }[];
+		projects: {
+			id: string;
+			key: string;
+			name: string;
+			colourTag: string | null;
+			logoV?: number | null;
+		}[];
 		current?: { key: string };
-		me: { name: string; email: string };
+		me: { id?: string; name: string; email: string; imageV?: number | null };
 		/** The pages of the open project, the first five are the main ones. */
 		tabs: Tab[];
 		base: string;
@@ -92,15 +99,12 @@
 					)}
 				>
 					<!-- EVERY PROJECT SHOWS A SMALL TILE WITH ITS KEY, SO THE SLIM RAIL NAMES IT TOO. -->
-					<span
-						class={cn(
-							'-ml-[3px] flex size-6 shrink-0 items-center justify-center rounded-md bg-raised font-mono text-xs font-medium text-muted uppercase',
-							open && 'text-ink'
-						)}
-						aria-hidden="true"
-					>
-						{p.key.slice(0, 2)}
-					</span>
+					<ProjectTile
+						id={p.id}
+						projectKey={p.key}
+						logoV={p.logoV}
+						class={cn('-ml-[3px]', open && 'text-ink')}
+					/>
 					<span class={LABEL}>{sameName(p) ? p.key : p.name}</span>
 				</a>
 				{#if open && tabs.length}

@@ -2,14 +2,16 @@
 	// -- DEP-TYPES -- //
 	import type { PageProps } from './$types';
 	// -- ENVS -- //
-	import { invalidate } from '$app/navigation';
+	import { invalidate, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import Notice from '#lib/ui/Notice.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
+	import PictureUpload from '#lib/ui/PictureUpload.svelte';
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
-	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import { ApiError, api, deletePicture, newKey, putPicture } from '#lib/board/api.js';
+	import ProjectTile from '#lib/board/ProjectTile.svelte';
 	import { tagDot } from '#lib/board/status.js';
 	import BrowserChecks from '#lib/settings/BrowserChecks.svelte';
 	import { canon, createFollower } from '#lib/settings/follow.js';
@@ -176,6 +178,20 @@
 		status[id] = { saving: false, saved: true, error: '' };
 	}
 
+	/** Sets or removes the logo at once: a picture is not a form field, so it has no Save button. The sidebar is read again too. */
+	async function changeLogo(work: () => Promise<void>, ok: string) {
+		try {
+			await toast.promise(work(), {
+				loading: 'Working on it...',
+				success: ok,
+				error: (e) => (e instanceof ApiError ? e.message : 'That did not work.')
+			});
+			await invalidateAll();
+		} catch {
+			// The promise toast already shows the failure
+		}
+	}
+
 	const patchProject = (id: string, body: Record<string, unknown>) =>
 		save(id, `/projects/${key}`, body);
 
@@ -222,6 +238,26 @@
 					disabled={!can}
 					data-testid="project-name-input"
 				/>
+
+				<PictureUpload
+					label="Logo"
+					hint="Saves as soon as you choose a file. A PNG, JPEG or WebP under 200 KB"
+					removeLabel="Remove the logo"
+					hasPicture={Boolean(p.logoV)}
+					canEdit={Boolean(can)}
+					testid="project-logo"
+					onupload={(f) =>
+						changeLogo(() => putPicture(`/orgs/${org}/projects/${key}/logo`, f), 'Logo saved.')}
+					onremove={() =>
+						changeLogo(() => deletePicture(`/orgs/${org}/projects/${key}/logo`), 'Logo removed.')}
+				>
+					{#snippet preview()}<ProjectTile
+							id={p.id}
+							projectKey={p.key}
+							logoV={p.logoV}
+							size={40}
+						/>{/snippet}
+				</PictureUpload>
 
 				<SelectField
 					label="Colour tag"

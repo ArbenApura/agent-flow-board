@@ -9,7 +9,18 @@ import type { Role } from '../orgs/roles';
 // -- DEP-MODULES -- //
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { event, item, member, project, projectMember, session, task } from '../db/schema';
+import {
+	event,
+	item,
+	member,
+	project,
+	projectCols,
+	projectMember,
+	session,
+	step,
+	task
+} from '../db/schema';
+import { canonicalTool } from '../../shared/tool';
 import { searchAll } from '../db/search';
 import { listMembers } from '../orgs/orgs';
 import { effectiveProjectRole } from '../orgs/roles';
@@ -20,12 +31,14 @@ import { listEvents } from './history';
 import { pinnedProjectIds } from './pins';
 import { canSeeItem, getItem } from './items';
 import { findProject, visibleItemSql } from './resolve';
-import { unrecordedCommits } from './tracking';
+import {
+	NUDGE_MINUTES,
+	QUIET_RELEASE_MINUTES,
+	RUNNING_WINDOW_MINUTES,
+	unrecordedCommits
+} from './tracking';
 
 // -- CONSTANTS -- //
-
-/** A session counts as running while it was seen within this time (Phase 9 settles stale sessions for good). */
-export const RUNNING_WINDOW_MINUTES = 120;
 
 // -- FUNCTIONS -- //
 
@@ -41,7 +54,15 @@ async function runningIn(
 			tabName: item.tabName,
 			phase: session.claimedPhase,
 			tool: session.tool,
-			sessionId: session.id
+			userId: session.userId,
+			sessionId: session.id,
+			startedAt: session.createdAt,
+			lastSeenAt: session.lastSeenAt,
+			reviewIdle: sql<boolean>`(${item.status} = 'IN REVIEW' and ${session.lastSeenAt} < now() - make_interval(mins => ${QUIET_RELEASE_MINUTES}) and not exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open'))`,
+			// Minutes since the first unrecorded edit, only while the item still has an open step and it is past the nudge time
+			staleMinutes: sql<
+				number | null
+			>`case when ${session.firstUnrecordedEditAt} < now() - make_interval(mins => ${NUDGE_MINUTES}) and exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open') then floor(extract(epoch from now() - ${session.firstUnrecordedEditAt}) / 60)::int else null end`
 		})
 		.from(session)
 		.innerJoin(item, eq(item.id, session.claimedItemId))
@@ -54,23 +75,28 @@ async function runningIn(
 			)
 		)
 		.orderBy(sql`${session.lastSeenAt} desc`);
-	// Two sessions of one tool on the same item and phase show one badge, the newest wins
-	const seen = new Set<string>();
-	return rows
-		.filter((r) => {
-			const key = `${r.itemId}|${r.phase ?? ''}|${r.tool}`;
-			if (seen.has(key)) return false;
-			seen.add(key);
-			return true;
-		})
-		.map((r) => ({
-			itemId: r.itemId,
-			itemRef: r.itemRef,
-			phase: r.phase,
-			tool: r.tool,
-			title: `${r.tabName ?? 'ITEM'}: ${r.itemRef}`,
-			sessionId: r.sessionId
-		}));
+	// One badge per item, person and tool family: the newest session wins, and a phase level claim replaces an item level one
+	const chosen = new Map<string, (typeof rows)[number]>();
+	for (const r of rows) {
+		const key = `${r.itemId}|${r.userId}|${canonicalTool(r.tool)}`;
+		const held = chosen.get(key);
+		if (!held || (held.phase === null && r.phase !== null)) chosen.set(key, r);
+		// A stale session is not hidden by a newer clean one of the same person and tool: keep the longest wait
+		else if (r.staleMinutes !== null && (held.staleMinutes ?? -1) < r.staleMinutes)
+			chosen.set(key, { ...held, staleMinutes: r.staleMinutes });
+	}
+	return [...chosen.values()].map((r) => ({
+		itemId: r.itemId,
+		itemRef: r.itemRef,
+		phase: r.phase,
+		tool: r.tool,
+		title: `${r.tabName ?? 'ITEM'}: ${r.itemRef}`,
+		sessionId: r.sessionId,
+		staleMinutes: r.staleMinutes,
+		reviewIdle: r.reviewIdle,
+		startedAt: r.startedAt,
+		lastSeenAt: r.lastSeenAt
+	}));
 }
 
 /** Counts by status and by area for a project, and who is running now. One transaction, a few index scans. */
@@ -124,7 +150,7 @@ export async function orgOverview(ctx: Ctx) {
 			.where(and(eq(member.orgId, ctx.orgId), eq(member.userId, ctx.actor.userId)));
 		if (!m) throw new OpError('FORBIDDEN', 'You are not a member of this organisation.');
 		const projects = await tx
-			.select()
+			.select(projectCols)
 			.from(project)
 			.where(eq(project.orgId, ctx.orgId))
 			.orderBy(project.key);
@@ -176,7 +202,8 @@ export async function orgOverview(ctx: Ctx) {
 				role: role!,
 				total,
 				byStatus,
-				running: running.length,
+				// An item in review that went quiet shows as idle, so it is not counted as running
+				running: running.filter((r) => !r.reviewIdle).length,
 				pinned: pins.has(p.id),
 				createdAt: p.createdAt,
 				lastActivityAt
@@ -207,7 +234,11 @@ export async function itemCore(ctx: Ctx, nameOrId: string) {
 		caps: summary.caps,
 		running: summary.running.filter((r) => r.itemId === detail.item.id),
 		/** Names for the authors of comments and the people on the item. */
-		people: Object.fromEntries(members.map((m) => [m.userId, m.name]))
+		people: Object.fromEntries(members.map((m) => [m.userId, m.name])),
+		/** The version of each person's avatar, for those who have one. The picture is read from /pictures. */
+		peopleV: Object.fromEntries(
+			members.filter((m) => m.imageV).map((m) => [m.userId, m.imageV as number])
+		)
 	};
 }
 
@@ -270,7 +301,7 @@ export async function searchBoard(
 			: [];
 		const projectIds = [...new Set([...items, ...tasks].map((x) => x.projectId))];
 		const projects = projectIds.length
-			? await tx.select().from(project).where(inArray(project.id, projectIds))
+			? await tx.select(projectCols).from(project).where(inArray(project.id, projectIds))
 			: [];
 		// The caller's role per project, once each. A project they cannot read drops every hit inside it.
 		const roles = new Map<string, string | null>();

@@ -16,7 +16,9 @@ export function hookSettings(tool: string, server: string): string | null {
 					UserPromptSubmit: [{ hooks: command(10) }],
 					PreToolUse: [{ matcher: '^mcp__.*__(item_status|flow_set_status)$', hooks: command(10) }],
 					PostToolUse: [{ matcher: '.*', hooks: command(10) }],
-					Stop: [{ hooks: command(20) }]
+					Stop: [{ hooks: command(20) }],
+					// The conversation ended: the server lets go of this session's claim
+					SessionEnd: [{ hooks: command(10) }]
 				}
 			},
 			null,

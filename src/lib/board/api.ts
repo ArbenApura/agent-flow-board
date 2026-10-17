@@ -77,3 +77,37 @@ export async function upload<T = unknown>(
 		);
 	return json as T;
 }
+
+/** Sends a picture as the raw body of a PUT, with its type in the query (an avatar or a logo). Throws an ApiError with the server's plain message. */
+export async function putPicture(path: string, file: File): Promise<void> {
+	const res = await fetch(`/api/v1${path}?type=${encodeURIComponent(file.type)}`, {
+		method: 'PUT',
+		headers: { 'content-type': file.type },
+		body: file
+	});
+	if (!res.ok) {
+		const j = (await res.json().catch(() => null)) as {
+			error?: { code?: string; message?: string };
+		} | null;
+		throw new ApiError(
+			res.status,
+			j?.error?.code ?? 'ERROR',
+			j?.error?.message ?? 'The picture was not saved.'
+		);
+	}
+}
+
+/** Removes an avatar or a logo. */
+export async function deletePicture(path: string): Promise<void> {
+	const res = await fetch(`/api/v1${path}`, { method: 'DELETE' });
+	if (!res.ok) {
+		const j = (await res.json().catch(() => null)) as {
+			error?: { code?: string; message?: string };
+		} | null;
+		throw new ApiError(
+			res.status,
+			j?.error?.code ?? 'ERROR',
+			j?.error?.message ?? 'The picture was not removed.'
+		);
+	}
+}

@@ -45,6 +45,16 @@ export interface GithubApi {
 		sha: string,
 		check: { name: string; conclusion: 'success' | 'neutral'; title: string; summary: string }
 	): Promise<void>;
+	/**
+	 * Makes `branch` from the tip of `from` when it does not exist yet. An existing branch is left exactly as it is, so the call is
+	 * safe to repeat and to race. Returns whether this call made it.
+	 */
+	createBranch(
+		installationId: string,
+		repo: string,
+		branch: string,
+		from: string
+	): Promise<{ created: boolean }>;
 	/** Writes `files` (path to text) under `prefix` in one commit and removes files there that are no longer wanted. */
 	commitFiles(
 		installationId: string,
@@ -155,6 +165,43 @@ const repoName = (repo: string) => {
 	return repo;
 };
 
+/** The most entries, and the most text, one tree call carries. GitHub times out a larger one. */
+export const TREE_CHUNK_ENTRIES = 100;
+export const TREE_CHUNK_BYTES = 600_000;
+
+/** Splits the entries of one commit into the groups a tree call may carry, in order. */
+export function chunkTreeEntries(entries: Record<string, unknown>[]): Record<string, unknown>[][] {
+	const chunks: Record<string, unknown>[][] = [];
+	let current: Record<string, unknown>[] = [];
+	let bytes = 0;
+	for (const entry of entries) {
+		const size = typeof entry.content === 'string' ? enc.encode(entry.content).length : 0;
+		if (
+			current.length &&
+			(current.length >= TREE_CHUNK_ENTRIES || bytes + size > TREE_CHUNK_BYTES)
+		) {
+			chunks.push(current);
+			current = [];
+			bytes = 0;
+		}
+		current.push(entry);
+		bytes += size;
+	}
+	if (current.length) chunks.push(current);
+	return chunks;
+}
+
+/** The short reason behind a failed request: the error code when there is one (ECONNRESET, ENOTFOUND), or a timeout. */
+function networkReason(e: unknown): string {
+	if (e instanceof DOMException && e.name === 'TimeoutError') return 'timed out';
+	const cause =
+		e instanceof Error ? (e.cause as { code?: string; message?: string } | undefined) : undefined;
+	return cause?.code ?? cause?.message ?? (e instanceof Error ? e.message : 'unknown error');
+}
+
+/** A branch as it goes into a ref URL: each part is encoded, the slashes of a name such as feat/x stay slashes. */
+const refPath = (branch: string) => branch.split('/').map(encodeURIComponent).join('/');
+
 /** The client for a real GitHub, or any server that speaks the same few calls. */
 export function createGithubApi(config: GithubConfig, fetchImpl: typeof fetch = fetch): GithubApi {
 	const api = config.apiUrl.replace(/\/$/, '');
@@ -167,6 +214,7 @@ export function createGithubApi(config: GithubConfig, fetchImpl: typeof fetch = 
 		body?: unknown,
 		expect: number[] = [200, 201]
 	): Promise<T> {
+		// A network failure (a reset, a timeout, no route) is not an answer from GitHub: it is said plainly and tried again later
 		const res = await fetchImpl(`${api}${path}`, {
 			method,
 			headers: {
@@ -178,6 +226,8 @@ export function createGithubApi(config: GithubConfig, fetchImpl: typeof fetch = 
 			},
 			body: body === undefined ? undefined : JSON.stringify(body),
 			signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+		}).catch((e: unknown) => {
+			throw new GithubError(`GitHub could not be reached (${networkReason(e)}).`, 503, true);
 		});
 		if (expect.includes(res.status)) return (await res.json()) as T;
 		const text = await res.text().catch(() => '');
@@ -307,6 +357,43 @@ export function createGithubApi(config: GithubConfig, fetchImpl: typeof fetch = 
 				output: { title: check.title, summary: check.summary }
 			});
 		},
+		async createBranch(installationId, repo, branch, from) {
+			const name = repoName(repo);
+			const token = await installationToken(installationId);
+			// A missing branch (404) or a repository with no commit at all (409) is not an error of the call, it is the answer
+			const tip = async (head: string) =>
+				call<{ object: { sha: string } }>(
+					'GET',
+					`/repos/${name}/git/ref/heads/${refPath(head)}`,
+					token
+				).then(
+					(r) => r.object.sha,
+					(e) => {
+						if (e instanceof GithubError && (e.status === 404 || e.status === 409)) return null;
+						throw e;
+					}
+				);
+			if (await tip(branch)) return { created: false };
+			const base = await tip(from);
+			if (!base)
+				throw new GithubError(
+					`The repository has no commit on "${from}" yet. Make a first commit there (a README is enough), then connect again.`,
+					422,
+					false
+				);
+			try {
+				await call('POST', `/repos/${name}/git/refs`, token, {
+					ref: `refs/heads/${branch}`,
+					sha: base
+				});
+			} catch (e) {
+				// Two connects at the same moment: the branch now exists, which is what was wanted
+				if (e instanceof GithubError && e.status === 422 && /already exists/i.test(e.message))
+					return { created: false };
+				throw e;
+			}
+			return { created: true };
+		},
 		async commitFiles(installationId, repo, branch, files, options) {
 			const name = repoName(repo);
 			const token = await installationToken(installationId);
@@ -316,7 +403,7 @@ export function createGithubApi(config: GithubConfig, fetchImpl: typeof fetch = 
 				throw new GithubError('A publish needs a folder inside the repository.', 422, false);
 			const base = await call<{ object: { sha: string } }>(
 				'GET',
-				`/repos/${name}/git/ref/heads/${encodeURIComponent(branch)}`,
+				`/repos/${name}/git/ref/heads/${refPath(branch)}`,
 				token
 			).catch((e) => {
 				if (e instanceof GithubError && e.status === 404)
@@ -365,16 +452,22 @@ export function createGithubApi(config: GithubConfig, fetchImpl: typeof fetch = 
 				entries.push({ path, mode: '100644', type: 'blob', sha: null });
 			}
 			if (!entries.length) return { sha: null, changed: [], deleted: [] };
-			const tree = await call<{ sha: string }>('POST', `/repos/${name}/git/trees`, token, {
-				base_tree: commit.tree.sha,
-				tree: entries
-			});
+			// GitHub answers 422 "request timed out" to one tree call that carries a whole project. The entries go in chunks, each
+			// built on the tree the one before it made, so the last tree holds all of them
+			let treeSha = commit.tree.sha;
+			for (const chunk of chunkTreeEntries(entries)) {
+				const part = await call<{ sha: string }>('POST', `/repos/${name}/git/trees`, token, {
+					base_tree: treeSha,
+					tree: chunk
+				});
+				treeSha = part.sha;
+			}
 			const made = await call<{ sha: string }>('POST', `/repos/${name}/git/commits`, token, {
 				message: options.message,
-				tree: tree.sha,
+				tree: treeSha,
 				parents: [parent]
 			});
-			await call('PATCH', `/repos/${name}/git/refs/heads/${encodeURIComponent(branch)}`, token, {
+			await call('PATCH', `/repos/${name}/git/refs/heads/${refPath(branch)}`, token, {
 				sha: made.sha,
 				force: false
 			});

@@ -13,7 +13,7 @@ import type { TokenAuth } from '../ops/tokens';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
-import { project } from '../db/schema';
+import { project, projectCols } from '../db/schema';
 import {
 	addComment,
 	createTask,
@@ -290,11 +290,17 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		{
 			tool: z.string().min(1).max(60).describe('Your tool name, for example claude-code'),
 			item: itemName.optional().describe('Claim this item right away'),
-			phase: z.string().optional()
+			phase: z.string().optional(),
+			sessionId: z
+				.string()
+				.optional()
+				.describe('The session id the hooks gave you, to reuse it instead of starting a second one')
 		},
 		{},
 		async (a, { ctx }) => {
-			const s = await startSession(ctx, { tool: a.tool });
+			// The hook session of this conversation is reused when it is yours, so one conversation is one session
+			const reused = a.sessionId ? await requireSession(ctx, a.sessionId).catch(() => null) : null;
+			const s = reused ? { sessionId: reused.id } : await startSession(ctx, { tool: a.tool });
 			if (!a.item) return { sessionId: s.sessionId, displayTitle: null, org: auth.orgId };
 			const c = await claim(
 				{ ...ctx, actor: { ...ctx.actor, sessionId: s.sessionId, tool: a.tool } },
@@ -449,7 +455,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				async (tx) =>
 					(
 						await tx
-							.select()
+							.select(projectCols)
 							.from(project)
 							.where(
 								and(

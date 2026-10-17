@@ -13,7 +13,7 @@ const RULES = `## Rules that apply to every workflow
 - Claim the named item at once. When the user names an item (a number, a reference or an old id), call work_start for it before any edit. The reply gives the session title (TAB_NAME: REF) and the next steps.
 - Name the session after the item. work_start (and session_start with an item) answers with a displayTitle, TAB_NAME: REF. If your tool can name its session or tab, set it to that title and set it again when you switch items; if it cannot, say the title in your first line. Give every new item a short tabName (one to three words in capitals joined by underscores).
 - State the item. When the work in front of you belongs to a different item than the one the user named, say so in your first line (You said 142, this was built in 139) and use the item you stated.
-- Record as you go. After each finished step call step_done (or record for waivers, reopens and manual checks). Never batch the records for the end. The percent, the status and the registry follow from the records, so never type them.
+- Progress first. Recording a step comes before starting the next one: when a step's work is done and its own check passes, call step_done for it (or record for waivers, reopens and manual checks) before you open the next file, edit for the next step or run the phase gates. Never hold finished steps until the end of a phase and never batch a phase into one call. If you notice finished steps that are not recorded, stop and record them now, with an honest log line, before any further edit. At the end of every phase read the steps back with item_get and confirm each finished step shows done. A step is not finished until it is recorded. The percent, the status and the registry follow from the records, so never type them.
 - Change the plan with the plan tools. Add a phase with plan_add_phase, steps with plan_add_steps and manual checks with plan_add_checks. Reword or remove a step that is still open with step_update. A step that is done, waived or superseded is a record and stays; waive or supersede it with record and say why.
 - The status moves by itself. The first done step moves PLANNED to IN PROGRESS and the last counted step moves IN PROGRESS to IN REVIEW. ON HOLD, COMPLETED and REMOVED never move by themselves. Use item_status for any other change, with a short note.
 - COMPLETED may be kept for people. If item_status answers COMPLETED_REFUSED with reason people-only, tell the user and leave the item in review.
@@ -45,7 +45,7 @@ const PLAN = `## Planning an item
 const BUILD = `## Building an item phase by phase
 
 1. work_start the item. Read the phase you are about to build, then the exact files it touches.
-2. Write the checks first, then the code, one step at a time. Record each step with step_done as it finishes.
+2. Write the checks first, then the code, one step at a time. Progress first: call step_done for each step the moment it is finished and checked, before you start the next one. Never leave a phase's steps to be recorded together at its end.
 3. At the end of each phase run, in this order: the UI shots (phases with a screen), the browser checks on a local build preview (never the dev server), the critic review, a second run of the checks when the fixes touched covered paths, and the audit. Every automatic check also runs once on the deployed site before release.
 4. Leave the work uncommitted until the user says to commit. Never push without being told to.`;
 
@@ -109,7 +109,7 @@ Pick the mode from the session. Plan mode is for a written plan with nothing bui
 
 1. Choose three reviewers with different lenses for what the work touches: correctness, security and tenancy, data and migrations, the interface and its states, and design fit. The design fit lens reads the UI shots' flags first and the pictures second. A value larger than its sibling, a new pattern where an existing one fits, a second primary action, or a label that needs explaining blocks the phase. Taste alone is advisory.
 2. Give each reviewer the code or plan, never your conclusion.
-3. Verify every finding yourself before acting on it. Drop the ones that do not hold.
+3. Verify every finding yourself before acting on it. Drop the ones that do not hold. A finding that finished work was never recorded with step_done is a real finding too: record it before the review goes on.
 4. Fix every confirmed blocker and high finding, then run one second pass on the fixes only. Two passes at most.
 5. Record what was found and fixed in the item's log.
 
@@ -125,7 +125,7 @@ ${RULES}`
 Run at the end of each phase and before asking for sign-off.
 
 1. Compare, in both directions, what was actually built (the working tree, new files, migrations applied, checks run) with the plan's steps, the progress notes, the decisions, the validation table and the registry row.
-2. Anything built but not recorded is recorded now. Anything recorded but not built is reopened.
+2. Anything built but not recorded is recorded now. Anything recorded but not built is reopened. Report every step that was built before it was recorded (finished work with no step_done) as a finding: steps are recorded one by one as they finish, never together at the end of a phase.
 3. Add an "As built" note wherever the work differed from the plan, and a decision for every new choice or deviation.
 4. Never tick a step you did not verify. Leave steps waiting on the user open, as manual checks.
 5. Fix the documents only. An audit never changes code.

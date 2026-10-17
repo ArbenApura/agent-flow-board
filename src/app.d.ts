@@ -14,6 +14,7 @@ declare global {
 				email: string;
 				emailVerified: boolean;
 				image?: string | null;
+				updatedAt?: Date;
 			} | null;
 			session: { id: string; token: string; expiresAt: Date } | null;
 		}

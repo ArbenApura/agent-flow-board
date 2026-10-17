@@ -257,6 +257,13 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 				finishedPhases,
 				nextPhase,
 				nextOpen: open.slice(0, 3).map((s) => ({ key: s.key, text: s.text })),
+				// Nothing left to record: say what comes next, so the claim is released and not forgotten
+				...(open.length === 0
+					? {
+							reminder:
+								'All counted steps are done. Run /flow-critic and /flow-audit, then call work_stop to release the claim.'
+						}
+					: {}),
 				...(claim ? { claim } : {}),
 				version: fresh.version
 			};

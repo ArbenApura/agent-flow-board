@@ -80,7 +80,13 @@
 			{#each extras.comments as c (c.id)}
 				{@const who = detail.people[c.authorId ?? ''] ?? 'Someone'}
 				<li class="flex items-start gap-3" data-testid="comment">
-					<Avatar name={who} size={32} class="mt-0.5" />
+					<Avatar
+						name={who}
+						userId={c.authorId}
+						v={detail.peopleV[c.authorId ?? '']}
+						size={32}
+						class="mt-0.5"
+					/>
 					<div
 						class="min-w-0 flex-1 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)] max-sm:p-3.5"
 					>

@@ -47,6 +47,13 @@ export type Running = {
 	/** TAB_NAME: REF, the title the session shows. */
 	title: string;
 	sessionId: string;
+	/** Minutes since finished work was last left unrecorded, or null when the session is up to date (progress first). */
+	staleMinutes: number | null;
+	/** The item is in review with nothing open and the session has been quiet: shown as In review, idle, not as running. */
+	reviewIdle: boolean;
+	/** When the session started and when it was last seen, so a stuck claim shows how old it is. */
+	startedAt: string | Date;
+	lastSeenAt: string | Date;
 };
 
 // -- FUNCTIONS -- //

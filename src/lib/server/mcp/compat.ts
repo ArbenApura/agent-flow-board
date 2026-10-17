@@ -8,7 +8,7 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { event, item, project, session } from '../db/schema';
-import { searchBoard } from '../ops/board';
+import { projectSummary, searchBoard } from '../ops/board';
 import { mayView } from '../ops/resolve';
 import { addAttachment } from '../ops/attachments';
 import { OpError, run } from '../ops/context';
@@ -80,8 +80,15 @@ export function registerCompat({ tool }: ToolBuilder) {
 				for (const t of await listTasks(ctx, p.key))
 					if (t.status !== 'DONE' && t.status !== 'DROPPED')
 						tasks.push({ ref: `T-${t.number}`, title: t.title.slice(0, 70), status: t.status });
+			// Sessions that left finished work unrecorded, so progress is not hidden behind a clean list
+			const notRecorded: { ref: string; project: string; minutes: number }[] = [];
+			for (const p of projects)
+				for (const r of (await projectSummary(ctx, p.key)).running)
+					if (r.staleMinutes !== null)
+						notRecorded.push({ ref: r.itemRef, project: p.key, minutes: r.staleMinutes });
 			return {
 				items: items.slice(0, 25),
+				notRecorded,
 				openItems: items.length,
 				tasks: tasks.slice(0, 25),
 				openTasks: tasks.length

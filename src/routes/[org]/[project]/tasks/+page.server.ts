@@ -18,7 +18,7 @@ import { childContext } from '#lib/server/web/ctx.js';
 export const load: PageServerLoad = async ({ params, parent, locals, depends, url }) => {
 	depends('afb:project');
 	const { org, summary } = await parent();
-	if (!summary) return { tasks: [], refs: {}, people: {}, openTask: null };
+	if (!summary) return { tasks: [], refs: {}, people: {}, peopleV: {}, openTask: null };
 	const ctx = await childContext(locals, org.id);
 	const [tasks, members] = await Promise.all([
 		listTasks(ctx, params.project),
@@ -35,6 +35,10 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 		tasks: tasks.map((t) => ({ ...t, body: bodyPreview(t.body) })),
 		refs,
 		people: Object.fromEntries(members.map((m) => [m.userId, m.name])),
+		// Only the version of each avatar, the picture is read from /pictures
+		peopleV: Object.fromEntries(
+			members.filter((m) => m.imageV).map((m) => [m.userId, m.imageV as number])
+		),
 		// Imported and guest-written text is untrusted: no images, links marked nofollow, everything sanitised
 		openTask: open
 			? { id: open.id, body: open.body, html: renderMarkdownCached(open.body, { untrusted: true }) }

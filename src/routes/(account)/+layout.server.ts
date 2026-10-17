@@ -1,6 +1,7 @@
 // -- DEP-TYPES -- //
 import type { LayoutServerLoad } from './$types';
 // -- MODULES -- //
+import { avatarVersion } from '#lib/board/pictures.js';
 import { getDb } from '#lib/server/db/index.js';
 import { listMyOrgs } from '#lib/server/orgs/orgs.js';
 import { requireUser } from '#lib/server/web/ctx.js';
@@ -12,7 +13,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 	const user = requireUser(locals, url.pathname);
 	const orgs = await listMyOrgs(await getDb(), user.id);
 	return {
-		me: { name: user.name, email: user.email },
+		me: { id: user.id, name: user.name, email: user.email, imageV: avatarVersion(user) },
 		orgs: orgs.map((o) => ({
 			id: o.id,
 			name: o.name,

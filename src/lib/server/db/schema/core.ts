@@ -3,7 +3,7 @@
 // -- DEP-TYPES -- //
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
 // -- DEP-MODULES -- //
-import { sql } from 'drizzle-orm';
+import { getTableColumns, sql } from 'drizzle-orm';
 import {
 	boolean,
 	index,
@@ -123,6 +123,8 @@ export const project = tenantTable(
 		key: text('key').notNull(),
 		name: text('name').notNull(),
 		colourTag: text('colour_tag'),
+		/** A small picture as a data address. Served by /pictures/project/{id}, so reads select projectCols and never carry it. */
+		logo: text('logo'),
 		streams: jsonb('streams')
 			.$type<StreamConfig>()
 			.notNull()
@@ -148,6 +150,20 @@ export const project = tenantTable(
 	},
 	(t) => [unique('project_org_key_uq').on(t.orgId, t.key)]
 );
+
+/** Every project column except the picture, for reads that answer to a page, the API or a tool. */
+const { logo: _logo, ...projectColumns } = getTableColumns(project);
+export const projectCols = projectColumns;
+
+/** The version of a project's logo as a number, or null when it has none. Pages use it to ask /pictures for the bytes. */
+export const projectLogoV = sql<
+	number | null
+>`case when ${project.logo} is not null then floor(extract(epoch from ${project.updatedAt}) * 1000)::float8 end`;
+
+/** The version of a person's avatar as a number, or null when they have none. Only a small PNG, JPEG or WebP data address counts as a picture, whatever wrote the column. */
+export const userPictureV = sql<
+	number | null
+>`case when ${user.image} ~ '^data:image/(png|jpeg|webp);base64,' and length(${user.image}) <= 300000 then floor(extract(epoch from ${user.updatedAt}) * 1000)::float8 end`;
 
 /** The project reference every project scoped table carries. */
 export const projectId = () =>

@@ -71,6 +71,20 @@
 			"when": 1792231691520,
 			"tag": "0009_cloudy_hedge_knight",
 			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "7",
+			"when": 1792238881855,
+			"tag": "0010_overjoyed_magik",
+			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "7",
+			"when": 1792239786026,
+			"tag": "0011_dear_pet_avengers",
+			"breakpoints": true
 		}
 	]
 }

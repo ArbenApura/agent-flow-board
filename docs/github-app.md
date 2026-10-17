@@ -32,7 +32,12 @@ Set these in `.env` and restart:
 
 ## 3. Connect a project
 
-Open the project, Publish, and connect a repository. The page sends you to GitHub to install the App on that repository and brings you back. The installation must be made from that link: an installation that already existed on GitHub before is refused, because nothing could show that your organisation owns it. Remove the App from the GitHub account and install it again from the project. Each folder of a repository belongs to one project, so two projects cannot publish into the same one. Then:
+Open the project, Publish, and connect a repository. Next to the repository you choose where the copy goes:
+
+- **Branch.** The copy is always written to a dedicated branch, `board-publish` unless you type another. The repository's default branch is refused, on the form, on the API and again at every publish, so a copy never lands on `main`. A branch that does not exist is made from the default branch when you connect (the App needs Contents write, which it has); one that exists, such as `flow-plans`, is used as it is.
+- **Folder.** The folder inside the repository, `board` unless you type another. Each publish writes only inside it and removes files in it that are no longer part of the copy, so pick a folder that holds nothing else.
+
+Until the App is installed the page sends you to GitHub to install it on that repository and brings you back, then lists the repositories to pick from. The installation must be made from that link: an installation that already existed on GitHub before is refused, because nothing could show that your organisation owns it. Remove the App from the GitHub account and install it again from the project. Each folder of a repository belongs to one project, so two projects cannot publish into the same one. Then:
 
 - **Publish now** writes the copy at once.
 - **Automatic publish** writes it after a delay you choose (so a change can still be undone), only inside the days and hours you choose, and never twice at the same time. After three failures in a row it pauses itself and tells the project's Owners and Admins.

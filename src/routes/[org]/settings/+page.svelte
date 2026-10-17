@@ -11,7 +11,7 @@
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
-	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import { ApiError, api, deletePicture, newKey, putPicture } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import { verbText } from '#lib/board/verbs.js';
 	import { addDays, formatUtcDate, groupByDay } from '#lib/board/when.js';
@@ -26,10 +26,9 @@
 	import OrgTile from '#lib/board/OrgTile.svelte';
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
-	import { cn } from '#lib/ui/cn.js';
 	import Button from '#lib/ui/Button.svelte';
 	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte';
-	import FilePicker from '#lib/ui/FilePicker.svelte';
+	import PictureUpload from '#lib/ui/PictureUpload.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
@@ -75,8 +74,6 @@
 	let nextAudit = $state<number | null>(null);
 	let auditProject = $state('');
 	let busyTest = $state(false);
-	/** True while a file is held over the logo area. */
-	let dragging = $state(false);
 	let deleteOpen = $state(false);
 	let typedName = $state('');
 	/** Kept while the dialog closes, so its numbers do not vanish during the transition. */
@@ -209,21 +206,7 @@
 
 	async function uploadLogo(file: File | undefined) {
 		if (!file) return;
-		await act(async () => {
-			const res = await fetch(`/api/v1/orgs/${org}/logo?type=${encodeURIComponent(file.type)}`, {
-				method: 'PUT',
-				headers: { 'content-type': file.type },
-				body: file
-			});
-			if (!res.ok) {
-				const j = await res.json().catch(() => null);
-				throw new ApiError(
-					res.status,
-					j?.error?.code ?? 'ERROR',
-					j?.error?.message ?? 'The logo was not saved.'
-				);
-			}
-		}, 'Logo saved.');
+		await act(() => putPicture(`/orgs/${org}/logo`, file), 'Logo saved.');
 	}
 
 	async function moreAudit() {
@@ -247,13 +230,6 @@
 	let filtered = $state(false);
 	const shownEvents = $derived(filtered ? extraAudit : events);
 	const auditDays = $derived(groupByDay(shownEvents, (e) => e.createdAt));
-
-	/** A file dropped on the logo area goes the same way as one chosen with the button, so the server checks its type and size. */
-	function dropLogo(e: DragEvent) {
-		e.preventDefault();
-		dragging = false;
-		if (can) void uploadLogo(e.dataTransfer?.files?.[0]);
-	}
 </script>
 
 <svelte:head><title>Organisation settings, {data.org.name}</title></svelte:head>
@@ -308,45 +284,17 @@
 			onsave={() => save('palette', { accent }, 'Colour saved.')}
 		>
 			<PalettePicker bind:value={accent} label="Organisation accent colour" disabled={!can} />
-			<!-- THE LOGO AREA TAKES A DROPPED FILE AS WELL AS THE BUTTON. THE SERVER STILL CHECKS ITS TYPE AND SIZE -->
-			<div
-				role="group"
-				aria-label="Logo"
-				ondragover={(e) => {
-					// Always stop the browser opening the file, even for someone who may not upload
-					e.preventDefault();
-					if (can) dragging = true;
-				}}
-				ondragleave={() => (dragging = false)}
-				ondrop={dropLogo}
-				class={cn(
-					'flex flex-wrap items-center gap-3 rounded-lg border p-3',
-					can && 'border-dashed',
-					dragging ? 'border-accent bg-accent-soft' : 'border-line'
-				)}
+			<PictureUpload
+				label="Logo"
+				removeLabel="Remove the logo"
+				hasPicture={Boolean(s.logo)}
+				canEdit={can}
+				testid="logo"
+				onupload={(f) => void uploadLogo(f)}
+				onremove={() => act(() => deletePicture(`/orgs/${org}/logo`), 'Logo removed.')}
 			>
-				<span class="inline-flex shrink-0" title="The current logo">
-					<OrgTile name={data.org.name} logo={s.logo} size={40} />
-				</span>
-				{#if can}
-					<FilePicker
-						label="Logo"
-						hint="A PNG, JPEG or WebP under 200 KB"
-						accept="image/png,image/jpeg,image/webp"
-						data-testid="logo-file"
-						onchange={(f) => void uploadLogo(f)}
-						class="w-72"
-					/>
-					{#if s.logo}
-						<Button
-							size="sm"
-							variant="ghost"
-							onclick={() => act(() => api(org, '/logo', { method: 'DELETE' }), 'Logo removed.')}
-							data-testid="logo-remove">Remove the logo</Button
-						>
-					{/if}
-				{/if}
-			</div>
+				{#snippet preview()}<OrgTile name={data.org.name} logo={s.logo} size={40} />{/snippet}
+			</PictureUpload>
 		</Section>
 
 		<Section
@@ -359,7 +307,7 @@
 			<ul class="overflow-hidden rounded-lg border border-line" data-testid="member-list">
 				{#each data.members as m (`${m.userId}-${rev}`)}
 					<SettingsRow data-testid="member">
-						{#snippet lead()}<Avatar name={m.name} />{/snippet}
+						{#snippet lead()}<Avatar name={m.name} userId={m.userId} v={m.imageV} />{/snippet}
 						<span class="block truncate font-medium text-ink">{m.name}</span>
 						<span class="block truncate text-xs text-muted">{m.email}</span>
 						{#snippet trail()}

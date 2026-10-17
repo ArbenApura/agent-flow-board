@@ -311,7 +311,14 @@
 			{/snippet}
 			{#snippet meta()}
 				{#each phaseRunning as r (r.sessionId)}
-					<RunningBadge tool={r.tool} title={r.title} phase={ph.key} compact />
+					<RunningBadge
+						tool={r.tool}
+						title={r.title}
+						phase={ph.key}
+						staleMinutes={r.staleMinutes}
+						reviewIdle={r.reviewIdle}
+						compact
+					/>
 				{/each}
 				<ProgressRing
 					value={p.counted ? (p.done / p.counted) * 100 : p.finished ? 100 : 0}

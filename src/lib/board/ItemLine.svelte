@@ -91,6 +91,8 @@
 						tool={r.tool}
 						title={r.title}
 						phase={r.phase ?? undefined}
+						staleMinutes={r.staleMinutes}
+						reviewIdle={r.reviewIdle}
 					/>{/each}
 			</span>
 		</a>
@@ -140,6 +142,8 @@
 						tool={r.tool}
 						title={r.title}
 						phase={r.phase ?? undefined}
+						staleMinutes={r.staleMinutes}
+						reviewIdle={r.reviewIdle}
 					/>{/each}
 			</span>
 		</span>

@@ -8,6 +8,9 @@
 		tool,
 		title,
 		phase,
+		staleMinutes = null,
+		reviewIdle = false,
+		age,
 		compact = false
 	}: {
 		/** The agent tool, for example Claude Code. */
@@ -16,19 +19,46 @@
 		title?: string;
 		/** A phase key makes it a phase level badge. Without one it shows the whole item as running. */
 		phase?: string;
+		/** Minutes the session has left finished work unrecorded. A number adds a warning label beside the running badge. */
+		staleMinutes?: number | null;
+		/** The item is in review with nothing open and the session has gone quiet: shown as idle, not as running. */
+		reviewIdle?: boolean;
+		/** When the claim started and was last seen, added to the hover text. */
+		age?: string;
 		/** Inside a phase heading the phase is already named, so the badge shows only the tool, working. */
 		compact?: boolean;
 	} = $props();
 
 	// -- REACTIVE STATES -- //
 
-	const text = $derived(phase ? `${tool} · Phase ${phase}` : `${tool} · Running`);
-	const shown = $derived(compact ? `${tool} working` : text);
+	const text = $derived(
+		reviewIdle
+			? `${tool} · In review, idle`
+			: phase
+				? `${tool} · Phase ${phase}`
+				: `${tool} · Running`
+	);
+	const shown = $derived(compact ? (reviewIdle ? `${tool} idle` : `${tool} working`) : text);
+	const staleTitle = $derived(
+		staleMinutes === null ? '' : `Work has been left unrecorded for ${staleMinutes} minutes`
+	);
 </script>
 
 <!-- ONE BADGE FOR BOTH LEVELS, PHASE AND ITEM, LIVE THROUGH THE REALTIME CHANNEL. THE SESSION TITLE LIVES IN THE TOOLTIP -->
-<span class="inline-flex max-w-full min-w-0" title={title ? `${text}: ${title}` : text}>
-	<Badge tone="running" class={compact ? 'max-w-full min-w-0 rounded-md' : 'max-w-full min-w-0'}>
+<span
+	class="inline-flex max-w-full min-w-0 items-center gap-1"
+	title={[title ? `${text}: ${title}` : text, age].filter(Boolean).join('. ')}
+>
+	<Badge
+		tone={reviewIdle ? 'neutral' : 'running'}
+		class={compact ? 'max-w-full min-w-0 rounded-md' : 'max-w-full min-w-0'}
+	>
 		<span class="truncate">{shown}</span>
 	</Badge>
+	<!-- A SECOND BADGE IN THE WARNING TONE, NEVER INSIDE THE RUNNING ONE AND NEVER THE ACCENT -->
+	{#if staleMinutes !== null}
+		<span title={staleTitle}>
+			<Badge tone="warning" class={compact ? 'rounded-md' : ''}>Not recorded</Badge>
+		</span>
+	{/if}
 </span>

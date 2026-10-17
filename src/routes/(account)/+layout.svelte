@@ -105,7 +105,12 @@
 										class="cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
 										{...props}
 									>
-										<Avatar name={data.me.name || data.me.email} size={40} />
+										<Avatar
+											name={data.me.name || data.me.email}
+											userId={data.me.id}
+											v={data.me.imageV}
+											size={40}
+										/>
 									</button>
 								{/snippet}
 								{#snippet children({ close })}

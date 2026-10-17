@@ -13,7 +13,16 @@ import { ROLE_LABEL, type Role } from '../../shared/roles';
 
 // -- TYPES -- //
 
-type Locals = { user: { id: string; name: string; emailVerified: boolean; email: string } | null };
+type Locals = {
+	user: {
+		id: string;
+		name: string;
+		emailVerified: boolean;
+		email: string;
+		image?: string | null;
+		updatedAt?: Date;
+	} | null;
+};
 
 // -- CONSTANTS -- //
 

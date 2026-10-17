@@ -19,6 +19,7 @@ import {
 } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { run } from '../../src/lib/server/ops/context';
+import { canonicalTool } from '../../src/lib/shared/tool';
 import { handleHook } from '../../src/lib/server/ops/hooks';
 import { projectSummary } from '../../src/lib/server/ops/board';
 import { projectHealth } from '../../src/lib/server/ops/health';
@@ -26,7 +27,8 @@ import { createItem, updateItem } from '../../src/lib/server/ops/items';
 import { recordSteps } from '../../src/lib/server/ops/steps';
 import { setStatus } from '../../src/lib/server/ops/status';
 import {
-	IDLE_MINUTES,
+	RUNNING_WINDOW_MINUTES,
+	nudgeLevel,
 	QUIET_RECORD_MINUTES,
 	RENEW_SECONDS,
 	isIdle,
@@ -102,6 +104,20 @@ describe('small helpers', () => {
 	});
 });
 
+describe('nudge levels', () => {
+	const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000);
+	it('rise with every 6 edits and every 10 minutes, and never go down', () => {
+		expect(nudgeLevel(0, null)).toBe(0);
+		expect(nudgeLevel(5, at(2))).toBe(0);
+		expect(nudgeLevel(6, at(2))).toBe(1);
+		expect(nudgeLevel(12, at(2))).toBe(2);
+		// A slow start does not use up the 6 edit nudge: 10 minutes is level 1, 20 is level 2
+		expect(nudgeLevel(1, at(11))).toBe(1);
+		expect(nudgeLevel(6, at(11))).toBe(1);
+		expect(nudgeLevel(7, at(21))).toBe(2);
+	});
+});
+
 describe.each([
 	['pglite', makePglite],
 	['postgres', makePostgres]
@@ -162,8 +178,8 @@ describe.each([
 		);
 		await run(person(), (tx) => renewSession(tx, id));
 		expect((await sessionRow(id)).lastSeenAt.getTime()).toBeGreaterThan(Date.now() - 5_000);
-		expect(isIdle(new Date(Date.now() - (IDLE_MINUTES - 1) * 60_000))).toBe(false);
-		expect(isIdle(new Date(Date.now() - (IDLE_MINUTES + 1) * 60_000))).toBe(true);
+		expect(isIdle(new Date(Date.now() - (RUNNING_WINDOW_MINUTES - 1) * 60_000))).toBe(false);
+		expect(isIdle(new Date(Date.now() - (RUNNING_WINDOW_MINUTES + 1) * 60_000))).toBe(true);
 		// An idle claim is still a claim
 		const it = await newItem('Idle claim');
 		await claim(agent('member', id), id, it.ref, '1');
@@ -697,6 +713,8 @@ describe.each([
 		expect(await handleHook(ctx(), input('stop', { stopActive: true }))).toEqual({});
 		const block = await handleHook(ctx(), input('stop'));
 		expect(block.block).toContain(`Code changed after the last record on ${it.ref}`);
+		// The reminder names the steps still open in the claimed phase
+		expect(block.block).toContain('Steps still open: 1.1');
 		expect(await handleHook(ctx(), input('stop'))).toEqual({});
 		// New code after the reminder earns one more, unless a step was recorded after it
 		await new Promise((r) => setTimeout(r, 15));
@@ -748,6 +766,238 @@ describe.each([
 			externalId: 'agy-conversation-1'
 		});
 		await expect(handleHook(ctx(), { ...input('start'), externalId: 'x' })).rejects.toThrow();
+	});
+
+	it('progress first: a nudge at 6 edits, once per level, from the time rule too, and reset by a recorded step of any session', async () => {
+		const hookCtx = () => w.ctx('member', { kind: 'agent', tool: 'claude-code' });
+		const hookSession = async (externalId: string, itemRef: string | null) => {
+			await handleHook(hookCtx(), { tool: 'claude-code', externalId, event: 'start' });
+			const [row] = await withTenant(db, { orgId: w.orgId }, (tx) =>
+				tx.select().from(session).where(eq(session.externalId, externalId))
+			);
+			if (itemRef) await claim(agent('member', row.id), row.id, itemRef, '1');
+			return row.id;
+		};
+		const edit = (externalId: string) =>
+			handleHook(hookCtx(), {
+				tool: 'claude-code',
+				externalId,
+				event: 'tool',
+				action: { kind: 'edit', file: 'src/a.ts' }
+			});
+		const it = await newItem('Nudged');
+		const idA = await hookSession('nudge-conversation-a', it.ref);
+		// Five edits say nothing, the sixth nudges, and the next five stay quiet
+		for (let i = 0; i < 5; i++) expect(await edit('nudge-conversation-a')).toEqual({});
+		const sixth = await edit('nudge-conversation-a');
+		expect(sixth.nudge).toContain(it.ref);
+		expect(sixth.nudge).toContain('6 code edits');
+		for (let i = 0; i < 5; i++) expect(await edit('nudge-conversation-a')).toEqual({});
+		// Every further 6 edits earn one more level
+		expect((await edit('nudge-conversation-a')).nudge).toContain('12 code edits');
+		// The reply line of a board tool says it too, and does not consume anything
+		const notes = await run(person(), (tx) => trackingNotes(tx, idA, new Date()));
+		expect(notes.join(' ')).toContain(`12 code edits on ${it.ref} since the last step_done`);
+		expect(await run(person(), (tx) => trackingNotes(tx, idA, new Date()))).toEqual(notes);
+		// A step recorded by another session of the same item clears this session's count
+		const idB = await newSession('antigravity');
+		await claim(agent('member', idB, 'antigravity'), idB, it.ref, '1');
+		await recordSteps(agent('member', idB, 'antigravity'), {
+			item: it.ref,
+			marks: [{ key: '1.1', mark: 'done' }]
+		});
+		const cleared = await sessionRow(idA);
+		expect(cleared).toMatchObject({ codeEditsSinceRecord: 0, nudgedLevel: 0 });
+		expect(cleared.firstUnrecordedEditAt).toBeNull();
+		expect(await run(person(), (tx) => trackingNotes(tx, idA, new Date()))).toEqual([]);
+
+		// The time rule: one edit, 11 minutes after the first unrecorded one
+		const timed = it;
+		const idT = await hookSession('nudge-conversation-t', timed.ref);
+		expect(await edit('nudge-conversation-t')).toEqual({});
+		await db.admin.exec(
+			`update session set first_unrecorded_edit_at = now() - interval '11 minutes' where id = '${idT}'`
+		);
+		expect((await edit('nudge-conversation-t')).nudge).toContain(timed.ref);
+
+		// No claim and no open step mean no nudge
+		await hookSession('nudge-conversation-n', null);
+		for (let i = 0; i < 7; i++) expect((await edit('nudge-conversation-n')).nudge).toBeUndefined();
+		const bare = await newItem('No open steps', { phases: [], manualChecks: [] });
+		await hookSession('nudge-conversation-b', bare.ref);
+		for (let i = 0; i < 7; i++) expect((await edit('nudge-conversation-b')).nudge).toBeUndefined();
+
+		// Edits made for one item are not charged to the next one
+		const first = it;
+		const second = bare;
+		const idM = await hookSession('nudge-conversation-m', first.ref);
+		for (let i = 0; i < 3; i++) await edit('nudge-conversation-m');
+		expect((await sessionRow(idM)).codeEditsSinceRecord).toBe(3);
+		await claim(agent('member', idM), idM, second.ref, '1');
+		expect(await sessionRow(idM)).toMatchObject({ codeEditsSinceRecord: 0, nudgedLevel: 0 });
+
+		// Two edits at once count twice
+		const idP = await hookSession('nudge-conversation-p', it.ref);
+		await Promise.all([edit('nudge-conversation-p'), edit('nudge-conversation-p')]);
+		expect((await sessionRow(idP)).codeEditsSinceRecord).toBe(2);
+
+		// With no step open in the claimed phase the Stop reminder says to release the claim
+		const idE = await hookSession('end-conversation-e', bare.ref);
+		await edit('end-conversation-e');
+		const stop = await handleHook(hookCtx(), {
+			tool: 'claude-code',
+			externalId: 'end-conversation-e',
+			event: 'stop'
+		});
+		expect(stop.block).toContain('work_stop');
+		// The end of a conversation lets go of its own claim only, and never makes a session
+		// Another person's hook session with the very same conversation id keeps its claim
+		const adminCtx = w.ctx('admin', { kind: 'agent', tool: 'claude-code' });
+		await handleHook(adminCtx, {
+			tool: 'claude-code',
+			externalId: 'end-conversation-e',
+			event: 'start'
+		});
+		const adminId = (
+			await withTenant(db, { orgId: w.orgId }, (tx) =>
+				tx.select().from(session).where(eq(session.externalId, 'end-conversation-e'))
+			)
+		).find((r) => r.userId === adminCtx.actor.userId)!.id;
+		await claim(agent('admin', adminId), adminId, bare.ref);
+		const before = await withTenant(db, { orgId: w.orgId }, (tx) => tx.select().from(session));
+		const end = (externalId: string) =>
+			handleHook(hookCtx(), { tool: 'claude-code', externalId, event: 'end' });
+		expect(await end('end-conversation-unknown')).toEqual({});
+		expect(
+			(await withTenant(db, { orgId: w.orgId }, (tx) => tx.select().from(session))).length
+		).toBe(before.length);
+		expect(await end('end-conversation-e')).toEqual({});
+		expect((await sessionRow(idE)).claimedItemId).toBeNull();
+		expect((await sessionRow(adminId)).claimedItemId).toBe(bare.id);
+	});
+
+	it('the running badge carries a stale flag only while an open step and old unrecorded edits exist, and the last step says to review and release', async () => {
+		const it = await newItem('Stale flag');
+		const id = await newSession();
+		await claim(agent('member', id), id, it.ref, '1');
+		const flag = async () =>
+			(await projectSummary(person(), w.projectKey)).running.find((r) => r.itemRef === it.ref)
+				?.staleMinutes;
+		expect(await flag()).toBeNull();
+		await db.admin.exec(
+			`update session set code_edits_since_record = 2, first_unrecorded_edit_at = now() - interval '4 minutes' where id = '${id}'`
+		);
+		expect(await flag()).toBeNull();
+		await db.admin.exec(
+			`update session set first_unrecorded_edit_at = now() - interval '14 minutes' where id = '${id}'`
+		);
+		expect(await flag()).toBeGreaterThanOrEqual(13);
+		// The health panel lists it as unrecorded work
+		const health = await projectHealth(person('admin'), w.projectKey);
+		expect(health.staleClaims.find((c) => c.itemRef === it.ref)).toMatchObject({
+			kind: 'unrecorded'
+		});
+		// A recorded step clears it
+		const part = await recordSteps(agent('member', id), {
+			item: it.ref,
+			marks: [{ key: '1.1', mark: 'done' }]
+		});
+		expect(await flag()).toBeNull();
+		// The last recorded step says to run the review and release the claim; the claim stays for the review
+		expect(part).not.toHaveProperty('reminder');
+		const all = await recordSteps(agent('member', id), {
+			item: it.ref,
+			marks: [
+				{ key: '1.2', mark: 'done' },
+				{ key: '2.1', mark: 'done' },
+				{ key: '2.2', mark: 'done' }
+			]
+		});
+		expect(all.status).toBe('IN REVIEW');
+		expect((all as { reminder?: string }).reminder).toMatch(/work_stop/);
+		expect((await sessionRow(id)).claimedItemId).toBe(it.id);
+		// A quiet finished item shows idle, not running
+		const idle = async () =>
+			(await projectSummary(person(), w.projectKey)).running.find((r) => r.itemRef === it.ref)
+				?.reviewIdle;
+		expect(await idle()).toBe(false);
+		await db.admin.exec(
+			`update session set last_seen_at = now() - interval '11 minutes' where id = '${id}'`
+		);
+		expect(await idle()).toBe(true);
+	});
+
+	it('one tab shows one running badge: tool names are one family, a phase badge replaces the item badge, and a live parallel conversation keeps its claim', async () => {
+		const running = async (ref: string) =>
+			(await projectSummary(person(), w.projectKey)).running.filter((r) => r.itemRef === ref);
+		// A hook session says claude-code, an MCP session says Claude Code: one person, one tool, one badge
+		const it = await newItem('One badge');
+		const hookRow = await newSession('claude-code');
+		const mcpRow = await newSession('Claude Code');
+		// The phase claim comes first and the newer item level claim must not replace it
+		await claim(agent('member', mcpRow, 'Claude Code'), mcpRow, it.ref, '1');
+		await claim(agent('member', hookRow), hookRow, it.ref);
+		const badges = await running(it.ref);
+		expect(badges).toHaveLength(1);
+		// The row says how old the claim is
+		expect(badges[0]).toMatchObject({
+			startedAt: expect.anything(),
+			lastSeenAt: expect.anything()
+		});
+		// The phase level badge replaces the item level one
+		expect(badges[0].phase).toBe('1');
+		// The badge keeps the name the tool gave it
+		expect(canonicalTool(badges[0].tool)).toBe('claude-code');
+		// Another tool of the same person is another tab and keeps its own badge
+		const other = await newSession('antigravity');
+		await claim(agent('member', other, 'antigravity'), other, it.ref, '1');
+		expect((await running(it.ref)).map((r) => canonicalTool(r.tool)).sort()).toEqual([
+			'antigravity',
+			'claude-code'
+		]);
+		// Two different people on one item and tool stay two badges
+		const admin = (
+			await startSession(w.ctx('admin', { kind: 'agent', tool: 'claude-code' }), {
+				tool: 'claude-code'
+			})
+		).sessionId;
+		await claim(agent('admin', admin), admin, it.ref, '1');
+		expect(
+			(await running(it.ref)).filter((r) => canonicalTool(r.tool) === 'claude-code')
+		).toHaveLength(2);
+		// Two live conversations of one person and tool on one item both keep their claim, and show one badge
+		const live = await newItem('Parallel conversations');
+		const first = await newSession('claude-code');
+		const second = await newSession('claude-code');
+		await claim(agent('member', first), first, live.ref, '1');
+		await claim(agent('member', second), second, live.ref, '1');
+		expect((await sessionRow(first)).claimedItemId).toBe(live.id);
+		expect((await sessionRow(second)).claimedItemId).toBe(live.id);
+		expect(await running(live.ref)).toHaveLength(1);
+		// A conversation that went quiet for over 10 minutes lets go when another one claims the item
+		const third = await newSession('claude-code');
+		await db.admin.exec(
+			`update session set last_seen_at = now() - interval '11 minutes' where id = '${first}'`
+		);
+		await claim(agent('member', third), third, live.ref, '1');
+		expect((await sessionRow(first)).claimedItemId).toBeNull();
+		expect((await sessionRow(second)).claimedItemId).toBe(live.id);
+		// A claim nobody released stops counting as running after the one shared limit
+		await db.admin.exec(
+			`update session set last_seen_at = now() - interval '121 minutes' where id in ('${second}', '${third}')`
+		);
+		expect(await running(live.ref)).toHaveLength(0);
+		// The badge and the health panel agree on the one limit: at 100 minutes running and not idle, at 125 idle and not running
+		const stale = async () =>
+			(await projectHealth(person('admin'), w.projectKey)).staleClaims.filter(
+				(c) => c.itemRef === live.ref && c.kind === 'idle'
+			);
+		expect(await stale()).toHaveLength(2);
+		await db.admin.exec(
+			`update session set last_seen_at = now() - interval '100 minutes' where id in ('${second}', '${third}')`
+		);
+		expect(await running(live.ref)).toHaveLength(1);
+		expect(await stale()).toHaveLength(0);
 	});
 
 	it('the health panel lists what needs attention, hides private items from people who may not see them, and shows failures to admins only', async () => {

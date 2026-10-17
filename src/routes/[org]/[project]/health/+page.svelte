@@ -157,7 +157,7 @@
 							class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
 							data-row
 						>
-							<Badge tone="warning">idle</Badge>
+							<Badge tone="warning">{c.kind === 'idle' ? 'idle' : 'not recorded'}</Badge>
 							<span class="min-w-0 flex-1 text-sm">
 								{c.tool} on
 								<a class="font-mono text-xs text-accent-text hover:underline" href={link(c.itemRef)}

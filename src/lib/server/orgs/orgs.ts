@@ -18,7 +18,8 @@ import {
 	projectMember,
 	projectPin,
 	runner,
-	user
+	user,
+	userPictureV
 } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { orgInsert } from '../db/zod';
@@ -37,7 +38,14 @@ export class OrgError extends Error {
 		this.name = 'OrgError';
 	}
 }
-export type MemberRow = { userId: string; name: string; email: string; role: Role };
+export type MemberRow = {
+	userId: string;
+	name: string;
+	email: string;
+	role: Role;
+	/** Version of the avatar, or null. The picture itself is at /pictures/user/{userId}?v=. */
+	imageV?: number | null;
+};
 
 // -- CONSTANTS -- //
 
@@ -182,7 +190,13 @@ export function membersFor(members: MemberRow[], viewerId: string): MemberRow[] 
 export async function listMembers(handle: DbHandle, orgId: string): Promise<MemberRow[]> {
 	return withTenant(handle, { orgId }, (tx) =>
 		tx
-			.select({ userId: member.userId, name: user.name, email: user.email, role: member.role })
+			.select({
+				userId: member.userId,
+				name: user.name,
+				email: user.email,
+				role: member.role,
+				imageV: userPictureV
+			})
 			.from(member)
 			.innerJoin(user, eq(user.id, member.userId))
 			.where(eq(member.orgId, orgId))

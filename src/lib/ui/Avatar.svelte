@@ -1,5 +1,6 @@
 <script lang="ts">
 	// -- MODULES -- //
+	import { userPictureUrl } from '#lib/board/pictures.js';
 	import { cn } from '#lib/ui/cn.js';
 
 	// -- REQUIRED PROPS -- //
@@ -7,12 +8,17 @@
 	let {
 		name,
 		src,
+		userId,
+		v,
 		size = 32,
 		kind = 'person',
 		class: extra
 	}: {
 		name: string;
 		src?: string | null;
+		/** The person, with the version of their picture: the avatar is read from /pictures/user. Without a version it shows initials. */
+		userId?: string | null;
+		v?: number | null;
 		size?: 24 | 32 | 40;
 		/** An agent tool shows a square mark, a person a circle. */
 		kind?: 'person' | 'agent';
@@ -22,6 +28,11 @@
 	// -- CONSTANTS -- //
 
 	const DIMS = { 24: 'size-6 text-[10px]', 32: 'size-8 text-xs', 40: 'size-10 text-sm' } as const;
+
+	// -- STATES -- //
+
+	/** The address that failed to load, so a broken picture falls back to initials instead of an empty box. */
+	let failed = $state<string | null>(null);
 
 	// -- REACTIVE STATES -- //
 
@@ -34,12 +45,15 @@
 			.join('') || '?'
 	);
 	const dim = $derived(DIMS[size]);
+	const picture = $derived(src ?? userPictureUrl(userId, v));
+	const shown = $derived(picture && picture !== failed ? picture : null);
 </script>
 
-{#if src}
+{#if shown}
 	<img
-		{src}
+		src={shown}
 		alt=""
+		onerror={() => (failed = shown)}
 		class={cn(
 			'shrink-0 object-cover',
 			kind === 'agent' ? 'rounded-md' : 'rounded-full',

@@ -6,10 +6,11 @@ import type { Storage } from '../adapters/storage';
 import type { GithubApi } from '../github/app';
 import type { Mailer } from '../email/mailer';
 import type { DbHandle } from '../db/client';
-import type { Ctx } from '../ops/context';
+import type { Actor, Ctx } from '../ops/context';
 import { fingerprintOf } from '../ops/context';
 import { requireSession } from '../mcp/sessions';
 // -- MODULES -- //
+import { clearMyAvatar, setMyAvatar } from '../ops/pictures';
 import { authenticateToken } from '../ops/tokens';
 import { listMyOrgs, orgForSlug } from '../orgs/orgs';
 import { buildOpenApi } from './openapi';
@@ -100,6 +101,18 @@ export async function handleApi(req: ApiRequest, deps: ApiDeps): Promise<ApiResp
 					orgs: token ? orgs.filter((o) => o.id === token.orgId) : orgs
 				}
 			};
+		}
+
+		// A person's own picture belongs to them, not to an organisation, so it has no org in its path. Session only.
+		if (req.path === '/me/avatar' && (req.method === 'PUT' || req.method === 'DELETE')) {
+			if (token)
+				return fail(403, 'FORBIDDEN', 'This needs a signed in person. A token cannot do it.');
+			const actor: Actor = { userId, kind: 'person', label: req.session?.name };
+			const result =
+				req.method === 'PUT'
+					? await setMyAvatar(deps.handle, actor, req.body, req.query.type ?? '')
+					: await clearMyAvatar(deps.handle, actor);
+			return { status: 200, headers: NO_STORE, body: result };
 		}
 
 		const found = match(req.method, req.path);

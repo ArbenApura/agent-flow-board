@@ -19,6 +19,8 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends }) 
 	]);
 	return {
 		project: {
+			id: project.id,
+			logoV: project.logoV,
 			key: project.key,
 			name: project.name,
 			colourTag: project.colourTag,

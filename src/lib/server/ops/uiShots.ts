@@ -260,7 +260,7 @@ export async function sweepShotRuns(tx: Tx, orgId: string, minutes: number) {
 async function queueRun(
 	ctx: Ctx,
 	tx: Tx,
-	p: typeof project.$inferSelect,
+	p: Omit<typeof project.$inferSelect, 'logo'>,
 	itemId: string | null,
 	kind: 'shots' | 'measure',
 	asked: Target

@@ -27,7 +27,7 @@
 			logo?: string | null;
 			palette?: OrgPalette | null;
 		}[];
-		me: { name: string; email: string };
+		me: { id?: string; name: string; email: string; imageV?: number | null };
 	} = $props();
 </script>
 

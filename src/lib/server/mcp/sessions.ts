@@ -7,11 +7,12 @@ import type { Ctx } from '../ops/context';
 import { randomBytes } from 'node:crypto';
 import { and, eq, ne, sql } from 'drizzle-orm';
 // -- MODULES -- //
+import { canonicalTool } from '../../shared/tool';
 import { item, phase, session, step } from '../db/schema';
 import { OpError, run } from '../ops/context';
 import { canSeeItem, findItem } from '../ops/resolve';
 import { notifyChange } from '../realtime/notify';
-import { renewSession } from '../ops/tracking';
+import { QUIET_RELEASE_MINUTES, renewSession } from '../ops/tracking';
 
 // -- CONSTANTS -- //
 
@@ -161,21 +162,29 @@ export async function claim(
 			.set({
 				claimedItemId: itemId,
 				claimedPhase: phaseOut,
+				// Edits made for the item held before are not charged to the new one
+				codeEditsSinceRecord: sql`case when ${session.claimedItemId} is distinct from ${itemId}::uuid then 0 else ${session.codeEditsSinceRecord} end`,
+				firstUnrecordedEditAt: sql`case when ${session.claimedItemId} is distinct from ${itemId}::uuid then null else ${session.firstUnrecordedEditAt} end`,
+				nudgedLevel: sql`case when ${session.claimedItemId} is distinct from ${itemId}::uuid then 0 else ${session.nudgedLevel} end`,
 				lastSeenAt: sql`now()`,
 				updatedAt: sql`now()`
 			})
 			.where(eq(session.id, sessionId))
 			.returning();
-		// An older session of the same person and tool on the same item lets go, so one claim shows as one badge
+		// An older session of the same person and tool on the same item lets go only after it has been quiet for a while, so a
+		// parallel conversation that is still working keeps its claim (one token serves every conversation of a person)
 		if (itemId)
 			await tx
 				.update(session)
 				.set({ claimedItemId: null, claimedPhase: null, updatedAt: sql`now()` })
 				.where(
 					and(
+						eq(session.orgId, ctx.orgId),
 						eq(session.claimedItemId, itemId),
 						eq(session.userId, row.userId),
-						eq(session.tool, row.tool),
+						sql`${session.lastSeenAt} < now() - make_interval(mins => ${QUIET_RELEASE_MINUTES})`,
+						// Older rows may carry a raw tool name, so compare the family, not the text
+						sql`lower(regexp_replace(trim(${session.tool}), '[[:space:]_]+', '-', 'g')) = ${canonicalTool(row.tool)}`,
 						ne(session.id, sessionId)
 					)
 				);

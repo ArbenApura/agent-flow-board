@@ -67,6 +67,7 @@ Every page after sign in sits in one shell, a sidebar on the left and a top bar 
 - **The top bar** holds the breadcrumb, search (organisation pages), the light and dark switch (`ThemeToggle`, on both layouts, phones included) and the account menu. Search is not in the sidebar.
 - **Colour belongs to the organisation.** A person picks light or dark and nothing else. There is no personal accent. The accent, logo and palette are set once in Organisation settings under "Organisation colour and logo", and the account screen says so. The light and dark choice applies and saves as it is picked, with no Save button.
 - **An organisation is shown as `OrgTile`**: its logo, or two capital letters on one of four theme tints chosen from its address, the same everywhere.
+- **A project is shown as `ProjectTile`**: its logo, or the first two letters of its key in mono on the raised surface, at 24 or 40 and nothing between. A person is shown as `Avatar`: their picture, or initials. Both pictures are set in settings (`PictureUpload`, a PNG, JPEG or WebP under 200 KB) and read from `/pictures`, never inlined in page data.
 - **The loading placeholder draws this shell** (`#afb-boot` in `src/app.html`): the rail, the top bar and the shape the page had last time. A new page shape adds its own block there and sets `data-org` in the boot script.
 - **Database round trips are a design input.** The database can be far from the person developing, so a page that makes many queries in a row is slow. Run independent loads in parallel and avoid a transaction for a check that rarely changes.
 
@@ -119,6 +120,8 @@ Chosen direction is Graphite (ADR-033). Components read these tokens only. No co
 | `--accent-text` | `#1d4ed8` | `#6b9bff` | Accent text on the soft tint           |
 
 Fixed semantic colours, the same for every org palette.
+
+The running badge uses `--accent-soft`. A session that left finished work unrecorded shows a second badge beside it in the warning tone (`Not recorded`), the same size, never inside the running badge and never in the accent.
 
 | Token       | Light     | Dark      |
 | ----------- | --------- | --------- |

@@ -229,6 +229,46 @@ describe('the Gemini CLI adapter', () => {
 	});
 });
 
+describe('the end of a conversation', () => {
+	it('Claude Code maps SessionEnd to the end event and answers nothing', () => {
+		expect(
+			claude.toEvent('', { hook_event_name: 'SessionEnd', session_id: 'claude-session-0001' })
+		).toMatchObject({ event: 'end', externalId: 'claude-session-0001' });
+		expect(claude.toOutput('end', { block: 'x' })).toEqual({});
+		// No other tool has a captured end event, so they stay a written gap and map nothing
+		expect(
+			gemini.toEvent('', { hook_event_name: 'SessionEnd', session_id: 'g-0000001' })
+		).toBeNull();
+		expect(antigravity.toEvent('SessionEnd', { conversationId: 'abcdefgh-1234' })).toBeNull();
+	});
+});
+
+describe('the progress first nudge', () => {
+	const nudge = { nudge: '6 code edits on AFB-1 since the last step_done.' };
+	it('Claude Code gets it as PostToolUse context right after the edit, and nothing on other events', () => {
+		expect(claude.toOutput('tool', nudge)).toEqual({
+			hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: nudge.nudge }
+		});
+		expect(claude.toOutput('tool', {})).toEqual({});
+		expect(claude.toOutput('prompt', nudge)).toEqual({});
+	});
+	it('Gemini gets it as AfterTool context, and never a block', () => {
+		expect(gemini.toOutput('tool', nudge)).toEqual({
+			hookSpecificOutput: { hookEventName: 'AfterTool', additionalContext: nudge.nudge }
+		});
+		expect(JSON.stringify(gemini.toOutput('tool', nudge))).not.toMatch(/deny|block/);
+	});
+	it('Antigravity has no captured post-tool output, so the nudge is a written gap and the answer stays empty', () => {
+		expect(antigravity.toOutput('tool', nudge)).toEqual({});
+	});
+	it('a server that sends no nudge, or no answer at all, leaves every tool silent', () => {
+		for (const a of [claude, gemini, antigravity]) {
+			expect(a.toOutput('tool', null)).toEqual({});
+			expect(a.toOutput('tool', { context: 'x' })).toEqual({});
+		}
+	});
+});
+
 describe('running a hook', () => {
 	it('always answers with one object: the mapped answer, or {} when anything goes wrong', async () => {
 		const call = async (event: HookEvent) =>
@@ -356,6 +396,13 @@ describe('the printed settings', () => {
 			'PreInvocation',
 			'Stop'
 		]);
+		// The progress first nudge and the Stop reminder only reach an agent when these two hooks are registered
+		const claudeHooks = JSON.parse(hookSettings('claude', 'https://b.example.com')!).hooks;
+		expect(Object.keys(claudeHooks)).toEqual(
+			expect.arrayContaining(['PostToolUse', 'Stop', 'SessionEnd'])
+		);
+		const geminiHooks = JSON.parse(hookSettings('gemini', 'https://b.example.com')!).hooks;
+		expect(Object.keys(geminiHooks)).toEqual(expect.arrayContaining(['AfterTool', 'AfterAgent']));
 		expect(hookSettings('nothing', 'https://b.example.com')).toBeNull();
 	});
 });

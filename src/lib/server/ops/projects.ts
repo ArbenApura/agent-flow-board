@@ -7,7 +7,14 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { appendEvent } from '../db/events';
-import { member, project, projectCounter, projectMember } from '../db/schema';
+import {
+	member,
+	project,
+	projectCols,
+	projectCounter,
+	projectLogoV,
+	projectMember
+} from '../db/schema';
 import { OpError, projectAllowed, requireCap, run } from './context';
 import { actorFields, checkVersion } from './items';
 import { findProject } from './resolve';
@@ -87,7 +94,7 @@ export async function listProjects(ctx: Ctx) {
 			.where(and(eq(member.orgId, ctx.orgId), eq(member.userId, ctx.actor.userId)));
 		if (!m) throw new OpError('FORBIDDEN', 'You are not a member of this organisation.');
 		const all = await tx
-			.select()
+			.select({ ...projectCols, logoV: projectLogoV })
 			.from(project)
 			.where(eq(project.orgId, ctx.orgId))
 			.orderBy(asc(project.key));
@@ -132,7 +139,7 @@ export async function createProject(ctx: Ctx, raw: z.input<typeof projectInput>)
 				webApp: input.webApp,
 				streams: input.streams
 			})
-			.returning();
+			.returning({ ...projectCols, logoV: projectLogoV });
 		await tx
 			.insert(projectCounter)
 			.values({ projectId: row.id, orgId: ctx.orgId, next: 1, nextTask: 1 });
@@ -173,7 +180,7 @@ export async function updateProject(ctx: Ctx, raw: z.input<typeof projectUpdateI
 			.update(project)
 			.set({ ...after, updatedAt: sql`now()`, version: sql`${project.version} + 1` })
 			.where(eq(project.id, p.id))
-			.returning();
+			.returning({ ...projectCols, logoV: projectLogoV });
 		await appendEvent(tx, {
 			orgId: ctx.orgId,
 			projectId: p.id,

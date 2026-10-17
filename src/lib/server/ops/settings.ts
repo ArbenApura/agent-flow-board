@@ -17,16 +17,11 @@ import type { OrgSettings } from '../db/schema/core';
 import { OpError, requireCap, run } from './context';
 import { loadPublishable, renderExport } from '../github/export';
 import { actorFields } from './items';
+import { pictureDataAddress } from './pictures';
 import { findProject } from './resolve';
 
 // -- CONSTANTS -- //
 
-export const MAX_LOGO_BYTES = 200 * 1024;
-const LOGO_TYPES: Record<string, string> = {
-	'image/png': 'png',
-	'image/jpeg': 'jpg',
-	'image/webp': 'webp'
-};
 export const orgSettingsInput = z.object({
 	name: z.string().min(2).max(80).optional(),
 	/** A six digit colour, or null to go back to the default palette. */
@@ -157,26 +152,14 @@ export async function appendOrgEvent(
 
 /** The logo is a small picture kept with the org, as a data address, so every page can show it with no extra request. */
 export async function setOrgLogo(ctx: Ctx, bytes: Uint8Array, mime: string) {
-	if (!LOGO_TYPES[mime])
-		throw new OpError('INVALID', 'The logo must be a PNG, JPEG or WebP picture.');
-	if (bytes.byteLength === 0 || bytes.byteLength > MAX_LOGO_BYTES)
-		throw new OpError('INVALID', `The logo must be smaller than ${MAX_LOGO_BYTES / 1024} KB.`);
-	// The first bytes must be the picture type's own signature, so a renamed file is not taken for a picture
-	const head = Buffer.from(bytes.subarray(0, 12));
-	const ok =
-		(mime === 'image/png' &&
-			head.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) ||
-		(mime === 'image/jpeg' && head[0] === 0xff && head[1] === 0xd8) ||
-		(mime === 'image/webp' &&
-			head.subarray(0, 4).toString() === 'RIFF' &&
-			head.subarray(8, 12).toString() === 'WEBP');
-	if (!ok) throw new OpError('INVALID', 'That file is not the kind of picture it says it is.');
+	// Type, size and the file's own signature are checked by the one helper that avatars and project logos use too
+	const logo = pictureDataAddress(bytes, mime, 'logo');
 	return run(ctx, async (tx) => {
 		await requireCap(tx, ctx, 'manage');
 		await tx
 			.update(org)
 			.set({
-				logo: `data:${mime};base64,${Buffer.from(bytes).toString('base64')}`,
+				logo,
 				updatedAt: sql`now()`,
 				version: sql`${org.version} + 1`
 			})

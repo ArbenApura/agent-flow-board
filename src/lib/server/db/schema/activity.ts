@@ -91,6 +91,10 @@ export const session = tenantTable(
 		remindedAt: timestamp('reminded_at', { withTimezone: true }),
 		/** The last time this session recorded a step, so an idle claim can be told from a busy one. */
 		lastRecordAt: timestamp('last_record_at', { withTimezone: true }),
+		/** Code edits since the last recorded step, the time of the first one, and the nudge level already sent for them. */
+		codeEditsSinceRecord: integer('code_edits_since_record').notNull().default(0),
+		firstUnrecordedEditAt: timestamp('first_unrecorded_edit_at', { withTimezone: true }),
+		nudgedLevel: integer('nudged_level').notNull().default(0),
 		/** Messages for the session's next reply: a claim released because its item closed, for example. */
 		notices: jsonb('notices')
 			.$type<string[]>()

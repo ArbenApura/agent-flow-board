@@ -12,6 +12,13 @@ import { and, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { appendEvent } from '../db/events';
+import {
+	BRANCH_CHARACTERS,
+	DEFAULT_PUBLISH_BRANCH,
+	FOLDER_CHARACTERS,
+	isGitBranchName,
+	isPublishFolder
+} from '../../board/gitBranch';
 import { event, githubInstallation, githubLink, publishRun } from '../db/schema';
 import { OpError, rateLimit, requireCap, run } from '../ops/context';
 import { actorFields } from '../ops/items';
@@ -42,6 +49,12 @@ export const FAILURES_BEFORE_PAUSE = 3;
 export const MIN_DELAY_MINUTES = 1;
 export const MAX_DELAY_MINUTES = 24 * 60;
 const MAX_LATER_DAYS = 30;
+export const DEFAULT_BRANCH_REFUSAL =
+	'Pick a dedicated branch. The default branch of the repository is never written.';
+
+/** True when the branch is the repository's default branch, which a publish never writes. */
+const isDefaultBranch = (branch: string, defaultBranch: string) =>
+	branch.toLowerCase() === defaultBranch.toLowerCase();
 
 export const linkInput = z.object({
 	project: z.string().min(1),
@@ -49,15 +62,17 @@ export const linkInput = z.object({
 	repo: z
 		.string()
 		.regex(/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/, 'Write the repository as owner/name'),
+	// A name git accepts as a branch: GitHub would refuse the rest late and with a raw message
 	branch: z
 		.string()
-		.regex(/^[A-Za-z0-9._/-]{1,100}$/)
+		.regex(BRANCH_CHARACTERS, 'Use letters, digits, dots, dashes and slashes')
+		.refine(isGitBranchName, 'That is not a valid git branch name')
 		.optional(),
 	// Never empty and never climbing: an empty folder would make the publish treat the whole repository as its own
 	path: z
 		.string()
-		.regex(/^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/, 'Use letters, digits and slashes')
-		.refine((p) => p.split('/').every((part) => part !== '.' && part !== '..'), 'Use a folder name')
+		.regex(FOLDER_CHARACTERS, 'Use letters, digits and slashes')
+		.refine(isPublishFolder, 'Use a folder name')
 		.max(100)
 		.optional()
 });
@@ -180,6 +195,10 @@ export async function linkRepo(ctx: Ctx, raw: z.input<typeof linkInput>) {
 		if (e instanceof GithubError) throw new OpError('INVALID', e.message);
 		throw e;
 	});
+	// Read only, so it may come before the role check: the default branch is never a place to publish
+	const branch = input.branch ?? DEFAULT_PUBLISH_BRANCH;
+	if (isDefaultBranch(branch, info.defaultBranch))
+		throw new OpError('INVALID', DEFAULT_BRANCH_REFUSAL);
 	return run(ctx, async (tx) => {
 		const proj = await findProject(tx, ctx, input.project);
 		await requireCap(tx, ctx, 'publish', proj.id);
@@ -192,7 +211,7 @@ export async function linkRepo(ctx: Ctx, raw: z.input<typeof linkInput>) {
 				and(
 					eq(githubLink.orgId, ctx.orgId),
 					sql`lower(${githubLink.repo}) = lower(${info.fullName})`,
-					eq(githubLink.branch, input.branch ?? info.defaultBranch),
+					eq(githubLink.branch, branch),
 					sql`${githubLink.projectId} <> ${proj.id}`
 				)
 			);
@@ -205,10 +224,17 @@ export async function linkRepo(ctx: Ctx, raw: z.input<typeof linkInput>) {
 				'CONFLICT',
 				'Another project of this organisation already publishes into that folder. Choose a different folder.'
 			);
+		// The first write to GitHub, after the capability, the rate limit and the folder clash: a refused link creates nothing
+		await github
+			.createBranch(input.installationId, info.fullName, branch, info.defaultBranch)
+			.catch((e) => {
+				if (e instanceof GithubError) throw new OpError('INVALID', e.message);
+				throw e;
+			});
 		const values = {
 			installationId: input.installationId,
 			repo: info.fullName,
-			branch: input.branch ?? info.defaultBranch,
+			branch,
 			path: input.path ?? 'board',
 			repoVisibility: info.private ? 'private' : 'public',
 			pausedReason: null,
@@ -526,6 +552,34 @@ export async function executeRun(
 	try {
 		// 2. The repository's visibility is checked fresh every time, never trusted from the last run
 		const info = await github.getRepo(link.installationId, link.repo);
+		// The default branch is read fresh too: a link made on it before this rule, or a default branch renamed to it, never writes
+		if (isDefaultBranch(link.branch, info.defaultBranch)) {
+			await job.tenant(async (tx) => {
+				await tx
+					.update(publishRun)
+					.set({ state: 'failed', error: DEFAULT_BRANCH_REFUSAL, updatedAt: sql`now()` })
+					.where(eq(publishRun.id, runId));
+				// Retrying cannot fix this, so automatic publish pauses with the reason shown
+				if (row.trigger !== 'manual') {
+					paused = DEFAULT_BRANCH_REFUSAL;
+					await tx
+						.update(githubLink)
+						.set({ pausedReason: DEFAULT_BRANCH_REFUSAL, updatedAt: sql`now()` })
+						.where(eq(githubLink.id, link.id));
+				}
+				await appendEvent(tx, {
+					orgId,
+					projectId,
+					...systemActor,
+					verb: 'publish.refused',
+					targetType: 'project',
+					targetId: projectId,
+					after: { reason: DEFAULT_BRANCH_REFUSAL } as never,
+					undoable: false
+				});
+			});
+			return { paused };
+		}
 		const visibility = info.private ? 'private' : 'public';
 		const data = await job.tenant(async (tx) => {
 			if (visibility !== link.repoVisibility)

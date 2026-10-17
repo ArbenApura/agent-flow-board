@@ -17,11 +17,13 @@
 				? 'item'
 				: routeId.endsWith('/settings')
 					? 'form'
-					: routeId.endsWith('/activity') || routeId.endsWith('/trash')
-						? 'activity'
-						: routeId.endsWith('/[project]')
-							? 'board'
-							: 'list'
+					: routeId.endsWith('/publish')
+						? 'publish'
+						: routeId.endsWith('/activity') || routeId.endsWith('/trash')
+							? 'activity'
+							: routeId.endsWith('/[project]')
+								? 'board'
+								: 'list'
 	);
 </script>
 
@@ -49,6 +51,27 @@
 						<Skeleton lines={3} />
 					</div>
 				{/each}
+			</div>
+		{:else if kind === 'publish'}
+			<!-- THE CONNECTED CARD, THE SUMMARY, THE TWO ACTIONS AND THE SHORT LIST OF CHANGES, AS THE PUBLISH PAGE LAYS THEM OUT -->
+			<div class="flex flex-col gap-4">
+				<div class="h-19 rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"></div>
+				<div class="flex flex-col gap-2">
+					<div class="h-6 w-44 rounded-md bg-raised motion-safe:animate-pulse"></div>
+					<div class="h-4 w-80 max-w-full rounded-md bg-raised motion-safe:animate-pulse"></div>
+				</div>
+				<div class="flex gap-2">
+					<div class="h-10 w-28 rounded-lg bg-raised motion-safe:animate-pulse"></div>
+					<div class="h-10 w-32 rounded-lg bg-raised motion-safe:animate-pulse"></div>
+				</div>
+				<div class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
+					{#each [0, 1, 2, 3, 4, 5, 6, 7] as i (i)}
+						<div class="flex h-10 items-center gap-3 border-b border-line px-3 last:border-b-0">
+							<div class="h-3 w-36 rounded-md bg-raised motion-safe:animate-pulse"></div>
+							<div class="ml-auto h-5 w-10 rounded-full bg-raised motion-safe:animate-pulse"></div>
+						</div>
+					{/each}
+				</div>
 			</div>
 		{:else if kind === 'activity'}
 			<div class="rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]">

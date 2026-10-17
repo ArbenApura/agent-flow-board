@@ -11,7 +11,7 @@ import { backupHealth, type BackupHealth } from '../backup/run';
 import { commitLink, githubLink, item, publishRun } from '../db/schema';
 import { requireCap, run } from './context';
 import { findProject, visibleItemSql } from './resolve';
-import { IDLE_MINUTES, claimsIn, stepsWithoutEvidence } from './tracking';
+import { RUNNING_WINDOW_MINUTES, claimsIn, stepsWithoutEvidence } from './tracking';
 
 // -- TYPES -- //
 
@@ -98,7 +98,7 @@ export async function projectHealth(ctx: Ctx, projectKey: string, now = new Date
 		};
 	});
 
-	const idleCutoff = now.getTime() - IDLE_MINUTES * 60_000;
+	const idleCutoff = now.getTime() - RUNNING_WINDOW_MINUTES * 60_000;
 	const refOf = (id: string) => base.byId.get(id)?.ref ?? '';
 	// Only a server that makes backups can have a late one, so a server without them shows nothing here
 	const backup: BackupHealth | null =
@@ -114,18 +114,30 @@ export async function projectHealth(ctx: Ctx, projectKey: string, now = new Date
 			at: c.committedAt ?? c.createdAt
 		})),
 		unlinkedCommits: base.unlinked,
+		// A claim is listed when it is idle or its item closed, or when it left finished work unrecorded past the nudge time
 		staleClaims: base.claims
-			.filter((c) => c.lastSeenAt.getTime() < idleCutoff || CLOSED.includes(c.status))
-			.map((c) => ({
-				sessionId: c.sessionId,
-				tool: c.tool,
-				itemRef: c.ref,
-				phase: c.phase,
-				lastSeenAt: c.lastSeenAt,
-				reason: CLOSED.includes(c.status)
-					? 'The item is closed.'
-					: `Not seen for ${Math.round((now.getTime() - c.lastSeenAt.getTime()) / 60_000)} minutes.`
-			})),
+			.filter(
+				(c) =>
+					c.lastSeenAt.getTime() < idleCutoff ||
+					CLOSED.includes(c.status) ||
+					c.staleMinutes !== null
+			)
+			.map((c) => {
+				const idle = c.lastSeenAt.getTime() < idleCutoff || CLOSED.includes(c.status);
+				return {
+					sessionId: c.sessionId,
+					tool: c.tool,
+					itemRef: c.ref,
+					phase: c.phase,
+					lastSeenAt: c.lastSeenAt,
+					kind: idle ? ('idle' as const) : ('unrecorded' as const),
+					reason: CLOSED.includes(c.status)
+						? 'The item is closed.'
+						: c.lastSeenAt.getTime() < idleCutoff
+							? `Not seen for ${Math.round((now.getTime() - c.lastSeenAt.getTime()) / 60_000)} minutes.`
+							: `Work left unrecorded for ${c.staleMinutes} minutes. Record the finished steps.`
+				};
+			}),
 		stepsWithoutEvidence: base.noEvidence.map((s) => ({
 			itemRef: refOf(s.itemId),
 			key: s.key,

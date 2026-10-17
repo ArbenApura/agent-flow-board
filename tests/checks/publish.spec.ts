@@ -22,8 +22,12 @@ async function as(browser: Browser, baseURL: string, email: string) {
 
 const control = (request: APIRequestContext, path: string, data: unknown) =>
 	request.post(`${MOCK}/__mock/${path}`, { data });
+// Publishing never writes the default branch, so the copy is read from the dedicated branch a connect makes by default
+const PUBLISH_BRANCH = 'board-publish';
 const repoFiles = async (request: APIRequestContext, repo: string) =>
-	(await (await request.get(`${MOCK}/__mock/files?repo=${repo}`)).json()) as {
+	(await (
+		await request.get(`${MOCK}/__mock/files?repo=${repo}&branch=${PUBLISH_BRANCH}`)
+	).json()) as {
 		files: Record<string, string>;
 		commits: { sha: string; message: string }[];
 	};

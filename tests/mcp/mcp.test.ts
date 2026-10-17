@@ -182,6 +182,23 @@ describe('MCP server', () => {
 		await b.close();
 	});
 
+	it('session_start reuses the session id the hooks gave, and starts a new one when that id is not yours', async () => {
+		const client = await connect(deps, token);
+		const first = await call(client, 'session_start', { tool: 'claude-code' });
+		const again = await call(client, 'session_start', {
+			tool: 'claude-code',
+			sessionId: first.sessionId
+		});
+		expect(again.sessionId).toBe(first.sessionId);
+		const other = await call(client, 'session_start', {
+			tool: 'claude-code',
+			sessionId: 's_nobody'
+		});
+		expect(other.sessionId).not.toBe('s_nobody');
+		expect(other.sessionId).not.toBe(first.sessionId);
+		await client.close();
+	});
+
 	it('task_new keeps a description, task_list never returns it, and task_delete moves the task to the trash', async () => {
 		const client = await connect(deps, token);
 		const s = await call(client, 'session_start', { tool: 'claude-code' });

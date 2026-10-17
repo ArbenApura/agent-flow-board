@@ -27,10 +27,18 @@ type Closing = 'COMPLETED' | 'REMOVED';
 
 /** A session id renews its claim on any call, but the row is written at most this often. */
 export const RENEW_SECONDS = 60;
-/** A claim not renewed for this long is idle. It stays, and is shown as idle, never released silently (L23). */
-export const IDLE_MINUTES = 90;
+/**
+ * The one limit for a claim: it counts as running while it was seen within this time, and it is idle after it. Idle claims stay and
+ * are shown as idle, never released silently (L23). A crash or a closed laptop sends no end event, so it clears by this time only.
+ */
+export const RUNNING_WINDOW_MINUTES = 120;
 /** A busy session that recorded nothing for this long is reminded in its next reply. */
 export const QUIET_RECORD_MINUTES = 45;
+/** Progress first: this many code edits without a recorded step, or this many minutes since the first, earn a nudge. */
+export const NUDGE_EDITS = 6;
+export const NUDGE_MINUTES = 10;
+/** A second session of one person and tool takes over an item's claim, and a finished item shows idle, after this quiet time. */
+export const QUIET_RELEASE_MINUTES = 10;
 export const CLOSING_STATUSES: Closing[] = ['COMPLETED', 'REMOVED'];
 const TARGET_RANK = { dev: 1, preview: 2, deployed: 3 } as const;
 
@@ -49,9 +57,27 @@ export async function renewSession(tx: Tx, sessionId: string): Promise<void> {
 		);
 }
 
+/**
+ * How far a session is behind on recording: 0 is fine, 1 starts at the first threshold (6 edits, or 10 minutes since the first
+ * unrecorded edit), and every further 6 edits or 10 minutes is one more level, so a nudge repeats but never on every edit.
+ */
+export function nudgeLevel(edits: number, firstEditAt: Date | null, now = new Date()): number {
+	if (edits <= 0) return 0;
+	const byCount = Math.floor(edits / NUDGE_EDITS);
+	// Every further 10 minutes without a record is one more level too, so a slow start does not use up the 6 edit nudge
+	const byTime = firstEditAt
+		? Math.floor((now.getTime() - firstEditAt.getTime()) / (NUDGE_MINUTES * 60_000))
+		: 0;
+	return Math.max(byCount, byTime);
+}
+
+/** The one text a nudge and a reply line use, so the hook and the board tools never drift apart. */
+export const staleProgressNote = (ref: string, edits: number) =>
+	`${edits} code edit${edits === 1 ? '' : 's'} on ${ref} since the last step_done. Progress first: record the steps you finished with step_done now, before the next edit.`;
+
 /** True when the claim has not been renewed within the idle time. */
 export const isIdle = (lastSeenAt: Date, now = new Date()) =>
-	now.getTime() - lastSeenAt.getTime() > IDLE_MINUTES * 60_000;
+	now.getTime() - lastSeenAt.getTime() > RUNNING_WINDOW_MINUTES * 60_000;
 
 /**
  * Item closed (COMPLETED or REMOVED): every session claiming it lets go in the same transaction, is marked as already asked to
@@ -160,6 +186,12 @@ export async function afterRecord(
 			.update(commitLink)
 			.set({ recorded: true, updatedAt: sql`now()` })
 			.where(and(eq(commitLink.itemId, it.id), eq(commitLink.recorded, false)));
+	// A recorded step clears the unrecorded edit count of every session working on the item, not only the recording one
+	if (result.changedAny)
+		await tx
+			.update(session)
+			.set({ codeEditsSinceRecord: 0, firstUnrecordedEditAt: null, nudgedLevel: 0 })
+			.where(and(eq(session.orgId, ctx.orgId), eq(session.claimedItemId, it.id)));
 	if (!ctx.actor.sessionId) return null;
 	if (result.changedAny)
 		await tx
@@ -209,6 +241,18 @@ export async function trackingNotes(
 			.where(and(eq(commitLink.itemId, s.claimedItemId), eq(commitLink.recorded, false)))
 			.orderBy(desc(commitLink.createdAt))
 			.limit(3);
+		// Edits since the last record: a read only line, the nudge state is never consumed here, so a session without hooks still hears it
+		if (
+			it &&
+			s.codeEditsSinceRecord > 0 &&
+			nudgeLevel(s.codeEditsSinceRecord, s.firstUnrecordedEditAt, now) >= 1
+		) {
+			const [open] = await tx
+				.select({ n: sql<number>`count(*)::int` })
+				.from(step)
+				.where(and(eq(step.itemId, s.claimedItemId), eq(step.state, 'open')));
+			if (open && open.n > 0) notes.push(staleProgressNote(it.ref, s.codeEditsSinceRecord));
+		}
 		if (it && unrecorded.length)
 			notes.push(
 				`${unrecorded.length === 3 ? '3 or more commits' : unrecorded.length === 1 ? '1 commit' : `${unrecorded.length} commits`} on ${it.ref} ${unrecorded.length === 1 ? 'has' : 'have'} no recorded step (${unrecorded.map((c) => c.sha.slice(0, 7)).join(', ')}). Record the finished steps with step_done.`
@@ -336,7 +380,11 @@ export async function claimsIn(tx: Tx, projectId: string, since?: Date) {
 			phase: session.claimedPhase,
 			itemId: item.id,
 			ref: item.ref,
-			status: item.status
+			status: item.status,
+			// Minutes of finished work left unrecorded, only past the nudge time and while the item has an open step
+			staleMinutes: sql<
+				number | null
+			>`case when ${session.firstUnrecordedEditAt} < now() - make_interval(mins => ${NUDGE_MINUTES}) and exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open') then floor(extract(epoch from now() - ${session.firstUnrecordedEditAt}) / 60)::int else null end`
 		})
 		.from(session)
 		.innerJoin(item, eq(item.id, session.claimedItemId))

@@ -61,11 +61,12 @@ export function createGithubMock() {
 		return repo;
 	}
 
-	const filesOf = (fullName) => {
+	/** The files at the tip of a branch (the default branch when none is named). */
+	const filesOf = (fullName, branch) => {
 		const repo = repos.get(fullName);
 		const out = {};
 		if (!repo) return out;
-		const head = repo.refs.get(repo.branch);
+		const head = repo.refs.get(branch ?? repo.branch);
 		if (!head) return out;
 		for (const [path, id] of repo.trees.get(repo.commits.get(head).tree))
 			out[path] = repo.blobs.get(id);
@@ -88,9 +89,16 @@ export function createGithubMock() {
 				const repo = repos.get(url.searchParams.get('repo') ?? '');
 				if (!repo) return json(404, { message: 'Not found' });
 				const commits = [];
-				for (let c = repo.refs.get(repo.branch); c; c = repo.commits.get(c)?.parents[0])
+				for (
+					let c = repo.refs.get(url.searchParams.get('branch') ?? repo.branch);
+					c;
+					c = repo.commits.get(c)?.parents[0]
+				)
 					commits.push({ sha: c, message: repo.commits.get(c).message });
-				return json(200, { files: filesOf(url.searchParams.get('repo')), commits });
+				return json(200, {
+					files: filesOf(url.searchParams.get('repo'), url.searchParams.get('branch') ?? undefined),
+					commits
+				});
 			}
 			if (path === '/__mock/visibility' && method === 'POST') {
 				const body = await request.json();
@@ -253,6 +261,14 @@ export function createGithubMock() {
 				const sha = sha1(`${body.tree}${body.message}${randomBytes(6).toString('hex')}`);
 				repo.commits.set(sha, { tree: body.tree, parents: body.parents, message: body.message });
 				return json(201, { sha });
+			}
+			if (kind === 'refs' && method === 'POST') {
+				const body = await request.json();
+				const branch = String(body.ref ?? '').slice('refs/heads/'.length);
+				if (repo.refs.has(branch)) return json(422, { message: 'Reference already exists' });
+				if (!repo.commits.has(body.sha)) return json(422, { message: 'Object does not exist' });
+				repo.refs.set(branch, body.sha);
+				return json(201, { ref: body.ref, object: { sha: body.sha } });
 			}
 			if (kind === 'refs' && method === 'PATCH') {
 				const body = await request.json();

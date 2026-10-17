@@ -12,7 +12,7 @@ import type { GithubApi } from '../github/app';
 import { createHash } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { member, org, project, projectMember, requestLog } from '../db/schema';
+import { member, org, project, projectCols, projectMember, requestLog } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { effectiveProjectRole } from '../orgs/roles';
 
@@ -184,7 +184,7 @@ export async function requireOrgMember(tx: Tx, ctx: Ctx, userId: string | null |
 /** The project row of this org, or NOT_FOUND (the same answer for another org's project). */
 export async function projectOf(tx: Tx, ctx: Ctx, projectId: string) {
 	const [p] = await tx
-		.select()
+		.select(projectCols)
 		.from(project)
 		.where(and(eq(project.id, projectId), eq(project.orgId, ctx.orgId)));
 	if (!p) throw new OpError('NOT_FOUND', 'That project does not exist.');

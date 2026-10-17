@@ -7,7 +7,15 @@ import type { Role } from '../orgs/roles';
 // -- DEP-MODULES -- //
 import { and, eq, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { item, itemAlias, member, project, projectMember } from '../db/schema';
+import {
+	item,
+	itemAlias,
+	member,
+	project,
+	projectCols,
+	projectLogoV,
+	projectMember
+} from '../db/schema';
 import { effectiveProjectRole } from '../orgs/roles';
 import { OpError, projectAllowed } from './context';
 
@@ -122,7 +130,11 @@ export async function findProject(tx: Tx, ctx: Ctx, keyOrId: string) {
 	const where = isUuid(q)
 		? and(eq(project.id, q), eq(project.orgId, ctx.orgId))
 		: and(eq(project.orgId, ctx.orgId), sql`upper(${project.key}) = ${q.toUpperCase()}`);
-	const [row] = await tx.select().from(project).where(where);
+	// The logo is never read here: it is up to 270 KB and a page only needs its version
+	const [row] = await tx
+		.select({ ...projectCols, logoV: projectLogoV })
+		.from(project)
+		.where(where);
 	if (!row || (ctx.actor && !projectAllowed(ctx.actor, row.id)))
 		throw new OpError('NOT_FOUND', `No project named "${keyOrId}".`);
 	return row;
