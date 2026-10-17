@@ -93,29 +93,26 @@ test('M6 the item page: a step tick updates at once and moves the status, and th
 	const { ctx, page } = await as(browser, baseURL!, 'member@acme.example');
 	await page.goto(`/acme/CKT/${made.ref}`);
 	await expect(page.getByTestId('page-title')).toHaveText('Board check item one');
-	await expect(page.getByTestId('item-status')).toContainText('planned');
+	await expect(page.getByTestId('item-status')).toContainText(/planned/i);
 	// The first done step moves it to in progress by itself
 	await page.getByRole('checkbox', { name: /1\.1 First step/ }).click();
 	await expect(page.getByRole('checkbox', { name: /1\.1 First step/ })).toHaveAttribute(
 		'aria-checked',
 		'true'
 	);
-	await expect(page.getByTestId('item-status')).toContainText('in progress');
+	await expect(page.getByTestId('item-status')).toContainText(/in progress/i);
 	await expect(page.getByTestId('item-percent')).toContainText('50%');
 	// The last one moves it to in review
 	await page.getByRole('checkbox', { name: /1\.2 Second step/ }).click();
-	await expect(page.getByTestId('item-status')).toContainText('in review');
+	await expect(page.getByTestId('item-status')).toContainText(/in review/i);
 	await expect(page.getByTestId('item-percent')).toContainText('100%');
 	// Reopening a step never moves the status back by itself; the page warns instead
 	await page.getByRole('checkbox', { name: /1\.2 Second step/ }).click();
 	await expect(page.getByTestId('drift')).toContainText('in review but a step is open');
-	await expect(page.getByTestId('item-status')).toContainText('in review');
+	await expect(page.getByTestId('item-status')).toContainText(/in review/i);
 	await page.getByTestId('change-status').click();
-	await page.getByRole('button', { name: 'New status' }).click();
-	await page.getByRole('option', { name: 'in progress' }).click();
-	await page.getByTestId('status-note').fill('More work is coming');
-	await page.getByTestId('status-submit').click();
-	await expect(page.getByTestId('item-status')).toContainText('in progress');
+	await page.getByRole('menuitemradio', { name: 'in progress' }).click();
+	await expect(page.getByTestId('item-status')).toContainText(/in progress/i);
 	await expect(page.getByTestId('drift')).toHaveCount(0);
 	// Add a step, waive it with a reason
 	await page.getByRole('button', { name: 'Add a step' }).click();

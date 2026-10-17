@@ -377,6 +377,75 @@ describe('REST API', () => {
 		expect(undo.body).toMatchObject({ ok: true });
 	});
 
+	it('changes a step over REST, refuses a viewer, and lets an agent token still trash an item it did not claim', async () => {
+		const mk = await call('POST', `${base()}/tokens`, {
+			as: 'member',
+			body: { name: 'planner', permissions: ['read', 'write', 'delete'] }
+		});
+		const token = (mk.body as { token: string }).token;
+		const made = await call('POST', `${base()}/projects/API/items`, {
+			as: 'member',
+			body: {
+				title: 'REST plan edit',
+				phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }, { text: 'b' }] }]
+			}
+		});
+		const ref = (made.body as { ref: string }).ref;
+		const reword = await call('PATCH', `${base()}/items/${ref}/steps/1.1`, {
+			token,
+			body: { text: 'a, reworded' }
+		});
+		expect(reword.status).toBe(200);
+		expect(reword.body).toMatchObject({ key: '1.1', changed: true });
+		const both = await call('PATCH', `${base()}/items/${ref}/steps/1.1`, {
+			token,
+			body: { text: 'x', remove: true }
+		});
+		expect(both.status).toBe(400);
+		const viewer = await call('PATCH', `${base()}/items/${ref}/steps/1.1`, {
+			as: 'viewer',
+			body: { text: 'x' }
+		});
+		expect(viewer.status).toBe(403);
+		const missing = await call('PATCH', `${base()}/items/${ref}/steps/1.9`, {
+			token,
+			body: { text: 'x' }
+		});
+		expect(missing.status).toBe(404);
+		const removed = await call('PATCH', `${base()}/items/${ref}/steps/1.2`, {
+			token,
+			body: { remove: true }
+		});
+		expect(removed.body).toMatchObject({ key: '1.2', removed: true });
+		// A REST DELETE names the item outright, so an agent token needs no confirmation
+		const trashed = await call('DELETE', `${base()}/items/${ref}`, { token });
+		expect(trashed.status).toBe(200);
+		expect(trashed.body).toMatchObject({ trashed: true });
+	});
+
+	it('pins and unpins a project for the signed in person only, and says the same for a project it cannot see', async () => {
+		const pin = await call('PUT', `${base()}/projects/API/pin`, { as: 'member' });
+		expect(pin.status).toBe(200);
+		expect(pin.body).toMatchObject({ pinned: true });
+		const again = await call('PUT', `${base()}/projects/API/pin`, { as: 'member' });
+		expect(again.status).toBe(200);
+		// A guest has no access to the project, so it looks like any other missing project
+		expect((await call('PUT', `${base()}/projects/API/pin`, { as: 'guest' })).status).toBe(404);
+		expect((await call('PUT', `${base()}/projects/NOPE/pin`, { as: 'member' })).status).toBe(404);
+		const gone = await call('DELETE', `${base()}/projects/API/pin`, { as: 'member' });
+		expect(gone.status).toBe(200);
+		expect(gone.body).toMatchObject({ pinned: false });
+		// Clearing a pin that is not there is fine, and a token with read access may pin
+		expect((await call('DELETE', `${base()}/projects/API/pin`, { as: 'member' })).status).toBe(200);
+		const mk = await call('POST', `${base()}/tokens`, {
+			as: 'member',
+			body: { name: 'reader', permissions: ['read'] }
+		});
+		const token = (mk.body as { token: string }).token;
+		expect((await call('PUT', `${base()}/projects/API/pin`, { token })).status).toBe(200);
+		await call('DELETE', `${base()}/projects/API/pin`, { token });
+	});
+
 	it('searches inside the org only', async () => {
 		const hits = await call('GET', `${base()}/search`, { as: 'viewer', query: { q: 'proof' } });
 		expect(hits.status).toBe(200);

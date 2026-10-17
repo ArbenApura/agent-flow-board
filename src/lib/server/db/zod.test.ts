@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { tabNameFromTitle } from '../../shared/uiChange';
-import { continueChoice, itemInsert, projectInsert, tabNameSchema, uiChangeInput } from './zod';
+import {
+	continueChoice,
+	itemInsert,
+	projectInsert,
+	projectPinInput,
+	tabNameSchema,
+	uiChangeInput
+} from './zod';
 
 const ids = {
 	orgId: '00000000-0000-4000-8000-000000000001',
@@ -98,5 +105,18 @@ describe('continue choice', () => {
 			false
 		);
 		expect(continueChoice.safeParse({ continueTool: 'codex' }).success).toBe(false);
+	});
+});
+
+describe('project pin', () => {
+	it('takes a project id and nothing else', () => {
+		expect(projectPinInput.safeParse({ projectId: ids.projectId }).success).toBe(true);
+		// Extra keys such as the person or the org are dropped, never trusted
+		const parsed = projectPinInput.parse({ projectId: ids.projectId, userId: 'someone-else' });
+		expect(Object.keys(parsed)).toEqual(['projectId']);
+	});
+	it('refuses a missing or malformed project id', () => {
+		for (const bad of [{}, { projectId: 'not-a-uuid' }, { projectId: '' }])
+			expect(projectPinInput.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
 	});
 });

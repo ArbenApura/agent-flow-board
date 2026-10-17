@@ -1,6 +1,6 @@
 # agent-flow-board rules
 
-A standalone multi-project team board for agent-driven flow plans. SvelteKit (Svelte 5 runes, TypeScript strict), Tailwind 4, PostgreSQL on Supabase through Drizzle, Better Auth, one operations layer behind the UI, `/api/v1` and `/mcp`. The plan lives in the HAPR Board item FLOW-20261014-1047 (SPEC, PLAN, DECISIONS); this file is the working rulebook for the code.
+A standalone multi-project team board for agent-driven flow plans. SvelteKit (Svelte 5 runes, TypeScript strict), Tailwind 4, PostgreSQL on Supabase through Drizzle, Better Auth, one operations layer behind the UI, `/api/v1` and `/mcp`. Plans live on Agent Flow Board itself (project AFB, https://agent-flow-board.arbenger.com/arbenger/AFB) and are read and written through its MCP by the `/flow` skills; the original plan of this product is the HAPR Board item FLOW-20261014-1047. This file is the working rulebook for the code.
 
 ## Git and safety
 
@@ -9,6 +9,12 @@ A standalone multi-project team board for agent-driven flow plans. SvelteKit (Sv
 - Never add co-author trailers or AI attribution to a commit message.
 - Never delete `node_modules` or `.git` when cleaning up. Delete only the exact files you made.
 - Package manager is Yarn 4 (`.yarnrc.yml`, `nodeLinker: node-modules`, the program is `.yarn/releases/yarn-4.18.1.cjs`), never `npm` or `pnpm`. Commit `yarn.lock`. Never commit `package-lock.json` or `pnpm-lock.yaml`.
+
+## Flow plans and running sessions
+
+- Keep the plan on the board in sync with the code at all times, never at the end only. Record every finished step with `step_done` as you finish it, and keep the status, decisions and resume note true.
+- A claimed item or phase shows a "running" badge until the session is released or 120 minutes pass without a heartbeat. Always release it: call `work_stop` after the last step of your work, when you hand the work back, and before moving to another item. Never end a session with a claim still held.
+- Work that belongs to no item is not claimed. Before asking for sign-off run `/flow-audit` so the board tells the truth.
 
 ## Local development
 

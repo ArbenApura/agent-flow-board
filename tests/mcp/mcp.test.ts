@@ -2,9 +2,12 @@
 // 6.4 TO 6.11 AND 6.13: THE MCP SERVER THROUGH A REAL CLIENT, WITH TOKENS, SESSIONS, WORKFLOWS AND THE COMPATIBILITY VERBS
 
 // -- DEP-MODULES -- //
+import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
+import { comment, item, step } from '../../src/lib/server/db/schema';
+import { withTenant } from '../../src/lib/server/db/tenant';
 import { handleMcp } from '../../src/lib/server/mcp/handler';
 import { WORKFLOWS } from '../../src/lib/server/mcp/workflows';
 import { createItem } from '../../src/lib/server/ops/items';
@@ -92,7 +95,17 @@ describe('MCP server', () => {
 			'attach',
 			'undo',
 			'project_rules',
-			'workflow_get'
+			'workflow_get',
+			'plan_add_phase',
+			'plan_add_steps',
+			'plan_add_checks',
+			'step_update',
+			'item_trash',
+			'item_restore',
+			'decision_delete',
+			'item_history',
+			'project_pin',
+			'project_unpin'
 		])
 			expect(names).toContain(n);
 		expect(
@@ -249,6 +262,340 @@ describe('MCP server', () => {
 		expect(plain.resume).toBe('Start with step 1.1.');
 		const hits = await call(client, 'search', { q: 'Documents through MCP' });
 		expect(hits.hits.some((h: any) => h.id === made.id)).toBe(true);
+		await client.close();
+	});
+
+	it('item_update with a requestId saves every section and decision, and a repeat of the same call writes nothing twice', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const made = await call(client, 'item_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'Several writes in one call',
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }] }]
+		});
+		const args = {
+			sessionId: s.sessionId,
+			item: made.ref,
+			requestId: 'multi-write-0001',
+			title: 'Several writes in one call, renamed',
+			sections: [
+				{ slug: 'spec', title: 'Spec', body: 'Spec body.' },
+				{ slug: 'validation', title: 'Validation', body: 'Validation body.' },
+				{ slug: 'references', title: 'References', body: 'References body.' }
+			],
+			decisions: [
+				{ kind: 'settled', title: 'First', answer: 'A', source: 'a' },
+				{ kind: 'settled', title: 'Second', answer: 'B', source: 'b' },
+				{ kind: 'settled', title: 'Third', answer: 'C', source: 'c' },
+				{ kind: 'adr', title: 'Fourth', decision: 'D' }
+			]
+		};
+		const first = await call(client, 'item_update', args);
+		expect(first.changed).toBe(true);
+		expect(first['section:references']).toBe('saved');
+		expect(first['decision:settled-3']).toBe('created');
+		expect(first['decision:adr-1']).toBe('created');
+		const got = await call(client, 'item_get', {
+			item: made.ref,
+			fields: ['decisions', 'sections']
+		});
+		expect(got.title).toBe('Several writes in one call, renamed');
+		expect(got.sections.map((x: any) => x.slug)).toEqual(['spec', 'validation', 'references']);
+		expect(got.decisions.map((x: any) => `${x.kind}-${x.number}:${x.title}`).sort()).toEqual([
+			'adr-1:Fourth',
+			'settled-1:First',
+			'settled-2:Second',
+			'settled-3:Third'
+		]);
+		// The same call again is a retry: every write returns its stored result and nothing is written twice
+		const again = await call(client, 'item_update', args);
+		expect(again.error).toBeUndefined();
+		const after = await call(client, 'item_get', {
+			item: made.ref,
+			fields: ['decisions', 'sections']
+		});
+		expect(after.decisions).toHaveLength(4);
+		expect(after.sections).toHaveLength(3);
+		expect(after.version).toBe(got.version);
+		// The same requestId on a different payload is still refused
+		const other = await call(client, 'item_update', {
+			...args,
+			sections: [{ slug: 'spec', title: 'Spec', body: 'A different body.' }],
+			decisions: undefined,
+			title: undefined
+		});
+		expect(other.error.code).toBe('CONFLICT');
+		await client.close();
+	});
+
+	it('pins and unpins a project with project_pin and project_unpin, even with a read only token', async () => {
+		const client = await connect(deps, readOnlyToken);
+		const pinned = await call(client, 'project_pin', { project: w.projectKey });
+		expect(pinned.error).toBeUndefined();
+		expect(pinned.pinned).toBe(true);
+		const missing = await call(client, 'project_pin', { project: 'NOPE' });
+		expect(missing.error.code).toBe('NOT_FOUND');
+		const cleared = await call(client, 'project_unpin', { project: w.projectKey });
+		expect(cleared.pinned).toBe(false);
+		await client.close();
+	});
+
+	it('grows and edits a plan with plan_add_phase, plan_add_steps, plan_add_checks and step_update', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const made = await call(client, 'item_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'A plan that grows',
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'first' }, { text: 'second' }] }]
+		});
+		const sid = s.sessionId;
+		const phaseArgs = {
+			sessionId: sid,
+			item: made.ref,
+			key: '2',
+			title: 'Two',
+			steps: [{ text: 'third' }, { text: 'fourth' }],
+			requestId: 'plan-grow-0001'
+		};
+		const phase = await call(client, 'plan_add_phase', phaseArgs);
+		expect(phase.phase.key).toBe('2');
+		// A retry with the same request id writes nothing twice
+		expect((await call(client, 'plan_add_phase', phaseArgs)).error).toBeUndefined();
+		const more = await call(client, 'plan_add_steps', {
+			sessionId: sid,
+			item: made.ref,
+			phase: '2',
+			steps: [{ text: 'fifth' }]
+		});
+		expect(more.keys).toEqual(['2.3']);
+		const checks = await call(client, 'plan_add_checks', {
+			sessionId: sid,
+			item: made.ref,
+			checks: [{ key: 'M1', text: 'Look at it by hand' }]
+		});
+		expect(checks.keys).toEqual(['M1']);
+		let got = await call(client, 'item_get', { item: made.ref, fields: ['steps', 'checks'] });
+		expect(got.steps.map((x: any) => x.key)).toEqual(['1.1', '1.2', '2.1', '2.2', '2.3']);
+		expect(got.checks.map((x: any) => x.key)).toEqual(['M1']);
+		// A wording change keeps the key and can be undone through the history
+		const edit = await call(client, 'step_update', {
+			sessionId: sid,
+			item: made.ref,
+			key: '2.1',
+			text: 'third, reworded'
+		});
+		expect(edit.changed).toBe(true);
+		const hist = await call(client, 'item_history', { project: w.projectKey, item: made.ref });
+		const editEvent = hist.events.find((e: any) => e.verb === 'step.update');
+		expect(editEvent.label).toBe('undoable');
+		expect(hist.events.find((e: any) => e.verb === 'step.create').label).toBe('final');
+		const undone = await call(client, 'undo', { sessionId: sid, eventId: editEvent.id });
+		expect(undone.error).toBeUndefined();
+		got = await call(client, 'item_get', { item: made.ref, fields: ['steps'] });
+		expect(got.steps.find((x: any) => x.key === '2.1').text).toBe('third');
+		// Removing an open step recalculates the percent; a done step is a record and cannot change
+		const removed = await call(client, 'step_update', {
+			sessionId: sid,
+			item: made.ref,
+			key: '2.2',
+			remove: true
+		});
+		expect(removed.removed).toBe(true);
+		await call(client, 'step_done', { sessionId: sid, item: made.ref, keys: ['1.1'] });
+		const closed = await call(client, 'step_update', {
+			sessionId: sid,
+			item: made.ref,
+			key: '1.1',
+			text: 'nope'
+		});
+		expect(closed.error.code).toBe('CONFLICT');
+		const both = await call(client, 'step_update', {
+			sessionId: sid,
+			item: made.ref,
+			key: '1.2',
+			text: 'x',
+			remove: true
+		});
+		expect(both.error.code).toBe('INVALID');
+		const none = await call(client, 'step_update', {
+			sessionId: sid,
+			item: made.ref,
+			key: '9.9',
+			text: 'x'
+		});
+		expect(none.error.code).toBe('NOT_FOUND');
+		got = await call(client, 'item_get', { item: made.ref, fields: ['steps'] });
+		expect(got.steps.map((x: any) => x.key)).toEqual(['1.1', '1.2', '2.1', '2.3']);
+		await client.close();
+	});
+
+	it('numbers new steps after the highest key in use, keeps a step that has comments, and replays step_update safely', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const sid = s.sessionId;
+		const made = await call(client, 'item_new', {
+			sessionId: sid,
+			project: w.projectKey,
+			title: 'Keys after a removal',
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }, { text: 'b' }, { text: 'c' }] }]
+		});
+		const removeArgs = {
+			sessionId: sid,
+			item: made.ref,
+			key: '1.2',
+			remove: true,
+			requestId: 'step-remove-0001'
+		};
+		expect((await call(client, 'step_update', removeArgs)).removed).toBe(true);
+		// The same call again is a retry, not a second removal
+		expect((await call(client, 'step_update', removeArgs)).removed).toBe(true);
+		const added = await call(client, 'plan_add_steps', {
+			sessionId: sid,
+			item: made.ref,
+			phase: '1',
+			steps: [{ text: 'd' }]
+		});
+		expect(added.keys).toEqual(['1.4']);
+		// A stale version is refused
+		const stale = await call(client, 'step_update', {
+			sessionId: sid,
+			item: made.ref,
+			key: '1.1',
+			text: 'a, again',
+			expectVersion: 1
+		});
+		expect(stale.error.code).toBe('STALE_VERSION');
+		// A step with a comment cannot be removed, and the comment survives
+		const stepId = await withTenant(db, { orgId: w.orgId }, async (tx) => {
+			const [row] = await tx
+				.select()
+				.from(step)
+				.where(and(eq(step.itemId, made.id), eq(step.key, '1.3')));
+			const [it] = await tx.select().from(item).where(eq(item.id, made.id));
+			await tx.insert(comment).values({
+				orgId: it.orgId,
+				projectId: it.projectId,
+				itemId: it.id,
+				stepId: row.id,
+				authorId: it.createdBy,
+				body: 'Please keep this step'
+			});
+			return row.id;
+		});
+		const kept = await call(client, 'step_update', {
+			sessionId: sid,
+			item: made.ref,
+			key: '1.3',
+			remove: true
+		});
+		expect(kept.error.code).toBe('CONFLICT');
+		const talk = await withTenant(db, { orgId: w.orgId }, (tx) =>
+			tx.select().from(comment).where(eq(comment.stepId, stepId))
+		);
+		expect(talk).toHaveLength(1);
+		await client.close();
+	});
+
+	it('a read only token cannot change a plan, a step, a decision or the trash', async () => {
+		const owner = await connect(deps, token);
+		const os = await call(owner, 'session_start', { tool: 'claude-code' });
+		const made = await call(owner, 'item_new', {
+			sessionId: os.sessionId,
+			project: w.projectKey,
+			title: 'Read only guard',
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'first' }] }]
+		});
+		await call(owner, 'item_update', {
+			sessionId: os.sessionId,
+			item: made.ref,
+			decisions: [{ kind: 'adr', title: 'Keep me' }]
+		});
+		const reader = await connect(deps, readOnlyToken);
+		const rs = await call(reader, 'session_start', { tool: 'reader' });
+		const attempts = [
+			['plan_add_steps', { phase: '1', steps: [{ text: 'sneaky' }] }],
+			['plan_add_phase', { key: '2', title: 'Sneaky' }],
+			['plan_add_checks', { checks: [{ key: 'M1', text: 'sneaky' }] }],
+			['step_update', { key: '1.1', text: 'sneaky' }],
+			['decision_delete', { kind: 'adr', number: 1 }],
+			['item_trash', { confirmed: true }],
+			['item_restore', {}]
+		] as const;
+		for (const [name, args] of attempts) {
+			const r = await call(reader, name, { sessionId: rs.sessionId, item: made.ref, ...args });
+			expect(r.error?.code, name).toBe('FORBIDDEN');
+		}
+		const got = await call(owner, 'item_get', { item: made.ref, fields: ['steps', 'decisions'] });
+		expect(got.steps).toHaveLength(1);
+		expect(got.steps[0].text).toBe('first');
+		expect(got.decisions).toHaveLength(1);
+		// Reading the history is allowed with the read permission
+		const hist = await call(reader, 'item_history', { project: w.projectKey, item: made.ref });
+		expect(hist.events.length).toBeGreaterThan(0);
+		await owner.close();
+		await reader.close();
+	});
+
+	it('trashes and restores an item, asks before trashing an unclaimed one, and deletes a decision by number', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const sid = s.sessionId;
+		const made = await call(client, 'item_new', {
+			sessionId: sid,
+			project: w.projectKey,
+			title: 'THROWAWAY trash me',
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'first' }] }]
+		});
+		const asked = await call(client, 'item_trash', { sessionId: sid, item: made.ref });
+		expect(asked.error.code).toBe('CONFIRM_REQUIRED');
+		expect((await call(client, 'item_get', { item: made.ref })).ref).toBe(made.ref);
+		const gone = await call(client, 'item_trash', {
+			sessionId: sid,
+			item: made.ref,
+			confirmed: true
+		});
+		expect(gone.trashed).toBe(true);
+		expect((await call(client, 'item_get', { item: made.ref })).error.code).toBe('NOT_FOUND');
+		const back = await call(client, 'item_restore', { sessionId: sid, item: made.ref });
+		expect(back.restored).toBe(true);
+		expect((await call(client, 'item_get', { item: made.ref })).ref).toBe(made.ref);
+		// A claimed item is trashed without a question
+		await call(client, 'work_start', { sessionId: sid, item: made.ref });
+		expect((await call(client, 'item_trash', { sessionId: sid, item: made.ref })).trashed).toBe(
+			true
+		);
+		await call(client, 'item_restore', { sessionId: sid, item: made.ref });
+		const up = await call(client, 'item_update', {
+			sessionId: sid,
+			item: made.ref,
+			decisions: [{ kind: 'adr', title: 'Drop me' }]
+		});
+		expect(up['decision:adr-1']).toBe('created');
+		const delArgs = {
+			sessionId: sid,
+			item: made.ref,
+			kind: 'adr',
+			number: 1,
+			requestId: 'decision-delete-0001'
+		};
+		expect((await call(client, 'decision_delete', delArgs)).deleted).toBe(true);
+		expect((await call(client, 'decision_delete', delArgs)).deleted).toBe(true);
+		expect(
+			(await call(client, 'item_get', { item: made.ref, fields: ['decisions'] })).decisions
+		).toHaveLength(0);
+		const missing = await call(client, 'decision_delete', {
+			sessionId: sid,
+			item: made.ref,
+			kind: 'adr',
+			number: 1
+		});
+		expect(missing.error.code).toBe('NOT_FOUND');
+		const hist = await call(client, 'item_history', { project: w.projectKey, item: made.ref });
+		expect(hist.events.map((e: any) => e.verb)).toEqual(
+			expect.arrayContaining(['item.delete', 'item.restore', 'decision.delete'])
+		);
 		await client.close();
 	});
 

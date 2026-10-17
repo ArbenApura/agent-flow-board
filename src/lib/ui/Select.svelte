@@ -14,6 +14,8 @@
 	// -- MODULES -- //
 	import Popover from '#lib/ui/Popover.svelte';
 	import { cn } from '#lib/ui/cn.js';
+	// -- DEP-TYPES -- //
+	import type { Component } from 'svelte';
 	// -- DEP-COMPONENTS -- //
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Check from '@lucide/svelte/icons/check';
@@ -28,6 +30,9 @@
 		invalid = false,
 		disabled = false,
 		onchange,
+		icon: Icon,
+		prefix,
+		triggerClass,
 		class: extra
 	}: {
 		/** Every value must be unique. De-duplicate in the caller. */
@@ -39,6 +44,12 @@
 		invalid?: boolean;
 		disabled?: boolean;
 		onchange?: (value: string) => void;
+		/** A small picture at the left of the trigger that says what the choice is for, such as sorting. */
+		icon?: Component<{ size?: number; class?: string }>;
+		/** Muted text before the chosen value, for a toolbar select that has no label of its own ("Sort"). */
+		prefix?: string;
+		/** Sizes the trigger itself, for example a fixed width in a toolbar. */
+		triggerClass?: string;
 		class?: string;
 	} = $props();
 
@@ -110,10 +121,13 @@
 			class={cn(
 				'flex h-10 w-full min-w-40 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-surface px-3 text-left text-sm shadow-[var(--elev-1)] transition-[border-color,box-shadow] duration-150 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent-soft focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-11',
 				invalid ? 'border-danger' : 'border-line',
-				selected ? 'text-ink' : 'text-muted'
+				selected ? 'text-ink' : 'text-muted',
+				triggerClass
 			)}
 		>
 			<span class="flex min-w-0 items-center gap-2">
+				{#if Icon}<Icon size={16} class="shrink-0 text-muted" />{/if}
+				{#if prefix}<span class="shrink-0 text-muted">{prefix}</span>{/if}
 				{#if selected?.dot}<span class={cn('size-2.5 shrink-0 rounded-full', selected.dot)}
 					></span>{/if}
 				<span class="truncate">{selected?.label ?? placeholder}</span>

@@ -11,7 +11,13 @@
 	import ContinueDialog from '#lib/board/ContinueDialog.svelte';
 	import EventList from '#lib/board/EventList.svelte';
 	import PlanTab from '#lib/board/item/PlanTab.svelte';
-	import { DRIFT_TEXT, STATUSES, STATUS_TONE, type Status } from '#lib/board/status.js';
+	import {
+		DRIFT_TEXT,
+		STATUSES,
+		STATUS_STYLE,
+		STATUS_TONE,
+		type Status
+	} from '#lib/board/status.js';
 	import {
 		ACTION_LABEL,
 		CONTINUE_ACTIONS,
@@ -28,16 +34,19 @@
 	import PermissionDenied from '#lib/ui/PermissionDenied.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PhaseStepper from '#lib/ui/PhaseStepper.svelte';
+	import Popover from '#lib/ui/Popover.svelte';
 	import ProgressRing from '#lib/ui/ProgressRing.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
-	import RunningBadge from '#lib/ui/RunningBadge.svelte';
-	import Select from '#lib/ui/Select.svelte';
 	import StaleWriteDialog from '#lib/ui/StaleWriteDialog.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import { cn } from '#lib/ui/cn.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
 	import Activity from '@lucide/svelte/icons/activity';
+	import Check from '@lucide/svelte/icons/check';
 	import CheckCheck from '@lucide/svelte/icons/check-check';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import Copy from '@lucide/svelte/icons/copy';
 	import CircleHelp from '@lucide/svelte/icons/circle-help';
 	import MessageCircle from '@lucide/svelte/icons/message-circle';
 	import Play from '@lucide/svelte/icons/play';
@@ -98,9 +107,8 @@
 	let statusOpen = $state(false);
 	let continueOpen = $state(false);
 	let continueAction = $state<ContinueAction>('resume');
-	let nextStatus = $state('');
-	let note = $state('');
-	let statusError = $state('');
+	let refCopied = $state(false);
+	let refTimer: ReturnType<typeof setTimeout> | undefined;
 	let renaming = $state(false);
 	let commitsOpen = $state(false);
 	let title = $state('');
@@ -206,30 +214,45 @@
 
 	// -- FUNCTIONS -- //
 
+	// Sentence case for display: 'IN REVIEW' reads as 'In review'
+	const statusLabel = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
+
 	const tabHref = (t: Tab) => (t === 'plan' ? page.url.pathname : `${page.url.pathname}?tab=${t}`);
 
-	async function changeStatus() {
+	// Copies the item reference and shows a tick on the button for a moment
+	async function copyRef() {
 		if (!d) return;
-		statusError = '';
+		try {
+			await navigator.clipboard.writeText(d.item.ref);
+			toast.success(`${d.item.ref} copied.`);
+			refCopied = true;
+			clearTimeout(refTimer);
+			refTimer = setTimeout(() => (refCopied = false), 1600);
+		} catch {
+			toast.warning('Copy did not work here. Select the reference and copy it by hand.');
+		}
+	}
+
+	// The API needs a note of 3 characters or more, so the page sends a fixed one, as the plan board does
+	async function changeStatus(next: Status) {
+		if (!d || next === d.item.status) return;
 		busy = true;
 		try {
 			await toast.promise(
 				api(org, `/items/${d.item.ref}/status`, {
-					body: { status: nextStatus, note: note.trim() },
+					body: { status: next, note: 'Changed on the item page' },
 					key: newKey()
 				}),
 				{
 					id: 'item-status',
 					loading: 'Changing the status...',
-					success: 'Status changed.',
+					success: `Status is now ${next.toLowerCase()}.`,
 					error: (e) => (e instanceof ApiError ? e.message : 'The status was not changed.')
 				}
 			);
-			statusOpen = false;
-			note = '';
 			await invalidate('afb:project');
-		} catch (e) {
-			statusError = e instanceof ApiError ? e.message : 'The status was not changed.';
+		} catch {
+			// The promise toast already shows the failure
 		} finally {
 			busy = false;
 		}
@@ -338,7 +361,25 @@
 						class="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-muted"
 						data-testid="item-ref"
 					>
-						{d.item.ref}
+						<!-- CLICK TO COPY THE REFERENCE -->
+						<button
+							type="button"
+							onclick={copyRef}
+							title="Copy the reference"
+							aria-label={`Copy ${d.item.ref}`}
+							class="group -mx-1.5 inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-accent active:scale-[0.97] motion-reduce:transition-none"
+						>
+							{d.item.ref}
+							{#if refCopied}
+								<Check size={13} class="text-success" aria-hidden="true" />
+							{:else}
+								<Copy
+									size={13}
+									class="opacity-50 transition-opacity group-hover:opacity-100 motion-reduce:transition-none"
+									aria-hidden="true"
+								/>
+							{/if}
+						</button>
 						{#if d.item.visibility === 'private'}<Lock size={14} aria-label="Private" />{/if}
 						{#if d.item.tabName}<span>{d.item.tabName}</span>{/if}
 					</div>
@@ -409,26 +450,74 @@
 					{/if}
 				</div>
 				<div class="ml-auto flex flex-wrap items-center gap-2">
-					{#each d.running as r (r.sessionId)}
-						<RunningBadge tool={r.tool} title={r.title} phase={r.phase ?? undefined} />
-					{/each}
+					<!-- THE STATUS IS ONE CONTROL: THE PILL SHOWS IT AND, FOR A WRITER, OPENS THE LIST TO CHANGE IT -->
 					<span data-testid="item-status">
-						<Badge tone={STATUS_TONE[d.item.status as Status]} dot
-							>{d.item.status.toLowerCase()}</Badge
-						>
+						{#if env.canWrite}
+							<Popover
+								bind:open={statusOpen}
+								placement="bottom-end"
+								role="menu"
+								label="Change status"
+							>
+								{#snippet trigger({ props, toggle, open })}
+									<button
+										type="button"
+										{...props}
+										onclick={toggle}
+										disabled={busy}
+										aria-label={`Status ${statusLabel(d.item.status)}. Change status`}
+										data-testid="change-status"
+										class="group inline-flex min-h-11 cursor-pointer items-center rounded-md transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none motion-reduce:active:scale-100"
+									>
+										<Badge
+											tone={STATUS_TONE[d.item.status as Status]}
+											dot
+											class="rounded-md py-1 pr-2 text-sm group-hover:brightness-95"
+										>
+											{statusLabel(d.item.status)}
+											<ChevronDown
+												size={14}
+												aria-hidden="true"
+												class={cn(
+													'transition-transform motion-reduce:transition-none',
+													open && 'rotate-180'
+												)}
+											/>
+										</Badge>
+									</button>
+								{/snippet}
+								{#snippet children({ close })}
+									{#each STATUSES as s (s)}
+										<button
+											type="button"
+											role="menuitemradio"
+											aria-checked={s === d.item.status}
+											onclick={() => {
+												close();
+												void changeStatus(s);
+											}}
+											class="flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-ink hover:bg-raised focus-visible:bg-raised focus-visible:outline-none"
+										>
+											<span
+												class={cn('size-[8px] shrink-0 rounded-full', STATUS_STYLE[s].dot)}
+												aria-hidden="true"
+											></span>
+											<span class="flex-1">{statusLabel(s)}</span>
+											{#if s === d.item.status}<Check
+													size={16}
+													class="text-muted"
+													aria-hidden="true"
+												/>{/if}
+										</button>
+									{/each}
+								{/snippet}
+							</Popover>
+						{:else}
+							<Badge tone={STATUS_TONE[d.item.status as Status]} dot class="rounded-md py-1 text-sm"
+								>{statusLabel(d.item.status)}</Badge
+							>
+						{/if}
 					</span>
-					{#if env.canWrite}
-						<Button
-							size="sm"
-							onclick={() => {
-								nextStatus = d.item.status;
-								note = '';
-								statusError = '';
-								statusOpen = true;
-							}}
-							data-testid="change-status">Change status</Button
-						>
-					{/if}
 				</div>
 
 				{#if d.phases.length}
@@ -438,7 +527,8 @@
 							key: ph.key,
 							title: ph.title,
 							done: ph.steps.filter((x) => x.state === 'done').length,
-							total: ph.steps.length
+							// Waived and superseded steps are not counted, the same as the item's own total
+							total: ph.steps.filter((x) => x.state === 'done' || x.state === 'open').length
 						}))}
 					/>
 				{/if}
@@ -569,41 +659,6 @@
 		tool={continueTool}
 		mode={parseMode(data.continueMode)}
 	/>
-
-	<ResponsiveModal
-		open={statusOpen}
-		onclose={() => (statusOpen = false)}
-		title="Change the status"
-		size="sm"
-		{busy}
-	>
-		<form
-			class="flex flex-col gap-3"
-			onsubmit={(e) => {
-				e.preventDefault();
-				void changeStatus();
-			}}
-		>
-			<Select
-				label="New status"
-				bind:value={nextStatus}
-				options={STATUSES.map((s) => ({ value: s, label: s.toLowerCase() }))}
-			/>
-			<TextField
-				label="Why is it changing"
-				bind:value={note}
-				hint="A short note for the activity log."
-				error={statusError}
-				data-testid="status-note"
-			/>
-			<div class="flex justify-end gap-2">
-				<Button onclick={() => (statusOpen = false)} disabled={busy}>Cancel</Button>
-				<Button type="submit" variant="primary" loading={busy} data-testid="status-submit"
-					>Change status</Button
-				>
-			</div>
-		</form>
-	</ResponsiveModal>
 
 	<ResponsiveModal
 		open={renaming}

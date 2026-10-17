@@ -256,6 +256,20 @@ export function fingerprintOf(verb: string, ...parts: unknown[]): string {
 }
 
 /**
+ * The context for one write inside a call that makes several writes (item_update saves fields, sections and decisions).
+ * Each write gets its own request id and fingerprint, so a second write is never answered with the first one's stored
+ * result, and a retry of the whole call replays every write on its own. Without a request id nothing changes.
+ */
+export function subRequest(ctx: Ctx, label: string, ...parts: unknown[]): Ctx {
+	if (!ctx.requestId) return ctx;
+	return {
+		...ctx,
+		requestId: `${ctx.requestId}#${label}`,
+		fingerprint: fingerprintOf(label, ...parts)
+	};
+}
+
+/**
  * Makes a write safe to retry. The first call with a requestId runs and stores its result; a repeat returns that
  * stored result and writes nothing. The unique row is the lock, so two simultaneous retries cannot both run.
  */

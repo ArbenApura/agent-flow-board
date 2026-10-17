@@ -4,7 +4,7 @@
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
-import { item, project } from '../../src/lib/server/db/schema';
+import { item, project, projectPin } from '../../src/lib/server/db/schema';
 import { TENANT_TABLES } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { makePglite, makePostgres, seedTwoOrgs, type Seed, type TestDb } from '../support/db';
@@ -77,6 +77,40 @@ describe.each([
 		const b = await withTenant(db, { orgId: s.orgB }, (tx) => tx.select().from(item));
 		expect(a.map((r) => r.ref).sort()).toEqual(['AAA-1', 'AAB-1']);
 		expect(b.map((r) => r.ref)).toEqual(['BBB-1']);
+	});
+
+	it('a pin is visible to its own person only, and cannot be planted for another org', async () => {
+		// Two people in org A and one in org B each pin a project, the seed bypasses the policies
+		await db.admin.exec(
+			`INSERT INTO "user" (id, name, email) VALUES ('u-a2', 'Ana Two', 'ana2@a.example') ON CONFLICT DO NOTHING`
+		);
+		await db.admin.exec(
+			`INSERT INTO project_pin (org_id, project_id, user_id) VALUES ('${s.orgA}', '${s.projectA}', 'u-a'), ('${s.orgA}', '${s.projectA}', 'u-a2'), ('${s.orgB}', '${s.projectB}', 'u-b')`
+		);
+		const own = await withTenant(db, { orgId: s.orgA, userId: 'u-a' }, (tx) =>
+			tx.select().from(projectPin)
+		);
+		expect(own.map((r) => r.userId)).toEqual(['u-a']);
+		// Another person in the same org sees their own row, not the first person's
+		const other = await withTenant(db, { orgId: s.orgA, userId: 'u-a2' }, (tx) =>
+			tx.select().from(projectPin)
+		);
+		expect(other.map((r) => r.userId)).toEqual(['u-a2']);
+		// Org B's pin is out of reach of org A, even for the same person id
+		const crossOrg = await withTenant(db, { orgId: s.orgA, userId: 'u-b' }, (tx) =>
+			tx.select().from(projectPin)
+		);
+		expect(crossOrg).toHaveLength(0);
+		// No person set reads nothing
+		const nobody = await withTenant(db, { orgId: s.orgA }, (tx) => tx.select().from(projectPin));
+		expect(nobody).toHaveLength(0);
+		// A write that names another org is refused
+		await expect(
+			withTenant(db, { orgId: s.orgA, userId: 'u-a' }, (tx) =>
+				tx.insert(projectPin).values({ orgId: s.orgB, projectId: s.projectB, userId: 'u-a' })
+			)
+		).rejects.toThrow();
+		await db.admin.exec(`DELETE FROM project_pin`);
 	});
 
 	it('a request with no tenant reads nothing from any tenant table', async () => {

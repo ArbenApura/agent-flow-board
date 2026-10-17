@@ -3,6 +3,7 @@
 	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
 	import Check from '@lucide/svelte/icons/check';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Minus from '@lucide/svelte/icons/minus';
 
 	// -- REQUIRED PROPS -- //
@@ -11,6 +12,7 @@
 		state,
 		label,
 		disabled = false,
+		saving = false,
 		onclick,
 		class: extra
 	}: {
@@ -19,6 +21,8 @@
 		/** The accessible name, the step key and its text. */
 		label: string;
 		disabled?: boolean;
+		/** A save is in flight: the box turns into a spinner and ignores clicks. */
+		saving?: boolean;
 		onclick?: () => void;
 		class?: string;
 	} = $props();
@@ -42,11 +46,19 @@
 	role="checkbox"
 	aria-checked={state === 'done'}
 	aria-label={label}
-	{disabled}
+	aria-busy={saving}
+	disabled={disabled || saving}
 	{onclick}
-	class={cn(BOX, LOOK[state] ?? LOOK.open, state !== 'open' && 'disabled:opacity-100', extra)}
+	class={cn(
+		BOX,
+		saving ? 'border-transparent bg-transparent text-muted' : (LOOK[state] ?? LOOK.open),
+		(saving || state !== 'open') && 'disabled:opacity-100',
+		extra
+	)}
 >
-	{#if state === 'done'}
+	{#if saving}
+		<LoaderCircle size={18} strokeWidth={2.5} class="animate-spin" aria-hidden="true" />
+	{:else if state === 'done'}
 		<Check size={14} strokeWidth={3} aria-hidden="true" />
 	{:else if state === 'waived' || state === 'superseded'}
 		<Minus size={14} strokeWidth={3} aria-hidden="true" />

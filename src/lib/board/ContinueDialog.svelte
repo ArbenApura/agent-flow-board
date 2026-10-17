@@ -22,7 +22,7 @@
 	} from '#lib/shared/continue.js';
 	import Button from '#lib/ui/Button.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
-	import SelectField from '#lib/ui/SelectField.svelte';
+	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import TextArea from '#lib/ui/TextArea.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
@@ -58,7 +58,7 @@
 	const ICON = { vscode: Code, command: Terminal, prompt: Copy };
 	/** What each way does, shown under the prompt for the way the person usually uses. */
 	const WAY_HINT: Record<ContinueMode, string> = {
-		vscode: 'Opens a Claude chat in VS Code with this typed in. You press Enter there to run it.',
+		vscode: 'Opens Claude in VS Code with this typed in. Press Enter there to run it.',
 		command: 'Copies one line that starts the tool with this prompt. Paste it into your terminal.',
 		prompt: 'Copies the prompt so you can paste it into any session.'
 	};
@@ -246,7 +246,11 @@
 				data-testid={hasProblem ? 'continue-problem' : undefined}
 			>
 				{note}
-				{#if !hasProblem}
+			</p>
+			<!-- THE TWO KEYS STAY TOGETHER ON ONE LINE, NEVER SPLIT ACROSS A WRAP -->
+			{#if !hasProblem}
+				<p class="inline-flex items-center gap-1.5 whitespace-nowrap">
+					Shortcut
 					<kbd class="rounded-[6px] border border-line bg-raised px-1.5 py-0.5 font-mono text-xs"
 						>Ctrl</kbd
 					>
@@ -254,8 +258,8 @@
 					<kbd class="rounded-[6px] border border-line bg-raised px-1.5 py-0.5 font-mono text-xs"
 						>Enter</kbd
 					>
-				{/if}
-			</p>
+				</p>
+			{/if}
 			{#if usual === 'command' && command}
 				<code
 					class="rounded-lg border border-line bg-raised px-3 py-2 font-mono text-xs break-words text-ink"
@@ -263,17 +267,20 @@
 				>
 			{/if}
 		</div>
-		<SelectField
-			label="Which tool are you using?"
-			options={TOOL_OPTIONS}
-			bind:value={chosenTool}
-			class="sm:w-64"
-		/>
-		<p class="text-xs text-muted">
-			No tool connected yet? <a class="text-accent-text hover:underline" href="/connect"
-				>Connect a tool</a
-			>.
-		</p>
+		<!-- TOOL PICKER, ALL FOUR CHOICES VISIBLE AT ONCE -->
+		<div class="flex flex-col gap-1.5">
+			<div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+				<span class="text-xs font-medium text-ink">Which tool are you using?</span>
+				<a class="text-xs text-accent-text hover:underline" href="/connect">Connect a tool</a>
+			</div>
+			<SegmentedControl
+				label="Which tool are you using?"
+				options={TOOL_OPTIONS}
+				value={chosenTool}
+				onchange={(v) => (chosenTool = v as ContinueToolId)}
+				class="w-full"
+			/>
+		</div>
 	</div>
 	{#snippet footer()}
 		<div class="flex w-full flex-wrap items-center gap-2">
@@ -291,9 +298,6 @@
 					{CONTINUE_MODE_LABEL[m]}
 				</Button>
 			{/each}
-			<Button variant="ghost" class="ml-auto" onclick={onclose} disabled={running !== null}
-				>Cancel</Button
-			>
 		</div>
 	{/snippet}
 </ResponsiveModal>

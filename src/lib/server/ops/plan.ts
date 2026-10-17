@@ -8,7 +8,7 @@ import { z } from 'zod';
 // -- MODULES -- //
 import { recalcItem } from '../db/calc';
 import { appendEvent } from '../db/events';
-import { manualCheck, phase, step } from '../db/schema';
+import { comment, manualCheck, phase, step } from '../db/schema';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields, checkVersion } from './items';
 import { findItem } from './resolve';
@@ -55,6 +55,20 @@ export const addChecksInput = z.object({
 		.max(100),
 	expectVersion: z.number().int().optional()
 });
+
+export const updateStepBody = z.object({
+	item: z.string().min(1),
+	key: z.string().regex(/^[0-9A-Za-z]+\.[0-9]+[a-z]?$/),
+	/** The new wording of the step. */
+	text: z.string().min(1).max(2000).optional(),
+	/** Takes the step out of the plan. */
+	remove: z.boolean().optional(),
+	expectVersion: z.number().int().optional()
+});
+export const updateStepInput = updateStepBody.refine(
+	(i) => (i.text !== undefined) !== (i.remove === true),
+	{ message: 'Give the new text, or remove: true. Not both and not neither.' }
+);
 
 // -- FUNCTIONS -- //
 
@@ -135,7 +149,11 @@ export async function addSteps(ctx: Ctx, raw: z.input<typeof addStepsInput>) {
 				.where(eq(step.phaseId, ph.id))
 				.orderBy(asc(step.position));
 			let position = existing.reduce((m, s) => Math.max(m, s.position), 0);
-			let next = existing.length;
+			// The next default key follows the highest number in use, so a removed step never makes a new key collide
+			let next = existing.reduce((m, e) => {
+				const n = Number(/\.(\d+)[a-z]?$/.exec(e.key)?.[1]);
+				return Number.isFinite(n) ? Math.max(m, n) : m;
+			}, 0);
 			const made: string[] = [];
 			for (const s of input.steps) {
 				next++;
@@ -164,7 +182,9 @@ export async function addSteps(ctx: Ctx, raw: z.input<typeof addStepsInput>) {
 				verb: 'step.create',
 				targetType: 'phase',
 				targetId: ph.id,
-				after: { keys: made } as never
+				after: { keys: made } as never,
+				// Undoing a create would delete the whole phase, which is not what "undo these steps" means
+				undoable: false
 			});
 			return { keys: made, percent: calc.percent };
 		})
@@ -211,6 +231,76 @@ export async function addManualChecks(ctx: Ctx, raw: z.input<typeof addChecksInp
 				undoable: false
 			});
 			return { keys: input.checks.map((c) => c.key), openManual: calc.counts.openManual };
+		})
+	);
+}
+
+/**
+ * Changes the wording of an open step, or takes an open step out of the plan. A step that is done, waived or superseded is
+ * a record of work and stays as it is. A wording change can be undone; a removal cannot.
+ */
+export async function updateStep(ctx: Ctx, raw: z.input<typeof updateStepInput>) {
+	const input = updateStepInput.parse(raw);
+	return run(ctx, (tx) =>
+		idempotent(ctx, tx, async () => {
+			const it = await findItem(tx, ctx, input.item, { lock: true });
+			await requireCap(tx, ctx, 'write', it.projectId);
+			await rateLimit(tx, ctx, 'write');
+			checkVersion(it, input.expectVersion);
+			const [st] = await tx
+				.select()
+				.from(step)
+				.where(and(eq(step.itemId, it.id), eq(step.key, input.key)));
+			if (!st) throw new OpError('NOT_FOUND', `${it.ref} has no step ${input.key}.`);
+			if (st.state !== 'open')
+				throw new OpError(
+					'CONFLICT',
+					`Step ${input.key} of ${it.ref} is ${st.state}. Only an open step can be changed.`
+				);
+			if (input.remove) {
+				// Comments on a step go with it (the column cascades), so a step that has any is kept
+				const [talk] = await tx
+					.select({ n: sql<number>`count(*)::int` })
+					.from(comment)
+					.where(eq(comment.stepId, st.id));
+				if (talk.n > 0)
+					throw new OpError(
+						'CONFLICT',
+						`Step ${input.key} of ${it.ref} has ${talk.n} comment${talk.n === 1 ? '' : 's'}. Reword it instead of removing it.`
+					);
+				await tx.delete(step).where(eq(step.id, st.id));
+				const calc = await recalcItem(tx, it.id);
+				await appendEvent(tx, {
+					orgId: ctx.orgId,
+					projectId: it.projectId,
+					itemId: it.id,
+					...actorFields(ctx),
+					verb: 'step.delete',
+					targetType: 'step',
+					targetId: st.id,
+					before: { key: st.key, text: st.text } as never,
+					undoable: false
+				});
+				return { key: st.key, removed: true, percent: calc.percent };
+			}
+			if (input.text === st.text) return { key: st.key, changed: false, percent: it.percent };
+			await tx
+				.update(step)
+				.set({ text: input.text, updatedAt: sql`now()`, version: sql`${step.version} + 1` })
+				.where(eq(step.id, st.id));
+			const calc = await recalcItem(tx, it.id);
+			await appendEvent(tx, {
+				orgId: ctx.orgId,
+				projectId: it.projectId,
+				itemId: it.id,
+				...actorFields(ctx),
+				verb: 'step.update',
+				targetType: 'step',
+				targetId: st.id,
+				before: { text: st.text } as never,
+				after: { text: input.text } as never
+			});
+			return { key: st.key, changed: true, percent: calc.percent };
 		})
 	);
 }

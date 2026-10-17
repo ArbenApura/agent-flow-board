@@ -541,6 +541,8 @@ html[data-org='empty'] .boot-side-projects {
 	flex-direction: column;
 	gap: 12px;
 	padding: 16px;
+	/* THE CARD SHARES THE ROW CLASS FOR ITS FILL, SO IT MUST NOT KEEP THE ROW HEIGHT */
+	height: auto;
 	border: 1px solid var(--line);
 	background: var(--surface);
 }
@@ -571,6 +573,15 @@ html[data-org='empty'] .boot-org-empty {
 	display: grid;
 	grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 	gap: 24px;
+}
+/* THE ORG HOME USES THE FULL PAGE WIDTH, THE SAME AS THE REAL PAGE, SO THE SKELETON LINES UP WITH WHAT ARRIVES */
+html[data-org='cards'] .boot-body,
+html[data-org='empty'] .boot-body {
+	max-width: 1440px;
+}
+html[data-org='cards'] .boot-bar,
+html[data-org='empty'] .boot-bar {
+	padding: 0 max(32px, calc((100% - 1376px) / 2));
 }
 html[data-org='cards'] .boot-org-cards {
 	display: flex;

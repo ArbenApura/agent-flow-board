@@ -9,6 +9,7 @@
 	// -- MODULES -- //
 	import ProgressRing from '#lib/ui/ProgressRing.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import { createOptimistic } from '#lib/board/optimistic.svelte.js';
 	import StateMark from '#lib/board/item/StateMark.svelte';
 	import TabCard from '#lib/board/item/TabCard.svelte';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
@@ -52,7 +53,7 @@
 	// -- STATES -- //
 
 	/** The state a click asked for, shown at once while the server answers (optimistic update). */
-	let pending = $state<Record<string, string>>({});
+	const optimistic = createOptimistic();
 	/** The open or closed choice of each phase card, by phase id, so "Jump to next step" can open one. */
 	let collapsedBy = $state<Record<string, boolean>>({});
 	let waiving = $state<{ key: string; text: string } | null>(null);
@@ -86,6 +87,9 @@
 				ph,
 				rows,
 				done: rows.filter((r) => r.state === 'done').length,
+				// Waived and superseded steps are not counted, the same as the item's own total, so a finished phase reads full
+				counted: rows.filter((r) => r.state === 'done' || r.state === 'open').length,
+				skipped: rows.filter((r) => r.state === 'waived' || r.state === 'superseded').length,
 				// A phase is finished when it has steps and none of them is open
 				finished: rows.length > 0 && open.length === 0,
 				shown: show === 'open' ? rows.filter((r) => openOnServer.has(r.id)) : rows
@@ -94,41 +98,46 @@
 	);
 	const shownPhases = $derived(show === 'open' ? phases.filter((p) => p.shown.length > 0) : phases);
 	const next = $derived(phases.flatMap((p) => p.rows).find((r) => r.state === 'open') ?? null);
-	const totalSteps = $derived(phases.reduce((n, p) => n + p.rows.length, 0));
+	const totalSteps = $derived(phases.reduce((n, p) => n + p.counted, 0));
 	const doneSteps = $derived(phases.reduce((n, p) => n + p.done, 0));
 	const checkRows = $derived<Row[]>(
 		detail.manualChecks.map((c) => ({ ...c, state: stateOf(c.key, c.state) }))
 	);
 
+	// -- REACTIVE STATEMENTS -- //
+
+	// Lets go of a held tick once the server data carries the same value
+	$effect(() => {
+		const server: Record<string, string> = {};
+		for (const ph of detail.phases) for (const s of ph.steps) server[s.key] = s.state;
+		for (const c of detail.manualChecks) server[c.key] = c.state;
+		optimistic.confirm(server);
+	});
+
 	// -- FUNCTIONS -- //
 
 	function stateOf(key: string, state: string) {
-		return pending[key] ?? state;
+		return optimistic.stateOf(key, state);
 	}
 
 	async function mark(key: string, to: 'done' | 'open' | 'waived', why?: string) {
-		pending[key] = to;
+		const token = optimistic.start(key, to);
+		let moved: { to: string } | undefined;
 		try {
-			await toast.promise(
-				api<{ statusChanges?: { to: string }[] }>(env.org, `/items/${ref}/record`, {
-					body: { marks: [{ key, mark: to, ...(why ? { reason: why } : {}) }] },
-					key: newKey()
-				}),
-				{
-					loading: 'Saving the step...',
-					success: (r) => {
-						const moved = r.statusChanges?.at(-1);
-						return moved ? `Step saved. Status moved to ${moved.to.toLowerCase()}.` : 'Step saved.';
-					},
-					error: (e) => (e instanceof ApiError ? e.message : 'That change was not saved.')
-				}
-			);
-			await env.onchanged();
-		} catch {
-			// The promise toast already shows the failure
-		} finally {
-			delete pending[key];
+			const r = await api<{ statusChanges?: { to: string }[] }>(env.org, `/items/${ref}/record`, {
+				body: { marks: [{ key, mark: to, ...(why ? { reason: why } : {}) }] },
+				key: newKey()
+			});
+			moved = r.statusChanges?.at(-1);
+		} catch (e) {
+			optimistic.fail(key, token);
+			toast.error(e instanceof ApiError ? e.message : 'That change was not saved.');
+			return;
 		}
+		// The save is done. The box shows the new state with no spinner until the refetch shows it, and a failed refetch is not a failed save
+		optimistic.settle(key, token);
+		toast.success(moved ? `Step saved. Status moved to ${moved.to.toLowerCase()}.` : 'Step saved.');
+		await env.onchanged().catch(() => undefined);
 	}
 
 	const toggle = (key: string, state: string) =>
@@ -202,6 +211,7 @@
 			state={s.state}
 			label={`${s.key} ${s.text}`}
 			disabled={!env.canWrite || s.state === 'waived' || s.state === 'superseded'}
+			saving={optimistic.saving(s.key)}
 			onclick={() => toggle(s.key, s.state)}
 			class="mt-0.5"
 		/>
@@ -300,15 +310,17 @@
 				<span class="text-ink">{ph.title}</span>
 			{/snippet}
 			{#snippet meta()}
+				{#each phaseRunning as r (r.sessionId)}
+					<RunningBadge tool={r.tool} title={r.title} phase={ph.key} compact />
+				{/each}
 				<ProgressRing
-					value={ph.steps.length ? (p.done / ph.steps.length) * 100 : 0}
+					value={p.counted ? (p.done / p.counted) * 100 : p.finished ? 100 : 0}
 					label={`Phase ${ph.key} progress`}
 					size={28}
 				/>
-				<span class="text-sm text-muted tabular-nums">{p.done} of {ph.steps.length}</span>
-				{#each phaseRunning as r (r.sessionId)}
-					<RunningBadge tool={r.tool} title={r.title} phase={ph.key} />
-				{/each}
+				<span class="text-sm text-muted tabular-nums"
+					>{p.done} of {p.counted}{p.skipped ? `, ${p.skipped} waived` : ''}</span
+				>
 			{/snippet}
 			<ul>
 				{#each p.shown as s (s.id)}

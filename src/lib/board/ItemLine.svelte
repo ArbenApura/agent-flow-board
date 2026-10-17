@@ -76,24 +76,23 @@
 					label={`${row.ref} progress`}
 					fill={STATUS_STYLE[row.status].rail}
 				/>
-				<span class="w-9 text-right text-xs font-semibold text-ink tabular-nums"
+				<span
+					class="w-10 shrink-0 text-right text-xs font-semibold whitespace-nowrap text-ink tabular-nums"
 					>{row.percent}%</span
 				>
 			</span>
-			<span class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted">
-				<span class="rounded-md bg-raised px-1.5 font-medium">{row.stream}/{row.scope}</span>
+			<span class="flex items-center justify-between gap-2.5 text-xs text-muted">
 				<span class="tabular-nums">{row.doneSteps} of {row.totalSteps} steps</span>
-				<span class="ml-auto whitespace-nowrap">{ago(row.lastActivityAt)}</span>
+				<span class="whitespace-nowrap">{ago(row.lastActivityAt)}</span>
 			</span>
-			{#if running.length}
-				<span class="flex flex-wrap items-center gap-2">
-					{#each running as r (r.sessionId)}<RunningBadge
-							tool={r.tool}
-							title={r.title}
-							phase={r.phase ?? undefined}
-						/>{/each}
-				</span>
-			{/if}
+			<span class="flex flex-wrap items-center gap-2 text-xs text-muted">
+				<span class="rounded-md bg-raised px-1.5 font-medium">{row.stream}/{row.scope}</span>
+				{#each running as r (r.sessionId)}<RunningBadge
+						tool={r.tool}
+						title={r.title}
+						phase={r.phase ?? undefined}
+					/>{/each}
+			</span>
 		</a>
 		{#if onContinue}
 			<!-- JUST THE ICON, SMALL, AND ONLY WHEN THE POINTER IS ON THE CARD OR THE BUTTON HAS FOCUS. A TOUCH SCREEN HAS NO HOVER, SO IT IS ALWAYS THERE. THE HIT AREA IS 44 PX ON A PHONE -->
@@ -155,7 +154,10 @@
 				label={`${row.ref} progress`}
 				fill={STATUS_STYLE[row.status].rail}
 			/>
-			<span class="w-9 text-right text-xs font-semibold text-ink tabular-nums">{row.percent}%</span>
+			<span
+				class="w-10 shrink-0 text-right text-xs font-semibold whitespace-nowrap text-ink tabular-nums"
+				>{row.percent}%</span
+			>
 		</span>
 		<span class={cn('truncate text-xs text-muted', LIST_COLS.area)}>{row.stream}/{row.scope}</span>
 		<span class={cn('text-xs whitespace-nowrap text-muted', LIST_COLS.updated)}

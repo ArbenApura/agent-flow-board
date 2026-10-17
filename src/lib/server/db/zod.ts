@@ -28,6 +28,7 @@ import {
 	org,
 	phase,
 	project,
+	projectPin,
 	section,
 	session,
 	step,
@@ -144,5 +145,10 @@ export const continueChoice = createUpdateSchema(userPref, {
 		message: 'Open in VS Code works with Claude Code only. Pick Copy command or Copy prompt.',
 		path: ['continueMode']
 	});
+
+/** Pin or unpin a project. Only the project comes from the caller; the org and the person always come from the request. */
+export const projectPinInput = createInsertSchema(projectPin).pick({
+	projectId: true
+});
 
 export { tabName as tabNameSchema };

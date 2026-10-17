@@ -17,6 +17,7 @@ import { project } from '../db/schema';
 import {
 	addComment,
 	createTask,
+	deleteDecisionByNumber,
 	listComments,
 	listTasks,
 	updateTask,
@@ -24,9 +25,21 @@ import {
 	upsertSection
 } from '../ops/docs';
 import { addAttachment } from '../ops/attachments';
-import { OpError, fingerprintOf, run } from '../ops/context';
-import { undoChange, undoSession } from '../ops/history';
-import { createItem, getItem, listItems, updateItem, type ItemDetail } from '../ops/items';
+import { OpError, fingerprintOf, run, subRequest } from '../ops/context';
+import { listEvents, undoChange, undoSession } from '../ops/history';
+import { pinProject, unpinProject } from '../ops/pins';
+import { addManualChecks, addPhase, addSteps, updateStep } from '../ops/plan';
+import {
+	DEFAULT_SCOPE,
+	DEFAULT_STREAM,
+	createItem,
+	getItem,
+	listItems,
+	restoreItem,
+	trashItem,
+	updateItem,
+	type ItemDetail
+} from '../ops/items';
 import { itemChecks, requestRun } from '../ops/checks';
 import { itemShots, requestShots, saveUiChanges } from '../ops/uiShots';
 import { recordSteps } from '../ops/steps';
@@ -459,6 +472,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				name: p.name,
 				rules: p.rules,
 				streams: p.streams,
+				// An empty list means the project sets none: an item may name any stream and scope, and takes these when it names none
+				defaults: { stream: DEFAULT_STREAM, scope: DEFAULT_SCOPE },
 				agentsMayComplete: p.agentsMayComplete,
 				webApp: p.webApp,
 				workflows: WORKFLOWS.map((w) => ({ name: w.name, summary: w.summary }))
@@ -581,17 +596,26 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			void _s;
 			void _r;
 			const out: Record<string, unknown> = {};
+			// Every write below takes its own request id, so one call can carry several writes and still be retried safely
 			if (Object.values(fields).some((v) => v !== undefined)) {
-				const r = await updateItem(ctx, { item: name, ...fields } as never);
+				const r = await updateItem(subRequest(ctx, 'fields', name, fields), {
+					item: name,
+					...fields
+				} as never);
 				out.changed = r.changed;
 				out.version = r.item.version;
 			}
 			for (const s of sections ?? [])
-				out[`section:${s.slug}`] = (await upsertSection(ctx, { item: name, ...s })).changed
+				out[`section:${s.slug}`] = (
+					await upsertSection(subRequest(ctx, `section:${s.slug}`, name, s), { item: name, ...s })
+				).changed
 					? 'saved'
 					: 'unchanged';
-			for (const d of decisions ?? []) {
-				const r = await upsertDecision(ctx, { item: name, ...d } as never);
+			for (const [i, d] of (decisions ?? []).entries()) {
+				const r = await upsertDecision(subRequest(ctx, `decision:${i}`, name, d), {
+					item: name,
+					...d
+				} as never);
 				out[`decision:${r.decision.kind}-${r.decision.number}`] = r.created ? 'created' : 'updated';
 			}
 			return out;
@@ -677,6 +701,180 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				log: a.log,
 				dryRun: a.dryRun
 			}) as never;
+		}
+	);
+
+	// -- plan, trash, decisions and history -- //
+
+	const stepShape = z.object({
+		text: z.string().min(1),
+		key: z.string().optional(),
+		requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional()
+	});
+	const expectVersion = z
+		.number()
+		.int()
+		.optional()
+		.describe('The item version you read; the write is refused if the item changed since.');
+
+	tool(
+		'plan_add_phase',
+		'Add a phase, with its steps, at the end of an item plan. The percent is recalculated at once.',
+		{
+			item: itemName.optional(),
+			key: z.string().describe('Letters or digits, up to 12, such as 7'),
+			title: z.string(),
+			steps: z.array(stepShape).optional(),
+			expectVersion
+		},
+		{ session: true },
+		async (a, { ctx, claimed }) => {
+			const r = await addPhase(ctx, {
+				item: need(a.item, claimed),
+				key: a.key,
+				title: a.title,
+				steps: a.steps ?? [],
+				expectVersion: a.expectVersion
+			} as never);
+			return { phase: { key: r.phase.key, title: r.phase.title }, percent: r.percent };
+		}
+	);
+
+	tool(
+		'plan_add_steps',
+		'Add steps at the end of one phase of an item. Keys default to the next number in that phase.',
+		{
+			item: itemName.optional(),
+			phase: z.string().describe('The phase key, such as 3'),
+			steps: z.array(stepShape).min(1),
+			expectVersion
+		},
+		{ session: true },
+		async (a, { ctx, claimed }) =>
+			addSteps(ctx, {
+				item: need(a.item, claimed),
+				phase: a.phase,
+				steps: a.steps,
+				expectVersion: a.expectVersion
+			} as never)
+	);
+
+	tool(
+		'plan_add_checks',
+		'Add manual checks (M1, M2 ...) to an item. They are never counted toward the percent.',
+		{
+			item: itemName.optional(),
+			checks: z
+				.array(z.object({ key: z.string(), text: z.string(), auto: z.boolean().optional() }))
+				.min(1),
+			expectVersion
+		},
+		{ session: true },
+		async (a, { ctx, claimed }) =>
+			addManualChecks(ctx, {
+				item: need(a.item, claimed),
+				checks: a.checks,
+				expectVersion: a.expectVersion
+			} as never)
+	);
+
+	tool(
+		'step_update',
+		'Change the wording of an open step, or remove it from the plan. Done, waived and superseded steps cannot be changed.',
+		{
+			item: itemName.optional(),
+			key: z.string().describe('The step key, such as 3.2'),
+			text: z.string().optional().describe('The new wording'),
+			remove: z.boolean().optional().describe('Take the step out of the plan'),
+			expectVersion
+		},
+		{ session: true },
+		async (a, { ctx, claimed }) =>
+			updateStep(ctx, {
+				item: need(a.item, claimed),
+				key: a.key,
+				text: a.text,
+				remove: a.remove,
+				expectVersion: a.expectVersion
+			} as never)
+	);
+
+	tool(
+		'item_trash',
+		'Move an item to the trash for 30 days. Trashing an item other than the one you claimed asks first.',
+		{ item: itemName, confirmed: z.boolean().optional(), expectVersion },
+		{ session: true },
+		async (a, { ctx }) => trashItem(ctx, a.item, a.expectVersion, a.confirmed)
+	);
+
+	tool(
+		'item_restore',
+		'Bring an item back from the trash.',
+		{ item: itemName },
+		{ session: true },
+		async (a, { ctx }) => restoreItem(ctx, a.item)
+	);
+
+	tool(
+		'decision_delete',
+		'Delete one decision of an item, named by its kind (adr or settled) and number. It cannot be undone.',
+		{
+			item: itemName.optional(),
+			kind: z.enum(['adr', 'settled']),
+			number: z.number().int().min(1)
+		},
+		{ session: true },
+		async (a, { ctx, claimed }) =>
+			deleteDecisionByNumber(ctx, {
+				item: need(a.item, claimed),
+				kind: a.kind,
+				number: a.number
+			})
+	);
+
+	tool(
+		'project_pin',
+		'Pin a project to the top of your own project list. Only you see the pin.',
+		{ project: z.string() },
+		{},
+		async (a, { ctx }) => pinProject(ctx, a.project)
+	);
+
+	tool(
+		'project_unpin',
+		'Remove your pin from a project.',
+		{ project: z.string() },
+		{},
+		async (a, { ctx }) => unpinProject(ctx, a.project)
+	);
+
+	tool(
+		'item_history',
+		'Read the activity of a project or one item, newest first: who changed what, and whether it can be undone.',
+		{
+			project: z.string(),
+			item: itemName.optional(),
+			limit: z.number().int().min(1).max(100).optional(),
+			afterId: z.number().int().optional().describe('Only events with an id above this one')
+		},
+		{ readOnly: true },
+		async (a, { ctx }) => {
+			const rows = await listEvents(ctx, {
+				project: a.project,
+				item: a.item,
+				limit: a.limit ?? 30,
+				afterId: a.afterId
+			});
+			return {
+				events: rows.map((e) => ({
+					id: e.id,
+					verb: e.verb,
+					actor: e.actorLabel,
+					tool: e.tool,
+					at: e.createdAt,
+					label: e.label
+				}))
+			};
 		}
 	);
 

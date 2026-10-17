@@ -11,8 +11,10 @@ const RULES = `## Rules that apply to every workflow
 
 - Start every session with session_start and pass its sessionId on every tracking and write tool. Two tools that share a token are still two sessions.
 - Claim the named item at once. When the user names an item (a number, a reference or an old id), call work_start for it before any edit. The reply gives the session title (TAB_NAME: REF) and the next steps.
+- Name the session after the item. work_start (and session_start with an item) answers with a displayTitle, TAB_NAME: REF. If your tool can name its session or tab, set it to that title and set it again when you switch items; if it cannot, say the title in your first line. Give every new item a short tabName (one to three words in capitals joined by underscores).
 - State the item. When the work in front of you belongs to a different item than the one the user named, say so in your first line (You said 142, this was built in 139) and use the item you stated.
 - Record as you go. After each finished step call step_done (or record for waivers, reopens and manual checks). Never batch the records for the end. The percent, the status and the registry follow from the records, so never type them.
+- Change the plan with the plan tools. Add a phase with plan_add_phase, steps with plan_add_steps and manual checks with plan_add_checks. Reword or remove a step that is still open with step_update. A step that is done, waived or superseded is a record and stays; waive or supersede it with record and say why.
 - The status moves by itself. The first done step moves PLANNED to IN PROGRESS and the last counted step moves IN PROGRESS or TESTING to IN REVIEW. ON HOLD, COMPLETED and REMOVED never move by themselves. Use item_status for any other change, with a short note.
 - COMPLETED may be kept for people. If item_status answers COMPLETED_REFUSED with reason people-only, tell the user and leave the item in review.
 - Closing another item asks first. If a close answers CONFIRM_REQUIRED naming two items, show both to the user and repeat the call with confirmed true only after they agree. "Mark this complete" with no item the context pins to one is asked back, never guessed.
@@ -25,7 +27,7 @@ const PLAN = `## Planning an item
 
 1. Read before you write. Open the code, the data model and the pages the item touches. A plan written without reading them is a guess.
 2. Create the item with item_new. Give it a short tab name (one to three words in capitals joined by underscores) and its phases. Every phase has steps that can each be verified. A step is one thing, small enough to finish and check.
-3. Write the spec, the decisions and the validation as sections and decisions (item_update with sections, decision tools). Put open questions in the plan's questions list only after the checking rule above.
+3. Write the spec, the decisions and the validation as sections and decisions (item_update with sections and decisions). Put open questions in the plan's questions list only after the checking rule above.
 4. For any visible change write a "UI changes" table (page, state, themes, accounts, siblings, levels, viewports), a clickable mockup step for each new screen before its code, and two counted steps in every phase that touches the interface: write the UI changes rows before the code, and run the UI shots and fix every to-fix flag at the phase end. Describe sizes as "the same as the sibling page", never as new pixel values.
 5. For every manual check an agent can run, tag it automatic and put two counted steps into its phase: write the check before the phase's code steps, run it at the end. Keep a plain manual check only for what no tool can reach.
 6. Present the plan and wait for the user's approval before any code is written.`;

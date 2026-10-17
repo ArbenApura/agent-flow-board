@@ -175,6 +175,30 @@ export const projectMember = tenantTable(
 	]
 );
 
+/** A project a person pinned on the org home. Personal: the row filter names the org and the person (FLOW AFB-20261017-0537). */
+export const projectPin = tenantTable(
+	'project_pin',
+	'org',
+	{
+		id: id(),
+		orgId: orgId(),
+		projectId: projectId(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [
+		unique('project_pin_uq').on(t.userId, t.projectId),
+		index('project_pin_org_idx').on(t.orgId)
+	],
+	// The org wall and the person wall. WITH CHECK is the org wall only, so the verb always writes the caller's own id
+	{
+		using:
+			"org_id = nullif(current_setting('app.org_id', true), '')::uuid and user_id = nullif(current_setting('app.user_id', true), '')"
+	}
+);
+
 /** Next item number per project. The row is locked inside the insert transaction (SPEC 5). */
 export const projectCounter = tenantTable('project_counter', 'project', {
 	projectId: uuid('project_id')

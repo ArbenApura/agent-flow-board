@@ -16,6 +16,7 @@ import {
 	orgDeletionLog,
 	project,
 	projectMember,
+	projectPin,
 	runner,
 	user
 } from '../db/schema';
@@ -266,6 +267,13 @@ export async function removeMember(
 		await tx
 			.delete(projectMember)
 			.where(and(eq(projectMember.orgId, orgId), eq(projectMember.userId, targetId)));
+		// Their pins go too, so a person who is added again later does not get old shortcuts back. A pin row is only visible
+		// to its own person, so the delete runs as them for one statement and the request goes back to the actor right after
+		await tx.execute(sql`select set_config('app.user_id', ${targetId}, true)`);
+		await tx
+			.delete(projectPin)
+			.where(and(eq(projectPin.orgId, orgId), eq(projectPin.userId, targetId)));
+		await tx.execute(sql`select set_config('app.user_id', ${actorId}, true)`);
 		// Their tokens stop working at once (L8), on top of the live role check every call makes
 		await tx
 			.update(apiToken)

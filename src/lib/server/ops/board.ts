@@ -16,6 +16,7 @@ import { OpError, requireCap, run } from './context';
 import { listAttachments } from './attachments';
 import { listComments } from './docs';
 import { listEvents } from './history';
+import { pinnedProjectIds } from './pins';
 import { canSeeItem, getItem } from './items';
 import { findProject } from './resolve';
 import { unrecordedCommits } from './tracking';
@@ -107,7 +108,10 @@ export async function projectSummary(ctx: Ctx, projectKey: string) {
 	});
 }
 
-/** Everything the org home needs: each project the person can see, with its counts and how many sessions are running. */
+/**
+ * Everything the org home needs: each project the person can see, with its counts, how many sessions are running, whether
+ * the person pinned it, when it was made and when a visible item last changed.
+ */
 export async function orgOverview(ctx: Ctx) {
 	return run(ctx, async (tx) => {
 		const [m] = await tx
@@ -135,6 +139,8 @@ export async function orgOverview(ctx: Ctx) {
 			.filter((x) => x.role !== null);
 		const ids = visible.map((x) => x.p.id);
 		if (!ids.length) return [];
+		// Pins of projects the person can no longer see are never returned: only visible projects are looked up
+		const pins = await pinnedProjectIds(tx, ctx);
 		const counts = await tx
 			.select({
 				projectId: item.projectId,
@@ -142,7 +148,8 @@ export async function orgOverview(ctx: Ctx) {
 				visibility: item.visibility,
 				createdBy: item.createdBy,
 				assigneeId: item.assigneeId,
-				n: sql<number>`count(*)::int`
+				n: sql<number>`count(*)::int`,
+				lastChange: sql<Date | null>`max(${item.updatedAt})`
 			})
 			.from(item)
 			.where(and(inArray(item.projectId, ids), isNull(item.deletedAt)))
@@ -152,6 +159,7 @@ export async function orgOverview(ctx: Ctx) {
 			const seeAll = role === 'owner' || role === 'admin';
 			const byStatus: Record<string, number> = {};
 			let total = 0;
+			let lastActivityAt: Date | null = null;
 			for (const c of counts.filter((c) => c.projectId === p.id)) {
 				const ok =
 					seeAll ||
@@ -161,9 +169,21 @@ export async function orgOverview(ctx: Ctx) {
 				if (!ok) continue;
 				byStatus[c.status] = (byStatus[c.status] ?? 0) + c.n;
 				total += c.n;
+				// Only items the person may see move this, so a private item never shows through
+				const changed = c.lastChange ? new Date(c.lastChange) : null;
+				if (changed && (!lastActivityAt || changed > lastActivityAt)) lastActivityAt = changed;
 			}
 			const running = await runningIn(tx, p.id, ctx.actor.userId, seeAll);
-			out.push({ project: p, role: role!, total, byStatus, running: running.length });
+			out.push({
+				project: p,
+				role: role!,
+				total,
+				byStatus,
+				running: running.length,
+				pinned: pins.has(p.id),
+				createdAt: p.createdAt,
+				lastActivityAt
+			});
 		}
 		return out;
 	});

@@ -16,12 +16,17 @@ import { tabNameSchema } from '../db/zod';
 import { tabNameFromTitle } from '../../shared/uiChange';
 import { OpError, idempotent, rateLimit, requireCap, requireOrgMember, run } from './context';
 import { canSeeItem, findItem, findProject } from './resolve';
+import { requireCloseConfirmation } from './tracking';
 
 // -- TYPES -- //
 
 export type ItemRow = typeof item.$inferSelect;
 
 // -- CONSTANTS -- //
+
+/** Where an item goes when its creator names no stream or scope, and what project_rules reports for a project with none set. */
+export const DEFAULT_STREAM = 'features';
+export const DEFAULT_SCOPE = 'core';
 
 const stepIn = z.object({
 	key: z
@@ -46,8 +51,8 @@ export const createItemInput = z.object({
 	project: z.string().min(1),
 	title: z.string().min(3).max(200),
 	tabName: tabNameSchema.nullish(),
-	stream: z.string().min(1).max(40).default('features'),
-	scope: z.string().min(1).max(40).default('core'),
+	stream: z.string().min(1).max(40).default(DEFAULT_STREAM),
+	scope: z.string().min(1).max(40).default(DEFAULT_SCOPE),
 	visibility: z.enum(['public', 'private']).default('public'),
 	branchNote: z.string().max(500).nullish(),
 	assigneeId: z.string().nullish(),
@@ -442,13 +447,20 @@ export async function updateItem(ctx: Ctx, raw: z.input<typeof updateItemInput>)
 }
 
 /** Moves an item to the trash for 30 days. Nothing is lost, and the event can be undone. */
-export async function trashItem(ctx: Ctx, nameOrId: string, expectVersion?: number) {
+export async function trashItem(
+	ctx: Ctx,
+	nameOrId: string,
+	expectVersion?: number,
+	confirmed?: boolean
+) {
 	return run(ctx, async (tx) =>
 		idempotent(ctx, tx, async () => {
 			const it = await findItem(tx, ctx, nameOrId, { lock: true });
 			await requireCap(tx, ctx, 'delete', it.projectId);
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, expectVersion);
+			// An agent trashing an item its session is not bound to is asked first, like a close
+			await requireCloseConfirmation(tx, ctx, it, confirmed);
 			await tx
 				.update(item)
 				.set({

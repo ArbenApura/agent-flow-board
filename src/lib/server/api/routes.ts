@@ -51,6 +51,7 @@ import {
 	updateItem,
 	updateItemInput
 } from '../ops/items';
+import { pinProject, unpinProject } from '../ops/pins';
 import {
 	createProject,
 	getProject,
@@ -65,7 +66,9 @@ import {
 	addPhase,
 	addPhaseInput,
 	addSteps,
-	addStepsInput
+	addStepsInput,
+	updateStep,
+	updateStepBody
 } from '../ops/plan';
 import { recordInput, recordSteps } from '../ops/steps';
 import { setStatus, setStatusInput } from '../ops/status';
@@ -201,6 +204,20 @@ export const routes: Route[] = [
 		handler: ({ ctx, params }) => getProject(ctx, params.project)
 	},
 	{
+		method: 'PUT',
+		path: '/orgs/{org}/projects/{project}/pin',
+		summary: 'Pin a project to the top of your own project list',
+		tag: 'Projects',
+		handler: ({ ctx, params }) => pinProject(ctx, params.project)
+	},
+	{
+		method: 'DELETE',
+		path: '/orgs/{org}/projects/{project}/pin',
+		summary: 'Remove your pin from a project',
+		tag: 'Projects',
+		handler: ({ ctx, params }) => unpinProject(ctx, params.project)
+	},
+	{
 		method: 'PATCH',
 		path: '/orgs/{org}/projects/{project}',
 		summary: 'Change project settings',
@@ -260,7 +277,8 @@ export const routes: Route[] = [
 		path: '/orgs/{org}/items/{item}',
 		summary: 'Move an item to the trash for 30 days',
 		tag: 'Items',
-		handler: ({ ctx, params }) => trashItem(ctx, params.item)
+		// A REST DELETE names the item outright, so the call is its own confirmation
+		handler: ({ ctx, params }) => trashItem(ctx, params.item, undefined, true)
 	},
 	{
 		method: 'POST',
@@ -286,6 +304,15 @@ export const routes: Route[] = [
 		body: strip(addStepsInput, 'item'),
 		handler: ({ ctx, params, body }) =>
 			addSteps(ctx, { ...(body as object), item: params.item } as never)
+	},
+	{
+		method: 'PATCH',
+		path: '/orgs/{org}/items/{item}/steps/{key}',
+		summary: 'Change the wording of an open step, or remove it from the plan',
+		tag: 'Plan',
+		body: strip(updateStepBody, 'item', 'key'),
+		handler: ({ ctx, params, body }) =>
+			updateStep(ctx, { ...(body as object), item: params.item, key: params.key } as never)
 	},
 	{
 		method: 'POST',

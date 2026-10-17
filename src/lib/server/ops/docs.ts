@@ -1,6 +1,7 @@
 // DOCUMENT VERBS: DECISIONS, SECTIONS, TASKS AND COMMENTS (SPEC 5)
 
 // -- TYPES -- //
+import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
@@ -29,6 +30,12 @@ export const decisionInput = z.object({
 	answer: z.string().max(2000).nullish(),
 	source: z.string().max(500).nullish(),
 	expectVersion: z.number().int().optional()
+});
+
+export const deleteDecisionInput = z.object({
+	item: z.string().min(1),
+	kind: z.enum(['adr', 'settled']),
+	number: z.number().int().min(1)
 });
 
 export const sectionInput = z.object({
@@ -153,25 +160,55 @@ export async function upsertDecision(ctx: Ctx, raw: z.input<typeof decisionInput
 	);
 }
 
+/** Removes one decision row and records it. The caller has found the row and holds the transaction. */
+async function dropDecision(tx: Tx, ctx: Ctx, row: typeof decision.$inferSelect) {
+	await requireCap(tx, ctx, 'delete', row.projectId);
+	await tx.delete(decision).where(eq(decision.id, row.id));
+	await appendEvent(tx, {
+		orgId: ctx.orgId,
+		projectId: row.projectId,
+		itemId: row.itemId,
+		...actorFields(ctx),
+		verb: 'decision.delete',
+		targetType: 'decision',
+		targetId: row.id,
+		before: { title: row.title },
+		undoable: false
+	});
+}
+
 export async function deleteDecision(ctx: Ctx, decisionId: string) {
 	return run(ctx, async (tx) => {
 		const [row] = await tx.select().from(decision).where(eq(decision.id, decisionId));
 		if (!row) throw new OpError('NOT_FOUND', 'No such decision.');
-		await requireCap(tx, ctx, 'delete', row.projectId);
-		await tx.delete(decision).where(eq(decision.id, decisionId));
-		await appendEvent(tx, {
-			orgId: ctx.orgId,
-			projectId: row.projectId,
-			itemId: row.itemId,
-			...actorFields(ctx),
-			verb: 'decision.delete',
-			targetType: 'decision',
-			targetId: row.id,
-			before: { title: row.title },
-			undoable: false
-		});
+		await dropDecision(tx, ctx, row);
 		return { id: decisionId, deleted: true };
 	});
+}
+
+/** Removes a decision named by its item, kind and number (what a person or an agent sees), and can be retried safely. */
+export async function deleteDecisionByNumber(ctx: Ctx, raw: z.input<typeof deleteDecisionInput>) {
+	const input = deleteDecisionInput.parse(raw);
+	return run(ctx, (tx) =>
+		idempotent(ctx, tx, async () => {
+			const it = await findItem(tx, ctx, input.item, { lock: true });
+			await rateLimit(tx, ctx, 'write');
+			const [row] = await tx
+				.select()
+				.from(decision)
+				.where(
+					and(
+						eq(decision.itemId, it.id),
+						eq(decision.kind, input.kind),
+						eq(decision.number, input.number)
+					)
+				);
+			if (!row)
+				throw new OpError('NOT_FOUND', `${it.ref} has no ${input.kind} decision ${input.number}.`);
+			await dropDecision(tx, ctx, row);
+			return { ref: it.ref, kind: input.kind, number: input.number, deleted: true };
+		})
+	);
 }
 
 // -- SECTIONS -- //

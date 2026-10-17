@@ -328,6 +328,36 @@ describe.each([
 		expect(history.filter((e) => e.verb === 'item.status')).toHaveLength(1);
 	});
 
+	it('a manual check ticks, unticks and ticks again, and a replayed request writes once', async () => {
+		const made = await create('member');
+		const mark = (to: 'done' | 'open', requestId?: string) =>
+			recordSteps(w.ctx('member', requestId ? { requestId } : {}), {
+				item: made.ref,
+				marks: [{ key: 'M1', mark: to }]
+			});
+		const state = async () =>
+			(await getItem(w.ctx('member'), made.ref)).manualChecks.find((c) => c.key === 'M1')?.state;
+		expect((await mark('done', 'req-check-1')).changed).toEqual([
+			{ key: 'M1', from: 'open', to: 'done' }
+		]);
+		expect(await state()).toBe('done');
+		// The same request again returns the first answer and writes nothing
+		expect((await mark('done', 'req-check-1')).changed).toEqual([
+			{ key: 'M1', from: 'open', to: 'done' }
+		]);
+		// A second click that asks for the state it already has changes nothing
+		expect((await mark('done')).already).toEqual(['M1']);
+		expect((await mark('open')).changed).toEqual([{ key: 'M1', from: 'done', to: 'open' }]);
+		expect(await state()).toBe('open');
+		expect((await mark('done')).changed).toEqual([{ key: 'M1', from: 'open', to: 'done' }]);
+		expect(await state()).toBe('done');
+		const history = await withTenant(db, { orgId: w.orgId }, (tx) =>
+			tx.select().from(event).where(eq(event.itemId, made.id))
+		);
+		// Done, open, done: three writes, the replay and the no-op wrote none
+		expect(history.filter((e) => e.verb === 'manual_check.update')).toHaveLength(3);
+	});
+
 	it('a dry run shows the result and writes nothing', async () => {
 		const made = await create('member');
 		const dry = await recordSteps(w.ctx('member'), {

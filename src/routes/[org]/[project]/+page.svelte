@@ -41,6 +41,7 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Funnel from '@lucide/svelte/icons/funnel';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Search from '@lucide/svelte/icons/search';
 
 	// -- REQUIRED PROPS -- //
 
@@ -304,13 +305,28 @@
 
 	{#if running.length}
 		<section
-			class="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-4 py-3"
+			class="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-line bg-surface px-4 py-3"
 			aria-label="Running now"
 			data-testid="running-now"
 		>
-			<span class="text-sm font-medium text-ink">Running now</span>
+			<!-- HEADING WITH A LIVE DOT AND THE COUNT -->
+			<span class="mr-1 inline-flex items-center gap-2 text-sm font-medium text-ink">
+				<span class="relative flex size-2">
+					<span
+						class="absolute inline-flex size-full animate-ping rounded-full bg-[var(--info)] opacity-60 motion-reduce:animate-none"
+					></span>
+					<span class="relative inline-flex size-2 rounded-full bg-[var(--info)]"></span>
+				</span>
+				Running now
+				<span class="font-mono text-xs text-muted">{running.length}</span>
+			</span>
+			<!-- ONE CHIP PER SESSION, SO THE REFERENCES AND BADGES NEVER RUN TOGETHER -->
 			{#each running as r (r.sessionId)}
-				<a href={itemHref(r.itemRef)}>
+				<a
+					href={itemHref(r.itemRef)}
+					class="inline-flex min-h-11 min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-line bg-raised px-3 py-1.5 transition-colors hover:border-[var(--muted)] sm:min-h-0"
+				>
+					<span class="font-mono text-xs text-muted">{r.itemRef}</span>
 					<RunningBadge tool={r.tool} title={r.title} phase={r.phase ?? undefined} />
 				</a>
 			{/each}
@@ -324,6 +340,7 @@
 		<div class="min-w-56 flex-1 sm:max-w-80">
 			<TextField
 				label="Filter by title or reference"
+				icon={Search}
 				hideLabel
 				placeholder="Filter by title or reference"
 				type="search"
