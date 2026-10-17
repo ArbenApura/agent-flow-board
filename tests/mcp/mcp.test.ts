@@ -122,7 +122,13 @@ describe('MCP server', () => {
 		expect(text).toContain('Checked');
 		expect(text).toContain('CKT-12');
 		const wf = await call(client, 'workflow_get', { name: 'flow-critic' });
-		expect(wf.text).toContain('design fit');
+		expect(String(wf.text).toLowerCase()).toContain('design fit');
+		// A supporting file of the critic is readable, and a file on another workflow is refused
+		const lenses = await call(client, 'workflow_get', { name: 'flow-critic', file: 'plan-lenses' });
+		expect(lenses.name).toBe('flow-critic/plan-lenses');
+		expect(String(lenses.text).length).toBeGreaterThan(500);
+		const wrongFile = await call(client, 'workflow_get', { name: 'flow', file: 'plan-lenses' });
+		expect(wrongFile.error ?? wrongFile.code).toBeTruthy();
 		// The task workflow is listed, readable, and never tells the agent to claim an item
 		expect(prompts).toContain('flow-task');
 		const taskWf = await call(client, 'workflow_get', { name: 'flow-task' });

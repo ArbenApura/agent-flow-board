@@ -1,5 +1,18 @@
 // THE WORKFLOWS, SERVED THREE WAYS SO EVERY TOOL GETS THEM: MCP PROMPTS, THE workflow_get TOOL AND THE SERVER INSTRUCTIONS (ADR-009, L33)
 // Rewritten from the HAPR workflow skills of 2026-10-15 to be project neutral. The tool names are this server's own.
+// Since 2026-10-17 the five bodies are the AFB skills (.claude/skills/flow*, copied into ./workflow-docs without their front matter), which win over the shorter neutral text this file held before. Refresh the copies when a skill changes.
+
+// -- ASSETS -- //
+import flowDoc from './workflow-docs/flow.md?raw';
+import flowTaskDoc from './workflow-docs/flow-task.md?raw';
+import flowInterviewDoc from './workflow-docs/flow-interview.md?raw';
+import flowCriticDoc from './workflow-docs/flow-critic.md?raw';
+import flowAuditDoc from './workflow-docs/flow-audit.md?raw';
+import criticChecklistsDoc from './workflow-docs/critic-checklists.md?raw';
+import criticCodeLensesDoc from './workflow-docs/critic-code-lenses.md?raw';
+import criticCodeTemplateDoc from './workflow-docs/critic-code-template.md?raw';
+import criticPlanLensesDoc from './workflow-docs/critic-plan-lenses.md?raw';
+import criticPlanTemplateDoc from './workflow-docs/critic-plan-template.md?raw';
 
 // -- TYPES -- //
 
@@ -32,105 +45,61 @@ const TASK_RULES = `## Rules for tasks
 - Ask only what you cannot settle from the words, the code and the board. A vague request still becomes a task now, and the user corrects it with a follow-up.
 - Work that belongs to no task is not recorded on the board. Do not create items, phases or steps here: that is the flow workflow.`;
 
-const PLAN = `## Planning an item
+// Said once at the top of every served workflow: the texts are the AFB skills, so they name this repo's own commands and files
+const NOTE = `> This workflow is the Agent Flow Board one. Its examples name the AFB repo (yarn, DESIGN.md, ports 5180 and 5190, the project key AFB). When you work in another project, apply the same step with that project's own commands and rules (read them with project_rules and the repo's rulebook). Where this text and the shared rules at the end differ, this text wins. Slash names such as /flow-critic mean the workflow of that name: read it with workflow_get.`;
 
-0. A request shaped like "new KEY: idea" (the New plan button) starts a new plan in project KEY from the idea. Treat the idea as the user's first words about the item, then go on with step 1.
-1. Read before you write. Open the code, the data model and the pages the item touches. A plan written without reading them is a guess.
-2. Create the item with item_new. Give it a short tab name (one to three words in capitals joined by underscores) and its phases. Every phase has steps that can each be verified. A step is one thing, small enough to finish and check.
-3. Write the spec, the decisions and the validation as sections and decisions (item_update with sections and decisions). Put open questions in the plan's questions list only after the checking rule above.
-4. For any visible change write a "UI changes" table (page, state, themes, accounts, siblings, levels, viewports), a clickable mockup step for each new screen before its code, and two counted steps in every phase that touches the interface: write the UI changes rows before the code, and run the UI shots and fix every to-fix flag at the phase end. Describe sizes as "the same as the sibling page", never as new pixel values.
-5. For every manual check an agent can run, tag it automatic and put two counted steps into its phase: write the check before the phase's code steps, run it at the end. Keep a plain manual check only for what no tool can reach.
-6. Present the plan and wait for the user's approval before any code is written.`;
+const CRITIC_NOTE = `\n\n> The supporting files this workflow names (checklists.md, code-lenses.md, code-template.md, plan-lenses.md, plan-template.md) are read with workflow_get name flow-critic and file set to checklists, code-lenses, code-template, plan-lenses or plan-template.`;
 
-const BUILD = `## Building an item phase by phase
+export const WORKFLOW_FILE_NAMES = [
+	'checklists',
+	'code-lenses',
+	'code-template',
+	'plan-lenses',
+	'plan-template'
+] as const;
 
-1. work_start the item. Read the phase you are about to build, then the exact files it touches.
-2. Write the checks first, then the code, one step at a time. Progress first: call step_done for each step the moment it is finished and checked, before you start the next one. Never leave a phase's steps to be recorded together at its end.
-3. At the end of each phase run, in this order: the UI shots (phases with a screen), the browser checks on a local build preview (never the dev server), the critic review, a second run of the checks when the fixes touched covered paths, and the audit. Every automatic check also runs once on the deployed site before release.
-4. Leave the work uncommitted until the user says to commit. Never push without being told to.`;
+export type WorkflowFileName = (typeof WORKFLOW_FILE_NAMES)[number];
+
+const WORKFLOW_FILES: Record<WorkflowFileName, string> = {
+	checklists: criticChecklistsDoc,
+	'code-lenses': criticCodeLensesDoc,
+	'code-template': criticCodeTemplateDoc,
+	'plan-lenses': criticPlanLensesDoc,
+	'plan-template': criticPlanTemplateDoc
+};
 
 export const WORKFLOWS: Workflow[] = [
 	{
 		name: 'flow',
 		title: 'Plan and build an item',
 		summary: 'Plan an item, then build it phase by phase and record progress as you go.',
-		body: `# Flow, plan and build
-
-${PLAN}
-
-${BUILD}
-
-${RULES}`
+		body: `${NOTE}\n\n${flowDoc.trim()}\n\n${RULES}`
 	},
 	{
 		name: 'flow-task',
 		title: 'Capture tasks',
 		summary: 'Turn what the user writes into tasks on the board, then show what was written.',
-		body: `# Flow task
-
-Use this when the user hands you something small to remember or do later: "fix the typo on the pricing page", a pasted list from a meeting, a note to follow up. It only records. It never plans, builds or claims anything.
-
-1. Read the request. If it starts with a project key and a colon (for example AFB: fix the typo), that key is the project. Otherwise use the project of the current repo or session. If more than one project fits and nothing settles it, ask once.
-2. Split a pasted list or a long paragraph into one task per item. Keep one request as one task.
-3. For each task write a plain title of at least three characters, a short Markdown description when the words or the code add detail (the file, the page, what done looks like), and a group and a priority only when the user said them. Check the code or task_list first, so you do not repeat a task that already exists.
-4. Create each task with task_new. Never invent a link to an item; link only an item the user named.
-5. Show what you wrote: one line per task with its reference (T-12), title, group and priority. Say how to change one: edit it on the Tasks page or ask again with its reference.
-6. A request that is really a feature, a fix with several steps or anything needing a design is too big for one task. Create nothing for it, and tell the user to start it with the flow workflow instead. A list may still hold small tasks next to one big one: record the small ones and name the big one.
-7. Never start the work of a task and never set one DONE. The user asks for that in a separate request.
-
-${TASK_RULES}`
+		body: `${NOTE}\n\n${flowTaskDoc.trim()}\n\n${TASK_RULES}`
 	},
 	{
 		name: 'flow-interview',
 		title: 'Interview the user about a plan',
 		summary: 'Ask plain, detailed, multiple choice questions until every gap in a plan is settled.',
-		body: `# Flow interview
-
-Use this after a plan is drafted and before it is approved, or when the user asks to be grilled about a plan.
-
-No plan yet? Run it as a brainstorm. When the user gives an idea and no item exists, do not stop: ask the same rounds of questions (steps 2 and 3) about the idea, claim nothing and write nothing to the board, keep a short running list of the answers in chat, and end with a summary and an offer to start /flow with it. Create the item only if the user says yes.
-
-1. Read the item's spec, plan, decisions and progress, and the code they touch.
-2. List every gap, assumption and open choice. Remove each one you can settle from the documents, the attachments, the code and earlier decisions, and store it as a settled decision with its source.
-3. Ask the rest in rounds of at most four questions. Each question is plain, names the effect on what gets built, offers two to four distinct answers with a recommended one first, and carries a "Checked" line saying what you already looked at.
-4. After each round write the answers back into the plan: a decision for each, the affected steps updated, the questions list emptied.
-5. Stop when no gap remains. Never ask what the documents already answer.
-
-${RULES}`
+		body: `${NOTE}\n\n${flowInterviewDoc.trim()}\n\n${RULES}`
 	},
 	{
 		name: 'flow-critic',
 		title: 'Review a plan or a build',
 		summary:
 			'Have independent reviewers attack a plan before it is built, or review code after it is written.',
-		body: `# Flow critic
-
-Pick the mode from the session. Plan mode is for a written plan with nothing built. Code mode is for finished code, a finished phase, a change to a server endpoint, a migration or anything that touches money or access.
-
-1. Choose three reviewers with different lenses for what the work touches: correctness, security and tenancy, data and migrations, the interface and its states, and design fit. The design fit lens reads the UI shots' flags first and the pictures second. A value larger than its sibling, a new pattern where an existing one fits, a second primary action, or a label that needs explaining blocks the phase. Taste alone is advisory.
-2. Give each reviewer the code or plan, never your conclusion.
-3. Verify every finding yourself before acting on it. Drop the ones that do not hold. A finding that finished work was never recorded with step_done is a real finding too: record it before the review goes on.
-4. Fix every confirmed blocker and high finding, then run one second pass on the fixes only. Two passes at most.
-5. Record what was found and fixed in the item's log.
-
-${RULES}`
+		body: `${NOTE}${CRITIC_NOTE}\n\n${flowCriticDoc.trim()}\n\n${RULES}`
 	},
 	{
 		name: 'flow-audit',
 		title: 'Audit that the record matches the build',
 		summary:
 			'Compare what was built with the plan, progress, decisions and validation, and fix the documents.',
-		body: `# Flow audit
-
-Run at the end of each phase and before asking for sign-off.
-
-1. Compare, in both directions, what was actually built (the working tree, new files, migrations applied, checks run) with the plan's steps, the progress notes, the decisions, the validation table and the registry row.
-2. Anything built but not recorded is recorded now. Anything recorded but not built is reopened. Report every step that was built before it was recorded (finished work with no step_done) as a finding: steps are recorded one by one as they finish, never together at the end of a phase.
-3. Add an "As built" note wherever the work differed from the plan, and a decision for every new choice or deviation.
-4. Never tick a step you did not verify. Leave steps waiting on the user open, as manual checks.
-5. Fix the documents only. An audit never changes code.
-
-${RULES}`
+		body: `${NOTE}\n\n${flowAuditDoc.trim()}\n\n${RULES}`
 	}
 ];
 
@@ -140,3 +109,6 @@ export const SERVER_INSTRUCTIONS = `agent-flow-board tracks plans for people and
 // -- FUNCTIONS -- //
 
 export const workflowByName = (name: string) => WORKFLOWS.find((w) => w.name === name);
+
+/** A supporting file of the flow-critic workflow (a lens list, a checklist or a subagent prompt template). */
+export const workflowFile = (file: WorkflowFileName) => WORKFLOW_FILES[file];

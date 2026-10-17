@@ -47,7 +47,7 @@ import { recordSteps } from '../ops/steps';
 import { setStatus } from '../ops/status';
 import { trackingNotes } from '../ops/tracking';
 import { claim, requireSession, startSession } from './sessions';
-import { WORKFLOWS, workflowByName } from './workflows';
+import { WORKFLOWS, WORKFLOW_FILE_NAMES, workflowByName, workflowFile } from './workflows';
 
 // -- TYPES -- //
 
@@ -482,21 +482,25 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'workflow_get',
-		'Read a workflow: flow (plan and build), flow-task (capture tasks), flow-interview, flow-critic or flow-audit.',
+		'Read a workflow: flow (plan and build), flow-task, flow-interview, flow-critic or flow-audit. flow-critic also has supporting files (file). Long texts come in parts: pass the reply next as offset.',
 		{
 			name: z.enum(['flow', 'flow-task', 'flow-interview', 'flow-critic', 'flow-audit']),
+			file: z.enum(WORKFLOW_FILE_NAMES).optional(),
 			offset: z.number().int().min(0).optional()
 		},
 		{ readOnly: true },
 		async (a) => {
 			const w = workflowByName(a.name)!;
+			if (a.file && a.name !== 'flow-critic')
+				throw new OpError('INVALID', 'Only the flow-critic workflow has supporting files.');
+			const full = a.file ? workflowFile(a.file) : w.body;
 			const off = a.offset ?? 0;
 			return {
-				name: w.name,
+				name: a.file ? `${w.name}/${a.file}` : w.name,
 				title: w.title,
-				total: w.body.length,
-				text: w.body.slice(off, off + 12_000),
-				next: off + 12_000 < w.body.length ? off + 12_000 : null
+				total: full.length,
+				text: full.slice(off, off + 12_000),
+				next: off + 12_000 < full.length ? off + 12_000 : null
 			};
 		}
 	);
