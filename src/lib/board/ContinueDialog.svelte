@@ -1,6 +1,11 @@
 <script lang="ts">
 	// -- DEP-TYPES -- //
-	import type { ContinueAction, ContinueMode, ContinueToolId } from '#lib/shared/continue.js';
+	import type {
+		ContinueAction,
+		ContinueMode,
+		ContinueToolId,
+		CreateKind
+	} from '#lib/shared/continue.js';
 	// -- ENVS -- //
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
@@ -10,8 +15,12 @@
 	import {
 		ACTION_TITLE,
 		CONTINUE_MODE_LABEL,
-		CONTINUE_TOOLS,
+		CONTINUE_TOOLS_SHOWN,
+		CREATE_QUESTION,
+		CREATE_TITLE,
+		IDEA_LIMIT,
 		buildCommand,
+		buildCreatePrompt,
 		buildPrompt,
 		commandPrompt,
 		effectiveMode,
@@ -38,7 +47,8 @@
 		item,
 		action = 'resume',
 		tool,
-		mode
+		mode,
+		create = null
 	}: {
 		/** Always mounted with this flag, never inside an {#if}, so the close transition plays. */
 		open: boolean;
@@ -50,12 +60,19 @@
 		/** The person's saved tool and way, from their settings. */
 		tool: ContinueToolId;
 		mode: ContinueMode;
+		/** Set for New plan and New task: nothing exists yet, so an idea box takes the place of the item. The key is the project the page is in. */
+		create?: { kind: CreateKind; key: string } | null;
 	} = $props();
 
 	// -- CONSTANTS -- //
 
-	const TOOL_OPTIONS = CONTINUE_TOOLS.map((t) => ({ value: t.id, label: t.label }));
+	const TOOL_OPTIONS = CONTINUE_TOOLS_SHOWN.map((t) => ({ value: t.id, label: t.label }));
 	const ICON = { vscode: Code, command: Terminal, prompt: Copy };
+	/** What is missing while the idea box is empty. */
+	const IDEA_MISSING: Record<CreateKind, string> = {
+		plan: 'Write what you want to build first.',
+		task: 'Write what needs doing first.'
+	};
 	/** What each way does, shown under the prompt for the way the person usually uses. */
 	const WAY_HINT: Record<ContinueMode, string> = {
 		vscode: 'Opens Claude in VS Code with this typed in. Press Enter there to run it.',
@@ -68,6 +85,10 @@
 	/** The item and action shown, kept while the dialog slides out, so the content does not flash blank. */
 	let shown = $state<NonNullable<typeof item> | null>(null);
 	let shownAction = $state<ContinueAction>('resume');
+	/** The create request shown, kept while the dialog slides out. */
+	let shownCreate = $state<NonNullable<typeof create> | null>(null);
+	/** What the person wrote in the idea box. */
+	let idea = $state('');
 	let chosenTool = $state<ContinueToolId>('claude-code');
 	/** What the person typed over the prompt. Empty means they have not touched it, so it follows the tool. */
 	let typed = $state<string | null>(null);
@@ -81,21 +102,35 @@
 	const url = $derived(shown ? `${page.url.origin}${shown.href}` : '');
 	/** The prompt the app writes for this action and tool. It changes when the tool changes. */
 	const generated = $derived(
-		shown
-			? buildPrompt({
-					action: shownAction,
+		shownCreate
+			? buildCreatePrompt({
+					kind: shownCreate.kind,
 					tool: chosenTool,
-					ref: shown.ref,
-					title: shown.title,
-					url
+					key: shownCreate.key,
+					idea
 				})
-			: ''
+			: shown
+				? buildPrompt({
+						action: shownAction,
+						tool: chosenTool,
+						ref: shown.ref,
+						title: shown.title,
+						url
+					})
+				: ''
 	);
 	const prompt = $derived(typed ?? generated);
 	/** An edited prompt can hold anything, so it only goes into a command when every character is plain text. */
 	const edited = $derived(prompt !== generated);
+	// A create prompt carries the idea, so it only becomes a command when every character of it is plain text
 	const commandText = $derived(
-		shown ? (edited ? prompt.trim() : commandPrompt(shownAction, chosenTool, shown.ref)) : null
+		shownCreate
+			? prompt.trim()
+			: shown
+				? edited
+					? prompt.trim()
+					: commandPrompt(shownAction, chosenTool, shown.ref)
+				: null
 	);
 	const command = $derived(commandText ? buildCommand(chosenTool, commandText) : null);
 	const link = $derived(prompt.trim() ? vscodeLink(prompt.trim()) : null);
@@ -112,17 +147,21 @@
 	const usual = $derived(ways[0]);
 	/** What is still missing in the prompt, whatever the way. A question is finished by the person after the colon. */
 	const missing = $derived(
-		shownAction === 'ask' && prompt.trim() === generated.trim()
-			? 'Type what you want to ask after the colon.'
-			: !prompt.trim()
-				? 'Write what the tool should do first.'
-				: ''
+		shownCreate && typed === null && !idea.trim()
+			? IDEA_MISSING[shownCreate.kind]
+			: !shownCreate && shownAction === 'ask' && prompt.trim() === generated.trim()
+				? 'Type what you want to ask after the colon.'
+				: !prompt.trim()
+					? 'Write what the tool should do first.'
+					: ''
 	);
 	const note = $derived(problemOf(usual) || WAY_HINT[usual]);
 	const hasProblem = $derived(!!problemOf(usual));
 	const intro = $derived(
 		usesSlash(chosenTool, shownAction)
-			? 'Every change still goes through the /flow skill, so its rules stay in one place.'
+			? shownCreate?.kind === 'task'
+				? 'Your tool writes the task through the /flow-task skill, so its rules stay in one place.'
+				: 'Every change still goes through the /flow skill, so its rules stay in one place.'
 			: 'The tool reads the workflow through your agent-flow-board connection, so its work is tracked here.'
 	);
 
@@ -133,12 +172,15 @@
 		const isOpen = open;
 		const next = item;
 		const act = action;
+		const made = create;
 		untrack(() => {
-			if (isOpen && !prevOpen && next) {
-				shown = next;
-				shownAction = act;
+			if (isOpen && !prevOpen && (next || made)) {
+				shown = made ? null : next;
+				shownCreate = made;
+				shownAction = made ? 'ask' : act;
 				chosenTool = tool;
 				typed = null;
+				idea = '';
 			}
 			prevOpen = isOpen;
 		});
@@ -225,10 +267,32 @@
 	{onclose}
 	busy={running !== null}
 	size="lg"
-	title={shown ? `${ACTION_TITLE[shownAction]} ${shown.ref}` : 'Continue with a coding tool'}
+	title={shownCreate
+		? `${CREATE_TITLE[shownCreate.kind]} in ${shownCreate.key}`
+		: shown
+			? `${ACTION_TITLE[shownAction]} ${shown.ref}`
+			: 'Continue with a coding tool'}
 >
 	<div class="flex flex-col gap-4" data-testid="continue-dialog">
 		<p class="text-xs text-muted">{intro}</p>
+		<!-- THE IDEA BOX OF NEW PLAN AND NEW TASK. IT FEEDS THE PROMPT BELOW, AND TYPING IN IT STARTS THE PROMPT OVER -->
+		{#if shownCreate}
+			<TextArea
+				label={CREATE_QUESTION[shownCreate.kind]}
+				rows={3}
+				value={idea}
+				oninput={(e) => {
+					idea = e.currentTarget.value;
+					typed = null;
+				}}
+				onkeydown={onKey}
+				maxlength={IDEA_LIMIT}
+				hint={shownCreate.kind === 'task'
+					? 'Paste a list to make one task for each line.'
+					: undefined}
+				data-testid="continue-idea"
+			/>
+		{/if}
 		<TextArea
 			label="Prompt"
 			rows={4}

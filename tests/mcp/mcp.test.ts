@@ -123,6 +123,12 @@ describe('MCP server', () => {
 		expect(text).toContain('CKT-12');
 		const wf = await call(client, 'workflow_get', { name: 'flow-critic' });
 		expect(wf.text).toContain('design fit');
+		// The task workflow is listed, readable, and never tells the agent to claim an item
+		expect(prompts).toContain('flow-task');
+		const taskWf = await call(client, 'workflow_get', { name: 'flow-task' });
+		expect(taskWf.text).toContain('task_new');
+		expect(taskWf.text).toContain('Do not call work_start');
+		expect(taskWf.text).not.toContain('Claim the named item at once');
 		await client.close();
 	});
 

@@ -206,16 +206,7 @@ test('M4 the Connect page shows a snippet per tool, makes a token that is shown 
 	await signIn(page, 'member@acme.example');
 	await page.goto('/connect');
 	await expect(page.getByTestId('snippet-code')).toContainText('claude mcp add --transport http');
-	for (const tool of [
-		'Cursor',
-		'VS Code',
-		'Windsurf',
-		'Codex',
-		'Gemini CLI',
-		'Antigravity',
-		'Any other tool',
-		'claude.ai'
-	]) {
+	for (const tool of ['VS Code', 'Antigravity', 'Any other tool', 'Claude chat']) {
 		await page.getByRole('tab', { name: tool }).click();
 		await expect(page.getByTestId('snippet-code')).toContainText(/\/mcp|@agent-flow-board\/bridge/);
 	}

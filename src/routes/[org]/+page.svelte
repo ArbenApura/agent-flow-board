@@ -11,10 +11,6 @@
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { STATUSES, tagDot } from '#lib/board/status.js';
 	import {
-		CHIPS_FROM,
-		MEMBERS_COLLAPSE_OVER,
-		MEMBERS_SHOWN,
-		PROJECT_CHIPS,
 		PROJECT_SORTS,
 		PROJECT_VIEWS,
 		TOOLBAR_FROM,
@@ -22,14 +18,12 @@
 		arrangeProjects,
 		parseSort,
 		parseView,
-		type ProjectChip,
 		type ProjectSort,
 		type ProjectView
 	} from '#lib/board/projects.js';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
 	import NewProjectDialog from '#lib/board/NewProjectDialog.svelte';
 	import { cn } from '#lib/ui/cn.js';
-	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Card from '#lib/ui/Card.svelte';
@@ -43,7 +37,6 @@
 	import Pin from '@lucide/svelte/icons/pin';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
-	import Users from '@lucide/svelte/icons/users';
 
 	// -- REQUIRED PROPS -- //
 
@@ -59,18 +52,15 @@
 		'ON HOLD': 'bg-hold',
 		COMPLETED: 'bg-success'
 	};
-	const membersId = $props.id();
 
 	// -- STATES -- //
 
 	let creating = $state(false);
 	let q = $state('');
-	let chip = $state<ProjectChip>('all');
 	let sort = $state<ProjectSort>('name');
 	let view = $state<ProjectView>('cards');
 	/** What the person just pinned or unpinned, shown at once while the server confirms it. */
 	let optimistic = $state<Record<string, boolean>>({});
-	let showAllMembers = $state(false);
 	/** How many pin requests are still running for each project, so a quick second click does not clear the first one's state. */
 	const pending: Record<string, number> = {};
 	/** True once the remembered view and sort were read, so the first paint never overwrites them. */
@@ -85,22 +75,16 @@
 	);
 	// The toolbar only appears when there are enough projects to need it. Without it, search and filters stay off
 	const hasToolbar = $derived(rows.length >= TOOLBAR_FROM);
-	const hasChips = $derived(rows.length >= CHIPS_FROM);
 	const groups = $derived(
 		arrangeProjects(
 			rows,
-			hasToolbar ? { q, chip: hasChips ? chip : 'all', sort } : { q: '', chip: 'all', sort: 'name' }
+			hasToolbar ? { q, chip: 'all', sort } : { q: '', chip: 'all', sort: 'name' }
 		)
 	);
 	// A remembered List view only applies while the toolbar that switches it is visible
 	const shownView = $derived<ProjectView>(hasToolbar ? view : 'cards');
 	const shownCount = $derived(groups.pinned.length + groups.rest.length);
-	const narrowed = $derived(hasToolbar && (q.trim() !== '' || (hasChips && chip !== 'all')));
-	const memberRows = $derived(
-		data.members.length > MEMBERS_COLLAPSE_OVER && !showAllMembers
-			? data.members.slice(0, MEMBERS_SHOWN)
-			: data.members
-	);
+	const narrowed = $derived(hasToolbar && q.trim() !== '');
 
 	// -- REACTIVE STATEMENTS -- //
 
@@ -122,7 +106,6 @@
 
 	function clearFilters() {
 		q = '';
-		chip = 'all';
 	}
 
 	/** Shows the new pin at once, and puts it back with a message when the server says no. */
@@ -179,27 +162,24 @@
 	</PageHeader>
 
 	{#if data.overview.length === 0}
-		<!-- NO PROJECTS YET. THE FIRST STEP ON THE LEFT AND THE PEOPLE WHO CAN SEE IT ON THE RIGHT, BOTH THE SAME HEIGHT, SO NOTHING SITS ALONE AT THE BOTTOM -->
-		<div class="grid items-stretch gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-			<Card class="flex items-center justify-center">
-				<EmptyState
-					kind="projects"
-					title={canCreate ? 'Create your first project' : 'No projects yet'}
-					text={canCreate
-						? 'A project keeps the plans from your tools and your team in one place.'
-						: 'An admin creates the first project. Once it exists, plans from your tools and your team show up here.'}
-				>
-					{#snippet action()}
-						{#if canCreate}
-							<Button variant="primary" onclick={() => (creating = true)}>
-								<Plus size={16} /> New project
-							</Button>
-						{/if}
-					{/snippet}
-				</EmptyState>
-			</Card>
-			{@render members()}
-		</div>
+		<!-- NO PROJECTS YET -->
+		<Card class="flex items-center justify-center">
+			<EmptyState
+				kind="projects"
+				title={canCreate ? 'Create your first project' : 'No projects yet'}
+				text={canCreate
+					? 'A project keeps the plans from your tools and your team in one place.'
+					: 'An admin creates the first project. Once it exists, plans from your tools and your team show up here.'}
+			>
+				{#snippet action()}
+					{#if canCreate}
+						<Button variant="primary" onclick={() => (creating = true)}>
+							<Plus size={16} /> New project
+						</Button>
+					{/if}
+				{/snippet}
+			</EmptyState>
+		</Card>
 	{:else}
 		<!-- ONE TOOLBAR CARD, THE SAME LOOK AS THE PROJECT PAGE: SEARCH, SORT, THE VIEW SWITCH, THEN THE QUICK FILTERS -->
 		{#if hasToolbar}
@@ -235,26 +215,6 @@
 						onchange={(v) => (view = parseView(v))}
 					/>
 				</span>
-				{#if hasChips}
-					<div class="flex w-full flex-wrap gap-2" role="group" aria-label="Show only">
-						{#each PROJECT_CHIPS as c (c.value)}
-							<button
-								type="button"
-								aria-pressed={chip === c.value}
-								onclick={() => (chip = c.value)}
-								class={cn(
-									'inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm font-medium max-sm:min-h-11',
-									chip === c.value
-										? 'border-accent bg-accent-soft text-accent-text'
-										: 'border-line text-muted hover:bg-raised hover:text-ink'
-								)}
-							>
-								{c.label}
-								<span class="text-xs tabular-nums">{groups.counts[c.value]}</span>
-							</button>
-						{/each}
-					</div>
-				{/if}
 			</div>
 		{/if}
 
@@ -262,7 +222,7 @@
 			<!-- NOTHING MATCHES THE SEARCH OR THE QUICK FILTER. SAYS WHAT WAS ASKED AND HOW TO GET BACK -->
 			<Card class="flex flex-col items-center gap-3 py-8 text-center" data-testid="projects-none">
 				<p class="font-medium text-ink">
-					{q.trim() ? `No project matches "${q.trim()}".` : 'No project fits this filter.'}
+					{q.trim() ? `No project matches "${q.trim()}".` : 'No project to show.'}
 				</p>
 				<Button variant="secondary" onclick={clearFilters}>Show all projects</Button>
 			</Card>
@@ -288,10 +248,6 @@
 				</section>
 			{/if}
 		{/if}
-	{/if}
-
-	{#if data.overview.length > 0}
-		{@render members()}
 	{/if}
 </PageFrame>
 
@@ -397,45 +353,4 @@
 			</ul>
 		</Card>
 	{/if}
-{/snippet}
-
-{#snippet members()}
-	<section aria-label="Members" class="flex">
-		<Card
-			class="w-full"
-			padded={false}
-			icon={Users}
-			title="Members"
-			description="Everyone who can open this organisation."
-		>
-			<ul id={membersId}>
-				{#each memberRows as m (m.userId)}
-					<li
-						class="flex min-h-12 items-center justify-between gap-3 border-b border-line px-4 py-2 last:border-b-0"
-						data-row
-					>
-						<span class="flex items-center gap-3"
-							><Avatar name={m.name} size={32} /><span class="flex flex-col"
-								><span class="font-medium">{m.name}</span><span class="text-sm text-muted"
-									>{m.email}</span
-								></span
-							></span
-						>
-						<Badge>{ROLE_LABEL[m.role]}</Badge>
-					</li>
-				{/each}
-			</ul>
-			{#if data.members.length > MEMBERS_COLLAPSE_OVER}
-				<button
-					type="button"
-					aria-expanded={showAllMembers}
-					aria-controls={membersId}
-					onclick={() => (showAllMembers = !showAllMembers)}
-					class="flex min-h-11 w-full cursor-pointer items-center justify-center border-t border-line px-4 text-sm font-medium text-accent-text hover:bg-raised"
-				>
-					{showAllMembers ? 'Show fewer' : `Show all ${data.members.length}`}
-				</button>
-			{/if}
-		</Card>
-	</section>
 {/snippet}

@@ -66,7 +66,7 @@ test('M2 overlays: a dialog is a bottom sheet on a phone and a centred panel on 
 		await signIn(page, 'owner@acme.example');
 		await page.goto('/acme/CKT');
 		await page.getByTestId('new-item').click();
-		const dialog = page.getByRole('dialog', { name: 'New item' });
+		const dialog = page.getByRole('dialog', { name: 'New plan in CKT' });
 		await expect(dialog).toBeVisible();
 		await expect.poll(async () => (await dialog.boundingBox())?.y ?? 0).toBeGreaterThan(0);
 		const box = (await dialog.boundingBox())!;

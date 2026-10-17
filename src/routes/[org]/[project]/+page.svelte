@@ -27,7 +27,6 @@
 	import Popover from '#lib/ui/Popover.svelte';
 	import ErrorState from '#lib/ui/ErrorState.svelte';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
-	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
@@ -64,10 +63,8 @@
 	let wanted = 0;
 	/** Counts how many times the filter changed, so pages that were loading for an old filter are thrown away. */
 	let generation = 0;
-	let creating = $state(false);
-	let newTitle = $state('');
-	let newError = $state('');
-	let busy = $state(false);
+	/** The New plan dialog: the person writes the idea and their tool makes the plan. */
+	let newOpen = $state(false);
 	/** A phone gets taller rows, the same as the other lists. */
 	let narrow = $state(false);
 	/** The item the Continue with dialog is open for. */
@@ -219,32 +216,6 @@
 		}
 	}
 
-	async function createItem() {
-		newError = '';
-		busy = true;
-		try {
-			const made = await toast.promise(
-				api<{ ref: string }>(org, `/projects/${key}/items`, {
-					body: { title: newTitle.trim(), phases: [] },
-					key: newKey()
-				}),
-				{
-					id: 'item-create',
-					loading: 'Creating the item...',
-					success: 'Item created.',
-					error: (e) => (e instanceof ApiError ? e.message : 'The item was not created.')
-				}
-			);
-			creating = false;
-			newTitle = '';
-			await goto(itemHref(made.ref));
-		} catch (e) {
-			newError = e instanceof ApiError ? e.message : 'The item was not created.';
-		} finally {
-			busy = false;
-		}
-	}
-
 	// -- EFFECTS -- //
 
 	// The arrows follow the board's width and its columns, so they show only when the columns do not all fit
@@ -296,8 +267,8 @@
 		{/snippet}
 		{#snippet actions()}
 			{#if canWrite}
-				<Button variant="primary" onclick={() => (creating = true)} data-testid="new-item">
-					<Plus size={16} /> New item
+				<Button variant="primary" onclick={() => (newOpen = true)} data-testid="new-item">
+					<Plus size={16} /> New plan
 				</Button>
 			{/if}
 		{/snippet}
@@ -439,10 +410,10 @@
 		<EmptyState
 			kind="welcome"
 			title="No items in this project yet"
-			text="Create the first item here, or let a connected tool create it from a plan."
+			text="Start the first plan here and your connected tool writes it."
 		>
 			{#snippet action()}
-				{#if canWrite}<Button variant="primary" onclick={() => (creating = true)}>New item</Button
+				{#if canWrite}<Button variant="primary" onclick={() => (newOpen = true)}>New plan</Button
 					>{/if}
 			{/snippet}
 		</EmptyState>
@@ -605,28 +576,12 @@
 	mode={parseMode(data.continueMode)}
 />
 
-<ResponsiveModal open={creating} onclose={() => (creating = false)} title="New item" {busy}>
-	<form
-		class="flex flex-col gap-3"
-		onsubmit={(e) => {
-			e.preventDefault();
-			void createItem();
-		}}
-	>
-		<TextField
-			label="What is the item called"
-			bind:value={newTitle}
-			error={newError}
-			hint="You can add phases and steps on the item page."
-			data-testid="new-item-title"
-			required
-			minlength={3}
-		/>
-		<div class="flex justify-end gap-2">
-			<Button onclick={() => (creating = false)} disabled={busy}>Cancel</Button>
-			<Button type="submit" variant="primary" loading={busy} data-testid="new-item-submit"
-				>Create item</Button
-			>
-		</div>
-	</form>
-</ResponsiveModal>
+<!-- NEW PLAN: THE SAME HAND-OFF AS RESUME AND ASK, WITH AN IDEA BOX. THE TOOL MAKES THE PLAN THROUGH /flow -->
+<ContinueDialog
+	open={newOpen}
+	onclose={() => (newOpen = false)}
+	item={null}
+	create={{ kind: 'plan', key }}
+	tool={parseTool(data.continueTool)}
+	mode={parseMode(data.continueMode)}
+/>

@@ -80,9 +80,11 @@ test('M20 a write clears the cache, so a person sees their own change at once', 
 	await signIn(page, 'owner@acme.example');
 	await page.goto('/acme/CKT/tasks');
 	const title = `Shell cache task ${Date.now().toString(36)}`;
-	await page.getByTestId('new-task').click();
-	await page.getByTestId('new-task-title').fill(title);
-	await page.getByTestId('new-task-submit').click();
+	// New task hands over to the agent, so the task is made through the API as the agent's tool does
+	expect(
+		(await page.request.post('/api/v1/orgs/acme/projects/CKT/tasks', { data: { title } })).status()
+	).toBe(200);
+	await page.reload();
 	await expect(page.getByText(title)).toBeVisible();
 	// Away and back: the list comes from the network again, because the write cleared what was cached
 	await page.getByRole('link', { name: 'Registry', exact: true }).first().click();

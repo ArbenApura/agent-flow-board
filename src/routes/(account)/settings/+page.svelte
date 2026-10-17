@@ -20,7 +20,7 @@
 	import {
 		CONTINUE_MODE_LABEL,
 		CONTINUE_MODES,
-		CONTINUE_TOOLS,
+		CONTINUE_TOOLS_SHOWN,
 		buildCommand,
 		commandPrompt,
 		effectiveMode,
@@ -81,7 +81,7 @@
 		{ value: 'light', label: 'Light' },
 		{ value: 'dark', label: 'Dark' }
 	];
-	const CONTINUE_TOOL_OPTIONS = CONTINUE_TOOLS.map((t) => ({ value: t.id, label: t.label }));
+	const CONTINUE_TOOL_OPTIONS = CONTINUE_TOOLS_SHOWN.map((t) => ({ value: t.id, label: t.label }));
 	const DEVICE_ICON = { desktop: Monitor, phone: Smartphone, tablet: Tablet } as const;
 
 	// -- STATES -- //

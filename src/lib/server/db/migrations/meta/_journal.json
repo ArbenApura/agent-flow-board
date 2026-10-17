@@ -64,6 +64,13 @@
 			"when": 1792225438754,
 			"tag": "0008_drop_testing_status",
 			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "7",
+			"when": 1792231691520,
+			"tag": "0009_cloudy_hedge_knight",
+			"breakpoints": true
 		}
 	]
 }

@@ -15,9 +15,15 @@ test('M1 a save shows a loading toast, then a success toast that replaces it', a
 		).status()
 	).toBe(200);
 	await page.goto(`/acme/${key}/tasks`);
-	await page.getByTestId('new-task').click();
-	await page.getByTestId('new-task-title').fill('Toast task');
-	await page.getByTestId('new-task-submit').click();
+	// New task hands over to the agent, so the task is made through the API as the agent's tool does
+	expect(
+		(
+			await page.request.post(`/api/v1/orgs/acme/projects/${key}/tasks`, {
+				data: { title: 'Toast task' }
+			})
+		).status()
+	).toBe(200);
+	await page.reload();
 	await expect(page.getByTestId('task')).toContainText('Toast task');
 	await page.getByRole('button', { name: /Status of T-1/ }).click();
 	// A fast request can finish before a poll looks, so every toast text that appears is recorded

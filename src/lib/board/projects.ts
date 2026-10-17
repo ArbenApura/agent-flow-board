@@ -43,11 +43,11 @@ export const PROJECT_VIEWS: { value: ProjectView; label: string }[] = [
 	{ value: 'cards', label: 'Cards' },
 	{ value: 'list', label: 'List' }
 ];
-/** The toolbar (search, sort, view) shows from this many projects up. One project needs none of it. */
-export const TOOLBAR_FROM = 2;
+/** The toolbar (search, sort, view) shows from this many projects up. Always shown once there is a project. */
+export const TOOLBAR_FROM = 1;
 /** More members than this and the Members card shows the first few behind a Show all button. */
-/** The quick filter chips only show from this many projects up, since a few projects can be seen at a glance. */
-export const CHIPS_FROM = 4;
+/** The quick filter chips show from this many projects up. Always shown once there is a project. */
+export const CHIPS_FROM = 1;
 export const MEMBERS_COLLAPSE_OVER = 6;
 export const MEMBERS_SHOWN = 5;
 

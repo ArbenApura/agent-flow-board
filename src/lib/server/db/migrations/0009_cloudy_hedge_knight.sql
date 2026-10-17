@@ -1,0 +1,2 @@
+ALTER TABLE "user_pref" DROP CONSTRAINT "user_pref_continue_tool_chk";--> statement-breakpoint
+ALTER TABLE "user_pref" ADD CONSTRAINT "user_pref_continue_tool_chk" CHECK ("user_pref"."continue_tool" in ('claude-code', 'claude-ai', 'antigravity', 'codex', 'gemini', 'other'));

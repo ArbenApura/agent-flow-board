@@ -476,9 +476,9 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'workflow_get',
-		'Read a workflow: flow (plan and build), flow-interview, flow-critic or flow-audit.',
+		'Read a workflow: flow (plan and build), flow-task (capture tasks), flow-interview, flow-critic or flow-audit.',
 		{
-			name: z.enum(['flow', 'flow-interview', 'flow-critic', 'flow-audit']),
+			name: z.enum(['flow', 'flow-task', 'flow-interview', 'flow-critic', 'flow-audit']),
 			offset: z.number().int().min(0).optional()
 		},
 		{ readOnly: true },

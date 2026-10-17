@@ -30,19 +30,12 @@ export function snippets(baseUrl: string): Snippet[] {
 		},
 		{
 			id: 'claude-ai',
-			label: 'claude.ai',
-			signIn: 'Add it as a custom connector, then sign in when asked.',
+			label: 'Claude chat',
+			signIn:
+				'Add it as a custom connector in the Claude app or on claude.ai (Claude chat, not Claude Code), then sign in when asked.',
 			where: 'Settings, Connectors, Add custom connector',
 			code: mcp,
 			language: 'bash'
-		},
-		{
-			id: 'cursor',
-			label: 'Cursor',
-			signIn: 'Cursor opens your browser to sign in.',
-			where: '~/.cursor/mcp.json',
-			code: json({ mcpServers: { 'agent-flow-board': { url: mcp } } }),
-			language: 'json'
 		},
 		{
 			id: 'vscode',
@@ -50,30 +43,6 @@ export function snippets(baseUrl: string): Snippet[] {
 			signIn: 'VS Code opens your browser to sign in.',
 			where: '.vscode/mcp.json',
 			code: json({ servers: { 'agent-flow-board': { type: 'http', url: mcp } } }),
-			language: 'json'
-		},
-		{
-			id: 'windsurf',
-			label: 'Windsurf',
-			signIn: 'Windsurf opens your browser to sign in.',
-			where: '~/.codeium/windsurf/mcp_config.json',
-			code: json({ mcpServers: { 'agent-flow-board': { serverUrl: mcp } } }),
-			language: 'json'
-		},
-		{
-			id: 'codex',
-			label: 'Codex',
-			signIn: 'Run codex mcp login after adding it.',
-			where: '~/.codex/config.toml',
-			code: `[mcp_servers.agent-flow-board]\nurl = "${mcp}"`,
-			language: 'toml'
-		},
-		{
-			id: 'gemini-cli',
-			label: 'Gemini CLI',
-			signIn: 'Gemini CLI opens your browser to sign in.',
-			where: '~/.gemini/settings.json',
-			code: json({ mcpServers: { 'agent-flow-board': { httpUrl: mcp } } }),
 			language: 'json'
 		},
 		{
@@ -94,7 +63,8 @@ export function snippets(baseUrl: string): Snippet[] {
 		{
 			id: 'other',
 			label: 'Any other tool',
-			signIn: 'Send a personal access token as a bearer header, or use the local bridge.',
+			signIn:
+				'For tools such as Cursor, Windsurf, Codex and Gemini CLI: send a personal access token as a bearer header, or use the local bridge.',
 			code: `# Direct, with a personal access token from the section below\nAuthorization: Bearer afb_...\n${mcp}\n\n# Or the local bridge for tools that only speak stdio\nnpx -y @agent-flow-board/bridge mcp --server ${baseUrl}`,
 			language: 'bash'
 		}

@@ -209,9 +209,15 @@ test('M6 tasks: add one, change its status, and the empty state shows first', as
 	await expect(owner.page.getByText('No items in this project yet')).toBeVisible();
 	await owner.page.goto(`/acme/${key}/tasks`);
 	await expect(owner.page.getByText('No tasks yet')).toBeVisible();
-	await owner.page.getByTestId('new-task').click();
-	await owner.page.getByTestId('new-task-title').fill('Write the launch note');
-	await owner.page.getByTestId('new-task-submit').click();
+	// New task hands over to the agent, so the task is made through the API as the agent's tool does
+	expect(
+		(
+			await owner.page.request.post(`${ACME}/projects/${key}/tasks`, {
+				data: { title: 'Write the launch note' }
+			})
+		).status()
+	).toBe(200);
+	await owner.page.reload();
 	await expect(owner.page.getByTestId('task')).toContainText('Write the launch note');
 	await expect(owner.page.getByTestId('task')).toContainText('T-1');
 	await owner.page.getByRole('button', { name: /Status of T-1/ }).click();

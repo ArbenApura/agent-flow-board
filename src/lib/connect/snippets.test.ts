@@ -7,11 +7,7 @@ describe('connect snippets', () => {
 		expect(all.map((s) => s.id)).toEqual([
 			'claude-code',
 			'claude-ai',
-			'cursor',
 			'vscode',
-			'windsurf',
-			'codex',
-			'gemini-cli',
 			'antigravity',
 			'other'
 		]);

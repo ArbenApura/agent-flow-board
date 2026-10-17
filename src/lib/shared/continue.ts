@@ -6,9 +6,12 @@ import { isItemRef } from './ref';
 
 // -- TYPES -- //
 
-export type ContinueToolId = 'claude-code' | 'codex' | 'gemini' | 'other';
+export type ContinueToolId =
+	'claude-code' | 'claude-ai' | 'antigravity' | 'codex' | 'gemini' | 'other';
 export type ContinueMode = 'vscode' | 'command' | 'prompt';
 export type ContinueAction = 'resume' | 'ask' | 'audit' | 'critic' | 'interview';
+/** What the person starts from the New plan and New task buttons: nothing exists yet, so there is no reference, only an idea. */
+export type CreateKind = 'plan' | 'task';
 export type ContinueTool = {
 	id: ContinueToolId;
 	label: string;
@@ -22,11 +25,26 @@ export type ContinueTool = {
 
 export const CONTINUE_TOOLS: readonly ContinueTool[] = [
 	{ id: 'claude-code', label: 'Claude Code', command: 'claude', vscode: true },
+	{ id: 'claude-ai', label: 'Claude chat', command: null, vscode: false },
+	{ id: 'antigravity', label: 'Antigravity', command: null, vscode: false },
 	{ id: 'codex', label: 'Codex', command: 'codex', vscode: false },
 	{ id: 'gemini', label: 'Gemini CLI', command: 'gemini -i', vscode: false },
 	{ id: 'other', label: 'Other', command: null, vscode: false }
 ];
-export const CONTINUE_TOOL_IDS = ['claude-code', 'codex', 'gemini', 'other'] as const;
+export const CONTINUE_TOOL_IDS = [
+	'claude-code',
+	'claude-ai',
+	'antigravity',
+	'codex',
+	'gemini',
+	'other'
+] as const;
+/** Tools that are not offered for now. They stay valid in the database and in toolOf, but no list shows them and a saved one reads as the default. */
+const HIDDEN_TOOLS: readonly ContinueToolId[] = ['codex', 'gemini'];
+/** The tools a person can pick in the Continue dialog and in Personal settings. */
+export const CONTINUE_TOOLS_SHOWN: readonly ContinueTool[] = CONTINUE_TOOLS.filter(
+	(t) => !HIDDEN_TOOLS.includes(t.id)
+);
 export const CONTINUE_MODES = ['vscode', 'command', 'prompt'] as const;
 export const CONTINUE_MODE_LABEL: Record<ContinueMode, string> = {
 	vscode: 'Open in VS Code',
@@ -73,15 +91,23 @@ export const DEFAULT_MODE: ContinueMode = 'vscode';
 export const TITLE_LIMIT = 200;
 /** The longest link a chat link may be. Longer ones are not opened, the person copies the prompt instead. */
 export const LINK_LIMIT = 4000;
+/** The longest idea the create prompt carries. */
+export const IDEA_LIMIT = 2000;
+/** How the dialog names a create action in its title and above the idea box. */
+export const CREATE_TITLE: Record<CreateKind, string> = { plan: 'New plan', task: 'New task' };
+export const CREATE_QUESTION: Record<CreateKind, string> = {
+	plan: 'What do you want to build?',
+	task: 'What needs doing?'
+};
+/** A project key as the app writes it: 2 to 10 capitals or digits, the first a capital. */
+const PROJECT_KEY = /^[A-Z][A-Z0-9]{1,9}$/;
 /** The only characters a shell command may carry. Nothing in this set is special in PowerShell, cmd, bash or zsh. */
 const SAFE_COMMAND_TEXT = /^[A-Za-z0-9 .,:\-_/]+$/;
 
 // -- FUNCTIONS -- //
 
 export const parseTool = (value: unknown): ContinueToolId =>
-	(CONTINUE_TOOL_IDS as readonly unknown[]).includes(value)
-		? (value as ContinueToolId)
-		: DEFAULT_TOOL;
+	CONTINUE_TOOLS_SHOWN.some((t) => t.id === value) ? (value as ContinueToolId) : DEFAULT_TOOL;
 
 export const parseMode = (value: unknown): ContinueMode =>
 	(CONTINUE_MODES as readonly unknown[]).includes(value) ? (value as ContinueMode) : DEFAULT_MODE;
@@ -181,6 +207,49 @@ export function commandPrompt(
 ): string | null {
 	if (!isRef(ref)) return null;
 	return (usesSlash(tool, action) ? slashCommand(action, ref) : null) ?? plainPrompt(action, ref);
+}
+
+export const isProjectKey = (value: string) => PROJECT_KEY.test(value);
+
+/**
+ * Cleans the idea for a prompt. Line breaks stay, because a pasted list is one task per line. Other control characters go, runs of
+ * spaces squeeze, and a long idea is cut with an ellipsis.
+ */
+export function cleanIdea(idea: string): string {
+	let out = '';
+	for (const ch of idea) {
+		const code = ch.codePointAt(0) ?? 0;
+		if (ch === '\n') out += ch;
+		else if (ch === '\r') continue;
+		else out += code <= 0x1f || code === 0x7f || code === 0x2028 || code === 0x2029 ? ' ' : ch;
+	}
+	out = out
+		.replace(/[ \t]{2,}/g, ' ')
+		.replace(/ ?\n ?/g, '\n')
+		.trim();
+	return out.length > IDEA_LIMIT ? `${out.slice(0, IDEA_LIMIT - 1).trimEnd()}…` : out;
+}
+
+/**
+ * The prompt of the New plan and New task buttons. Claude Code gets the slash command, `/flow new KEY: idea` or `/flow-task KEY: idea`.
+ * Any other tool gets plain words that name the workflow. Both are made of plain characters around the idea, so the idea alone decides
+ * whether the prompt can be a shell command (buildCommand refuses anything else). Empty for a project key the app would not write.
+ */
+export function buildCreatePrompt(input: {
+	kind: CreateKind;
+	tool: ContinueToolId;
+	key: string;
+	idea: string;
+}): string {
+	const { kind, tool, key } = input;
+	if (!isProjectKey(key)) return '';
+	const idea = cleanIdea(input.idea);
+	if (usesSlash(tool, 'ask')) {
+		return kind === 'plan' ? `/flow new ${key}: ${idea}` : `/flow-task ${key}: ${idea}`;
+	}
+	return kind === 'plan'
+		? `Use the ${SERVER} flow workflow, workflow_get flow, to plan a new item in project ${key}. Call session_start first and wait for my approval before any code. The idea: ${idea}`
+		: `Use the ${SERVER} flow-task workflow, workflow_get flow-task, to record tasks in project ${key}. Call session_start first and do not start the work. The request: ${idea}`;
 }
 
 /** True when every character is one a shell treats as plain text. */

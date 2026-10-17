@@ -11,6 +11,7 @@
 	// -- MODULES -- //
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { createOptimistic } from '#lib/board/optimistic.svelte.js';
+	import { parseMode, parseTool } from '#lib/shared/continue.js';
 	import {
 		NO_PRIORITY,
 		TASK_STATES,
@@ -44,6 +45,7 @@
 	// -- COMPONENTS -- //
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import BoardColumn from '#lib/board/BoardColumn.svelte';
+	import ContinueDialog from '#lib/board/ContinueDialog.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
@@ -76,12 +78,7 @@
 
 	// The search box shows the filter the address holds, so a shared or reloaded link does not look unfiltered
 	let q = $state(untrack(() => page.url.searchParams.get('q') ?? ''));
-	let title = $state('');
-	let newBody = $state('');
-	let newGroup = $state('');
-	let newPriority = $state('');
-	let error = $state('');
-	let busy = $state(false);
+	/** The New task dialog: the person writes the request and their tool records the tasks. */
 	let adding = $state(false);
 	let filtersOpen = $state(false);
 	/** The drawer keeps the last task it showed, so it never goes blank while it slides out. */
@@ -190,41 +187,6 @@
 
 	const hrefFor = (ref: string) => `${base}/${ref}`;
 	const nameOf = (id: string | null) => (id ? data.people[id] : undefined);
-
-	async function add() {
-		error = '';
-		busy = true;
-		try {
-			// The text is fixed: a toast never carries what the person typed
-			await toast.promise(
-				api(org, `/projects/${key}/tasks`, {
-					body: {
-						title: title.trim(),
-						body: newBody,
-						groupName: newGroup,
-						priority: newPriority
-					},
-					key: newKey()
-				}),
-				{
-					id: 'task-add',
-					loading: 'Adding the task...',
-					success: 'Task added.',
-					error: (e) => (e instanceof ApiError ? e.message : 'The task was not added.')
-				}
-			);
-			title = '';
-			newBody = '';
-			newGroup = '';
-			newPriority = '';
-			adding = false;
-			await invalidate('afb:project');
-		} catch (e) {
-			error = e instanceof ApiError ? e.message : 'The task was not added.';
-		} finally {
-			busy = false;
-		}
-	}
 
 	/** Shows the new status at once. Only the newest ask for a task may clear or undo it, so a quick second drag never flickers. */
 	async function setStatus(id: string, status: string) {
@@ -455,7 +417,7 @@
 		<EmptyState
 			kind="tasks"
 			title="No tasks yet"
-			text="Tasks are small jobs outside any plan. Add one, or link it to an item later."
+			text="Tasks are small jobs outside any plan. Press New task and your tool writes it."
 		/>
 	{:else}
 		<!-- ONE TOOLBAR CARD. THE SEARCH AND THE FILTERS, WITH THE VIEW SWITCH ON THE RIGHT, AS ON THE PROJECT BOARD -->
@@ -837,71 +799,12 @@
 	}}
 />
 
-<ResponsiveModal
+<!-- NEW TASK: THE SAME HAND-OFF AS RESUME AND ASK, WITH A BOX FOR WHAT NEEDS DOING. THE TOOL RECORDS THE TASKS THROUGH /flow-task -->
+<ContinueDialog
 	open={adding}
-	onclose={() => {
-		adding = false;
-		title = '';
-		newBody = '';
-		newGroup = '';
-		newPriority = '';
-		error = '';
-	}}
-	title="New task"
-	size="sm"
-	{busy}
->
-	<form
-		id="task-new"
-		class="flex flex-col gap-4 text-sm"
-		onsubmit={(e) => {
-			e.preventDefault();
-			void add();
-		}}
-	>
-		<TextField
-			label="What is the task"
-			bind:value={title}
-			{error}
-			minlength={3}
-			maxlength={200}
-			required
-			data-testid="new-task-title"
-		/>
-		<TextArea
-			label="What needs doing (optional)"
-			bind:value={newBody}
-			rows={4}
-			maxlength={BODY_MAX}
-			hint={`Markdown works. ${newBody.length} of ${BODY_MAX} characters.`}
-			data-testid="new-task-body"
-		/>
-		<TextField
-			label="Which group is it in (optional)"
-			bind:value={newGroup}
-			maxlength={120}
-			placeholder="For example Billing"
-		/>
-		<TextField
-			label="How urgent is it (optional)"
-			bind:value={newPriority}
-			maxlength={20}
-			placeholder="For example P1"
-		/>
-	</form>
-	{#snippet footer()}
-		<Button
-			onclick={() => {
-				adding = false;
-			}}
-			disabled={busy}>Cancel</Button
-		>
-		<Button
-			type="submit"
-			form="task-new"
-			variant="primary"
-			loading={busy}
-			data-testid="new-task-submit">Add task</Button
-		>
-	{/snippet}
-</ResponsiveModal>
+	onclose={() => (adding = false)}
+	item={null}
+	create={{ kind: 'task', key }}
+	tool={parseTool(data.continueTool)}
+	mode={parseMode(data.continueMode)}
+/>
