@@ -42,6 +42,19 @@
 		}
 	}
 
+	async function restoreTask(id: string, number: number) {
+		try {
+			await toast.promise(api(org, `/tasks/${id}/restore`, { method: 'POST', body: {} }), {
+				loading: `Restoring T-${number}...`,
+				success: `T-${number} is back.`,
+				error: (e) => (e instanceof ApiError ? e.message : 'The task was not restored.')
+			});
+			await invalidate('afb:project');
+		} catch {
+			// The promise toast already shows the failure
+		}
+	}
+
 	async function restore(ref: string) {
 		try {
 			await toast.promise(api(org, `/items/${ref}/restore`, { method: 'POST', body: {} }), {
@@ -142,8 +155,13 @@
 							class="flex items-center gap-3 border-b border-line px-3 py-2 text-sm last:border-b-0"
 						>
 							<span class="w-12 shrink-0 font-mono text-xs text-muted">T-{t.number}</span>
-							<span class="min-w-0 flex-1">{t.title}</span>
+							<span class="min-w-0 flex-1 [overflow-wrap:anywhere]">{t.title}</span>
 							{@render daysBadge(t.daysLeft)}
+							<Button
+								size="sm"
+								onclick={() => restoreTask(t.id, t.number)}
+								data-testid="restore-task">Restore</Button
+							>
 						</li>
 					{/each}
 				</ul>

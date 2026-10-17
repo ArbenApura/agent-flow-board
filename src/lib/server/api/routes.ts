@@ -14,9 +14,12 @@ import {
 	createTask,
 	decisionInput,
 	deleteDecision,
+	deleteTask,
 	listComments,
 	listTasks,
+	restoreTask,
 	sectionInput,
+	taskDeleteInput,
 	taskInput,
 	taskUpdateInput,
 	updateTask,
@@ -407,6 +410,22 @@ export const routes: Route[] = [
 		body: strip(taskUpdateInput, 'task'),
 		handler: ({ ctx, params, body }) =>
 			updateTask(ctx, { ...(body as object), task: params.id } as never)
+	},
+	{
+		method: 'DELETE',
+		path: '/orgs/{org}/tasks/{id}',
+		summary: 'Move a task to the trash for 30 days',
+		tag: 'Tasks',
+		query: strip(taskDeleteInput, 'task'),
+		handler: ({ ctx, params, query }) =>
+			deleteTask(ctx, { task: params.id, expectVersion: num(query.expectVersion) })
+	},
+	{
+		method: 'POST',
+		path: '/orgs/{org}/tasks/{id}/restore',
+		summary: 'Restore a task from the trash',
+		tag: 'Tasks',
+		handler: ({ ctx, params }) => restoreTask(ctx, params.id)
 	},
 
 	// -- attachments -- //

@@ -25,6 +25,8 @@ const TEXT: Record<string, string> = {
 	'attachment.delete': 'removed a file',
 	'task.create': 'added a task',
 	'task.update': 'changed a task',
+	'task.delete': 'moved a task to the trash',
+	'task.restore': 'restored a task from the trash',
 	'project.create': 'created the project',
 	'project.update': 'changed the project settings',
 	'org.settings': 'changed the organisation settings',

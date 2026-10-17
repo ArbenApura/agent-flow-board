@@ -428,7 +428,10 @@ export function registerCompat({ tool }: ToolBuilder) {
 		{
 			title: z.string().min(3),
 			project: z.string().optional(),
-			link: z.array(z.string()).optional()
+			link: z.array(z.string()).optional(),
+			body: z.string().max(20_000).optional(),
+			group: z.string().max(120).optional(),
+			priority: z.string().max(20).optional()
 		},
 		{},
 		async (a, { ctx }) => {
@@ -438,7 +441,10 @@ export function registerCompat({ tool }: ToolBuilder) {
 			const t = await createTask(ctx, {
 				project: key,
 				title: a.title,
-				linkedItems: a.link ?? []
+				linkedItems: a.link ?? [],
+				body: a.body,
+				groupName: a.group,
+				priority: a.priority
 			} as never);
 			return { id: t.task.id, ref: t.ref };
 		}
@@ -452,6 +458,9 @@ export function registerCompat({ tool }: ToolBuilder) {
 			status: z.enum(['TODO', 'IN PROGRESS', 'DONE', 'DROPPED', 'FUTURE']).optional(),
 			title: z.string().optional(),
 			link: z.array(z.string()).optional(),
+			body: z.string().max(20_000).optional(),
+			group: z.string().max(120).nullable().optional(),
+			priority: z.string().max(20).nullable().optional(),
 			expectRev: z.number().int().optional()
 		},
 		{},
@@ -489,6 +498,9 @@ export function registerCompat({ tool }: ToolBuilder) {
 				status: a.status,
 				title: a.title,
 				linkedItems: a.link,
+				body: a.body,
+				groupName: a.group,
+				priority: a.priority,
 				expectVersion: a.expectRev
 			});
 			return { changed: r.changed, status: r.task.status };

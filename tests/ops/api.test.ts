@@ -423,6 +423,50 @@ describe('REST API', () => {
 		expect(trashed.body).toMatchObject({ trashed: true });
 	});
 
+	it('describes, edits, deletes and restores a task over REST, and refuses a viewer and a token without the delete right', async () => {
+		const made = await call('POST', `${base()}/projects/API/tasks`, {
+			as: 'member',
+			body: { title: 'REST task', body: 'What it asks', groupName: ' Ops ', priority: 'P2' }
+		});
+		expect(made.status).toBe(200);
+		const task = (
+			made.body as { task: { id: string; version: number; groupName: string; body: string } }
+		).task;
+		expect(task).toMatchObject({ groupName: 'Ops', body: 'What it asks' });
+		const edited = await call('PATCH', `${base()}/tasks/${task.id}`, {
+			as: 'member',
+			body: { body: 'Changed text', groupName: null, expectVersion: task.version }
+		});
+		expect(edited.status).toBe(200);
+		const stale = await call('PATCH', `${base()}/tasks/${task.id}`, {
+			as: 'member',
+			body: { title: 'Stale edit here', expectVersion: task.version }
+		});
+		expect(stale.status).toBe(409);
+		const limited = await call('POST', `${base()}/tokens`, {
+			as: 'member',
+			body: { name: 'no delete', permissions: ['read', 'write'] }
+		});
+		const noDelete = (limited.body as { token: string }).token;
+		expect((await call('DELETE', `${base()}/tasks/${task.id}`, { token: noDelete })).status).toBe(
+			403
+		);
+		expect((await call('DELETE', `${base()}/tasks/${task.id}`, { as: 'viewer' })).status).toBe(403);
+		const current = (edited.body as { task: { version: number } }).task.version;
+		const gone = await call('DELETE', `${base()}/tasks/${task.id}`, {
+			as: 'member',
+			query: { expectVersion: String(current) }
+		});
+		expect(gone.status).toBe(200);
+		expect(gone.body).toMatchObject({ deleted: true, changed: true });
+		const back = await call('POST', `${base()}/tasks/${task.id}/restore`, {
+			as: 'member',
+			body: {}
+		});
+		expect(back.status).toBe(200);
+		expect(back.body).toMatchObject({ deleted: false, changed: true });
+	});
+
 	it('pins and unpins a project for the signed in person only, and says the same for a project it cannot see', async () => {
 		const pin = await call('PUT', `${base()}/projects/API/pin`, { as: 'member' });
 		expect(pin.status).toBe(200);

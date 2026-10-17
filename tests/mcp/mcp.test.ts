@@ -92,6 +92,7 @@ describe('MCP server', () => {
 			'item_status',
 			'search',
 			'task_new',
+			'task_delete',
 			'attach',
 			'undo',
 			'project_rules',
@@ -173,6 +174,28 @@ describe('MCP server', () => {
 		expect(itemA.percent).toBe(0);
 		await a.close();
 		await b.close();
+	});
+
+	it('task_new keeps a description, task_list never returns it, and task_delete moves the task to the trash', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const made = await call(client, 'task_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'Task with a description',
+			body: 'Secret plan text for the agent',
+			groupName: 'Ops',
+			priority: 'P2'
+		});
+		const listed = await call(client, 'task_list', { project: w.projectKey });
+		const row = listed.tasks.find((t: { id: string }) => t.id === made.id);
+		expect(row).toBeTruthy();
+		expect(JSON.stringify(listed)).not.toContain('Secret plan text');
+		const gone = await call(client, 'task_delete', { sessionId: s.sessionId, task: made.id });
+		expect(gone).toMatchObject({ deleted: true, changed: true });
+		const after = await call(client, 'task_list', { project: w.projectKey, all: true });
+		expect(after.tasks.some((t: { id: string }) => t.id === made.id)).toBe(false);
+		await client.close();
 	});
 
 	it('step_done records, moves the status automatically and names the next steps and the next phase', async () => {

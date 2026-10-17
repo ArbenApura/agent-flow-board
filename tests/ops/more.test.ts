@@ -13,12 +13,15 @@ import {
 import { assertPayload, memoryJobs, pgBossJobs } from '../../src/lib/server/adapters/jobs';
 import { attachment, comment, decision, event, item } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
+import { searchBoard } from '../../src/lib/server/ops/board';
 import {
 	addComment,
 	createTask,
 	deleteDecision,
+	deleteTask,
 	listComments,
 	listTasks,
+	restoreTask,
 	updateTask,
 	upsertDecision,
 	upsertSection
@@ -206,6 +209,136 @@ describe.each([
 		await expect(
 			createTask(ctx('viewer'), { project: w.projectKey, title: 'Not allowed' })
 		).rejects.toMatchObject({ code: 'FORBIDDEN' });
+	});
+
+	it('a task keeps its description, group and priority; blanks clear and line breaks are refused', async () => {
+		const made = await createTask(ctx('member'), {
+			project: w.projectKey,
+			title: 'Described task',
+			body: '## Plan\n\n- first\n- second',
+			groupName: '  Billing  ',
+			priority: ' P1 '
+		});
+		expect(made.task).toMatchObject({
+			body: '## Plan\n\n- first\n- second',
+			groupName: 'Billing',
+			priority: 'P1'
+		});
+		const cleared = await updateTask(ctx('member'), {
+			task: made.task.id,
+			groupName: '   ',
+			priority: null,
+			body: 'Shorter'
+		});
+		expect(cleared.task).toMatchObject({ body: 'Shorter', groupName: null, priority: null });
+		// History records null for a cleared field, never an empty string
+		const log = await listEvents(ctx('member'), { project: w.projectKey });
+		const upd = log.find((e) => e.verb === 'task.update' && e.targetId === made.task.id)!;
+		expect(upd.after).toMatchObject({ groupName: null, priority: null });
+		await expect(
+			createTask(ctx('member'), { project: w.projectKey, title: 'Two lines', priority: 'P1\nP2' })
+		).rejects.toBeTruthy();
+		await expect(
+			updateTask(ctx('member'), { task: made.task.id, groupName: 'a'.repeat(121) })
+		).rejects.toBeTruthy();
+		// Null unassigns
+		const assigned = await updateTask(ctx('member'), {
+			task: made.task.id,
+			assigneeId: w.people.member
+		});
+		expect(assigned.task.assigneeId).toBe(w.people.member);
+		const unassigned = await updateTask(ctx('member'), { task: made.task.id, assigneeId: null });
+		expect(unassigned.task.assigneeId).toBeNull();
+	});
+
+	it('a feed row carries a long task description only in part', async () => {
+		const made = await createTask(ctx('member'), {
+			project: w.projectKey,
+			title: 'Long description',
+			body: 'start'
+		});
+		await updateTask(ctx('member'), { task: made.task.id, body: 'x'.repeat(1000) });
+		const log = await listEvents(ctx('member'), { project: w.projectKey });
+		const upd = log.find((e) => e.verb === 'task.update' && e.targetId === made.task.id)!;
+		const after = upd.after as { body: string; bodyLength: number };
+		expect(after.body.length).toBe(200);
+		expect(after.bodyLength).toBe(1000);
+	});
+
+	it('deleting a task needs the delete right, hides it everywhere, and restore brings it back', async () => {
+		const made = await createTask(ctx('member'), {
+			project: w.projectKey,
+			title: 'Narwhalquartz task to delete'
+		});
+		const id = made.task.id;
+		const limited = ctx('member', {
+			kind: 'agent',
+			tokenId: '00000000-0000-4000-8000-0000000000b1',
+			tokenCaps: ['read', 'comment', 'write'] as never
+		});
+		// A viewer, and a token holding write without delete, are refused and nothing changes
+		await expect(deleteTask(ctx('viewer'), { task: id })).rejects.toMatchObject({
+			code: 'FORBIDDEN'
+		});
+		await expect(deleteTask(limited, { task: id })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+		expect((await listTasks(ctx('member'), w.projectKey)).map((t) => t.id)).toContain(id);
+		// A stale version is refused
+		await expect(
+			deleteTask(ctx('member'), { task: id, expectVersion: made.task.version + 5 })
+		).rejects.toMatchObject({ code: 'STALE_VERSION' });
+		const gone = await deleteTask(ctx('member'), { task: id, expectVersion: made.task.version });
+		expect(gone).toMatchObject({ deleted: true, changed: true });
+		expect((await listTasks(ctx('member'), w.projectKey)).map((t) => t.id)).not.toContain(id);
+		expect((await searchBoard(ctx('member'), 'narwhalquartz')).length).toBe(0);
+		expect((await listTrash(ctx('member'), w.projectKey)).tasks.map((t) => t.id)).toContain(id);
+		// Edits to a deleted task are refused, and a second delete changes nothing
+		await expect(
+			updateTask(ctx('member'), { task: id, title: 'Edit after delete' })
+		).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		expect(await deleteTask(ctx('member'), { task: id })).toMatchObject({ changed: false });
+		// Restore needs the same right, and a second restore changes nothing
+		await expect(restoreTask(ctx('viewer'), id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+		expect(await restoreTask(ctx('member'), id)).toMatchObject({ deleted: false, changed: true });
+		expect(await restoreTask(ctx('member'), id)).toMatchObject({ changed: false });
+		expect((await listTasks(ctx('member'), w.projectKey)).map((t) => t.id)).toContain(id);
+		expect((await searchBoard(ctx('member'), 'narwhalquartz')).length).toBe(1);
+		// One delete event and one restore event, neither undoable through the generic undo
+		const log = (await listEvents(ctx('member'), { project: w.projectKey })).filter(
+			(e) => e.targetId === id
+		);
+		const deletes = log.filter((e) => e.verb === 'task.delete');
+		const restores = log.filter((e) => e.verb === 'task.restore');
+		expect(deletes).toHaveLength(1);
+		expect(restores).toHaveLength(1);
+		expect([...deletes, ...restores].every((e) => e.label === 'final')).toBe(true);
+	});
+
+	it('a repeated request id deletes once, and a task of another organisation cannot be reached', async () => {
+		const made = await createTask(ctx('member'), {
+			project: w.projectKey,
+			title: 'Delete once please'
+		});
+		const again = ctx('member', { requestId: 'delete-task-once-0001' });
+		const first = await deleteTask(again, { task: made.task.id });
+		const second = await deleteTask(again, { task: made.task.id });
+		expect(first.changed).toBe(true);
+		expect(second.changed).toBe(true);
+		const events = (await listEvents(ctx('member'), { project: w.projectKey })).filter(
+			(e) => e.verb === 'task.delete' && e.targetId === made.task.id
+		);
+		expect(events).toHaveLength(1);
+		// A task that belongs to another organisation answers as if it did not exist
+		const foreign = crypto.randomUUID();
+		await db.admin.exec(
+			`INSERT INTO task (id, org_id, project_id, number, title) VALUES ('${foreign}', '${w.other.orgId}', '${w.other.projectId}', 1, 'Foreign task')`
+		);
+		await expect(deleteTask(ctx('owner'), { task: foreign })).rejects.toMatchObject({
+			code: 'NOT_FOUND'
+		});
+		await expect(restoreTask(ctx('owner'), foreign)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(
+			updateTask(ctx('owner'), { task: foreign, title: 'Take over' })
+		).rejects.toMatchObject({ code: 'NOT_FOUND' });
 	});
 
 	it('a guest comment is marked untrusted, a member comment is not', async () => {

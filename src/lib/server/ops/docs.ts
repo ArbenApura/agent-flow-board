@@ -49,21 +49,47 @@ export const sectionInput = z.object({
 	expectVersion: z.number().int().optional()
 });
 
+const hasControl = (s: string) =>
+	[...s].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127);
+
+/** A group name or a priority: trimmed, blank means none, no control characters or line breaks. */
+const taskLabel = (max: number) =>
+	z
+		.string()
+		.max(max)
+		.refine((v) => !hasControl(v), 'Use plain text on one line.')
+		.transform((v) => v.trim() || null);
+
+const TASK_STATUS = z.enum(['TODO', 'IN PROGRESS', 'DONE', 'DROPPED', 'FUTURE']);
+
 export const taskInput = z.object({
 	project: z.string().min(1),
 	title: z.string().min(3).max(200),
-	status: z.enum(['TODO', 'IN PROGRESS', 'DONE', 'DROPPED', 'FUTURE']).default('TODO'),
+	status: TASK_STATUS.default('TODO'),
 	assigneeId: z.string().nullish(),
-	linkedItems: z.array(z.string().min(1)).max(20).default([])
+	linkedItems: z.array(z.string().min(1)).max(20).default([]),
+	/** What the task asks, as Markdown. Always rendered as untrusted text. */
+	body: z.string().max(20_000).default(''),
+	groupName: taskLabel(120).nullish(),
+	priority: taskLabel(20).nullish()
 });
 
 export const taskUpdateInput = z.object({
 	task: z.string().uuid(),
 	expectVersion: z.number().int().optional(),
 	title: z.string().min(3).max(200).optional(),
-	status: z.enum(['TODO', 'IN PROGRESS', 'DONE', 'DROPPED', 'FUTURE']).optional(),
+	status: TASK_STATUS.optional(),
+	/** Null unassigns. Leaving a field out leaves it alone. */
 	assigneeId: z.string().nullable().optional(),
-	linkedItems: z.array(z.string().min(1)).max(20).optional()
+	linkedItems: z.array(z.string().min(1)).max(20).optional(),
+	body: z.string().max(20_000).optional(),
+	groupName: taskLabel(120).nullable().optional(),
+	priority: taskLabel(20).nullable().optional()
+});
+
+export const taskDeleteInput = z.object({
+	task: z.string().uuid(),
+	expectVersion: z.number().int().optional()
 });
 
 export const commentInput = z.object({
@@ -312,6 +338,9 @@ export async function createTask(ctx: Ctx, raw: z.input<typeof taskInput>) {
 					title: input.title,
 					status: input.status,
 					assigneeId: input.assigneeId ?? null,
+					body: input.body,
+					groupName: input.groupName ?? null,
+					priority: input.priority ?? null,
 					linkedItemIds: await linkIds(ctx, tx, input.linkedItems)
 				})
 				.returning();
@@ -345,7 +374,7 @@ export async function updateTask(ctx: Ctx, raw: z.input<typeof taskUpdateInput>)
 			await requireOrgMember(tx, ctx, input.assigneeId);
 			const set: Record<string, unknown> = {};
 			const before: Record<string, unknown> = {};
-			for (const k of ['title', 'status', 'assigneeId'] as const) {
+			for (const k of ['title', 'status', 'assigneeId', 'body', 'groupName', 'priority'] as const) {
 				if (input[k] !== undefined && input[k] !== t[k]) {
 					before[k] = t[k];
 					set[k] = input[k];
@@ -372,6 +401,70 @@ export async function updateTask(ctx: Ctx, raw: z.input<typeof taskUpdateInput>)
 				after: set as never
 			});
 			return { task: row, changed: true };
+		})
+	);
+}
+
+/** Moves a task to the trash. The delete right is needed, as for an item, and the caller's version may be checked. */
+export async function deleteTask(ctx: Ctx, raw: z.input<typeof taskDeleteInput>) {
+	const input = taskDeleteInput.parse(raw);
+	return run(ctx, (tx) =>
+		idempotent(ctx, tx, async () => {
+			const [t] = await tx.select().from(task).where(eq(task.id, input.task)).for('update');
+			if (!t) throw new OpError('NOT_FOUND', 'No such task.');
+			// The right is checked before anything about the task is said, so a refused caller learns nothing
+			await requireCap(tx, ctx, 'delete', t.projectId);
+			await rateLimit(tx, ctx, 'write');
+			if (t.deletedAt) return { task: t, deleted: true, changed: false };
+			checkVersion(t, input.expectVersion);
+			const [row] = await tx
+				.update(task)
+				.set({ deletedAt: sql`now()`, updatedAt: sql`now()`, version: sql`${task.version} + 1` })
+				.where(eq(task.id, t.id))
+				.returning();
+			// Not undoable through the generic undo: restoreTask is the one way back, so the right and the version are checked
+			await appendEvent(tx, {
+				orgId: ctx.orgId,
+				projectId: t.projectId,
+				...actorFields(ctx),
+				verb: 'task.delete',
+				targetType: 'task',
+				targetId: t.id,
+				before: { title: t.title, status: t.status } as never,
+				after: { deleted: true } as never,
+				undoable: false
+			});
+			return { task: row, deleted: true, changed: true };
+		})
+	);
+}
+
+/** Brings a task back from the trash. */
+export async function restoreTask(ctx: Ctx, taskId: string) {
+	const id = z.string().uuid().parse(taskId);
+	return run(ctx, (tx) =>
+		idempotent(ctx, tx, async () => {
+			const [t] = await tx.select().from(task).where(eq(task.id, id)).for('update');
+			if (!t) throw new OpError('NOT_FOUND', 'No such task.');
+			await requireCap(tx, ctx, 'delete', t.projectId);
+			await rateLimit(tx, ctx, 'write');
+			if (!t.deletedAt) return { task: t, deleted: false, changed: false };
+			const [row] = await tx
+				.update(task)
+				.set({ deletedAt: null, updatedAt: sql`now()`, version: sql`${task.version} + 1` })
+				.where(eq(task.id, t.id))
+				.returning();
+			await appendEvent(tx, {
+				orgId: ctx.orgId,
+				projectId: t.projectId,
+				...actorFields(ctx),
+				verb: 'task.restore',
+				targetType: 'task',
+				targetId: t.id,
+				after: { title: t.title, status: t.status } as never,
+				undoable: false
+			});
+			return { task: row, deleted: false, changed: true };
 		})
 	);
 }

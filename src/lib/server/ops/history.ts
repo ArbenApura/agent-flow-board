@@ -25,6 +25,21 @@ export const eventsInput = z.object({
 
 // -- FUNCTIONS -- //
 
+/** Longest body text a feed row carries. The stored event keeps the whole text, because undo needs it. */
+const FEED_BODY_CHARS = 200;
+
+/** The event data with any long `body` text cut short, marked with how long it was. */
+function shortBody<T>(data: T): T {
+	if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+	const row = data as Record<string, unknown>;
+	if (typeof row.body !== 'string' || row.body.length <= FEED_BODY_CHARS) return data;
+	return {
+		...row,
+		body: row.body.slice(0, FEED_BODY_CHARS),
+		bodyLength: row.body.length
+	} as T;
+}
+
 /** The activity log of a project, newest first, each event labelled with whether it can still be undone. */
 export async function listEvents(ctx: Ctx, raw: z.input<typeof eventsInput>) {
 	const input = eventsInput.parse(raw);
@@ -71,6 +86,9 @@ export async function listEvents(ctx: Ctx, raw: z.input<typeof eventsInput>) {
 			.limit(input.limit);
 		return rows.map((r) => ({
 			...r,
+			// A long task description stays in the stored event for undo, but a feed page never carries it whole
+			before: shortBody(r.before),
+			after: shortBody(r.after),
 			undoable: r.undoable && !r.external && !r.undone,
 			label: r.external ? 'external' : r.undone ? 'undone' : r.undoable ? 'undoable' : 'final'
 		}));
