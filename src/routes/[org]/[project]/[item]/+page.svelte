@@ -28,7 +28,15 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
+	import Activity from '@lucide/svelte/icons/activity';
+	import FileText from '@lucide/svelte/icons/file-text';
+	import Gavel from '@lucide/svelte/icons/gavel';
+	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import Lock from '@lucide/svelte/icons/lock';
+	import MessagesSquare from '@lucide/svelte/icons/messages-square';
+	import MonitorCheck from '@lucide/svelte/icons/monitor-check';
+	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
+	import Paperclip from '@lucide/svelte/icons/paperclip';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash from '@lucide/svelte/icons/trash';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -60,9 +68,20 @@
 		files: 'Files',
 		discussion: 'Discussion'
 	};
+	const TAB_ICON = {
+		plan: ListChecks,
+		decisions: Gavel,
+		docs: FileText,
+		checks: MonitorCheck,
+		ui: PanelsTopLeft,
+		activity: Activity,
+		files: Paperclip,
+		discussion: MessagesSquare
+	} as const;
 
 	// -- STATES -- //
 
+	let tabRow = $state<HTMLElement>();
 	let statusOpen = $state(false);
 	let nextStatus = $state('');
 	let note = $state('');
@@ -130,6 +149,22 @@
 		plan: d?.item.totalSteps ?? 0,
 		decisions: d?.decisions.length ?? 0,
 		docs: d?.sections.length ?? 0
+	});
+
+	// -- REACTIVE STATEMENTS -- //
+
+	// The active tab slides to the middle of its row, with the row's own scroll so the page never moves
+	$effect(() => {
+		void tab;
+		const row = tabRow;
+		const current = row?.querySelector<HTMLElement>('[aria-current="page"]');
+		if (!row || !current || row.scrollWidth <= row.clientWidth) return;
+		const left =
+			current.getBoundingClientRect().left -
+			row.getBoundingClientRect().left +
+			row.scrollLeft -
+			(row.clientWidth - current.offsetWidth) / 2;
+		row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
 	});
 
 	// -- FUNCTIONS -- //
@@ -262,7 +297,10 @@
 						href={`/${org}/${d.project.key}`}
 						class="mb-1 inline-block text-sm text-accent-text hover:underline">{d.project.name}</a
 					>
-					<div class="flex items-center gap-2 font-mono text-xs text-muted" data-testid="item-ref">
+					<div
+						class="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-muted"
+						data-testid="item-ref"
+					>
 						{d.item.ref}
 						{#if d.item.visibility === 'private'}<Lock size={14} aria-label="Private" />{/if}
 						{#if d.item.tabName}<span>{d.item.tabName}</span>{/if}
@@ -375,26 +413,41 @@
 			</div>
 		{/if}
 
-		<nav aria-label="Item sections" class="overflow-x-auto">
-			<ul class="flex min-w-max gap-1 border-b border-line">
-				{#each TABS.filter((t) => (t !== 'checks' && t !== 'ui') || d.project.webApp) as t (t)}
-					<li>
-						<a
-							href={tabHref(t)}
-							aria-current={tab === t ? 'page' : undefined}
-							data-testid={`tab-${t}`}
-							class="-mb-px flex min-h-11 items-center gap-2 border-b-2 border-transparent px-4 text-sm text-muted hover:text-ink aria-[current=page]:border-accent aria-[current=page]:font-medium aria-[current=page]:text-ink"
-						>
-							{TAB_LABEL[t]}
-							{#if (counts[t] ?? 0) > 0}<span
-									data-count
-									class="rounded-full bg-raised px-1.5 text-[11px] leading-5 font-semibold text-muted tabular-nums"
-									>{counts[t]}</span
-								>{/if}
-						</a>
-					</li>
-				{/each}
-			</ul>
+		<!-- THE TAB BAR. A CARD THE SAME WIDTH AS THE HEADER ABOVE IT, STICKING JUST UNDER THE TOP BAR (56 PX PLUS ITS LINE, 64 PX PLUS ITS LINE FROM MD) WITH A GAP -->
+		<nav
+			aria-label="Item sections"
+			class="sticky top-[65px] z-20 rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-1)] md:top-[73px]"
+		>
+			<div
+				bind:this={tabRow}
+				class="[scrollbar-width:none]! overflow-x-auto overflow-y-hidden overscroll-x-contain [&::-webkit-scrollbar]:hidden"
+			>
+				<ul class="flex min-w-max gap-1">
+					{#each TABS.filter((t) => (t !== 'checks' && t !== 'ui') || d.project.webApp) as t (t)}
+						{@const Icon = TAB_ICON[t]}
+						<li>
+							<a
+								href={tabHref(t)}
+								aria-current={tab === t ? 'page' : undefined}
+								data-testid={`tab-${t}`}
+								class="group flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm whitespace-nowrap text-muted transition-colors hover:bg-raised/60 hover:text-ink aria-[current=page]:bg-raised aria-[current=page]:font-medium aria-[current=page]:text-ink motion-reduce:transition-none max-sm:min-h-11"
+							>
+								<Icon
+									size={16}
+									class="shrink-0 group-aria-[current=page]:text-accent"
+									aria-hidden="true"
+								/>
+								{TAB_LABEL[t]}
+								{#if (counts[t] ?? 0) > 0}<span
+										data-count
+										class="rounded-full bg-raised px-2 py-0.5 text-badge leading-none font-semibold text-muted tabular-nums group-aria-[current=page]:bg-surface group-aria-[current=page]:text-ink"
+										>{counts[t]}</span
+									>{/if}
+							</a>
+						</li>
+					{/each}
+				</ul>
+			</div>
 		</nav>
 
 		{#if tab === 'plan'}

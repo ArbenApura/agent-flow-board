@@ -1,4 +1,6 @@
 <script lang="ts">
+	// -- DEP-MODULES -- //
+	import { onMount } from 'svelte';
 	// -- MODULES -- //
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
@@ -49,8 +51,22 @@
 
 	let confirming = $state<Row | null>(null);
 	let busy = $state(false);
+	// Day headings depend on the viewer's own clock and time zone, so they are drawn only in the browser and the server markup agrees
+	let mounted = $state(false);
 
 	// -- FUNCTIONS -- //
+
+	const dayOf = (value: Date | string) => new Date(value).toDateString();
+
+	/** Today, Yesterday, or the weekday and date, in the viewer's own time zone. */
+	function dayLabel(value: Date | string) {
+		const day = new Date(value);
+		const today = new Date();
+		const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+		if (day.toDateString() === today.toDateString()) return 'Today';
+		if (day.toDateString() === yesterday.toDateString()) return 'Yesterday';
+		return day.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' });
+	}
 
 	const WHY: Record<string, string> = {
 		external: 'That change came from outside and cannot be undone here.',
@@ -97,6 +113,12 @@
 			busy = false;
 		}
 	}
+
+	// -- LIFECYCLES -- //
+
+	onMount(() => {
+		mounted = true;
+	});
 </script>
 
 {#if events.length === 0}
@@ -111,7 +133,17 @@
 		class="rounded-xl border border-line bg-surface p-2 shadow-[var(--elev-1)]"
 		data-testid="event-list"
 	>
-		{#each events as e (e.id)}
+		{#each events as e, i (e.id)}
+			<!-- A DAY HEADING WHERE THE DAY CHANGES IN THE NEWEST FIRST ORDER. IT IS A PRESENTATION ROW SO THE LIST STAYS ONE LIST -->
+			{#if mounted && (i === 0 || dayOf(events[i - 1].createdAt) !== dayOf(e.createdAt))}
+				<li
+					role="presentation"
+					class="px-3 pt-3 pb-1 text-xs font-medium text-muted first:pt-1"
+					data-testid="event-day"
+				>
+					{dayLabel(e.createdAt)}
+				</li>
+			{/if}
 			<li
 				class="relative flex items-start gap-4 rounded-lg px-3 py-3 hover:bg-raised/60"
 				data-row

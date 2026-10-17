@@ -6,6 +6,7 @@
 	import { ApiError, api } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import Badge from '#lib/ui/Badge.svelte';
+	import TabCard from '#lib/board/item/TabCard.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import ErrorState from '#lib/ui/ErrorState.svelte';
@@ -216,40 +217,47 @@
 	const secs = (ms: number | null) => (ms == null ? '' : `${(ms / 1000).toFixed(1)} s`);
 </script>
 
-<div class="flex flex-col gap-4" data-testid="checks-tab">
+<div class="flex flex-col gap-6" data-testid="checks-tab">
 	{#if failed && !view}
 		<ErrorState message="The browser checks did not load." onretry={load} />
 	{:else if !view}
 		<Skeleton lines={4} />
 	{:else}
-		<section
-			class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
-			data-card
-			aria-labelledby="targets-title"
+		<!-- WHERE CHECKS CAN RUN -->
+		<TabCard
+			collapsible
+			storageKey={`afb:collapse:${env.org}:${detail.item.id}:check-targets`}
+			role="region"
+			aria-label="Where checks can run"
 		>
-			<div>
-				<h2 id="targets-title" class="text-lg font-semibold">Where checks can run</h2>
-				<p class="text-sm text-muted">
-					The build preview is the usual choice. A target is ready when the project has an
-					environment for it and a runner that can reach it is online.
-				</p>
-			</div>
-			<ul class="flex flex-col" data-testid="targets">
+			{#snippet heading()}Where checks can run{/snippet}
+			{#snippet meta()}
+				<span class="text-sm text-muted tabular-nums"
+					>{view?.targets.filter((t) => t.available).length ?? 0} of {view?.targets.length ?? 0} ready</span
+				>
+			{/snippet}
+			<p class="border-b border-line px-4 py-2 text-xs text-muted max-sm:px-3.5">
+				The build preview is the usual choice. A target is ready when the project has an environment
+				for it and a runner that can reach it is online.
+			</p>
+			<ul data-testid="targets">
 				{#each view.targets as t (t.target)}
 					<li
-						class="flex min-h-11 flex-wrap items-center gap-2 border-b border-line py-2 last:border-b-0"
+						class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2 last:border-b-0 max-sm:px-3.5"
 						data-item
 						data-testid={`target-${t.target}`}
 					>
-						<span class="w-32 text-sm font-medium">{TARGET_LABEL[t.target]}</span>
-						<Badge tone={t.available ? 'success' : 'warning'}>
+						<span class="w-32 shrink-0 text-sm font-medium">{TARGET_LABEL[t.target]}</span>
+						<Badge tone={t.available ? 'success' : 'warning'} dot>
 							{t.available ? 'Ready' : 'Not ready'}
 						</Badge>
-						{#if t.reason}<span class="min-w-0 flex-1 text-xs text-muted">{t.reason}</span>{/if}
+						{#if t.reason}<span class="min-w-0 flex-1 text-xs break-words text-muted"
+								>{t.reason}</span
+							>{/if}
 					</li>
 				{/each}
 			</ul>
-		</section>
+		</TabCard>
 
 		{#if autoChecks.length === 0}
 			<EmptyState
@@ -260,170 +268,194 @@
 
 		{#each autoChecks as mc (mc.id)}
 			{@const c = checkOf(mc.key)}
-			<section
-				class="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
-				data-card
+			<TabCard
+				collapsible
+				storageKey={`afb:collapse:${env.org}:${detail.item.id}:check-${mc.key}`}
+				role="region"
+				aria-label={`${mc.key} ${mc.text}`}
 				data-testid={`check-${mc.key}`}
-				aria-labelledby={`check-${mc.key}-title`}
 			>
-				<div class="flex flex-wrap items-start gap-2">
-					<div class="min-w-0 flex-1">
-						<h2 id={`check-${mc.key}-title`} class="text-lg font-semibold">
-							{mc.key}
-							{mc.text}
-						</h2>
-						<p class="text-sm text-muted">
-							{#if c}
-								Counts when it passes on the {TARGET_LABEL[c.requiredTarget]}
-								{#if c.pinnedTarget}, always run on the {TARGET_LABEL[c.pinnedTarget]}{/if}.
-							{:else}
-								No browser check is saved for this yet.
-							{/if}
-						</p>
-					</div>
+				{#snippet heading()}
+					<span class="rounded-[6px] bg-raised px-2 py-0.5 font-mono text-xs font-medium text-muted"
+						>{mc.key}</span
+					>
+					<span class="min-w-0 break-words">{mc.text}</span>
+				{/snippet}
+				{#snippet actions()}
 					<Badge tone={mc.state === 'open' ? 'neutral' : 'success'}>
 						{mc.state === 'open' ? 'Open' : mc.state === 'waived' ? 'Closed by a pass' : mc.state}
 					</Badge>
-				</div>
+				{/snippet}
+				<div class="flex flex-col gap-4 p-4 max-sm:p-3.5">
+					<p class="text-sm text-muted">
+						{#if c}
+							Counts when it passes on the {TARGET_LABEL[c.requiredTarget]}{#if c.pinnedTarget},
+								always run on the {TARGET_LABEL[c.pinnedTarget]}{/if}.
+						{:else}
+							No browser check is saved for this yet.
+						{/if}
+					</p>
 
-				{#if c && env.canWrite && view.canRun}
-					<div class="flex flex-wrap items-end gap-2" data-testid={`run-controls-${mc.key}`}>
-						<Select
-							label="Target"
-							options={TARGET_OPTIONS}
-							value={target[mc.key] ?? ''}
-							onchange={(v) => (target[mc.key] = v)}
-							class="w-48"
-						/>
-						<Select
-							label="Step to close when it passes"
-							options={stepOptions}
-							value={stepFor[mc.key] ?? ''}
-							onchange={(v) => (stepFor[mc.key] = v)}
-							class="w-56"
-						/>
-						<Button
-							variant="primary"
-							loading={busy === `run-${mc.key}`}
-							onclick={() => run(mc.key)}
-							data-testid={`run-${mc.key}`}
-						>
-							Run check
-						</Button>
-					</div>
-					{#if notice[mc.key]?.text}
-						<div
-							class="flex flex-col gap-2 rounded-lg bg-warning-soft p-3 text-sm text-warning"
-							role="status"
-							data-testid={`unavailable-${mc.key}`}
-						>
-							<span>{notice[mc.key].text}</span>
-							<span class="flex flex-wrap gap-2">
-								{#each notice[mc.key].offer as t (t)}
-									<Button size="sm" onclick={() => run(mc.key, t)}>
-										Run on the {TARGET_LABEL[t]}
-									</Button>
-								{/each}
-							</span>
-						</div>
-					{/if}
-				{/if}
-
-				{#if c && c.runs.length > 0}
-					<ul class="rounded-lg border border-line" data-testid={`runs-${mc.key}`}>
-						{#each c.runs as r (r.id)}
-							<li
-								class="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2 last:border-b-0"
-								data-item
-								data-testid="check-run"
+					{#if c && env.canWrite && view.canRun}
+						<div class="flex flex-wrap items-end gap-2" data-testid={`run-controls-${mc.key}`}>
+							<Select
+								label="Target"
+								options={TARGET_OPTIONS}
+								value={target[mc.key] ?? ''}
+								onchange={(v) => (target[mc.key] = v)}
+								class="w-48"
+							/>
+							<Select
+								label="Step to close when it passes"
+								options={stepOptions}
+								value={stepFor[mc.key] ?? ''}
+								onchange={(v) => (stepFor[mc.key] = v)}
+								class="w-56"
+							/>
+							<Button
+								loading={busy === `run-${mc.key}`}
+								onclick={() => run(mc.key)}
+								data-testid={`run-${mc.key}`}
 							>
-								<Badge tone={RESULT[r.result]?.tone ?? 'neutral'}>
-									{RESULT[r.result]?.label ?? r.result}
-								</Badge>
-								{#if r.flaky}<Badge tone="warning">Flaky</Badge>{/if}
-								<span class="text-sm">{TARGET_LABEL[r.target] ?? r.target}</span>
-								<span class="text-xs text-muted">
-									{ago(r.createdAt)}{r.durationMs ? `, ${secs(r.durationMs)}` : ''}{r.commit
-										? `, ${r.commit.slice(0, 7)}`
-										: ''}{r.stepKey ? `, for step ${r.stepKey}` : ''}
-								</span>
-								<span class="flex-1"></span>
-								{#each r.evidence.slice(0, 3) as id, i (id)}
-									<Button size="sm" variant="ghost" onclick={() => open(id)}
-										>Evidence {i + 1}</Button
-									>
-								{/each}
-								{#if r.reason}
-									<span class="w-full text-xs text-muted">{r.reason}</span>
-								{/if}
-							</li>
-						{/each}
-					</ul>
-				{:else if c}
-					<div class="text-sm text-muted">It has not run yet.</div>
-				{/if}
-
-				{#if env.canWrite}
-					{#if editing === mc.key}
-						<div class="flex flex-col gap-3 rounded-lg border border-line p-3">
-							<TextArea
-								label="Script"
-								bind:value={script}
-								rows={9}
-								class="font-mono"
-								spellcheck="false"
-								hint="Runs in a signed-in browser. You have page, context, expect, baseUrl and log. You never see a password."
-							/>
-							<div class="flex flex-wrap gap-2">
-								<Select
-									label="Counts on"
-									options={REQUIRED_OPTIONS}
-									bind:value={required}
-									class="w-48"
-								/>
-								<Select
-									label="Always run on"
-									options={PIN_OPTIONS}
-									bind:value={pinned}
-									class="w-48"
-								/>
-							</div>
-							<TextArea
-								label="Code this check covers (one path per line)"
-								bind:value={paths}
-								rows={3}
-								hint="A change under these paths means the check should run again."
-							/>
-							<div class="flex gap-2">
-								<Button
-									variant="primary"
-									loading={busy === `save-${mc.key}`}
-									onclick={() => saveCheck(mc.key)}
-								>
-									Save check
-								</Button>
-								<Button variant="ghost" onclick={() => (editing = null)}>Cancel</Button>
-							</div>
-						</div>
-					{:else}
-						<div class="flex flex-wrap gap-2">
-							<Button size="sm" onclick={() => edit(mc.key)} data-testid={`edit-${mc.key}`}>
-								{c ? 'Edit the check' : 'Add a check'}
+								Run check
 							</Button>
-							{#if c}
-								<Button
-									size="sm"
-									variant="ghost"
-									loading={busy === `remove-${mc.key}`}
-									onclick={() => removeCheck(mc.key)}
-								>
-									Remove the check
-								</Button>
-							{/if}
 						</div>
+						{#if notice[mc.key]?.text}
+							<div
+								class="flex flex-col gap-2 rounded-lg bg-warning-soft p-3 text-sm text-warning"
+								role="status"
+								data-testid={`unavailable-${mc.key}`}
+							>
+								<span>{notice[mc.key].text}</span>
+								<span class="flex flex-wrap gap-2">
+									{#each notice[mc.key].offer as t (t)}
+										<Button size="sm" onclick={() => run(mc.key, t)}>
+											Run on the {TARGET_LABEL[t]}
+										</Button>
+									{/each}
+								</span>
+							</div>
+						{/if}
 					{/if}
-				{/if}
-			</section>
+
+					<!-- THE RUN HISTORY: ONE ROW PER RUN, COLUMNS ON A WIDE SCREEN AND STACKED ON A PHONE -->
+					{#if c && c.runs.length > 0}
+						<div
+							class="overflow-hidden rounded-lg border border-line"
+							data-testid={`runs-${mc.key}`}
+						>
+							<div
+								class="hidden grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)_72px_72px_minmax(0,1.6fr)] items-center gap-3 border-b border-line bg-raised px-3 py-2 text-xs font-medium text-muted sm:grid"
+								aria-hidden="true"
+							>
+								<span>Result</span>
+								<span>Where</span>
+								<span>When</span>
+								<span>Took</span>
+								<span>Commit</span>
+								<span>Evidence</span>
+							</div>
+							<ul>
+								{#each c.runs as r (r.id)}
+									<li
+										class="flex flex-col gap-1 border-b border-line px-3 py-2 last:border-b-0 sm:grid sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.4fr)_72px_72px_minmax(0,1.6fr)] sm:items-center sm:gap-3"
+										data-item
+										data-testid="check-run"
+									>
+										<span class="flex flex-wrap items-center gap-1.5">
+											<Badge tone={RESULT[r.result]?.tone ?? 'neutral'}>
+												{RESULT[r.result]?.label ?? r.result}
+											</Badge>
+											{#if r.flaky}<Badge tone="warning">Flaky</Badge>{/if}
+										</span>
+										<span class="text-sm">{TARGET_LABEL[r.target] ?? r.target}</span>
+										<span class="text-xs text-muted">
+											{ago(r.createdAt)}{r.stepKey ? `, for step ${r.stepKey}` : ''}
+										</span>
+										<span class="text-xs text-muted tabular-nums">{secs(r.durationMs)}</span>
+										<span class="font-mono text-xs text-muted"
+											>{r.commit ? r.commit.slice(0, 7) : ''}</span
+										>
+										<span class="flex flex-wrap gap-1">
+											{#each r.evidence.slice(0, 3) as id, i (id)}
+												<Button size="sm" variant="ghost" onclick={() => open(id)}
+													>Evidence {i + 1}</Button
+												>
+											{/each}
+										</span>
+										{#if r.reason}
+											<span class="text-xs break-words text-muted sm:col-span-6">{r.reason}</span>
+										{/if}
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{:else if c}
+						<div class="text-sm text-muted">It has not run yet.</div>
+					{/if}
+
+					{#if env.canWrite}
+						{#if editing === mc.key}
+							<div class="flex flex-col gap-3 rounded-lg border border-line p-3">
+								<TextArea
+									label="Script"
+									bind:value={script}
+									rows={9}
+									class="font-mono"
+									spellcheck="false"
+									hint="Runs in a signed-in browser. You have page, context, expect, baseUrl and log. You never see a password."
+								/>
+								<div class="flex flex-wrap gap-2">
+									<Select
+										label="Counts on"
+										options={REQUIRED_OPTIONS}
+										bind:value={required}
+										class="w-48"
+									/>
+									<Select
+										label="Always run on"
+										options={PIN_OPTIONS}
+										bind:value={pinned}
+										class="w-48"
+									/>
+								</div>
+								<TextArea
+									label="Code this check covers (one path per line)"
+									bind:value={paths}
+									rows={3}
+									hint="A change under these paths means the check should run again."
+								/>
+								<div class="flex gap-2">
+									<Button
+										variant="primary"
+										loading={busy === `save-${mc.key}`}
+										onclick={() => saveCheck(mc.key)}
+									>
+										Save check
+									</Button>
+									<Button variant="ghost" onclick={() => (editing = null)}>Cancel</Button>
+								</div>
+							</div>
+						{:else}
+							<div class="flex flex-wrap gap-2">
+								<Button size="sm" onclick={() => edit(mc.key)} data-testid={`edit-${mc.key}`}>
+									{c ? 'Edit the check' : 'Add a check'}
+								</Button>
+								{#if c}
+									<Button
+										size="sm"
+										variant="ghost"
+										loading={busy === `remove-${mc.key}`}
+										onclick={() => removeCheck(mc.key)}
+									>
+										Remove the check
+									</Button>
+								{/if}
+							</div>
+						{/if}
+					{/if}
+				</div>
+			</TabCard>
 		{/each}
 	{/if}
 </div>

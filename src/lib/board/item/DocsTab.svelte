@@ -1,8 +1,12 @@
 <script lang="ts">
 	// -- DEP-TYPES -- //
 	import type { ItemView, TabEnv } from '#lib/board/item/types.js';
+	// -- DEP-MODULES -- //
+	import { tick } from 'svelte';
 	// -- MODULES -- //
+	import { cn } from '#lib/ui/cn.js';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import TabCard from '#lib/board/item/TabCard.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
@@ -29,8 +33,40 @@
 	let busy = $state(false);
 	let error = $state('');
 	let stale = $state<{ changedAt: string } | null>(null);
+	let chipRow = $state<HTMLElement>();
+	/** The section card each section keeps open or closed, by section id, so a jump can open one. */
+	let collapsedBy = $state<Record<string, boolean>>({});
+	/** The section last jumped to, so its chip can slide to the middle of the row. */
+	let activeId = $state('');
+
+	// -- REACTIVE STATEMENTS -- //
+
+	// On a phone the chip of the section just jumped to slides to the middle of its row, with the row's own scroll so the page never moves
+	$effect(() => {
+		void activeId;
+		const row = chipRow;
+		const current = row?.querySelector<HTMLElement>('[aria-current="location"]');
+		if (!row || !current || row.scrollWidth <= row.clientWidth) return;
+		const left =
+			current.getBoundingClientRect().left -
+			row.getBoundingClientRect().left +
+			row.scrollLeft -
+			(row.clientWidth - current.offsetWidth) / 2;
+		row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+	});
 
 	// -- FUNCTIONS -- //
+
+	/** Opens the section if it is closed, then scrolls to it. */
+	async function jump(id: string) {
+		activeId = id;
+		collapsedBy[id] = false;
+		await tick();
+		document.getElementById(`doc-${id}`)?.scrollIntoView({
+			block: 'start',
+			behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+		});
+	}
 
 	const slugify = (v: string) =>
 		v
@@ -114,25 +150,95 @@
 			text="Sections hold the spec, the plan notes and the validation steps of this item, written in Markdown."
 		/>
 	{/if}
-	{#each detail.sections as s (s.id)}
-		<section
-			class="rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)]"
-			aria-label={s.title}
-		>
-			<div class="mb-2 flex items-center justify-between gap-2">
-				<h2 class="text-lg font-semibold">{s.title}</h2>
-				{#if env.canWrite}
-					<Button variant="ghost" size="sm" onclick={() => edit(s)}
-						><Pencil size={14} /> Edit</Button
-					>
-				{/if}
+	<!-- A CONTENTS LIST AT THE SIDE ON A WIDE SCREEN, A ROW OF CHIPS ABOVE THE SECTIONS ON A SMALLER ONE. IT NEEDS TWO SECTIONS OR MORE -->
+	{#if detail.sections.length > 1}
+		<nav aria-label="Sections of this document" class="lg:hidden">
+			<div
+				bind:this={chipRow}
+				class="[scrollbar-width:none]! overflow-x-auto overflow-y-hidden overscroll-x-contain [&::-webkit-scrollbar]:hidden"
+			>
+				<ul class="flex w-max gap-2">
+					{#each detail.sections as s (s.id)}
+						<li>
+							<a
+								href={`#doc-${s.id}`}
+								aria-current={activeId === s.id ? 'location' : undefined}
+								onclick={(e) => {
+									e.preventDefault();
+									void jump(s.id);
+								}}
+								class={cn(
+									'flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm whitespace-nowrap',
+									activeId === s.id
+										? 'border-ink bg-raised font-medium text-ink'
+										: 'border-line text-muted hover:text-ink'
+								)}>{s.title}</a
+							>
+						</li>
+					{/each}
+				</ul>
 			</div>
-			<div class="md">
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised Markdown from the server -->
-				{@html s.html}
-			</div>
-		</section>
-	{/each}
+		</nav>
+	{/if}
+
+	<div
+		class={cn(
+			detail.sections.length > 1 &&
+				'lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:items-start lg:gap-8'
+		)}
+	>
+		{#if detail.sections.length > 1}
+			<nav
+				aria-label="Contents"
+				class="sticky top-32 hidden max-h-[calc(100dvh-9rem)] overflow-y-auto rounded-xl border border-line bg-surface p-2 shadow-[var(--elev-1)] lg:block"
+			>
+				<ul class="flex flex-col gap-0.5">
+					{#each detail.sections as s (s.id)}
+						<li>
+							<a
+								href={`#doc-${s.id}`}
+								aria-current={activeId === s.id ? 'location' : undefined}
+								onclick={(e) => {
+									e.preventDefault();
+									void jump(s.id);
+								}}
+								class={cn(
+									'block min-h-10 cursor-pointer rounded-md px-3 py-2 text-sm break-words hover:bg-raised hover:text-ink',
+									activeId === s.id ? 'bg-raised font-medium text-ink' : 'text-muted'
+								)}>{s.title}</a
+							>
+						</li>
+					{/each}
+				</ul>
+			</nav>
+		{/if}
+		<div class="flex min-w-0 flex-col gap-4">
+			{#each detail.sections as s (s.id)}
+				<TabCard
+					id={`doc-${s.id}`}
+					collapsible
+					storageKey={`afb:collapse:${env.org}:${detail.item.id}:doc-${s.id}`}
+					bind:collapsed={() => collapsedBy[s.id] ?? false, (v) => (collapsedBy[s.id] = v)}
+					role="region"
+					aria-label={s.title}
+					class="scroll-mt-32"
+				>
+					{#snippet heading()}{s.title}{/snippet}
+					{#snippet actions()}
+						{#if env.canWrite}
+							<Button variant="ghost" size="sm" onclick={() => edit(s)}
+								><Pencil size={14} aria-hidden="true" /> Edit</Button
+							>
+						{/if}
+					{/snippet}
+					<div class="md p-4 max-sm:p-3.5">
+						<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised Markdown from the server -->
+						{@html s.html}
+					</div>
+				</TabCard>
+			{/each}
+		</div>
+	</div>
 </div>
 
 <ResponsiveModal

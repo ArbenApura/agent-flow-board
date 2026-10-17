@@ -3,6 +3,7 @@
 	import type { ItemView, TabEnv } from '#lib/board/item/types.js';
 	// -- MODULES -- //
 	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import TabCard from '#lib/board/item/TabCard.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
@@ -11,6 +12,7 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Plus from '@lucide/svelte/icons/plus';
 
 	// -- REQUIRED PROPS -- //
@@ -81,21 +83,35 @@
 	{/if}
 
 	{#if adrs.length}
-		<section class="flex flex-col gap-2" aria-label="Decisions">
-			<h2 class="text-lg font-semibold">Decisions</h2>
-			<ul class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
+		<TabCard
+			collapsible
+			storageKey={`afb:collapse:${env.org}:${detail.item.id}:decisions`}
+			role="region"
+			aria-label="Decisions"
+		>
+			{#snippet heading()}Decisions{/snippet}
+			{#snippet meta()}<span class="text-sm text-muted tabular-nums">{adrs.length}</span>{/snippet}
+			<ul>
 				{#each adrs as d (d.id)}
 					<li class="border-b border-line last:border-b-0" data-testid="adr">
 						<details class="group">
 							<summary
-								class="flex min-h-11 cursor-pointer items-center gap-2 px-3 py-2 text-sm font-medium"
+								class="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 hover:bg-raised/60 max-sm:px-3.5 [&::-webkit-details-marker]:hidden"
 							>
-								<span class="font-mono text-xs text-muted"
+								<ChevronDown
+									size={16}
+									class="shrink-0 -rotate-90 text-muted transition-transform group-open:rotate-0 motion-reduce:transition-none"
+									aria-hidden="true"
+								/>
+								<span
+									class="min-w-10 shrink-0 rounded-[6px] bg-raised px-2 py-0.5 text-center font-mono text-xs text-muted tabular-nums"
 									>ADR-{String(d.number).padStart(3, '0')}</span
 								>
-								{d.title}
+								<span class="min-w-0 flex-1 text-sm font-medium break-words">{d.title}</span>
 							</summary>
-							<div class="md flex flex-col gap-2 px-3 pt-1 pb-3">
+							<div
+								class="md mr-4 mb-3 ml-[27px] flex flex-col gap-2 border-l-2 border-line pl-4 max-sm:mr-3.5"
+							>
 								{#if d.context}<h3>Context</h3>
 									<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised Markdown from the server -->
 									{@html d.contextHtml}{/if}
@@ -113,28 +129,41 @@
 					</li>
 				{/each}
 			</ul>
-		</section>
+		</TabCard>
 	{/if}
 
 	{#if settled.length}
-		<section class="flex flex-col gap-2" aria-label="Settled without asking">
-			<h2 class="text-lg font-semibold">Settled without asking</h2>
-			<div class="text-xs text-muted">
+		<TabCard
+			collapsible
+			storageKey={`afb:collapse:${env.org}:${detail.item.id}:settled`}
+			role="region"
+			aria-label="Settled without asking"
+		>
+			{#snippet heading()}Settled without asking{/snippet}
+			{#snippet meta()}<span class="text-sm text-muted tabular-nums">{settled.length}</span
+				>{/snippet}
+			<p class="border-b border-line px-4 py-2 text-xs text-muted max-sm:px-3.5">
 				Questions the builder answered from the documents and the code. Overrule any of them.
-			</div>
-			<ul
-				class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
-				data-testid="settled-list"
-			>
+			</p>
+			<ul data-testid="settled-list">
 				{#each settled as d (d.id)}
-					<li class="flex flex-col gap-0.5 border-b border-line px-3 py-2 last:border-b-0">
-						<span class="text-sm font-medium text-ink">{d.title}</span>
-						<span class="text-sm text-ink">{d.answer}</span>
-						{#if d.source}<span class="text-xs text-muted">Source: {d.source}</span>{/if}
+					<li
+						class="flex flex-col gap-2 border-b border-line px-4 py-3 last:border-b-0 max-sm:px-3.5 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-4"
+					>
+						<div class="flex min-w-0 flex-col gap-0.5">
+							<span class="text-sm font-medium break-words text-ink">{d.title}</span>
+							<span class="text-sm break-words text-muted">{d.answer}</span>
+						</div>
+						{#if d.source}
+							<span
+								class="max-w-[40ch] self-start rounded-[6px] bg-raised px-2 py-0.5 text-xs break-words text-muted"
+								>Source: {d.source}</span
+							>
+						{/if}
 					</li>
 				{/each}
 			</ul>
-		</section>
+		</TabCard>
 	{/if}
 </div>
 
