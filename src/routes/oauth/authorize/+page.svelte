@@ -17,12 +17,13 @@
 	const CAP_TEXT: Record<string, string> = {
 		read: 'Read items, plans and comments',
 		comment: 'Add comments',
-		write: 'Create and change items, steps and documents',
-		complete: 'Set an item to COMPLETED where the project allows it',
+		write: 'Create and change items and steps',
+		complete: 'Mark items COMPLETED',
 		delete: 'Move items to the trash',
 		publish: 'Publish to GitHub',
 		manage: 'Change project settings'
 	};
+	const VIEW_CAPS = ['read', 'comment'];
 
 	// -- REQUIRED PROPS -- //
 
@@ -40,6 +41,15 @@
 
 	const org = $derived(data.orgs.find((o) => o.id === orgId) ?? data.orgs[0]);
 	const caps = $derived(org ? org.caps : []);
+	// Any capability outside the look group lands in the change group, so a new one is never hidden
+	const groups = $derived(
+		[
+			{ title: 'Look and talk', caps: caps.filter((c) => VIEW_CAPS.includes(c)) },
+			{ title: 'Change things', caps: caps.filter((c) => !VIEW_CAPS.includes(c)) }
+		].filter((g) => g.caps.length > 0)
+	);
+	// The title drops the bracketed part of the name (the full name is in the warning), so it fits on one line
+	const shortName = $derived((data.request?.clientName ?? '').replace(/\s*\(.*\)\s*$/, ''));
 	const asked = $derived(data.request?.scopes ?? []);
 
 	// -- FUNCTIONS -- //
@@ -55,20 +65,24 @@
 
 <svelte:head><title>Connect a tool</title></svelte:head>
 
-<AuthShell title={data.request ? `Connect ${data.request.clientName}?` : 'Connection problem'}>
+<AuthShell title={data.request ? `Connect ${shortName}?` : 'Connection problem'}>
 	{#if data.problem || !data.request}
 		<Notice tone="danger" data-testid="oauth-problem">{data.problem}</Notice>
 	{:else}
-		<div class="mb-3 flex flex-wrap items-center gap-2">
-			{#if data.request.verified}<Badge tone="success">Verified</Badge>{:else}<Badge tone="warning"
-					>Unverified</Badge
-				>{/if}
-			<span class="text-sm text-muted">It will return to {data.request.redirectHost}</span>
-		</div>
-		<p class="mb-3 text-sm text-muted">
-			{data.request.clientName} introduced itself. Anyone can register a tool under any name, so connect
-			only a tool you started yourself.
-		</p>
+		<!-- WHO IS ASKING: ONE LINE, OR ONE WARNING FOR AN UNVERIFIED TOOL -->
+		{#if data.request.verified}
+			<p class="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted">
+				<Badge tone="success">Verified</Badge>
+				{data.request.clientName} returns to
+				<span class="font-mono text-xs text-ink">{data.request.redirectHost}</span>
+			</p>
+		{:else}
+			<Notice tone="warning" class="mb-3" data-testid="oauth-unverified">
+				{data.request.clientName} is unverified and returns to
+				<span class="font-mono text-xs">{data.request.redirectHost}</span>. Connect only a tool you
+				started yourself.
+			</Notice>
+		{/if}
 		{#if data.notice}
 			<Notice tone="danger" class="mb-3" data-testid="oauth-notice">{data.notice}</Notice>
 		{/if}
@@ -81,6 +95,7 @@
 			</div>
 		{:else}
 			<form
+				id="consent-form"
 				method="POST"
 				action="/oauth/authorize/decision"
 				class="flex flex-col gap-3"
@@ -93,6 +108,7 @@
 						value={v}
 					/>{/each}
 				<input type="hidden" name="org" value={org?.id ?? ''} />
+				<input type="hidden" name="decision" value="approve" />
 				<SelectField
 					label="Organisation"
 					options={data.orgs.map((o) => ({
@@ -101,38 +117,47 @@
 					}))}
 					bind:value={orgId}
 				/>
+				<!-- WHAT IT MAY DO: LOOKING FIRST, CHANGING SECOND, IN TIGHT ROWS -->
 				<fieldset class="flex flex-col">
 					<legend class="mb-1 text-xs font-medium text-muted">What it may do</legend>
 					{#key org?.id}
-						{#each caps as c (c)}
-							<Checkbox
-								label={CAP_TEXT[c] ?? c}
-								name="scope"
-								value={c}
-								checked={asked.includes(c as never)}
-							/>
+						{#each groups as g (g.title)}
+							<p class="mt-1 border-t border-line pt-2 text-xs text-muted first-of-type:border-t-0">
+								{g.title}
+							</p>
+							{#each g.caps as c (c)}
+								<Checkbox
+									class="sm:min-h-8 sm:py-1"
+									label={CAP_TEXT[c] ?? c}
+									name="scope"
+									value={c}
+									checked={asked.includes(c as never)}
+								/>
+							{/each}
 						{/each}
 					{/key}
 				</fieldset>
-				<input type="hidden" name="decision" value="approve" />
-				<Button type="submit" variant="primary" class="w-full"
-					>Connect {data.request.clientName}</Button
+			</form>
+			<!-- BOTH ANSWERS SIT ON ONE ROW. THE CONNECT BUTTON BELONGS TO THE CONSENT FORM THROUGH ITS FORM ATTRIBUTE -->
+			<div class="mt-4 flex flex-col-reverse gap-2 sm:flex-row">
+				<form
+					method="POST"
+					action="/oauth/authorize/decision"
+					class="sm:w-[120px]"
+					onsubmit={answering('Cancelling...')}
 				>
-			</form>
-			<form
-				method="POST"
-				action="/oauth/authorize/decision"
-				class="mt-2"
-				onsubmit={answering('Cancelling...')}
-			>
-				{#each Object.entries(data.raw) as [k, v] (k)}<input
-						type="hidden"
-						name={k}
-						value={v}
-					/>{/each}
-				<input type="hidden" name="decision" value="deny" />
-				<Button type="submit" class="w-full">Cancel</Button>
-			</form>
+					{#each Object.entries(data.raw) as [k, v] (k)}<input
+							type="hidden"
+							name={k}
+							value={v}
+						/>{/each}
+					<input type="hidden" name="decision" value="deny" />
+					<Button type="submit" class="w-full">Cancel</Button>
+				</form>
+				<Button type="submit" form="consent-form" variant="primary" class="w-full sm:flex-1"
+					>Connect</Button
+				>
+			</div>
 		{/if}
 	{/if}
 </AuthShell>
