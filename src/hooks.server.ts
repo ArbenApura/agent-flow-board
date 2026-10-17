@@ -2,7 +2,7 @@
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
 // -- ENVS -- //
 import { building } from '$app/env';
-import { AFB_SEED_DEMO } from '$app/env/private';
+import { AFB_BASE_URL, AFB_SEED_DEMO } from '$app/env/private';
 // -- DEP-MODULES -- //
 import { sequence } from '@sveltejs/kit/hooks';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
@@ -28,16 +28,14 @@ const FORM_TYPES = ['application/x-www-form-urlencoded', 'multipart/form-data', 
  */
 const csrf: Handle = ({ event, resolve }) => {
 	const { request, url } = event;
+	// Behind a tunnel or proxy the server sees http while the browser sends https, so the public address counts as this site too
+	const origin = request.headers.get('origin');
+	const ownOrigin = origin === url.origin || origin === new URL(AFB_BASE_URL).origin;
 	const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes(request.method);
 	const form = FORM_TYPES.some((t) =>
 		(request.headers.get('content-type') ?? '').toLowerCase().startsWith(t)
 	);
-	if (
-		unsafe &&
-		form &&
-		!NO_ORIGIN_CHECK.some((re) => re.test(url.pathname)) &&
-		request.headers.get('origin') !== url.origin
-	) {
+	if (unsafe && form && !NO_ORIGIN_CHECK.some((re) => re.test(url.pathname)) && !ownOrigin) {
 		return new Response('Cross-site form submissions are forbidden', {
 			status: 403,
 			headers: { 'content-type': 'text/plain' }
@@ -103,6 +101,12 @@ const authentication: Handle = async ({ event, resolve }) => {
 	const session = await auth.api.getSession({ headers: event.request.headers });
 	event.locals.user = session?.user ?? null;
 	event.locals.session = session?.session ?? null;
+	// Better Auth only answers when the request origin is AFB_BASE_URL. Behind a tunnel or proxy the server sees http and another host,
+	// so the auth routes are handed over under the public address (the Google callback and every /api/auth call would be a 404 otherwise)
+	if (event.url.pathname.startsWith('/api/auth/') && !building) {
+		const target = new URL(event.url.pathname + event.url.search, AFB_BASE_URL);
+		return auth.handler(new Request(target, event.request));
+	}
 	return svelteKitHandler({ auth, event, resolve, building });
 };
 

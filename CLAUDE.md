@@ -12,7 +12,7 @@ A standalone multi-project team board for agent-driven flow plans. SvelteKit (Sv
 
 ## Local development
 
-- Localhost is always port 5180 for the dev server and the build preview (`vite.config.ts` has `strictPort`). Never start either on another port. If 5180 is busy, find out what holds it and stop that process first; never move to 5173 or any other port.
+- Two fixed ports. **5180 is the dev server.** **5190 is the build preview (`yarn build && yarn preview`) that the Cloudflare tunnel serves as agent-flow-board.arbenger.com**, and it uses the same local Docker PostgreSQL as dev, never Supabase. Never start either on another port. If a port is busy, find out what holds it and stop that process first; never move to 5173 or any other port. Checks and UI shots run against a preview (ADR-017), never the dev server.
 - Day to day work uses the local Docker PostgreSQL (`yarn db:up`, `yarn db:local:migrate`, `yarn dev:local`; see README). Supabase is the hosted database. Do not point a dev server or a seed at it, and never put the Supabase `DATABASE_URL` in a command line or a log.
 
 ## The gates

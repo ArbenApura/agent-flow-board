@@ -35,3 +35,5 @@ playwright-report/
 # Claude Code: machine-local setup (absolute paths to the HAPR Board in hapr-gameplan)
 .claude/
 .mcp.json
+
+deploy/tunnel/tunnel.log

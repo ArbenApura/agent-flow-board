@@ -24,9 +24,9 @@ export default defineConfig({
 			csrf: { trustedOrigins: ['*'] }
 		})
 	],
-	// LOCALHOST IS ALWAYS PORT 5180, FOR THE DEV SERVER AND THE BUILD PREVIEW. strictPort FAILS INSTEAD OF MOVING TO ANOTHER PORT
+	// TWO FIXED PORTS: 5180 IS THE DEV SERVER, 5190 IS THE BUILD PREVIEW THE CLOUDFLARE TUNNEL SERVES. strictPort FAILS INSTEAD OF MOVING TO ANOTHER PORT
 	server: { port: 5180, strictPort: true },
-	preview: { port: 5180, strictPort: true },
+	preview: { port: 5190, strictPort: true, allowedHosts: ['agent-flow-board.arbenger.com'] },
 	test: {
 		include: [
 			'src/**/*.test.ts',
