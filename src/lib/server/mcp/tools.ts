@@ -155,6 +155,8 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 		percent: d.item.percent,
 		version: d.item.version,
 		visibility: d.item.visibility,
+		createdBy: d.creator?.name ?? null,
+		createdAt: d.item.createdAt,
 		drift: d.item.health.drift,
 		phases: d.phases.map((p) => ({
 			key: p.key,
@@ -399,17 +401,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		{
 			project: z.string(),
 			status: z
-				.array(
-					z.enum([
-						'PLANNED',
-						'IN PROGRESS',
-						'TESTING',
-						'IN REVIEW',
-						'ON HOLD',
-						'COMPLETED',
-						'REMOVED'
-					])
-				)
+				.array(z.enum(['PLANNED', 'IN PROGRESS', 'IN REVIEW', 'ON HOLD', 'COMPLETED', 'REMOVED']))
 				.optional(),
 			cursor: z.number().int().optional(),
 			limit: z.number().int().min(1).max(100).optional()
@@ -628,15 +620,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		'Set a status, with a short note. COMPLETED needs every step closed and may be kept for people. Closing another item than the one you claimed asks first.',
 		{
 			item: itemName.optional(),
-			status: z.enum([
-				'PLANNED',
-				'IN PROGRESS',
-				'TESTING',
-				'IN REVIEW',
-				'ON HOLD',
-				'COMPLETED',
-				'REMOVED'
-			]),
+			status: z.enum(['PLANNED', 'IN PROGRESS', 'IN REVIEW', 'ON HOLD', 'COMPLETED', 'REMOVED']),
 			note: z.string().min(3).max(160),
 			confirmed: z.boolean().optional()
 		},

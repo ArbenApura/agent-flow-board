@@ -796,9 +796,9 @@ describe.each([
 			{ ...person('admin'), services: { github, backups: true } },
 			w.projectKey
 		);
-		expect(admin.quietItems.map((q) => q.ref)).toEqual(
-			expect.arrayContaining([quiet.ref, secret.ref])
-		);
+		expect(admin.quietItems.map((q) => q.ref)).toContain(quiet.ref);
+		// Not even an admin sees a private item somebody else made
+		expect(admin.quietItems.map((q) => q.ref)).not.toContain(secret.ref);
 		expect(admin.staleClaims.find((c) => c.itemRef === stale.ref)).toMatchObject({
 			tool: 'claude-code',
 			phase: '1'
@@ -806,7 +806,11 @@ describe.each([
 		expect(
 			admin.stepsWithoutEvidence.some((s) => s.itemRef === quiet.ref && s.target === 'preview')
 		).toBe(true);
-		expect(admin.unrecordedCommits.some((c) => c.itemRef === secret.ref)).toBe(true);
+		expect(admin.unrecordedCommits.some((c) => c.itemRef === secret.ref)).toBe(false);
+		// Its maker still sees it on the panel
+		const maker = await projectHealth(person('owner'), w.projectKey);
+		expect(maker.quietItems.map((q) => q.ref)).toContain(secret.ref);
+		expect(maker.unrecordedCommits.some((c) => c.itemRef === secret.ref)).toBe(true);
 		expect(admin.drift.find((d) => d.ref === review.ref)?.codes).toContain(
 			'in-review-with-open-steps'
 		);
@@ -828,5 +832,21 @@ describe.each([
 			await withTenant(db, { orgId: w.orgId }, (tx) => tx.select().from(githubInstallation))
 		).toHaveLength(1);
 		await updateItem(person('owner'), { item: quiet.ref, title: 'Quiet and old, renamed' });
+	});
+
+	it('turning an item private releases the claims of other people and tells their sessions', async () => {
+		const it = await newItem('Claimed then made private');
+		// An owner's session, not the maker's, works on the item
+		const id = (
+			await startSession(w.ctx('owner', { kind: 'agent', tool: 'claude-code' }), {
+				tool: 'claude-code'
+			})
+		).sessionId;
+		await claim(agent('owner', id), id, it.ref, '1');
+		expect((await sessionRow(id)).claimedItemId).toBe(it.id);
+		await updateItem(person('member'), { item: it.ref, visibility: 'private' });
+		const after = await sessionRow(id);
+		expect(after.claimedItemId).toBeNull();
+		expect(JSON.stringify(after.notices)).toMatch(/made private by its creator/);
 	});
 });

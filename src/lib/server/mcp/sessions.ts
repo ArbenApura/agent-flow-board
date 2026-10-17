@@ -5,11 +5,11 @@
 import type { Ctx } from '../ops/context';
 // -- DEP-MODULES -- //
 import { randomBytes } from 'node:crypto';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 // -- MODULES -- //
 import { item, phase, session, step } from '../db/schema';
 import { OpError, run } from '../ops/context';
-import { findItem } from '../ops/resolve';
+import { canSeeItem, findItem } from '../ops/resolve';
 import { notifyChange } from '../realtime/notify';
 import { renewSession } from '../ops/tracking';
 
@@ -37,10 +37,21 @@ async function describe(
 	let it: SessionInfo['item'] = null;
 	if (row.claimedItemId) {
 		const [i] = await tx
-			.select({ id: item.id, ref: item.ref, title: item.title, tabName: item.tabName })
+			.select({
+				id: item.id,
+				ref: item.ref,
+				title: item.title,
+				tabName: item.tabName,
+				visibility: item.visibility,
+				createdBy: item.createdBy
+			})
 			.from(item)
 			.where(eq(item.id, row.claimedItemId));
-		it = i ?? null;
+		// A session never reports an item it may no longer see (the item turned private after the claim)
+		it =
+			i && canSeeItem(null, i, row.userId)
+				? { id: i.id, ref: i.ref, title: i.title, tabName: i.tabName }
+				: null;
 	}
 	return {
 		sessionId: row.id,
@@ -155,6 +166,19 @@ export async function claim(
 			})
 			.where(eq(session.id, sessionId))
 			.returning();
+		// An older session of the same person and tool on the same item lets go, so one claim shows as one badge
+		if (itemId)
+			await tx
+				.update(session)
+				.set({ claimedItemId: null, claimedPhase: null, updatedAt: sql`now()` })
+				.where(
+					and(
+						eq(session.claimedItemId, itemId),
+						eq(session.userId, row.userId),
+						eq(session.tool, row.tool),
+						ne(session.id, sessionId)
+					)
+				);
 		for (const p of new Set([projectId, before?.projectId].filter((v): v is string => !!v)))
 			await notifyChange(tx, { o: ctx.orgId, p, k: 'claim', i: itemId });
 		return { ...(await describe(tx, row)), nextOpen };

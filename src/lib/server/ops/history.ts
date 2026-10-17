@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { undoEvent, type UndoResult } from '../db/events';
 import { attachment, event, item, task } from '../db/schema';
 import { OpError, requireCap, run } from './context';
-import { canSeeItem, findItem, findProject, mayView } from './resolve';
+import { canSeeItem, findItem, findProject, mayView, visibleItemSql } from './resolve';
 
 // -- CONSTANTS -- //
 
@@ -45,8 +45,7 @@ export async function listEvents(ctx: Ctx, raw: z.input<typeof eventsInput>) {
 	const input = eventsInput.parse(raw);
 	return run(ctx, async (tx) => {
 		const proj = await findProject(tx, ctx, input.project);
-		const { role } = await requireCap(tx, ctx, 'read', proj.id);
-		const seeAll = role === 'owner' || role === 'admin';
+		await requireCap(tx, ctx, 'read', proj.id);
 		// One item's history, when asked for by name, id or old alias
 		const onlyItem = input.item
 			? (await findItem(tx, ctx, input.item, { includeTrashed: true })).id
@@ -77,9 +76,7 @@ export async function listEvents(ctx: Ctx, raw: z.input<typeof eventsInput>) {
 					onlyItem ? eq(event.itemId, onlyItem) : undefined,
 					input.sessionId ? eq(event.sessionId, input.sessionId) : undefined,
 					input.afterId !== undefined ? gt(event.id, input.afterId) : undefined,
-					seeAll
-						? undefined
-						: sql`(${event.itemId} is null or ${item.visibility} = 'public' or ${item.createdBy} = ${ctx.actor.userId} or ${item.assigneeId} = ${ctx.actor.userId})`
+					sql`(${event.itemId} is null or ${visibleItemSql(ctx.actor.userId)})`
 				)
 			)
 			.orderBy(desc(event.id))
@@ -95,6 +92,30 @@ export async function listEvents(ctx: Ctx, raw: z.input<typeof eventsInput>) {
 	});
 }
 
+/** Does this change carry who may see the item? Undo writes the row directly, so only the item's creator may reverse it. */
+const changesVisibility = (ev: { before: unknown; after: unknown }) =>
+	[ev.before, ev.after].some(
+		(v) => typeof v === 'object' && v !== null && Object.hasOwn(v as object, 'visibility')
+	);
+
+/**
+ * May this person undo a change to this item? A hidden item answers not-found, and a change of its visibility is the
+ * creator's alone, the same rule as updateItem.
+ */
+async function undoGate(
+	tx: Parameters<Parameters<typeof run>[1]>[0],
+	ctx: Ctx,
+	ev: { itemId: string | null; before: unknown; after: unknown }
+): Promise<UndoResult | null> {
+	if (!ev.itemId) return null;
+	const [it] = await tx.select().from(item).where(eq(item.id, ev.itemId));
+	if (!it) return null;
+	if (!(await mayView(tx, ctx, it))) return { ok: false, reason: 'not-found' };
+	if (changesVisibility(ev) && it.createdBy !== ctx.actor.userId)
+		return { ok: false, reason: 'unsupported' };
+	return null;
+}
+
 /** Reverses one change with a compensating event. A conflict (the thing changed again since) is reported, not forced. */
 export async function undoChange(
 	ctx: Ctx,
@@ -103,17 +124,19 @@ export async function undoChange(
 ): Promise<UndoResult> {
 	return run(ctx, async (tx) => {
 		const [ev] = await tx
-			.select({ projectId: event.projectId, itemId: event.itemId })
+			.select({
+				projectId: event.projectId,
+				itemId: event.itemId,
+				before: event.before,
+				after: event.after
+			})
 			.from(event)
 			.where(eq(event.id, eventId));
 		if (!ev) return { ok: false, reason: 'not-found' } as UndoResult;
 		await requireCap(tx, ctx, 'write', ev.projectId);
 		// A change to an item this person cannot see is not theirs to undo, and looks the same as one that does not exist
-		if (ev.itemId) {
-			const [it] = await tx.select().from(item).where(eq(item.id, ev.itemId));
-			if (it && !(await mayView(tx, ctx, it)))
-				return { ok: false, reason: 'not-found' } as UndoResult;
-		}
+		const refused = await undoGate(tx, ctx, ev);
+		if (refused) return refused;
 		return undoEvent(
 			tx,
 			{
@@ -138,6 +161,9 @@ export async function undoSession(ctx: Ctx, sessionId: string) {
 			.select({
 				id: event.id,
 				projectId: event.projectId,
+				itemId: event.itemId,
+				before: event.before,
+				after: event.after,
 				actorUserId: event.actorUserId,
 				undoable: event.undoable,
 				external: event.external
@@ -159,6 +185,12 @@ export async function undoSession(ctx: Ctx, sessionId: string) {
 				throw new OpError('FORBIDDEN', 'You can undo only your own session.');
 			if (!e.undoable || e.external) {
 				skipped.push({ id: e.id, reason: e.external ? 'external' : 'final' });
+				continue;
+			}
+			// An item this person cannot see, or a visibility change that is not theirs, is skipped like one that does not exist
+			const refused = await undoGate(tx, ctx, e);
+			if (refused && !refused.ok) {
+				skipped.push({ id: e.id, reason: refused.reason });
 				continue;
 			}
 			const r = await undoEvent(
@@ -204,9 +236,19 @@ export async function listTrash(ctx: Ctx, projectKey: string) {
 			.select()
 			.from(attachment)
 			.where(and(eq(attachment.projectId, proj.id), isNotNull(attachment.deletedAt)));
+		// A file of an item this person cannot see is hidden with it, whatever the file's own flag says
+		const fileItemIds = [...new Set(files.map((a) => a.itemId).filter((v): v is string => !!v))];
+		const fileItems = fileItemIds.length
+			? await tx.select().from(item).where(inArray(item.id, fileItemIds))
+			: [];
+		const hiddenItems = new Set(
+			fileItems.filter((i) => !canSeeItem(role, i, ctx.actor.userId)).map((i) => i.id)
+		);
 		// A private file in the trash is for members, admins and owners, as it is on the item
 		const visibleFiles = files.filter(
-			(a) => a.visibility === 'public' || seeAll || role === 'member'
+			(a) =>
+				!(a.itemId && hiddenItems.has(a.itemId)) &&
+				(a.visibility === 'public' || seeAll || role === 'member')
 		);
 		const daysLeft = (d: Date | null) =>
 			Math.max(0, TRASH_DAYS - Math.floor((Date.now() - (d?.getTime() ?? 0)) / 86_400_000));

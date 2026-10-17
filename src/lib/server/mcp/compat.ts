@@ -23,7 +23,7 @@ import { summarize, type ToolBuilder } from './tools';
 // -- CONSTANTS -- //
 
 const TOOL = 'hapr-board-compat';
-const OPEN = ['PLANNED', 'IN PROGRESS', 'TESTING', 'IN REVIEW', 'ON HOLD'] as const;
+const OPEN = ['PLANNED', 'IN PROGRESS', 'IN REVIEW', 'ON HOLD'] as const;
 const stepMark = z.object({
 	key: z.string(),
 	mark: z.enum(['done', 'open', 'waived', 'superseded']),
@@ -280,15 +280,7 @@ export function registerCompat({ tool }: ToolBuilder) {
 		'Set a status with a short note. COMPLETED needs every counted step closed.',
 		{
 			id: z.string(),
-			status: z.enum([
-				'PLANNED',
-				'IN PROGRESS',
-				'TESTING',
-				'IN REVIEW',
-				'ON HOLD',
-				'COMPLETED',
-				'REMOVED'
-			]),
+			status: z.enum(['PLANNED', 'IN PROGRESS', 'IN REVIEW', 'ON HOLD', 'COMPLETED', 'REMOVED']),
 			note: z.string().min(3).max(160),
 			confirmed: z.boolean().optional()
 		},
@@ -403,12 +395,13 @@ export function registerCompat({ tool }: ToolBuilder) {
 			for (const p of projects) {
 				for (const t of await listTasks(ctx, p.key)) {
 					const linked = t.linkedItemIds.length
-						? await run(ctx, (tx) =>
-								tx
-									.select({ ref: item.ref, status: item.status })
-									.from(item)
-									.where(inArray(item.id, t.linkedItemIds))
-							)
+						? await run(ctx, async (tx) => {
+								const rows = await tx.select().from(item).where(inArray(item.id, t.linkedItemIds));
+								// A private item that is not the caller's stays out of the task's links
+								const seen: typeof rows = [];
+								for (const row of rows) if (await mayView(tx, ctx, row)) seen.push(row);
+								return seen;
+							})
 						: [];
 					out.push({
 						ref: `T-${t.number}`,

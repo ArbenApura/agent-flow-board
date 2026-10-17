@@ -7,11 +7,17 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { searchBoard } from '../../src/lib/server/ops/board';
 import { createTask, updateTask } from '../../src/lib/server/ops/docs';
-import { createItem, trashItem, updateItem } from '../../src/lib/server/ops/items';
+import { createItem, getItem, trashItem, updateItem } from '../../src/lib/server/ops/items';
 import { listProjects, updateProject } from '../../src/lib/server/ops/projects';
 import { setStatus } from '../../src/lib/server/ops/status';
 import { recordSteps } from '../../src/lib/server/ops/steps';
-import { listTrash, purgeTrashIfDue } from '../../src/lib/server/ops/history';
+import {
+	listEvents,
+	listTrash,
+	purgeTrashIfDue,
+	undoChange,
+	undoSession
+} from '../../src/lib/server/ops/history';
 import { makePglite, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 
@@ -68,19 +74,71 @@ describe('access rules', () => {
 		await expect(updateItem(other, { item: priv.ref, assigneeId: second })).rejects.toMatchObject({
 			code: 'NOT_FOUND'
 		});
-		// The maker and an admin still can
+		// Only the maker can; an owner or an admin is as locked out as anyone else
 		await expect(
 			updateItem(w.ctx('member'), { item: priv.ref, title: 'Renamed by the maker' })
 		).resolves.toBeTruthy();
-		await expect(
-			updateItem(w.ctx('admin'), { item: priv.ref, title: 'Renamed by an admin' })
-		).resolves.toBeTruthy();
-		// Trash lists it for those who may see it only
-		await trashItem(w.ctx('admin'), priv.ref);
+		for (const who of ['admin', 'owner'] as const)
+			await expect(
+				updateItem(w.ctx(who), { item: priv.ref, title: `Renamed by the ${who}` })
+			).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		// Trash lists it for the maker only
+		await trashItem(w.ctx('member'), priv.ref);
 		expect((await listTrash(other, w.projectKey)).items.map((i) => i.id)).not.toContain(priv.id);
-		expect((await listTrash(w.ctx('admin'), w.projectKey)).items.map((i) => i.id)).toContain(
+		expect((await listTrash(w.ctx('admin'), w.projectKey)).items.map((i) => i.id)).not.toContain(
 			priv.id
 		);
+		expect((await listTrash(w.ctx('owner'), w.projectKey)).items.map((i) => i.id)).not.toContain(
+			priv.id
+		);
+		expect((await listTrash(w.ctx('member'), w.projectKey)).items.map((i) => i.id)).toContain(
+			priv.id
+		);
+	});
+
+	it('undo cannot reach a private item, and a change of who may see an item is undone by its maker only', async () => {
+		const made = await createItem(w.ctx('member'), {
+			project: w.projectKey,
+			title: 'Undo me carefully',
+			...PLAN
+		});
+		await updateItem(w.ctx('member'), { item: made.ref, visibility: 'private' });
+		const events = await listEvents(w.ctx('member'), { project: w.projectKey, item: made.ref });
+		const flip = events.find((e) => e.verb === 'item.update')!;
+		// While it is private an admin cannot see the change, so cannot undo it either
+		expect(await undoChange(w.ctx('admin'), flip.id)).toMatchObject({
+			ok: false,
+			reason: 'not-found'
+		});
+		expect(
+			(await listEvents(w.ctx('admin'), { project: w.projectKey })).some(
+				(e) => e.itemId === made.id
+			)
+		).toBe(false);
+		// Once it is public again, an admin sees the change but may not reverse who can see the item
+		await updateItem(w.ctx('member'), { item: made.ref, visibility: 'public' });
+		expect(await undoChange(w.ctx('admin'), flip.id)).toMatchObject({
+			ok: false,
+			reason: 'unsupported'
+		});
+	});
+
+	it("an owner who undoes a whole session skips the changes to another maker's private item", async () => {
+		const sessionId = 'sess-private-undo';
+		const priv = await createItem(
+			{ ...w.ctx('member'), actor: { ...w.ctx('member').actor, sessionId } },
+			{
+				project: w.projectKey,
+				title: 'Private and touched by a session',
+				visibility: 'private',
+				...PLAN
+			}
+		);
+		const result = await undoSession(w.ctx('owner'), sessionId);
+		expect(result.undone).toEqual([]);
+		expect(result.skipped.length).toBeGreaterThan(0);
+		expect(result.skipped.every((s) => s.reason === 'not-found')).toBe(true);
+		expect((await getItem(w.ctx('member'), priv.ref)).item.deletedAt).toBeNull();
 	});
 
 	it('search shows what the caller may see, and not the sections of a trashed item', async () => {
@@ -100,6 +158,12 @@ describe('access rules', () => {
 		expect(theirs).not.toContain('secret plan');
 		const viewer = (await searchBoard(w.ctx('viewer'), 'zebrafish')).map((h) => h.title).join('|');
 		expect(viewer).not.toContain('secret plan');
+		// Not even an owner or an admin finds a title that is not theirs
+		for (const who of ['admin', 'owner'] as const) {
+			const found = (await searchBoard(w.ctx(who), 'zebrafish')).map((h) => h.title).join('|');
+			expect(found).toContain('public plan');
+			expect(found).not.toContain('secret plan');
+		}
 		await trashItem(w.ctx('member'), pub.ref);
 		const afterTrash = (await searchBoard(w.ctx('member'), 'zebrafish'))
 			.map((h) => h.title)

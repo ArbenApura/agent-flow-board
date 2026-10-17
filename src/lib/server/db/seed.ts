@@ -149,7 +149,7 @@ export async function seedDemo(
 	await db.exec(`INSERT INTO item (org_id, project_id, number, ref, title, tab_name, status, percent, done_steps, total_steps)
 		SELECT '${SEED.acme}', '${SEED.load}', n, 'LOAD-' || n, 'Load item number ' || n,
 			'LOAD_' || n,
-			(ARRAY['PLANNED','IN PROGRESS','TESTING','IN REVIEW','ON HOLD','COMPLETED'])[1 + (n % 6)],
+			(ARRAY['PLANNED','IN PROGRESS','IN REVIEW','ON HOLD','COMPLETED'])[1 + (n % 5)],
 			(n * 7) % 101, (n * 7) % 11, 10
 		FROM generate_series(1, ${loadItems}) AS n ON CONFLICT DO NOTHING`);
 	await db.exec(

@@ -57,7 +57,6 @@
 	const secondary = $derived(
 		current
 			? [
-					...(current.webApp ? [{ href: `${base}/${current.key}/ui`, label: 'UI' }] : []),
 					{ href: `${base}/${current.key}/trash`, label: 'Trash' },
 					{ href: `${base}/${current.key}/settings`, label: 'Project settings' }
 				]

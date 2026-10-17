@@ -5,6 +5,7 @@
 // -- TYPES -- //
 import type { Running } from '../../board/rows';
 import type { Ctx } from './context';
+import type { Role } from '../orgs/roles';
 // -- DEP-MODULES -- //
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 // -- MODULES -- //
@@ -18,7 +19,7 @@ import { listComments } from './docs';
 import { listEvents } from './history';
 import { pinnedProjectIds } from './pins';
 import { canSeeItem, getItem } from './items';
-import { findProject } from './resolve';
+import { findProject, visibleItemSql } from './resolve';
 import { unrecordedCommits } from './tracking';
 
 // -- CONSTANTS -- //
@@ -28,15 +29,10 @@ export const RUNNING_WINDOW_MINUTES = 120;
 
 // -- FUNCTIONS -- //
 
-/** The visibility rule of listItems, as SQL, for a viewer who is not an owner or admin. */
-const visibleTo = (userId: string) =>
-	sql`(${item.visibility} = 'public' or ${item.createdBy} = ${userId} or ${item.assigneeId} = ${userId})`;
-
 async function runningIn(
 	tx: Parameters<Parameters<typeof run>[1]>[0],
 	projectId: string,
-	userId: string,
-	seeAll: boolean
+	userId: string
 ): Promise<Running[]> {
 	const rows = await tx
 		.select({
@@ -54,18 +50,27 @@ async function runningIn(
 				eq(item.projectId, projectId),
 				isNull(item.deletedAt),
 				sql`${session.lastSeenAt} > now() - make_interval(mins => ${RUNNING_WINDOW_MINUTES})`,
-				seeAll ? undefined : visibleTo(userId)
+				visibleItemSql(userId)
 			)
 		)
 		.orderBy(sql`${session.lastSeenAt} desc`);
-	return rows.map((r) => ({
-		itemId: r.itemId,
-		itemRef: r.itemRef,
-		phase: r.phase,
-		tool: r.tool,
-		title: `${r.tabName ?? 'ITEM'}: ${r.itemRef}`,
-		sessionId: r.sessionId
-	}));
+	// Two sessions of one tool on the same item and phase show one badge, the newest wins
+	const seen = new Set<string>();
+	return rows
+		.filter((r) => {
+			const key = `${r.itemId}|${r.phase ?? ''}|${r.tool}`;
+			if (seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		})
+		.map((r) => ({
+			itemId: r.itemId,
+			itemRef: r.itemRef,
+			phase: r.phase,
+			tool: r.tool,
+			title: `${r.tabName ?? 'ITEM'}: ${r.itemRef}`,
+			sessionId: r.sessionId
+		}));
 }
 
 /** Counts by status and by area for a project, and who is running now. One transaction, a few index scans. */
@@ -73,11 +78,10 @@ export async function projectSummary(ctx: Ctx, projectKey: string) {
 	return run(ctx, async (tx) => {
 		const proj = await findProject(tx, ctx, projectKey);
 		const { role, caps } = await requireCap(tx, ctx, 'read', proj.id);
-		const seeAll = role === 'owner' || role === 'admin';
 		const base = and(
 			eq(item.projectId, proj.id),
 			isNull(item.deletedAt),
-			seeAll ? undefined : visibleTo(ctx.actor.userId)
+			visibleItemSql(ctx.actor.userId)
 		);
 		const byStatusRows = await tx
 			.select({ status: item.status, n: sql<number>`count(*)::int` })
@@ -103,7 +107,7 @@ export async function projectSummary(ctx: Ctx, projectKey: string) {
 			total,
 			byStatus,
 			areas: areaRows,
-			running: await runningIn(tx, proj.id, ctx.actor.userId, seeAll)
+			running: await runningIn(tx, proj.id, ctx.actor.userId)
 		};
 	});
 }
@@ -147,33 +151,26 @@ export async function orgOverview(ctx: Ctx) {
 				status: item.status,
 				visibility: item.visibility,
 				createdBy: item.createdBy,
-				assigneeId: item.assigneeId,
 				n: sql<number>`count(*)::int`,
 				lastChange: sql<Date | null>`max(${item.updatedAt})`
 			})
 			.from(item)
 			.where(and(inArray(item.projectId, ids), isNull(item.deletedAt)))
-			.groupBy(item.projectId, item.status, item.visibility, item.createdBy, item.assigneeId);
+			.groupBy(item.projectId, item.status, item.visibility, item.createdBy);
 		const out = [];
 		for (const { p, role } of visible) {
-			const seeAll = role === 'owner' || role === 'admin';
 			const byStatus: Record<string, number> = {};
 			let total = 0;
 			let lastActivityAt: Date | null = null;
 			for (const c of counts.filter((c) => c.projectId === p.id)) {
-				const ok =
-					seeAll ||
-					c.visibility === 'public' ||
-					c.createdBy === ctx.actor.userId ||
-					c.assigneeId === ctx.actor.userId;
-				if (!ok) continue;
+				if (!canSeeItem(role, c, ctx.actor.userId)) continue;
 				byStatus[c.status] = (byStatus[c.status] ?? 0) + c.n;
 				total += c.n;
 				// Only items the person may see move this, so a private item never shows through
 				const changed = c.lastChange ? new Date(c.lastChange) : null;
 				if (changed && (!lastActivityAt || changed > lastActivityAt)) lastActivityAt = changed;
 			}
-			const running = await runningIn(tx, p.id, ctx.actor.userId, seeAll);
+			const running = await runningIn(tx, p.id, ctx.actor.userId);
 			out.push({
 				project: p,
 				role: role!,
@@ -260,7 +257,6 @@ export async function searchBoard(
 						projectId: item.projectId,
 						visibility: item.visibility,
 						createdBy: item.createdBy,
-						assigneeId: item.assigneeId,
 						deletedAt: item.deletedAt
 					})
 					.from(item)
@@ -296,14 +292,7 @@ export async function searchBoard(
 			const projectId = it?.projectId ?? tk?.projectId;
 			const role = projectId ? roles.get(projectId) : null;
 			if (!projectId || !role) continue;
-			if (it && it.visibility === 'private') {
-				const ok =
-					role === 'owner' ||
-					role === 'admin' ||
-					it.createdBy === ctx.actor.userId ||
-					it.assigneeId === ctx.actor.userId;
-				if (!ok) continue;
-			}
+			if (it && !canSeeItem(role as Role, it, ctx.actor.userId)) continue;
 			const projectKey = keyOf.get(projectId)!;
 			if (only && projectKey.toUpperCase() !== only) continue;
 			out.push({
@@ -332,8 +321,7 @@ export async function mayReceive(ctx: Ctx, projectId: string, itemId?: string | 
 			const [it] = await tx
 				.select({
 					visibility: item.visibility,
-					createdBy: item.createdBy,
-					assigneeId: item.assigneeId
+					createdBy: item.createdBy
 				})
 				.from(item)
 				.where(eq(item.id, itemId));
@@ -373,8 +361,7 @@ export async function refsFor(
 				id: item.id,
 				ref: item.ref,
 				visibility: item.visibility,
-				createdBy: item.createdBy,
-				assigneeId: item.assigneeId
+				createdBy: item.createdBy
 			})
 			.from(item)
 			.where(and(inArray(item.id, wanted), eq(item.projectId, proj.id)));

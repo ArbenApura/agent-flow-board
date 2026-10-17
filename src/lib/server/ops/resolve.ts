@@ -65,17 +65,23 @@ export async function findItem(
 	return row;
 }
 
-/** Private items are visible to admins and owners, and to the person who made them or holds them. */
+/**
+ * A private item is visible only to the person who created it, whatever their role: owners, admins and the assignee
+ * included. An item with no creator (or whose creator left) stays hidden from everyone (ADR 1). The role is still taken so
+ * callers read the same, and it never widens access.
+ */
 export function canSeeItem(
-	role: Role | null,
-	it: Pick<typeof item.$inferSelect, 'visibility' | 'createdBy' | 'assigneeId'>,
+	_role: Role | null,
+	it: Pick<typeof item.$inferSelect, 'visibility' | 'createdBy'>,
 	userId: string
 ): boolean {
 	if (it.visibility === 'public') return true;
-	return (
-		role === 'owner' || role === 'admin' || it.createdBy === userId || it.assigneeId === userId
-	);
+	return it.createdBy !== null && it.createdBy === userId;
 }
+
+/** The visibility rule of canSeeItem as SQL, for lists, counts and activity. Every query that filters items uses this one. */
+export const visibleItemSql = (userId: string) =>
+	sql`(${item.visibility} = 'public' or ${item.createdBy} = ${userId})`;
 
 /**
  * Every verb that names an item comes through findItem, so the project, token and privacy rules are applied here, before

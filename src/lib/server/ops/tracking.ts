@@ -81,6 +81,38 @@ export async function releaseClaimsOn(
 }
 
 /**
+ * An item turned private: every session of someone other than its creator lets go of it in the same transaction and is told
+ * in its next reply, so no session keeps the reference and title of an item it can no longer see.
+ */
+export async function releaseOthersClaimsOn(
+	tx: Tx,
+	ctx: Ctx,
+	it: { id: string; projectId: string; ref: string },
+	creatorId: string | null
+): Promise<number> {
+	const note = `${it.ref} was made private by its creator, so your claim on it was released. Claim another item with work_start if you continue.`;
+	const released = await tx
+		.update(session)
+		.set({
+			claimedItemId: null,
+			claimedPhase: null,
+			askedAt: sql`now()`,
+			notices: sql`${session.notices} || ${JSON.stringify([note])}::jsonb`,
+			updatedAt: sql`now()`
+		})
+		.where(
+			and(
+				eq(session.claimedItemId, it.id),
+				creatorId ? sql`${session.userId} <> ${creatorId}` : undefined
+			)
+		)
+		.returning({ id: session.id });
+	if (released.length)
+		await notifyChange(tx, { o: ctx.orgId, p: it.projectId, k: 'claim', i: it.id });
+	return released.length;
+}
+
+/**
  * Closing an item the session is not bound to asks first (ADR-029). A person closing from the web app is never asked. The
  * server answers CONFIRM_REQUIRED naming both items, and the agent repeats the call with `confirmed` after the user agrees.
  */

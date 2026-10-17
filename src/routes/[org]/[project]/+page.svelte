@@ -384,7 +384,7 @@
 								/>{/if}
 						</span>
 						<span class={'size-2 rounded-full ' + STATUS_STYLE[s].dot} aria-hidden="true"></span>
-						<span class="flex-1 text-left">{s.toLowerCase()}</span>
+						<span class="flex-1 text-left">{s.charAt(0) + s.slice(1).toLowerCase()}</span>
 						<span class="text-xs text-muted tabular-nums">{summary?.byStatus[s] ?? 0}</span>
 					</button>
 				{/each}

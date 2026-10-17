@@ -31,8 +31,7 @@ export function driftFlags(i: DriftInput): string[] {
 	const out: string[] = [];
 	const complete = i.total > 0 && i.done === i.total;
 	if (i.status === 'PLANNED' && i.done > 0) out.push('planned-with-done-steps');
-	if ((i.status === 'IN PROGRESS' || i.status === 'TESTING') && complete)
-		out.push('complete-not-in-review');
+	if (i.status === 'IN PROGRESS' && complete) out.push('complete-not-in-review');
 	if (i.status === 'IN REVIEW' && i.done < i.total) out.push('in-review-with-open-steps');
 	if (i.status === 'IN REVIEW' && complete && i.openManual === 0) out.push('ready-for-sign-off');
 	return out;

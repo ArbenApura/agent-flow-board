@@ -8,11 +8,13 @@
 	// -- MODULES -- //
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { clearCache } from '#lib/board/swr.js';
+	import VisibilityPill from '#lib/board/item/VisibilityPill.svelte';
 	import ContinueDialog from '#lib/board/ContinueDialog.svelte';
 	import EventList from '#lib/board/EventList.svelte';
 	import PlanTab from '#lib/board/item/PlanTab.svelte';
 	import {
 		DRIFT_TEXT,
+		ago,
 		STATUSES,
 		STATUS_STYLE,
 		STATUS_TONE,
@@ -54,7 +56,6 @@
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Gavel from '@lucide/svelte/icons/gavel';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
-	import Lock from '@lucide/svelte/icons/lock';
 	import MessagesSquare from '@lucide/svelte/icons/messages-square';
 	import MonitorCheck from '@lucide/svelte/icons/monitor-check';
 	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
@@ -133,6 +134,11 @@
 		continueAction = a;
 		continueOpen = true;
 	}
+	// An item with no creator was made by the system, and one whose creator left the organisation has no name to show
+	const creatorName = $derived(
+		d?.creator?.name ?? (d?.item.createdBy ? 'Former member' : 'System')
+	);
+	const createdFull = $derived(d ? new Date(d.item.createdAt).toLocaleString('en') : '');
 	const continueItem = $derived(
 		d ? { ref: d.item.ref, title: d.item.title, href: page.url.pathname } : null
 	);
@@ -293,6 +299,35 @@
 		}
 	}
 
+	// Only the creator gets here: the server refuses anyone else with FORBIDDEN
+	async function setVisibility(next: 'public' | 'private') {
+		if (!d) return;
+		try {
+			await toast.promise(
+				api(org, `/items/${d.item.ref}`, {
+					method: 'PATCH',
+					body: { visibility: next, expectVersion: d.item.version },
+					key: newKey()
+				}),
+				{
+					id: 'item-visibility',
+					loading: 'Saving...',
+					success: next === 'private' ? 'This item is now private.' : 'This item is now public.',
+					error: (e) =>
+						e instanceof ApiError && e.code === 'STALE_VERSION'
+							? 'Someone else changed this item first.'
+							: e instanceof ApiError
+								? e.message
+								: 'The change was not saved.'
+				}
+			);
+			await invalidate('afb:project');
+		} catch (e) {
+			if (e instanceof ApiError && e.code === 'STALE_VERSION')
+				stale = String((e.details as { changedAt?: string } | undefined)?.changedAt ?? '');
+		}
+	}
+
 	async function trash() {
 		if (!d) return;
 		busy = true;
@@ -353,9 +388,11 @@
 			</svg>
 			<div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
 				<div class="min-w-0 flex-1 basis-72">
+					<!-- THE BREADCRUMB IN THE TOP BAR ALREADY NAMES THE PROJECT ON A WIDE SCREEN, SO THIS LINK IS FOR PHONES, WHERE THE BREADCRUMB IS HIDDEN -->
 					<a
 						href={`/${org}/${d.project.key}`}
-						class="mb-1 inline-block text-sm text-accent-text hover:underline">{d.project.name}</a
+						class="mb-1 inline-block text-sm text-accent-text hover:underline md:hidden"
+						>{d.project.name}</a
 					>
 					<div
 						class="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs text-muted"
@@ -380,15 +417,17 @@
 								/>
 							{/if}
 						</button>
-						{#if d.item.visibility === 'private'}<Lock size={14} aria-label="Private" />{/if}
-						{#if d.item.tabName}<span>{d.item.tabName}</span>{/if}
+						<!-- PRIVATE OR PUBLIC: A BUTTON FOR THE PERSON WHO MADE THE ITEM, PLAIN TEXT FOR EVERYONE ELSE -->
+						<VisibilityPill
+							visibility={d.item.visibility === 'private' ? 'private' : 'public'}
+							canChange={d.canSetVisibility}
+							onchange={setVisibility}
+						/>
+						{#if d.item.tabName}<span
+								class="rounded-md border border-line px-1.5 py-0.5 leading-none"
+								title="The name this item gives a coding session">{d.item.tabName}</span
+							>{/if}
 					</div>
-					<h1
-						class="mt-1 text-xl font-semibold tracking-tight sm:text-2xl"
-						data-testid="page-title"
-					>
-						{d.item.title}
-					</h1>
 				</div>
 				<!-- THE WORKFLOWS A CODING TOOL CAN RUN FOR THIS ITEM. RESUME IS THE ONE PRIMARY ACTION OF THE PAGE -->
 				{#if canContinue}
@@ -402,7 +441,7 @@
 							{@const Icon = ACTION_ICON[a]}
 							<Button
 								size="sm"
-								variant={a === 'resume' ? 'primary' : 'secondary'}
+								variant="subtle"
 								onclick={() => openContinue(a)}
 								data-testid={`continue-${a}`}
 							>
@@ -414,6 +453,7 @@
 				{/if}
 				{#if env.canWrite}
 					<ActionMenu
+						size="sm"
 						label="Item actions"
 						items={[
 							{
@@ -434,6 +474,24 @@
 						]}
 					/>
 				{/if}
+			</div>
+
+			<!-- THE TITLE AND WHO MADE THE ITEM USE THE FULL WIDTH OF THE HEADER, UNDER THE REFERENCE LINE AND THE ACTIONS -->
+			<div class="-mt-2 min-w-0">
+				<h1 class="text-xl font-semibold tracking-tight sm:text-2xl" data-testid="page-title">
+					{d.item.title}
+				</h1>
+				<!-- WHO MADE THE ITEM AND WHEN, A QUIET LINE UNDER THE TITLE -->
+				<p
+					class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted"
+					data-testid="item-creator"
+				>
+					<span>Created by <span class="font-medium text-ink">{creatorName}</span></span>
+					<span aria-hidden="true">·</span>
+					<time datetime={new Date(d.item.createdAt).toISOString()} title={createdFull}
+						>{ago(d.item.createdAt)}<span class="sr-only">, {createdFull}</span></time
+					>
+				</p>
 			</div>
 
 			<!-- THE SUMMARY BAND. THE RING, THE STATUS AND WHO IS RUNNING IT -->

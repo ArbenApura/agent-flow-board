@@ -10,7 +10,7 @@ import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { backupHealth, type BackupHealth } from '../backup/run';
 import { commitLink, githubLink, item, publishRun } from '../db/schema';
 import { requireCap, run } from './context';
-import { findProject } from './resolve';
+import { findProject, visibleItemSql } from './resolve';
 import { IDLE_MINUTES, claimsIn, stepsWithoutEvidence } from './tracking';
 
 // -- TYPES -- //
@@ -29,10 +29,7 @@ export async function projectHealth(ctx: Ctx, projectKey: string, now = new Date
 	const base = await run(ctx, async (tx) => {
 		const proj = await findProject(tx, ctx, projectKey);
 		const { role, caps } = await requireCap(tx, ctx, 'read', proj.id);
-		const seeAll = role === 'owner' || role === 'admin';
-		const visible = seeAll
-			? undefined
-			: sql`(${item.visibility} = 'public' or ${item.createdBy} = ${ctx.actor.userId} or ${item.assigneeId} = ${ctx.actor.userId})`;
+		const visible = visibleItemSql(ctx.actor.userId);
 		const inProject = and(eq(item.projectId, proj.id), isNull(item.deletedAt), visible);
 		const items = await tx
 			.select({

@@ -34,7 +34,6 @@ export const ROLES = ['owner', 'admin', 'member', 'viewer', 'guest'] as const;
 export const STATUSES = [
 	'PLANNED',
 	'IN PROGRESS',
-	'TESTING',
 	'IN REVIEW',
 	'ON HOLD',
 	'COMPLETED',

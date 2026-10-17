@@ -14,7 +14,6 @@
 	import HeartPulse from '@lucide/svelte/icons/heart-pulse';
 	import House from '@lucide/svelte/icons/house';
 	import LayoutList from '@lucide/svelte/icons/layout-list';
-	import Monitor from '@lucide/svelte/icons/monitor';
 	import Plug from '@lucide/svelte/icons/plug';
 	import Settings from '@lucide/svelte/icons/settings';
 	import Settings2 from '@lucide/svelte/icons/settings-2';
@@ -55,7 +54,6 @@
 		Activity,
 		Health: HeartPulse,
 		Publish: Upload,
-		UI: Monitor,
 		Trash,
 		'Project settings': Settings2
 	};

@@ -107,7 +107,8 @@ async function claimedItem(ctx: Ctx, s: typeof session.$inferSelect) {
 	if (!s.claimedItemId) return null;
 	return run(ctx, async (tx) => {
 		const [it] = await tx.select().from(item).where(eq(item.id, s.claimedItemId!));
-		return it ?? null;
+		// An item turned private after the claim is no longer shown to a session that may not see it
+		return it && (await mayView(tx, ctx, it)) ? it : null;
 	});
 }
 
@@ -121,7 +122,7 @@ async function brief(ctx: Ctx, s: typeof session.$inferSelect): Promise<string> 
 			.where(
 				and(
 					sql`${item.deletedAt} is null`,
-					inArray(item.status, ['IN PROGRESS', 'TESTING', 'IN REVIEW', 'PLANNED'])
+					inArray(item.status, ['IN PROGRESS', 'IN REVIEW', 'PLANNED'])
 				)
 			)
 			.orderBy(desc(item.lastActivityAt))

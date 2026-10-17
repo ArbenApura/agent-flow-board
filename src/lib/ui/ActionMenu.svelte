@@ -25,11 +25,14 @@
 
 	let {
 		items,
-		label = 'More actions'
+		label = 'More actions',
+		size = 'md'
 	}: {
 		items: MenuItem[];
 		/** Names the icon button for screen readers. */
 		label?: string;
+		/** The same height as the buttons beside it. */
+		size?: 'md' | 'sm';
 	} = $props();
 
 	// -- STATES -- //
@@ -63,8 +66,17 @@
 
 <Popover bind:open placement="bottom-end" role="menu" {label}>
 	{#snippet trigger({ props, toggle })}
-		<Button variant="ghost" iconOnly aria-label={label} onclick={toggle} {...props}>
-			<Ellipsis size={20} strokeWidth={3} />
+		<!-- A SEE-THROUGH TINT OF THE INK TOKEN READS ON ANY SURFACE, PLAIN OR TINTED. IT STAYS ON WHILE THE MENU IS OPEN -->
+		<Button
+			variant="subtle"
+			iconOnly
+			{size}
+			aria-label={label}
+			title={label}
+			onclick={toggle}
+			{...props}
+		>
+			<Ellipsis size={20} strokeWidth={2.5} />
 		</Button>
 	{/snippet}
 	{#snippet children({ close })}

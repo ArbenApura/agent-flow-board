@@ -20,7 +20,6 @@ import {
 	getScale,
 	itemShots,
 	listUiChanges,
-	projectUi,
 	requestMeasure,
 	requestShots,
 	saveUiChanges,
@@ -346,27 +345,10 @@ describe.each([
 				]
 			});
 		}
-		// The member who made the private item, an admin and an owner see it; another member and a viewer do not
-		const creator = await projectUi(as('member'), w.projectKey);
-		expect(creator.runs.map((r) => r.item.ref)).toEqual(
-			expect.arrayContaining([open.ref, secret.ref])
-		);
-		const admin = await projectUi(as('admin'), w.projectKey);
-		expect(admin.runs.map((r) => r.item.ref)).toContain(secret.ref);
-		const viewer = await projectUi(as('viewer'), w.projectKey);
-		expect(viewer.runs.map((r) => r.item.ref)).toContain(open.ref);
-		expect(viewer.runs.map((r) => r.item.ref)).not.toContain(secret.ref);
-		expect(JSON.stringify(viewer)).not.toContain(secret.ref);
-		expect(viewer.canSeePictures).toBe(false);
-		expect(viewer.runs.every((r) => r.results.every((x) => x.image === undefined))).toBe(true);
 		await expect(itemShots(as('viewer'), secret.ref)).rejects.toMatchObject({ code: 'NOT_FOUND' });
 		const seen = await itemShots(as('viewer'), open.ref);
 		expect(seen.canSeePictures).toBe(false);
 		expect(seen.canRun).toBe(false);
-		// The newest run of each item shows once, newest first
-		const refs = admin.runs.map((r) => r.item.ref);
-		expect(new Set(refs).size).toBe(refs.length);
-		expect(admin.runs[0].createdAt >= admin.runs[admin.runs.length - 1].createdAt).toBe(true);
 		const scales = await withTenant(db, { orgId: w.orgId }, (tx) => tx.select().from(designScale));
 		expect(scales.length).toBeGreaterThan(0);
 	});

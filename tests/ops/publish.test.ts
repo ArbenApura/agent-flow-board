@@ -378,6 +378,11 @@ describe.each([
 			loadPublishable(tx, w.projectId)
 		);
 		const ref = items.items[0].item.ref;
+		// Only the person who made an item can make it private or public
+		const maker = {
+			...w.ctx('owner'),
+			actor: { ...w.ctx('owner').actor, userId: items.items[0].item.createdBy! }
+		};
 		await recordSteps(w.ctx('member'), { item: ref, marks: [{ key: '1.2', mark: 'done' }] });
 		const changed = await previewPublish(admin(), w.projectKey);
 		expect(changed.diff).toMatchObject({ changed: [ref], added: [], removed: [], total: 1 });
@@ -385,11 +390,11 @@ describe.each([
 		expect(run1.changedItems).toEqual([ref]);
 		expect(run1.message).toMatch(/Wrote 5 files/); // PLAN, PROGRESS, snapshot, registry and README
 		// Turn it private: its files disappear from the repo on the next publish
-		await updateItem(w.ctx('owner'), { item: ref, visibility: 'private' });
+		await updateItem(maker, { item: ref, visibility: 'private' });
 		const gone = (await requestPublish(admin(), { project: w.projectKey })).run;
 		expect(gone.changedItems).toEqual([ref]);
 		expect(Object.keys(repoFiles()).filter((p) => p.includes(ref))).toEqual([]);
-		await updateItem(w.ctx('owner'), { item: ref, visibility: 'public' });
+		await updateItem(maker, { item: ref, visibility: 'public' });
 		await requestPublish(admin(), { project: w.projectKey });
 		expect(Object.keys(repoFiles()).some((p) => p.includes(ref))).toBe(true);
 	});

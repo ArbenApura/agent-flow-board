@@ -17,8 +17,7 @@ import { releaseClaimsOn, requireCloseConfirmation } from './tracking';
 
 // -- TYPES -- //
 
-export type Status =
-	'PLANNED' | 'IN PROGRESS' | 'TESTING' | 'IN REVIEW' | 'ON HOLD' | 'COMPLETED' | 'REMOVED';
+export type Status = 'PLANNED' | 'IN PROGRESS' | 'IN REVIEW' | 'ON HOLD' | 'COMPLETED' | 'REMOVED';
 export type StatusChange = { from: Status; to: Status; note: string };
 
 // -- CONSTANTS -- //
@@ -26,7 +25,6 @@ export type StatusChange = { from: Status; to: Status; note: string };
 export const STATUS_LIST: Status[] = [
 	'PLANNED',
 	'IN PROGRESS',
-	'TESTING',
 	'IN REVIEW',
 	'ON HOLD',
 	'COMPLETED',
@@ -52,12 +50,8 @@ export function automaticMoves(input: {
 		moves.push('IN PROGRESS');
 		status = 'IN PROGRESS';
 	}
-	// Counted steps at 100% move IN PROGRESS or TESTING to IN REVIEW. An item with no counted steps is never at 100%.
-	if (
-		(status === 'IN PROGRESS' || status === 'TESTING') &&
-		input.total > 0 &&
-		input.done === input.total
-	) {
+	// Counted steps at 100% move IN PROGRESS to IN REVIEW. An item with no counted steps is never at 100%.
+	if (status === 'IN PROGRESS' && input.total > 0 && input.done === input.total) {
 		moves.push('IN REVIEW');
 	}
 	return moves;
@@ -68,7 +62,7 @@ export async function syncLinkedTasks(tx: Tx, itemId: string, status: Status) {
 	const to =
 		status === 'PLANNED'
 			? 'TODO'
-			: status === 'IN PROGRESS' || status === 'TESTING' || status === 'IN REVIEW'
+			: status === 'IN PROGRESS' || status === 'IN REVIEW'
 				? 'IN PROGRESS'
 				: null;
 	if (!to) return;

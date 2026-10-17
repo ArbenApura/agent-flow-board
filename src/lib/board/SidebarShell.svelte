@@ -55,7 +55,7 @@
 			)}
 		>
 			{#if slug}
-				<span class="contents" data-testid={logo ? 'org-logo' : undefined}>
+				<span class="flex size-6 shrink-0" data-testid={logo ? 'org-logo' : undefined}>
 					<OrgTile {name} {logo} />
 				</span>
 			{:else}

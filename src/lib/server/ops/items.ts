@@ -11,12 +11,23 @@ import { allocateItemNumber } from '../db/numbering';
 import { RefSuffixesTaken, freeRefs, insertItemWithFreshRef } from '../db/flowId';
 import { recalcItem } from '../db/calc';
 import { appendEvent } from '../db/events';
-import { decision, item, itemAlias, manualCheck, phase, section, step, task } from '../db/schema';
+import {
+	decision,
+	item,
+	itemAlias,
+	manualCheck,
+	member,
+	phase,
+	section,
+	step,
+	task,
+	user
+} from '../db/schema';
 import { tabNameSchema } from '../db/zod';
 import { tabNameFromTitle } from '../../shared/uiChange';
 import { OpError, idempotent, rateLimit, requireCap, requireOrgMember, run } from './context';
-import { canSeeItem, findItem, findProject } from './resolve';
-import { requireCloseConfirmation } from './tracking';
+import { canSeeItem, findItem, findProject, visibleItemSql } from './resolve';
+import { releaseOthersClaimsOn, requireCloseConfirmation } from './tracking';
 
 // -- TYPES -- //
 
@@ -281,7 +292,21 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 
 export type ItemDetail = Awaited<ReturnType<typeof loadDetail>>;
 
-async function loadDetail(tx: Tx, it: ItemRow) {
+/**
+ * Who made the item, as a name only: no id and no email leave here. The name is read through the org's own members, so a
+ * person who left the org, or an item with no creator (a system write), gives null.
+ */
+async function loadCreator(tx: Tx, orgId: string, it: ItemRow): Promise<{ name: string } | null> {
+	if (!it.createdBy) return null;
+	const [c] = await tx
+		.select({ name: user.name })
+		.from(member)
+		.innerJoin(user, eq(user.id, member.userId))
+		.where(and(eq(member.orgId, orgId), eq(member.userId, it.createdBy)));
+	return c ? { name: c.name } : null;
+}
+
+async function loadDetail(tx: Tx, ctx: Ctx, it: ItemRow) {
 	const phases = await tx
 		.select()
 		.from(phase)
@@ -309,6 +334,9 @@ async function loadDetail(tx: Tx, it: ItemRow) {
 		.orderBy(asc(section.position));
 	return {
 		item: it,
+		creator: await loadCreator(tx, ctx.orgId, it),
+		/** Only the person who made the item may change who sees it, so the page asks the server and never compares ids. */
+		canSetVisibility: !!ctx.actor?.userId && it.createdBy === ctx.actor.userId,
 		phases: phases.map((p) => ({ ...p, steps: steps.filter((s) => s.phaseId === p.id) })),
 		manualChecks: checks,
 		decisions,
@@ -323,16 +351,14 @@ export async function getItem(ctx: Ctx, nameOrId: string) {
 		const { role } = await requireCap(tx, ctx, 'read', it.projectId);
 		if (!canSeeItem(role, it, ctx.actor.userId))
 			throw new OpError('NOT_FOUND', `No item named "${nameOrId}".`);
-		return loadDetail(tx, it);
+		return loadDetail(tx, ctx, it);
 	});
 }
 
 export const listItemsInput = z.object({
 	project: z.string().min(1),
 	status: z
-		.array(
-			z.enum(['PLANNED', 'IN PROGRESS', 'TESTING', 'IN REVIEW', 'ON HOLD', 'COMPLETED', 'REMOVED'])
-		)
+		.array(z.enum(['PLANNED', 'IN PROGRESS', 'IN REVIEW', 'ON HOLD', 'COMPLETED', 'REMOVED']))
 		.optional(),
 	stream: z.string().max(40).optional(),
 	scope: z.string().max(40).optional(),
@@ -352,8 +378,7 @@ export async function listItems(ctx: Ctx, raw: z.input<typeof listItemsInput>) {
 	const input = listItemsInput.parse(raw);
 	return run(ctx, async (tx) => {
 		const proj = await findProject(tx, ctx, input.project);
-		const { role } = await requireCap(tx, ctx, 'read', proj.id);
-		const seeAll = role === 'owner' || role === 'admin';
+		await requireCap(tx, ctx, 'read', proj.id);
 		const filter = and(
 			eq(item.projectId, proj.id),
 			input.trashed ? isNotNull(item.deletedAt) : isNull(item.deletedAt),
@@ -363,9 +388,7 @@ export async function listItems(ctx: Ctx, raw: z.input<typeof listItemsInput>) {
 			input.q?.trim()
 				? sql`(${item.ref} ilike ${escapeLike(input.q.trim()) + '%'} or ${item.title} ilike ${'%' + escapeLike(input.q.trim()) + '%'} or exists (select 1 from item_alias a where a.item_id = ${item.id} and a.alias ilike ${escapeLike(input.q.trim()) + '%'}))`
 				: undefined,
-			seeAll
-				? undefined
-				: sql`(${item.visibility} = 'public' or ${item.createdBy} = ${ctx.actor.userId} or ${item.assigneeId} = ${ctx.actor.userId})`
+			visibleItemSql(ctx.actor.userId)
 		);
 		const where = and(
 			filter,
@@ -406,6 +429,16 @@ export async function updateItem(ctx: Ctx, raw: z.input<typeof updateItemInput>)
 		idempotent(ctx, tx, async () => {
 			const it = await findItem(tx, ctx, input.item, { lock: true });
 			await requireCap(tx, ctx, 'write', it.projectId);
+			// Who may see an item is the creator's to change, so a patch that carries a different visibility is refused whole
+			if (
+				input.visibility !== undefined &&
+				input.visibility !== it.visibility &&
+				it.createdBy !== ctx.actor.userId
+			)
+				throw new OpError(
+					'FORBIDDEN',
+					'Only the person who created this item can make it private or public.'
+				);
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
 			const before: Record<string, unknown> = {};
@@ -430,6 +463,9 @@ export async function updateItem(ctx: Ctx, raw: z.input<typeof updateItemInput>)
 				})
 				.where(eq(item.id, it.id))
 				.returning();
+			// Other people's sessions that were working on the item lose the claim the moment it turns private
+			if (after.visibility === 'private')
+				await releaseOthersClaimsOn(tx, ctx, updated, it.createdBy);
 			await appendEvent(tx, {
 				orgId: ctx.orgId,
 				projectId: it.projectId,

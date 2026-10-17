@@ -57,6 +57,13 @@
 			"when": 1792216458393,
 			"tag": "0007_demonic_roughhouse",
 			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "7",
+			"when": 1792225438754,
+			"tag": "0008_drop_testing_status",
+			"breakpoints": true
 		}
 	]
 }

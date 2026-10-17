@@ -55,9 +55,8 @@
 	const SEGMENT: Record<string, string> = {
 		PLANNED: 'bg-line',
 		'IN PROGRESS': 'bg-info',
-		TESTING: 'bg-accent',
 		'IN REVIEW': 'bg-warning',
-		'ON HOLD': 'bg-muted',
+		'ON HOLD': 'bg-hold',
 		COMPLETED: 'bg-success'
 	};
 	const membersId = $props.id();

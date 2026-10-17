@@ -130,7 +130,6 @@ import {
 	getScale,
 	itemShots,
 	listUiChanges,
-	projectUi,
 	requestMeasure,
 	requestShots,
 	requestShotsInput,
@@ -984,13 +983,6 @@ export const routes: Route[] = [
 		body: strip(requestShotsInput, 'item'),
 		handler: ({ ctx, params, body }) =>
 			requestShots(ctx, { ...(body as object), item: params.item } as never)
-	},
-	{
-		method: 'GET',
-		path: '/orgs/{org}/projects/{project}/ui',
-		summary: 'The latest UI shots of every item the caller may see, newest first',
-		tag: 'UI shots',
-		handler: ({ ctx, params }) => projectUi(ctx, params.project)
 	},
 	{
 		method: 'GET',

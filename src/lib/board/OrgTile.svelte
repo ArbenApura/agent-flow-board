@@ -24,9 +24,17 @@
 
 	// Whole class names, Tailwind builds only those. 40 is for the header of a settings page, the same box as an Avatar of 40
 	const DIMS = {
-		20: { box: 'size-5', text: 'text-[9px]', radius: 'rounded-md' },
-		24: { box: 'size-6', text: 'text-[10px]', radius: 'rounded-md' },
-		40: { box: 'size-10', text: 'text-sm', radius: 'rounded-lg' }
+		20: { box: 'size-5 min-h-5 max-h-5 min-w-5 max-w-5', text: 'text-[9px]', radius: 'rounded-md' },
+		24: {
+			box: 'size-6 min-h-6 max-h-6 min-w-6 max-w-6',
+			text: 'text-[10px]',
+			radius: 'rounded-md'
+		},
+		40: {
+			box: 'size-10 min-h-10 max-h-10 min-w-10 max-w-10',
+			text: 'text-sm',
+			radius: 'rounded-lg'
+		}
 	} as const;
 
 	// The tile picks the light or dark value of the organisation accent, and falls back to the page accent when it has no palette

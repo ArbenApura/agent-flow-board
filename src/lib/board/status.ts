@@ -1,8 +1,7 @@
 // HOW AN ITEM STATUS, A PROJECT COLOUR AND A TIME ARE SHOWN, SHARED BY EVERY BOARD PAGE
 
 // -- TYPES -- //
-export type Status =
-	'PLANNED' | 'IN PROGRESS' | 'TESTING' | 'IN REVIEW' | 'ON HOLD' | 'COMPLETED' | 'REMOVED';
+export type Status = 'PLANNED' | 'IN PROGRESS' | 'IN REVIEW' | 'ON HOLD' | 'COMPLETED' | 'REMOVED';
 export type Tone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger' | 'info' | 'running';
 
 // -- CONSTANTS -- //
@@ -13,7 +12,6 @@ export type View = (typeof VIEWS)[number];
 export const STATUSES: Status[] = [
 	'PLANNED',
 	'IN PROGRESS',
-	'TESTING',
 	'IN REVIEW',
 	'ON HOLD',
 	'COMPLETED',
@@ -24,7 +22,6 @@ export const STATUSES: Status[] = [
 export const BOARD_COLUMNS: Status[] = [
 	'PLANNED',
 	'IN PROGRESS',
-	'TESTING',
 	'IN REVIEW',
 	'ON HOLD',
 	'COMPLETED'
@@ -33,7 +30,6 @@ export const BOARD_COLUMNS: Status[] = [
 export const STATUS_TONE: Record<Status, Tone> = {
 	PLANNED: 'neutral',
 	'IN PROGRESS': 'accent',
-	TESTING: 'info',
 	'IN REVIEW': 'warning',
 	'ON HOLD': 'neutral',
 	COMPLETED: 'success',
@@ -44,7 +40,6 @@ export const STATUS_TONE: Record<Status, Tone> = {
 export const STATUS_STYLE: Record<Status, { dot: string; top: string; rail: string }> = {
 	PLANNED: { dot: 'bg-muted', top: 'border-t-muted', rail: 'bg-muted' },
 	'IN PROGRESS': { dot: 'bg-info', top: 'border-t-info', rail: 'bg-info' },
-	TESTING: { dot: 'bg-testing', top: 'border-t-testing', rail: 'bg-testing' },
 	'IN REVIEW': { dot: 'bg-warning', top: 'border-t-warning', rail: 'bg-warning' },
 	'ON HOLD': { dot: 'bg-hold', top: 'border-t-hold', rail: 'bg-hold' },
 	COMPLETED: { dot: 'bg-success', top: 'border-t-success', rail: 'bg-success' },
@@ -65,10 +60,10 @@ export const LIST_COLS = {
 export const TAG_DOT: Record<string, string> = {
 	blue: 'bg-info',
 	green: 'bg-success',
-	purple: 'bg-accent',
+	purple: 'bg-tag-purple',
 	red: 'bg-danger',
 	amber: 'bg-warning',
-	orange: 'bg-warning'
+	orange: 'bg-tag-orange'
 };
 
 // -- FUNCTIONS -- //

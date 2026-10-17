@@ -194,6 +194,8 @@ export async function setAttachmentVisibility(
 				.for('update');
 			if (!a) throw new OpError('NOT_FOUND', 'No such attachment.');
 			await requireCap(tx, ctx, 'write', a.projectId);
+			// A file of an item this person cannot see answers like a file that does not exist
+			if (a.itemId) await findItem(tx, ctx, a.itemId, { includeTrashed: true });
 			if (a.visibility === visibility) return { attachment: a, changed: false };
 			const [row] = await tx
 				.update(attachment)
@@ -226,6 +228,8 @@ export async function restoreAttachment(ctx: Ctx, attachmentId: string) {
 			.for('update');
 		if (!a) throw new OpError('NOT_FOUND', 'No such file in the trash.');
 		await requireCap(tx, ctx, 'delete', a.projectId);
+		// A file of an item this person cannot see answers like a file that does not exist
+		if (a.itemId) await findItem(tx, ctx, a.itemId, { includeTrashed: true });
 		if (a.itemId) {
 			const [parent] = await tx
 				.select({ gone: item.deletedAt })
@@ -262,6 +266,8 @@ export async function deleteAttachment(ctx: Ctx, attachmentId: string) {
 			.for('update');
 		if (!a) throw new OpError('NOT_FOUND', 'No such attachment.');
 		await requireCap(tx, ctx, 'delete', a.projectId);
+		// A file of an item this person cannot see answers like a file that does not exist
+		if (a.itemId) await findItem(tx, ctx, a.itemId, { includeTrashed: true });
 		await tx
 			.update(attachment)
 			.set({ deletedAt: sql`now()` })

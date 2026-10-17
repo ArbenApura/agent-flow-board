@@ -10,7 +10,7 @@
 
 	// -- TYPES -- //
 
-	type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+	type Variant = 'primary' | 'secondary' | 'ghost' | 'subtle' | 'danger';
 	type Props = {
 		children: Snippet;
 		variant?: Variant;
@@ -45,6 +45,9 @@
 			'primary border-accent bg-accent text-accent-ink hover:brightness-95 focus-visible:outline-accent',
 		secondary: 'border-line bg-surface text-ink hover:bg-raised',
 		ghost: 'border-transparent bg-transparent text-ink hover:bg-raised',
+		// A see-through tint of the ink token, so it reads on a plain or a tinted surface. Stays on while a menu it opened is showing.
+		subtle:
+			'border-transparent bg-transparent text-ink transition-colors hover:bg-ink/10 aria-expanded:bg-ink/10 motion-reduce:transition-none',
 		danger: 'border-danger bg-danger text-surface hover:brightness-95'
 	};
 
@@ -57,7 +60,9 @@
 			'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
 			'disabled:cursor-not-allowed disabled:opacity-50 aria-disabled:cursor-not-allowed aria-disabled:opacity-50',
 			iconOnly
-				? 'size-10 p-0 max-sm:size-11'
+				? size === 'sm'
+					? 'size-8 p-0 max-sm:size-11'
+					: 'size-10 p-0 max-sm:size-11'
 				: size === 'sm'
 					? 'h-8 px-3 max-sm:h-11'
 					: 'h-10 px-4 max-sm:h-11',

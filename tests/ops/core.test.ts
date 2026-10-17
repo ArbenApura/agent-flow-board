@@ -29,11 +29,8 @@ describe('automatic status rules (pure)', () => {
 			'IN PROGRESS'
 		]);
 	});
-	it('100% moves IN PROGRESS and TESTING to IN REVIEW, and PLANNED gets both moves in order', () => {
+	it('100% moves IN PROGRESS to IN REVIEW, and PLANNED gets both moves in order', () => {
 		expect(automaticMoves({ ...base, status: 'IN PROGRESS', done: 4, anyDone: true })).toEqual([
-			'IN REVIEW'
-		]);
-		expect(automaticMoves({ ...base, status: 'TESTING', done: 4, anyDone: true })).toEqual([
 			'IN REVIEW'
 		]);
 		expect(automaticMoves({ ...base, status: 'PLANNED', done: 4, anyDone: true })).toEqual([
@@ -143,15 +140,57 @@ describe.each([
 		await expect(getItem({ ...intruder, orgId: w.orgId }, made.ref)).rejects.toBeTruthy();
 	});
 
-	it('private items are visible only to admins, owners, their maker and holder', async () => {
+	it('private items are visible only to the person who made them, whatever their role', async () => {
 		const priv = await create('member', { visibility: 'private', title: 'A private plan' });
 		await expect(getItem(w.ctx('viewer'), priv.ref)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-		await expect(getItem(w.ctx('admin'), priv.ref)).resolves.toBeTruthy();
+		await expect(getItem(w.ctx('admin'), priv.ref)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(getItem(w.ctx('owner'), priv.ref)).rejects.toMatchObject({ code: 'NOT_FOUND' });
 		await expect(getItem(w.ctx('member'), priv.ref)).resolves.toBeTruthy();
-		const seen = await listItems(w.ctx('viewer'), { project: w.projectKey });
-		expect(seen.items.some((i) => i.id === priv.id)).toBe(false);
-		const adminSees = await listItems(w.ctx('admin'), { project: w.projectKey });
-		expect(adminSees.items.some((i) => i.id === priv.id)).toBe(true);
+		for (const who of ['viewer', 'admin', 'owner'] as const) {
+			const seen = await listItems(w.ctx(who), { project: w.projectKey });
+			expect(seen.items.some((i) => i.id === priv.id)).toBe(false);
+		}
+		const mine = await listItems(w.ctx('member'), { project: w.projectKey });
+		expect(mine.items.some((i) => i.id === priv.id)).toBe(true);
+		// Holding the item does not open it either
+		await updateItem(w.ctx('member'), { item: priv.ref, assigneeId: w.people.admin });
+		await expect(getItem(w.ctx('admin'), priv.ref)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+	});
+
+	it('only the person who made an item can make it private or public, and a mixed patch is refused whole', async () => {
+		const made = await create('member', { title: 'Visibility belongs to the maker' });
+		await expect(
+			updateItem(w.ctx('admin'), { item: made.ref, visibility: 'private' })
+		).rejects.toMatchObject({ code: 'FORBIDDEN' });
+		await expect(
+			updateItem(w.ctx('owner'), { item: made.ref, visibility: 'private', title: 'Renamed too' })
+		).rejects.toMatchObject({ code: 'FORBIDDEN' });
+		expect((await getItem(w.ctx('member'), made.ref)).item.title).toBe(made.item.title);
+		// Saying the value it already has is a plain no-op, not a refusal
+		await expect(
+			updateItem(w.ctx('admin'), { item: made.ref, visibility: 'public' })
+		).resolves.toMatchObject({ changed: false });
+		await expect(
+			updateItem(w.ctx('member'), { item: made.ref, visibility: 'private' })
+		).resolves.toMatchObject({ changed: true });
+		await expect(getItem(w.ctx('admin'), made.ref)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(
+			updateItem(w.ctx('member'), { item: made.ref, visibility: 'public' })
+		).resolves.toMatchObject({ changed: true });
+		await expect(getItem(w.ctx('admin'), made.ref)).resolves.toBeTruthy();
+	});
+
+	it('an item says who made it by name only, and whether the caller may change who sees it', async () => {
+		const made = await create('member', { title: 'Made by a member' });
+		const asMaker = await getItem(w.ctx('member'), made.ref);
+		expect(Object.keys(asMaker.creator ?? {})).toEqual(['name']);
+		expect(asMaker.canSetVisibility).toBe(true);
+		expect((await getItem(w.ctx('admin'), made.ref)).canSetVisibility).toBe(false);
+		// An item with no creator (a system write) names nobody
+		await db.admin.exec(`update item set created_by = null where id = '${made.id}'`);
+		const orphan = await getItem(w.ctx('admin'), made.ref);
+		expect(orphan.creator).toBeNull();
+		expect(orphan.canSetVisibility).toBe(false);
 	});
 
 	it('a stale write is refused and names the current version', async () => {
