@@ -33,6 +33,7 @@ import {
 } from '../src/lib/server/db/schema';
 import { freeRefs, insertItemWithFreshRef } from '../src/lib/server/db/flowId';
 import { withTenant } from '../src/lib/server/db/tenant';
+import { notifyChange } from '../src/lib/server/realtime/notify';
 import { legacyMoment } from '../src/lib/shared/ref';
 import { createOrg, listMyOrgs } from '../src/lib/server/orgs/orgs';
 import { attachmentBytes } from './read';
@@ -848,5 +849,10 @@ export async function importBoard(board: SourceBoard, o: ImportOptions): Promise
 			.set({ nextTask: sql`greatest(${projectCounter.nextTask}, ${maxTask + 1})` })
 			.where(eq(projectCounter.projectId, ids.projectId))
 	);
+	// Rows written straight to the database announce nothing, so open pages are told once when the import is done
+	if (summary.imported || summary.tasks)
+		await withTenant(o.handle, tenant, (tx) =>
+			notifyChange(tx, { o: ids.orgId, p: ids.projectId, k: 'event', v: 'import' })
+		);
 	return summary;
 }

@@ -19,6 +19,7 @@ import {
 	uiChange
 } from '../src/lib/server/db/schema';
 import { withTenant } from '../src/lib/server/db/tenant';
+import { CHANNEL } from '../src/lib/server/realtime/notify';
 import { makePglite, makePostgres, type TestDb } from '../tests/support/db';
 import { makeFixtureBoard } from './fixture';
 import { listing, listingHash } from './fsro';
@@ -106,8 +107,14 @@ describe.each([
 		expect(board.items).toHaveLength(3);
 		expect(board.removed).toHaveLength(1);
 		expect(board.tasks).toHaveLength(2);
+		// Rows written straight to the database send no notice of their own, so the import must announce them to open pages
+		const heard: string[] = [];
+		const stop = await db.listen(CHANNEL, (payload) => heard.push(payload));
 		const summary = await run();
 		ids = { orgId: summary.orgId, projectId: summary.projectId };
+		await expect.poll(() => heard.length).toBeGreaterThan(0);
+		await stop();
+		expect(JSON.parse(heard[0])).toMatchObject({ p: summary.projectId, k: 'event', v: 'import' });
 		expect(summary).toMatchObject({
 			imported: 4,
 			skipped: 0,

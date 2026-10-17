@@ -81,6 +81,7 @@ A plan with a new or changed screen carries a "UI changes" table, a clickable mo
 
 - One operations layer (`src/lib/server/ops/`). The UI actions, `/api/v1`, `/mcp` and the CLI all call it. A verb checks the caller's live role itself.
 - Every tenant query runs inside the transaction-local tenant context (`set_config(..., true)`), connected as the non-owning `app_runtime` role. Never query with the owner role from request code.
+- Plan and board data changes go through the operations layer (the MCP tools, `/api/v1` or an ops verb). Never raw SQL or an ad hoc script against the database: it skips the role checks and the history, and sends no `notifyChange`, so open pages stay stale. Code that must write rows directly (the importer) calls `notifyChange` in the same transaction.
 - Every background job carries its org and project ids and sets the tenant context before its first query.
 - Secrets (passwords, tokens, keys) are never returned by an API, a tool or an export, and never logged.
 - Guest-written text is untrusted content. All Markdown is sanitised before rendering.

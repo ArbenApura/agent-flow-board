@@ -63,6 +63,8 @@ export const GET: RequestHandler = async ({ params, locals, request, url }) => {
 			controller.enqueue(encoder.encode('retry: 1000\n\n'));
 			let sent = lastId ?? 0;
 			let replaying = true;
+			// Ids the reconnect replay already sent, so a change that arrived while it ran is not sent twice
+			const replayed = new Set<number>();
 			const buffered: ({ e?: number; i?: string | null; k: string; v?: string } | null)[] = [];
 
 			const deliver = async (c: (typeof buffered)[number]) => {
@@ -75,8 +77,10 @@ export const GET: RequestHandler = async ({ params, locals, request, url }) => {
 					return;
 				}
 				if (c.e !== undefined) {
-					if (c.e <= sent) return;
-					sent = c.e;
+					// Ids are taken when a row is written but announced when it commits, so two writes in flight can arrive out of
+					// order. Only a change the replay already sent is skipped; a lower id arriving live is still news.
+					if (replayed.delete(c.e)) return;
+					sent = Math.max(sent, c.e);
 				}
 				send('change', { kind: c.k, verb: c.v ?? null, item: c.i ?? null }, c.e);
 			};
@@ -110,6 +114,7 @@ export const GET: RequestHandler = async ({ params, locals, request, url }) => {
 					} else {
 						for (const m of missed.reverse()) {
 							sent = Math.max(sent, m.id);
+							replayed.add(m.id);
 							send('change', { kind: 'event', verb: m.verb, item: m.itemId ?? null }, m.id);
 						}
 					}
@@ -117,6 +122,7 @@ export const GET: RequestHandler = async ({ params, locals, request, url }) => {
 				send('ready', { latest: sent }, sent);
 				replaying = false;
 				for (const c of buffered.splice(0)) await deliver(c);
+				replayed.clear();
 			} catch (e) {
 				if (!(e instanceof OpError)) console.error('Stream error', e);
 				close();
