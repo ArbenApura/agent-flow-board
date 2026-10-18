@@ -1,5 +1,5 @@
 // SAMPLE DATA FOR LOCAL DEVELOPMENT, THE UI SHOTS AND THE LOAD TESTS (3.9)
-// Written as a superuser (PGlite is one), which bypasses row level security. Never run against a real deployment.
+// Written as a superuser, which bypasses row level security. Never run against a real deployment.
 
 // -- TYPES -- //
 import type { SqlExecutor } from './executor';

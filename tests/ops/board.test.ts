@@ -20,17 +20,15 @@ import { removeMember } from '../../src/lib/server/orgs/orgs';
 import { claim, startSession } from '../../src/lib/server/mcp/sessions';
 import { getHub } from '../../src/lib/server/realtime/hub';
 import type { Change } from '../../src/lib/server/realtime/notify';
-import { makePglite, makePostgres, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 
 // -- FUNCTIONS -- //
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('board verbs and realtime on %s', (_name, make) => {
+describe('board verbs and realtime', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let w: World;
 	beforeAll(async () => {

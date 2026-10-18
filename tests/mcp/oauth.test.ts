@@ -20,9 +20,9 @@ import {
 	type TokenResponse
 } from '../../src/lib/server/oauth/oauth';
 import { authenticateToken } from '../../src/lib/server/ops/tokens';
-import { deviceCode, oauthCode } from '../../src/lib/server/db/schema';
+import { deviceCode } from '../../src/lib/server/db/schema';
 import { eq } from 'drizzle-orm';
-import { makePglite, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
 
 // -- CONSTANTS -- //
@@ -65,7 +65,7 @@ describe('OAuth and device flows', () => {
 	let db: TestDb;
 	let w: World;
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		w = await makeWorld(db);
 	}, 120_000);
 	afterAll(async () => {
@@ -182,10 +182,10 @@ describe('OAuth and device flows', () => {
 			})
 		).toMatchObject({ error: 'invalid_grant' });
 		const d = await mk();
-		await db.db
-			.update(oauthCode)
-			.set({ expiresAt: new Date(Date.now() - 1000) })
-			.where(eq(oauthCode.clientId, id));
+		// Written as the superuser: the app's own connection has no tenant here, so forced row level security would match no row
+		await db.admin.exec(
+			`UPDATE oauth_code SET expires_at = now() - interval '1 second' WHERE client_id = '${id}'`
+		);
 		expect(
 			await exchangeCode(db, {
 				code: d.code,

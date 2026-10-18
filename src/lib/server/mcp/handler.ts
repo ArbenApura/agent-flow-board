@@ -1,6 +1,6 @@
 // THE /mcp ENDPOINT: STREAMABLE HTTP WITH NO IN MEMORY STATE (SPEC 7)
 // Each request builds its own server and transport, answers with plain JSON, and forgets everything. State lives in the
-// database (sessions, claims), so the endpoint behaves the same on a VPS, on several processes and in a Cloudflare Worker.
+// database (sessions, claims), so the endpoint behaves the same on one server and on several processes.
 
 // -- DEP-MODULES -- //
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';

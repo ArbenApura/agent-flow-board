@@ -7,7 +7,7 @@ import { memoryStorage, verifySignedFile } from '../../src/lib/server/adapters/s
 import { handleApi, type ApiDeps, type ApiResponse } from '../../src/lib/server/api/dispatch';
 import { buildOpenApi } from '../../src/lib/server/api/openapi';
 import { compile, match, routes } from '../../src/lib/server/api/routes';
-import { makePglite, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 
 // -- CONSTANTS -- //
@@ -61,7 +61,7 @@ describe('REST API', () => {
 	/** The reference the first test gives its item; the later tests read it. */
 	let apiRef = '';
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		w = await makeWorld(db);
 		deps = { handle: db, storage, baseUrl: BASE };
 	}, 120_000);

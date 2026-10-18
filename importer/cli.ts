@@ -1,11 +1,11 @@
-// yarn import:hapr --board <path to the .board folder> [--owner <email of an existing user>] [--db-dir <folder>] [--storage-dir <folder>]
+// yarn import:hapr --board <path to the .board folder> [--owner <email of an existing user>] [--storage-dir <folder>]
 //                  [--report <file>] [--org hapr] [--project HAPR] [--no-snapshot] [--dry-run] [--create-owner]
 //
 // Imports a HAPR board into this product's database and checks the result by content. It only reads the board: it first copies
 // the three things it reads (flow, attachments and TASKS.md, leaving .git out) into a temporary folder and imports from the copy,
 // so another session writing to the live board cannot change what is compared. The listing with checksums of what it read is
 // taken before and after, and the report says whether the live board changed meanwhile.
-// With DATABASE_URL set it imports into that PostgreSQL database, otherwise into a local PGlite database in --db-dir.
+// It imports into the PostgreSQL database in DATABASE_URL (and DATABASE_OWNER_URL), which is required.
 
 // -- DEP-MODULES -- //
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 // -- MODULES -- //
 import { diskStorage } from '../src/lib/server/adapters/storage';
-import { createPglite, createPostgres, type DbHandle } from '../src/lib/server/db/client';
+import { createPostgres, type DbHandle } from '../src/lib/server/db/client';
 import { migrate } from '../src/lib/server/db/migrate';
 import { listing, listingHash, type Listed } from './fsro';
 import { importBoard } from './import';
@@ -66,16 +66,13 @@ function outside(board: string, p: string, what: string) {
 }
 
 async function openDb(): Promise<{ handle: DbHandle; where: string }> {
-	if (process.env.DATABASE_URL) {
-		const handle = await createPostgres({
-			runtimeUrl: process.env.DATABASE_OWNER_URL ? process.env.DATABASE_URL : undefined,
-			ownerUrl: process.env.DATABASE_OWNER_URL ?? process.env.DATABASE_URL
-		});
-		return { handle, where: 'the PostgreSQL database in DATABASE_URL' };
-	}
-	const dir = resolve(opt('--db-dir') ?? '.afb/import-db');
-	mkdirSync(dir, { recursive: true });
-	return { handle: await createPglite(dir), where: `the local PGlite database ${dir}` };
+	const url = process.env.DATABASE_URL;
+	if (!url) return fail('DATABASE_URL is required: the PostgreSQL database to import into.');
+	const handle = await createPostgres({
+		runtimeUrl: process.env.DATABASE_OWNER_URL ? url : undefined,
+		ownerUrl: process.env.DATABASE_OWNER_URL ?? url
+	});
+	return { handle, where: 'the PostgreSQL database in DATABASE_URL' };
 }
 
 async function main() {
@@ -84,11 +81,9 @@ async function main() {
 	if (!existsSync(join(board, 'flow'))) fail(`${board} has no flow folder.`);
 	const reportFile = resolve(opt('--report') ?? '.afb/import-report.json');
 	const storageDir = resolve(opt('--storage-dir') ?? '.afb/import-files');
-	const dbDir = resolve(opt('--db-dir') ?? '.afb/import-db');
 	for (const [p, what] of [
 		[reportFile, 'The report file'],
-		[storageDir, 'The storage folder'],
-		[dbDir, 'The database folder']
+		[storageDir, 'The storage folder']
 	] as const)
 		outside(board, p, what);
 

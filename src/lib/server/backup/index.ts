@@ -15,15 +15,14 @@ import {
 	BACKUP_S3_ENDPOINT,
 	BACKUP_S3_SECRET_ACCESS_KEY,
 	BETTER_AUTH_SECRET,
-	DATABASE_BACKUP_URL,
-	DATABASE_URL
+	DATABASE_BACKUP_URL
 } from '$app/env/private';
 // -- MODULES -- //
 import { diskStorage, s3Storage } from '../adapters/storage';
 import { getStorage } from '../adapters/index';
 import { getMailer } from '../auth/index';
 import { getDb } from '../db/index';
-import { adminFromExecutor, pgAdmin } from './admin';
+import { pgAdmin } from './admin';
 import { NIL_ORG, checkLateBackups, runBackup } from './run';
 
 // -- CONSTANTS -- //
@@ -60,14 +59,11 @@ export function backupStorage(): Storage {
 }
 
 async function backupAdmin(): Promise<Admin> {
-	if (DATABASE_URL) {
-		if (!DATABASE_BACKUP_URL)
-			throw new Error(
-				'BACKUP_KEY is set, so DATABASE_BACKUP_URL is required: a PostgreSQL role that bypasses row level security, used only by backups.'
-			);
-		return pgAdmin(DATABASE_BACKUP_URL);
-	}
-	return adminFromExecutor((await getDb()).owner);
+	if (!DATABASE_BACKUP_URL)
+		throw new Error(
+			'BACKUP_KEY is set, so DATABASE_BACKUP_URL is required: a PostgreSQL role that bypasses row level security, used only by backups.'
+		);
+	return pgAdmin(DATABASE_BACKUP_URL);
 }
 
 /**

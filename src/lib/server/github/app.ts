@@ -1,5 +1,5 @@
 // THE GITHUB APP CLIENT: A SIGNED APP TOKEN, AN INSTALLATION TOKEN, AND THE FEW GIT DATA CALLS A PUBLISH NEEDS (SPEC 8)
-// It uses plain fetch and Web Crypto only, so it runs on a VPS and in a Worker alike. The API address is configurable, so
+// It uses plain fetch and Web Crypto only, so it needs no extra package. The API address is configurable, so
 // the tests run it against a local stand in for GitHub and never touch the real service.
 
 // -- TYPES -- //

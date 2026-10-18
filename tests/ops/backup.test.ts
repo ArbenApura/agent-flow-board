@@ -38,7 +38,7 @@ import { addAttachment } from '../../src/lib/server/ops/attachments';
 import { createTask, upsertDecision, upsertSection } from '../../src/lib/server/ops/docs';
 import { createItem } from '../../src/lib/server/ops/items';
 import { recordSteps } from '../../src/lib/server/ops/steps';
-import { makePglite, makePostgres, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 
 // -- CONSTANTS -- //
@@ -126,10 +126,8 @@ describe('retention', () => {
 	});
 });
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('backup and restore on %s', (_name, make) => {
+describe('backup and restore', () => {
+	const make = makePostgres;
 	let src: TestDb;
 	let dst: TestDb;
 	let w: World;

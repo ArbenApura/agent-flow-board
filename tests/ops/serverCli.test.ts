@@ -1,4 +1,4 @@
-// THE SERVER COMMAND (scripts/server.ts), RUN FOR REAL AGAINST LOCAL PGLITE FOLDERS: BACKUP, LIST, VERIFY, AND THE CONFIRMED RESTORES
+// THE SERVER COMMAND (scripts/server.ts), RUN FOR REAL AGAINST DATABASES CLONED ON THE EMBEDDED POSTGRESQL: BACKUP, LIST, VERIFY, AND THE CONFIRMED RESTORES
 
 // -- DEP-MODULES -- //
 import { spawnSync } from 'node:child_process';
@@ -7,9 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
-import { createPglite } from '../../src/lib/server/db/client';
-import { migrate } from '../../src/lib/server/db/migrate';
 import { seedDemo, SEED } from '../../src/lib/server/db/seed';
+import { makePostgres, type TestDb } from '../support/db';
 
 // -- CONSTANTS -- //
 
@@ -20,6 +19,13 @@ const TSX = join(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
 
 describe('the server command', () => {
 	let dir: string;
+	let db: TestDb;
+	// The database the command runs on: the app's runtime login, the owner for migrations, and a superuser for backups (it bypasses RLS)
+	const target = (t: TestDb) => ({
+		DATABASE_URL: t.urls.runtime,
+		DATABASE_OWNER_URL: t.urls.owner,
+		DATABASE_BACKUP_URL: t.urls.admin
+	});
 	const run = (args: string[], extra: Record<string, string> = {}) =>
 		spawnSync(process.execPath, [TSX, 'scripts/server.ts', ...args], {
 			cwd: process.cwd(),
@@ -27,10 +33,9 @@ describe('the server command', () => {
 			env: {
 				...process.env,
 				BACKUP_KEY: KEY,
-				AFB_DB_DIR: join(dir, 'db'),
 				BACKUP_DIR: join(dir, 'backups'),
 				AFB_STORAGE_DIR: join(dir, 'files'),
-				DATABASE_URL: '',
+				...target(db),
 				...extra
 			},
 			timeout: 120_000
@@ -38,12 +43,13 @@ describe('the server command', () => {
 
 	beforeAll(async () => {
 		dir = mkdtempSync(join(tmpdir(), 'afb-cli-'));
-		const handle = await createPglite(join(dir, 'db'));
-		await migrate(handle.owner);
-		await seedDemo(handle.owner, { loadItems: 5 });
-		await handle.close();
+		db = await makePostgres();
+		await seedDemo(db.admin, { loadItems: 5 });
 	}, 120_000);
-	afterAll(() => rmSync(dir, { recursive: true, force: true }));
+	afterAll(async () => {
+		await db.stop();
+		rmSync(dir, { recursive: true, force: true });
+	});
 
 	it('refuses to run without a long enough key, and shows its usage', () => {
 		expect(run(['backup', 'run'], { BACKUP_KEY: 'short' }).status).toBe(1);
@@ -94,22 +100,30 @@ describe('the server command', () => {
 		]);
 		expect(wrongName.status).toBe(2);
 		// Without replace the org exists, so it is refused
-		const exists = run(['restore', 'org', file, '--confirm', 'pglite', '--yes']);
+		const exists = run(['restore', 'org', file, '--confirm', db.name, '--yes']);
 		expect(exists.status).toBe(1);
 		expect(exists.stderr).toMatch(/already exists/);
-		const done = run(['restore', 'org', file, '--replace', '--confirm', 'pglite', '--yes']);
+		const done = run(['restore', 'org', file, '--replace', '--confirm', db.name, '--yes']);
 		expect(done.status, done.stderr).toBe(0);
 		expect(done.stdout).toMatch(/Restored acme: \d+ rows/);
 	});
 
-	it('a full restore puts every org into an empty database', () => {
-		const empty = join(dir, 'empty-db');
-		const done = run(['restore', 'full', join(dir, 'backups'), '--confirm', 'pglite', '--yes'], {
-			AFB_DB_DIR: empty
-		});
-		expect(done.status, done.stderr).toBe(0);
-		expect(done.stdout).toMatch(/Restored acme/);
-		expect(done.stdout).toMatch(/Restored lumora/);
+	it('a full restore puts every org into an empty database', async () => {
+		// A second clone is migrated and holds no org, which is what a full restore needs
+		const empty = await makePostgres();
+		try {
+			const done = run(
+				['restore', 'full', join(dir, 'backups'), '--confirm', empty.name, '--yes'],
+				{
+					...target(empty)
+				}
+			);
+			expect(done.status, done.stderr).toBe(0);
+			expect(done.stdout).toMatch(/Restored acme/);
+			expect(done.stdout).toMatch(/Restored lumora/);
+		} finally {
+			await empty.stop();
+		}
 	});
 
 	it('resets an Owner password for a server with no email, only for an Owner, and only when confirmed', () => {
@@ -132,7 +146,7 @@ describe('the server command', () => {
 				'--email',
 				'owner@acme.example',
 				'--confirm',
-				'pglite',
+				db.name,
 				'--yes'
 			],
 			secret
@@ -149,7 +163,7 @@ describe('the server command', () => {
 				'--email',
 				'member@acme.example',
 				'--confirm',
-				'pglite',
+				db.name,
 				'--yes'
 			],
 			secret
@@ -171,7 +185,7 @@ describe('the server command', () => {
 		});
 		expect(plan.status).toBe(2);
 		expect(plan.stdout).toContain('Nothing was changed');
-		const done = run(['secrets', 'rotate-master-key', '--confirm', 'pglite', '--yes'], {
+		const done = run(['secrets', 'rotate-master-key', '--confirm', db.name, '--yes'], {
 			AFB_MASTER_KEY: old,
 			AFB_NEW_MASTER_KEY: next
 		});

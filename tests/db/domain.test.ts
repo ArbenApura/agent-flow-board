@@ -1,4 +1,4 @@
-// 3.5 TO 3.8: NUMBERING, EVENTS AND UNDO, WRITE TIME VALUES, FULL TEXT SEARCH, ON PGLITE AND ON REAL POSTGRESQL
+// 3.5 TO 3.8: NUMBERING, EVENTS AND UNDO, WRITE TIME VALUES, FULL TEXT SEARCH, ON A REAL POSTGRESQL
 
 // -- DEP-MODULES -- //
 import { and, eq, sql } from 'drizzle-orm';
@@ -10,7 +10,7 @@ import { allocateItemNumber, allocateTaskNumber } from '../../src/lib/server/db/
 import { searchAll } from '../../src/lib/server/db/search';
 import { decision, event, item, phase, section, step, task } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
-import { makePglite, makePostgres, seedTwoOrgs, type Seed, type TestDb } from '../support/db';
+import { makePostgres, seedTwoOrgs, type Seed, type TestDb } from '../support/db';
 
 // -- FUNCTIONS -- //
 
@@ -35,10 +35,8 @@ describe('pure calculations', () => {
 	});
 });
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('database domain helpers on %s', (name, make) => {
+describe('database domain helpers', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let s: Seed;
 	const tenant = () => ({ orgId: s.orgA, projectId: s.projectA });
@@ -84,7 +82,7 @@ describe.each([
 		expect(n2).toBe(n1 + 1);
 	});
 
-	it.runIf(name === 'postgres')('40 concurrent creates never share a number', async () => {
+	it('40 concurrent creates never share a number', async () => {
 		const made = await Promise.all(
 			Array.from({ length: 40 }, (_, i) => newItem(`Concurrent item ${i}`))
 		);
@@ -154,7 +152,7 @@ describe.each([
 		});
 	});
 
-	it.runIf(name === 'postgres')('30 concurrent step completions all count', async () => {
+	it('30 concurrent step completions all count', async () => {
 		const { it, ids } = await itemWithSteps(30);
 		await Promise.all(
 			ids.map((sid) =>

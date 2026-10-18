@@ -20,20 +20,11 @@ jobs:
       - run: yarn lint
       - run: yarn format:check
       - run: yarn test
+      # The build checks the environment, so it gets placeholders that exist only in this job
       - run: yarn build
+        env:
+          AFB_BASE_URL: https://build.invalid
+          BETTER_AUTH_SECRET: build-time-placeholder-0123456789abcdef
       - run: yarn playwright install --with-deps chromium
       - run: yarn test:checks
       - run: yarn ui-shots
-
-  node-adapter-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: corepack enable
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: yarn
-      - run: yarn install --immutable
-      - run: yarn build
-      - run: yarn build:cloudflare

@@ -71,7 +71,7 @@ export const authVerification = pgTable(
 	(t) => [index('auth_verification_identifier_idx').on(t.identifier)]
 );
 
-/** Better Auth's request limits, kept in the database so every server and Worker isolate counts the same. */
+/** Better Auth's request limits, kept in the database so every server process counts the same. */
 export const authRateLimit = pgTable('auth_rate_limit', {
 	id: text('id').primaryKey(),
 	key: text('key').notNull().unique(),

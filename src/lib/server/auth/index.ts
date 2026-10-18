@@ -24,7 +24,6 @@ import { getRequestEvent } from '$app/server';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 // -- MODULES -- //
 import { getDb } from '../db';
-import { currentPlatform, requestScoped } from '../platform';
 import { createMailer } from '../email/mailer';
 import { createAuth } from './auth';
 
@@ -69,9 +68,8 @@ function buildAuth(): Promise<Auth> {
 	);
 }
 
-/** One instance per process. On a Worker, one for each request, because it holds that request's database pool. */
+/** One instance per process. */
 export function getAuth(): Promise<Auth> {
-	if (currentPlatform()) return requestScoped('auth', buildAuth);
 	auth ??= buildAuth();
 	return auth;
 }

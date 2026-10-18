@@ -37,7 +37,7 @@ import { createItem } from '../../src/lib/server/ops/items';
 import { rotateMasterKey } from '../../src/lib/server/secrets/vault';
 import { handleRunnerApi } from '../../src/lib/server/api/runner';
 import { findSecret, maskSecrets } from '../../src/lib/shared/scan';
-import { makePglite, makePostgres, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
 
 // -- CONSTANTS -- //
@@ -113,10 +113,8 @@ describe('the secret scan', () => {
 	});
 });
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('browser checks on %s', (_name, make) => {
+describe('browser checks', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let w: World;
 	let n = 0;

@@ -10,14 +10,14 @@ Sign up on the board first, so the owner of the new organisation exists. Then, f
 yarn import:hapr --board C:/path/to/.board --owner you@example.com
 ```
 
-| Option                                  | Meaning                                                                                                                                                                                             |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--board`                               | The `.board` folder (the one that holds `flow`)                                                                                                                                                     |
-| `--owner`                               | The email of an existing user who becomes the owner of the organisation                                                                                                                             |
-| `--org`, `--project`                    | The address and key of the new organisation and project. Default `hapr` and `HAPR`                                                                                                                  |
-| `--db-dir`, `--storage-dir`, `--report` | Where the local PGlite database, the stored files and the report go (defaults under `.afb/`). With `DATABASE_URL` set the import goes into that PostgreSQL database and files go to `--storage-dir` |
-| `--dry-run`                             | Read and count, write nothing                                                                                                                                                                       |
-| `--create-owner`                        | Makes the owner when no such user exists. For a trial database only                                                                                                                                 |
+| Option                      | Meaning                                                                                                                                              |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--board`                   | The `.board` folder (the one that holds `flow`)                                                                                                      |
+| `--owner`                   | The email of an existing user who becomes the owner of the organisation                                                                              |
+| `--org`, `--project`        | The address and key of the new organisation and project. Default `hapr` and `HAPR`                                                                   |
+| `--storage-dir`, `--report` | Where the stored files and the report go (defaults under `.afb/`). The import goes into the PostgreSQL database in `DATABASE_URL`, which is required |
+| `--dry-run`                 | Read and count, write nothing                                                                                                                        |
+| `--create-owner`            | Makes the owner when no such user exists. For a trial database only                                                                                  |
 
 Run it again and it skips every item that already has its FLOW id: a half finished import can simply be started again.
 

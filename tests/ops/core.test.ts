@@ -17,7 +17,7 @@ import {
 import { recordSteps } from '../../src/lib/server/ops/steps';
 import { automaticMoves, setStatus } from '../../src/lib/server/ops/status';
 import { withTenant } from '../../src/lib/server/db/tenant';
-import { makePglite, makePostgres, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 
 // -- FUNCTIONS -- //
@@ -51,10 +51,8 @@ describe('automatic status rules (pure)', () => {
 	});
 });
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('operations on %s', (name, make) => {
+describe('operations', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let w: World;
 	beforeAll(async () => {
@@ -534,25 +532,22 @@ describe.each([
 		expect(seen.size).toBe(visible.length);
 	});
 
-	it.runIf(name === 'postgres')(
-		'two recorders marking different steps at once both count',
-		async () => {
-			const made = await create('member', {
-				phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }, { text: 'b' }, { text: 'c' }] }],
-				manualChecks: []
-			});
-			await Promise.all(
-				['1.1', '1.2', '1.3'].map((key) =>
-					recordSteps(w.ctx('member'), { item: made.ref, marks: [{ key, mark: 'done' }] })
-				)
-			);
-			const d = await getItem(w.ctx('member'), made.ref);
-			expect(d.item.doneSteps).toBe(3);
-			expect(d.item.status).toBe('IN REVIEW');
-			const history = await withTenant(db, { orgId: w.orgId }, (tx) =>
-				tx.select().from(event).where(eq(event.itemId, made.id))
-			);
-			expect(history.filter((e) => e.verb === 'item.status')).toHaveLength(2);
-		}
-	);
+	it('two recorders marking different steps at once both count', async () => {
+		const made = await create('member', {
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }, { text: 'b' }, { text: 'c' }] }],
+			manualChecks: []
+		});
+		await Promise.all(
+			['1.1', '1.2', '1.3'].map((key) =>
+				recordSteps(w.ctx('member'), { item: made.ref, marks: [{ key, mark: 'done' }] })
+			)
+		);
+		const d = await getItem(w.ctx('member'), made.ref);
+		expect(d.item.doneSteps).toBe(3);
+		expect(d.item.status).toBe('IN REVIEW');
+		const history = await withTenant(db, { orgId: w.orgId }, (tx) =>
+			tx.select().from(event).where(eq(event.itemId, made.id))
+		);
+		expect(history.filter((e) => e.verb === 'item.status')).toHaveLength(2);
+	});
 });

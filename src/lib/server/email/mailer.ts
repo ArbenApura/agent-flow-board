@@ -117,7 +117,7 @@ function smtpMailer(config: MailerConfig): Mailer {
 	return {
 		kind: 'smtp',
 		async send(mail) {
-			// Loaded on first use so a Workers build never pulls it in
+			// Loaded on first use, so a server that sends no mail never pulls it in
 			const { createTransport } = await import('nodemailer');
 			try {
 				await createTransport(config.smtpUrl!).sendMail({

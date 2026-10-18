@@ -1,18 +1,22 @@
 // RENAME EXISTING ITEMS TO <PROJECT KEY>-YYYYMMDD-HHMM (UTC): yarn tsx scripts/rename-item-refs.ts [--apply] (FLOW-20261017-0950)
 // A dry run by default: it prints what would change and writes nothing. --apply changes data. For any DATABASE_URL, --apply also needs
-// AFB_ALLOW_RENAME_REMOTE=1. Without DATABASE_URL it uses the local PGlite folder in .afb/dev-db. The URL is never printed.
-import { createPglite, createPostgres } from '../src/lib/server/db/client';
+// AFB_ALLOW_RENAME_REMOTE=1. DATABASE_URL is required. The URL is never printed.
+import { createPostgres } from '../src/lib/server/db/client';
 import { liveOrgIds, renameOrg, type OrgPlan } from '../src/lib/server/db/renameRefs';
 
 const apply = process.argv.includes('--apply');
 const url = process.env.DATABASE_URL;
-if (apply && url && !process.env.AFB_ALLOW_RENAME_REMOTE) {
+if (!url) {
+	console.error('DATABASE_URL is required: the PostgreSQL database to rename items in.');
+	process.exit(1);
+}
+if (apply && !process.env.AFB_ALLOW_RENAME_REMOTE) {
 	console.error(
 		'Refusing to rename items on a database server. Read the dry run first, then set AFB_ALLOW_RENAME_REMOTE=1 for that run only.'
 	);
 	process.exit(1);
 }
-const handle = url ? await createPostgres({ ownerUrl: url }) : await createPglite('.afb/dev-db');
+const handle = await createPostgres({ ownerUrl: url });
 const show = (p: OrgPlan) => {
 	console.log(
 		`Org ${p.orgId}: ${p.renames.length} to rename, ${p.alreadyDone} already in the new form, ${p.skipped.length} skipped.`
@@ -21,9 +25,7 @@ const show = (p: OrgPlan) => {
 	for (const s of p.skipped) console.log(`  skipped ${s.ref}: ${s.reason}`);
 };
 try {
-	console.log(
-		url ? 'Database: a PostgreSQL server' : 'Database: the local PGlite folder .afb/dev-db'
-	);
+	console.log('Database: a PostgreSQL server');
 	const orgs = await liveOrgIds(handle);
 	console.log(
 		`${orgs.length} org${orgs.length === 1 ? '' : 's'}. ${apply ? 'APPLYING.' : 'Dry run, nothing is written.'}`

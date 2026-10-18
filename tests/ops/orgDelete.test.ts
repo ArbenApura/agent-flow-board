@@ -25,7 +25,7 @@ import {
 	restoreOrg
 } from '../../src/lib/server/orgs/orgs';
 import { dueOrgPurges, purgeOrg } from '../../src/lib/server/orgs/purge';
-import { makePglite, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
 
 // -- CONSTANTS -- //
@@ -41,7 +41,7 @@ describe('deleting an organisation', () => {
 	let slug: string;
 
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		w = await makeWorld(db);
 		const [row] = await db.admin.query<{ name: string; slug: string }>(
 			`select name, slug from org where id = '${w.orgId}'`
@@ -232,7 +232,7 @@ describe('deleting an organisation through the REST API', () => {
 	let w: World;
 
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		w = await makeWorld(db);
 	}, 120_000);
 	afterAll(async () => {

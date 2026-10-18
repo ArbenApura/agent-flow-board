@@ -3,17 +3,10 @@
 // -- TYPES -- //
 import type { JobRunner } from '../adapters/jobs';
 // -- ENVS -- //
-import {
-	AFB_BASE_URL,
-	AFB_JOBS,
-	BACKUP_KEY,
-	DATABASE_OWNER_URL,
-	DATABASE_URL
-} from '$app/env/private';
+import { AFB_BASE_URL, BACKUP_KEY, DATABASE_OWNER_URL, DATABASE_URL } from '$app/env/private';
 // -- MODULES -- //
-import { memoryJobs, pgBossJobs, queuesJobs, type QueueLike } from '../adapters/jobs';
+import { pgBossJobs } from '../adapters/jobs';
 import { getStorage } from '../adapters/index';
-import { currentPlatform, requestScoped, type Platform } from '../platform';
 import { backupStorage, registerBackups } from '../backup/index';
 import { NIL_ORG } from '../backup/run';
 import { getMailer } from '../auth/index';
@@ -56,11 +49,8 @@ function registerOrgPurge(jobs: JobRunner, handle: Awaited<ReturnType<typeof get
 
 async function open(): Promise<JobRunner> {
 	const handle = await getDb();
-	const mode = AFB_JOBS ?? (DATABASE_URL ? 'pgboss' : 'memory');
-	const jobs =
-		mode === 'pgboss'
-			? await pgBossJobs(handle, (DATABASE_OWNER_URL ?? DATABASE_URL)!)
-			: memoryJobs(handle);
+	// pg-boss makes its own tables, so it connects as the owner when there is one
+	const jobs = await pgBossJobs(handle, (DATABASE_OWNER_URL ?? DATABASE_URL)!);
 	const github = getGithub();
 	if (github)
 		registerPublishJobs(jobs, {
@@ -94,27 +84,8 @@ async function open(): Promise<JobRunner> {
 	return jobs;
 }
 
-/**
- * Jobs on a Worker go through the queue bound to the current request, and its handlers run in the queue consumer. There is no
- * background watcher and no nightly backup here: the Worker reports changes when a request ends, and backups are run by the
- * operator command against the database (docs/cloudflare.md).
- */
-async function openWorkers(platform: Platform): Promise<JobRunner> {
-	const handle = await getDb();
-	const jobs = queuesJobs(handle, platform.env.AFB_QUEUE as QueueLike);
-	const github = getGithub();
-	if (github)
-		registerPublishJobs(jobs, {
-			github,
-			notify: { handle, mailer: getMailer(), baseUrl: AFB_BASE_URL }
-		});
-	return jobs;
-}
-
 /** The runner, started on first use. */
 export function getJobs(): Promise<JobRunner> {
-	const platform = currentPlatform();
-	if (platform?.env.AFB_QUEUE) return requestScoped('jobs', () => openWorkers(platform));
 	runner ??= open();
 	return runner;
 }

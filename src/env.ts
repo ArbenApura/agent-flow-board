@@ -14,7 +14,7 @@ export const variables = defineEnvVars({
 		schema: optional
 	},
 	S3_ENDPOINT: {
-		description: 'S3 compatible endpoint (MinIO, Supabase Storage, R2 over S3).',
+		description: 'S3 compatible endpoint (MinIO, AWS S3 or any other S3 compatible store).',
 		schema: optional
 	},
 	S3_BUCKET: { description: 'S3 bucket for attachments.', schema: optional },
@@ -54,16 +54,12 @@ export const variables = defineEnvVars({
 	},
 	DATABASE_URL: {
 		description:
-			'PostgreSQL connection for the app as the app_runtime role. Without it, a local PGlite database is used (development and previews only).',
+			'PostgreSQL connection for the app as the app_runtime role. The server refuses to start without it.',
 		schema: optional
 	},
 	DATABASE_OWNER_URL: {
 		description:
 			'PostgreSQL connection as the migration owner, used only by the db command and AFB_AUTO_MIGRATE.',
-		schema: optional
-	},
-	AFB_DB_DIR: {
-		description: 'Folder for the local PGlite database when DATABASE_URL is not set.',
 		schema: optional
 	},
 	AFB_AUTO_MIGRATE: {
@@ -138,16 +134,6 @@ export const variables = defineEnvVars({
 		description:
 			'The GitHub web address, for install and commit links. Only a test server changes it.',
 		schema: (value) => (optional(value) ?? 'https://github.com').replace(/\/$/, '')
-	},
-	AFB_JOBS: {
-		description:
-			'memory runs background jobs inside the web process (one process only), pgboss uses the database (several processes). Default pgboss with DATABASE_URL, otherwise memory.',
-		schema: (value) => {
-			const v = optional(value);
-			if (v !== undefined && !['memory', 'pgboss'].includes(v))
-				throw new Error('AFB_JOBS must be memory or pgboss');
-			return v as 'memory' | 'pgboss' | undefined;
-		}
 	},
 	BACKUP_KEY: {
 		description:

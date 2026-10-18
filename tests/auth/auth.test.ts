@@ -1,4 +1,4 @@
-// 4.3 TO 4.6: SIGN UP, VERIFY, SIGN IN, RESET, LOCKOUT, NEW DEVICE ALERTS AND THE UNVERIFIED DUPLICATE RULE, ON PGLITE
+// 4.3 TO 4.6: SIGN UP, VERIFY, SIGN IN, RESET, LOCKOUT, NEW DEVICE ALERTS AND THE UNVERIFIED DUPLICATE RULE
 
 // -- DEP-MODULES -- //
 import { createHash } from 'node:crypto';
@@ -11,7 +11,7 @@ import { MAX_FAILURES, lockMinutes } from '../../src/lib/server/auth/lockout';
 import { purgeUnverifiedDuplicate } from '../../src/lib/server/auth/unverified';
 import { authAccount, authLockout, user } from '../../src/lib/server/db/schema';
 import { createMailer, outbox } from '../../src/lib/server/email/mailer';
-import { makePglite, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 
 // -- CONSTANTS -- //
 
@@ -36,7 +36,7 @@ describe('authentication', () => {
 	const fresh = () => `person${++counter}-${Date.now()}@example.com`;
 
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		auth = createAuth({
 			handle: db,
 			mailer,
@@ -204,7 +204,7 @@ describe('authentication', () => {
 
 describe('request limits', () => {
 	it('sign in attempts from one address are limited per minute', async () => {
-		const handle = await makePglite();
+		const handle = await makePostgres();
 		try {
 			const limited = createAuth({
 				handle,
@@ -238,7 +238,7 @@ describe('request limits', () => {
 
 describe('breached password check', () => {
 	it('refuses a password found in the corpus and sends only the 5 character hash prefix', async () => {
-		const handle = await makePglite();
+		const handle = await makePostgres();
 		const calls: string[] = [];
 		const real = globalThis.fetch;
 		vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {

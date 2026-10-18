@@ -29,7 +29,7 @@ foreach ($k in 'BETTER_AUTH_SECRET', 'AFB_MASTER_KEY') { if (-not $secrets[$k]) 
 $env:BETTER_AUTH_SECRET = $secrets['BETTER_AUTH_SECRET']
 $env:AFB_MASTER_KEY = $secrets['AFB_MASTER_KEY']
 
-# The same local database as dev. These values beat the Supabase DATABASE_URL in .env. Never seed the demo here
+# The same local database as dev. These values beat any DATABASE_URL in .env. Never seed the demo here
 $env:DATABASE_URL = 'postgres://app_runtime:localruntimepassword@127.0.0.1:5433/afb'
 $env:DATABASE_OWNER_URL = 'postgres://postgres:localpostgrespassword@127.0.0.1:5433/afb'
 $env:AFB_BASE_URL = 'https://agent-flow-board.arbenger.com'

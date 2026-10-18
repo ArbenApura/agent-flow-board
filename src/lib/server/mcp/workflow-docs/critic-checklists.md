@@ -84,7 +84,7 @@ wording does not cover. Paths are repo-relative.
 - [ ] **Every job payload carries its org id and project id** and the job runs its queries through
       `withTenant` with them before the first query. A job that reads "all projects" or uses the owner
       handle is a `BLOCKER`.
-- [ ] Jobs are safe to run twice (pg-boss retries; the memory and Cloudflare queue adapters differ):
+- [ ] Jobs are safe to run twice (pg-boss retries; the memory runner used in tests differs):
       idempotent writes, a stable key, no double email or double publish.
 - [ ] A failing job surfaces (retry, activity event, health page) and does not vanish. Fire-and-forget
       is only for work whose loss is harmless, and says why in a comment.
@@ -103,9 +103,7 @@ wording does not cover. Paths are repo-relative.
 
 **Runtime**
 
-- [ ] Code reachable from the Cloudflare adapter (`src/lib/server/cloudflare/`, `wrangler.jsonc`,
-      `yarn build:cloudflare`, `tests/cloudflare/check.mjs`) avoids Node-only APIs the Worker lacks;
-      Node-only code (`node:crypto` is fine, `node:fs`, child processes, embedded Postgres) stays in
+- [ ] Code stays on the one runtime, the Node server (`adapter-node`); Node-only code (`node:crypto` is fine, `node:fs`, child processes, embedded Postgres) stays in
       the Node server, scripts, runner and tests.
 - [ ] No unbounded accumulation of wide rows or `Promise.all` over an unbounded list; long work does
       not assume it outlives the response unless it uses the adapter's own mechanism.
@@ -192,7 +190,7 @@ wording does not cover. Paths are repo-relative.
 - [ ] Forced RLS and grants for the new table are produced by the registry (see lane 2). The
       `app_runtime` role gets only the grants it needs; it never owns tables.
 - [ ] Policies are checked for both read and write (`using` and `with check`), as `tests/db/isolation.test.ts`
-      does for every registered table, on PGlite and on the embedded real PostgreSQL.
+      does for every registered table, on the embedded real PostgreSQL.
 - [ ] Any `security definer` function sets `search_path`; nothing is granted to `public` by accident.
 - [ ] No secret literal in SQL or a migration.
 
@@ -202,7 +200,7 @@ wording does not cover. Paths are repo-relative.
       query is supplied. Wide or destructive statements are flagged for the user.
 - [ ] Multi-statement changes are transactional; backfills are idempotent where a re-run is plausible.
 - [ ] A migration is checked on a real PostgreSQL as the non-superuser owner with `app_runtime` as the
-      app role (`tests/support/db.ts`), not only on PGlite. Say in `{KNOWN_UNVERIFIED}` if it was not.
+      app role (`tests/support/db.ts`), not on anything else. Say in `{KNOWN_UNVERIFIED}` if it was not.
 - [ ] Backup and restore (`src/lib/server/backup/`) still cover the new table, and a restore refuses
       a dump of another shape loudly.
 - [ ] Zod schemas in `db/zod.ts` are regenerated for new or changed columns and `zod.test.ts` still passes.
@@ -298,7 +296,7 @@ wording does not cover. Paths are repo-relative.
       a case for a role that must be refused.
 - [ ] Tests that enumerate files or tables at run time assert the enumeration is non-empty.
 - [ ] Mocks do not replace the thing under test; database tests use the real handle from
-      `tests/support/db.ts` (PGlite and embedded PostgreSQL), and error paths are exercised.
+      `tests/support/db.ts` (embedded PostgreSQL), and error paths are exercised.
 - [ ] Browser checks (`tests/checks/*.spec.ts`, `yarn test:checks`) run against the build preview, sign
       in through the real page with the seeded people (`seed owner`, `seed admin`, `seed member`,
       `seed viewer`), and wait on a condition, never an unconditional sleep.

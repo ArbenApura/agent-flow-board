@@ -88,9 +88,9 @@ Inspect the schema, migrations, jobs and database interactions:
 - [ ] **Constraints & Inserts**
   Are NOT NULL columns, foreign keys and `onDelete` rules explicit, and does every insert (verbs, `db/seed.ts`, the importer, test support) supply every required column?
 - [ ] **Background Jobs Carry Org and Project Ids**
-  Does each job payload carry its org and project ids and set the tenant context before its first query? Is the job idempotent under retry (pg-boss, the memory runner and the Cloudflare queue behave differently)? (checklists Lane 1 "Background jobs")
+  Does each job payload carry its org and project ids and set the tenant context before its first query? Is the job idempotent under retry (pg-boss and the memory runner used in tests behave differently)? (checklists Lane 1 "Background jobs")
 - [ ] **Runtime & Adapters**
-  Does code on the Cloudflare path (`src/lib/server/cloudflare/`, `adapters/`) avoid Node-only APIs, and does Node-only code stay in the server, scripts, runner and tests? Is configuration for each adapter required loudly?
+  Does the code in `adapters/` and `src/lib/server/` keep to the Node server, and does Node-only code stay in the server, scripts, runner and tests? Is configuration for each adapter required loudly?
 - [ ] **N+1 Query Hazards & Index Use**
   Are queries structured to avoid repeated single-record queries inside loops? Do new filters and sorts have an index? Is the per-project counter (`db/numbering.ts`) used instead of `max()+1`?
 - [ ] **Connections & Slow Calls**

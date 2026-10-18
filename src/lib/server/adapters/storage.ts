@@ -1,4 +1,4 @@
-// FILE STORAGE ADAPTERS: DISK AND MEMORY (NODE), ANY S3 COMPATIBLE SERVICE (MINIO, SUPABASE, R2 OVER S3), AND AN R2 BINDING (WORKERS)
+// FILE STORAGE ADAPTERS: DISK AND MEMORY, AND ANY S3 COMPATIBLE SERVICE (MINIO, AWS S3, ANY OTHER)
 // Files are served only through short lived signed URLs, never by a public path (SPEC 6).
 
 // -- DEP-MODULES -- //
@@ -10,7 +10,7 @@ import { AwsClient } from 'aws4fetch';
 // -- TYPES -- //
 
 export interface Storage {
-	readonly kind: 'disk' | 'memory' | 's3' | 'r2';
+	readonly kind: 'disk' | 'memory' | 's3';
 	put(key: string, bytes: Uint8Array, mime: string): Promise<void>;
 	get(key: string): Promise<Uint8Array | null>;
 	delete(key: string): Promise<void>;
@@ -113,7 +113,7 @@ export function diskStorage(root: string, secret: string): Storage {
 	};
 }
 
-/** Any S3 compatible service, signed with aws4fetch so it also runs inside a Worker. */
+/** Any S3 compatible service, signed with aws4fetch. */
 export function s3Storage(options: {
 	endpoint: string;
 	bucket: string;
@@ -155,37 +155,6 @@ export function s3Storage(options: {
 				aws: { signQuery: true }
 			});
 			return signed.url;
-		}
-	};
-}
-
-/** The minimal shape of a Cloudflare R2 bucket binding, so Workers need no extra package here. */
-export type R2Like = {
-	put(
-		key: string,
-		value: Uint8Array,
-		options?: { httpMetadata?: { contentType?: string } }
-	): Promise<unknown>;
-	get(key: string): Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>;
-	delete(key: string): Promise<void>;
-};
-
-/** R2 through its binding. Files are served by the app itself through a signed link (the bucket stays private). */
-export function r2Storage(bucket: R2Like, secret: string): Storage {
-	return {
-		kind: 'r2',
-		async put(key, bytes, mime) {
-			await bucket.put(safeKey(key), bytes, { httpMetadata: { contentType: mime } });
-		},
-		async get(key) {
-			const o = await bucket.get(safeKey(key));
-			return o ? new Uint8Array(await o.arrayBuffer()) : null;
-		},
-		async delete(key) {
-			await bucket.delete(safeKey(key));
-		},
-		async signedUrl(baseUrl, key, ttl) {
-			return signedFileUrl(baseUrl, secret, key, ttl);
 		}
 	};
 }

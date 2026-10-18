@@ -1,6 +1,6 @@
 // BACKGROUND JOBS (5.13). EVERY JOB CARRIES ITS ORG AND PROJECT IDS, AND ITS HANDLER CAN QUERY ONLY THROUGH THE TENANT CONTEXT
 // The handler is never given a database handle. It gets `tenant(fn)`, which sets the tenant before the first query (L5).
-// Adapters: memory (PGlite, local and tests), pg-boss (a real PostgreSQL server), Cloudflare Queues (Workers).
+// Adapters: memory (tests) and pg-boss (a real PostgreSQL server).
 
 // -- TYPES -- //
 import type { DbHandle, Tx } from '../db/client';
@@ -21,7 +21,7 @@ export type JobContext = {
 };
 export type JobHandler = (job: JobContext) => Promise<void>;
 export interface JobRunner {
-	readonly kind: 'memory' | 'pg-boss' | 'queues';
+	readonly kind: 'memory' | 'pg-boss';
 	register(name: string, handler: JobHandler): void;
 	/** Queues a job. `runAt` delays it (the cancellable publish delay uses this). Returns an id. */
 	enqueue(name: string, payload: JobPayload, options?: { runAt?: Date }): Promise<string>;
@@ -208,63 +208,5 @@ export async function pgBossJobs(handle: DbHandle, connectionString: string): Pr
 		async stop() {
 			await boss.stop({ graceful: true, timeout: 5000 });
 		}
-	};
-}
-
-/** The shape of a Cloudflare Queues producer binding. */
-/** Cloudflare Queues refuse a delay over 12 hours, so a later time travels in the message and is waited out in hops. */
-const MAX_QUEUE_DELAY_SECONDS = 12 * 3600;
-
-export type QueueLike = {
-	send(
-		message: { name: string; payload: JobPayload; runAt?: string },
-		options?: { delaySeconds?: number }
-	): Promise<void>;
-};
-
-/** Cloudflare Queues. Delays use delaySeconds. The consumer calls `runQueued` for each message. */
-export function queuesJobs(
-	handle: DbHandle,
-	queue: QueueLike
-): JobRunner & {
-	runQueued(message: { name: string; payload: JobPayload; runAt?: string }): Promise<void>;
-} {
-	const handlers = new Map<string, JobHandler>();
-	return {
-		kind: 'queues',
-		register: (name, handler) => void handlers.set(name, handler),
-		async enqueue(name, payload, options) {
-			assertPayload(payload);
-			const wait = options?.runAt
-				? Math.max(0, Math.ceil((options.runAt.getTime() - Date.now()) / 1000))
-				: 0;
-			await queue.send(
-				{
-					name,
-					payload,
-					...(wait > MAX_QUEUE_DELAY_SECONDS ? { runAt: options!.runAt!.toISOString() } : {})
-				},
-				wait ? { delaySeconds: Math.min(wait, MAX_QUEUE_DELAY_SECONDS) } : undefined
-			);
-			return randomUUID();
-		},
-		async schedule() {
-			// Cloudflare runs scheduled jobs from cron triggers in the Worker configuration, not from here
-		},
-		async runQueued(message) {
-			// Not yet time: send it on for the next hop and finish this one
-			if (message.runAt) {
-				const left = Math.ceil((new Date(message.runAt).getTime() - Date.now()) / 1000);
-				if (left > 5) {
-					await queue.send(message, { delaySeconds: Math.min(left, MAX_QUEUE_DELAY_SECONDS) });
-					return;
-				}
-			}
-			const handler = handlers.get(message.name);
-			if (!handler) throw new Error(`No handler for job "${message.name}"`);
-			await handler(contextFor(handle, message.payload));
-		},
-		async start() {},
-		async stop() {}
 	};
 }

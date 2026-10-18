@@ -11,14 +11,13 @@
 // A restore prints what it would do and stops unless --yes is given with --confirm naming the database it will change.
 // Settings come from the environment, the same names the app uses: DATABASE_URL (and DATABASE_OWNER_URL), DATABASE_BACKUP_URL
 // (a role that bypasses row level security, required on PostgreSQL), BACKUP_KEY, BACKUP_DIR, AFB_STORAGE_DIR.
-import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { diskStorage, s3Storage } from '../src/lib/server/adapters/storage';
-import { adminFromExecutor, pgAdmin, type Admin } from '../src/lib/server/backup/admin';
+import { pgAdmin, type Admin } from '../src/lib/server/backup/admin';
 import { inspectArchive, restoreAll, restoreOrg } from '../src/lib/server/backup/restore';
 import { runBackup } from '../src/lib/server/backup/run';
-import { createPglite, createPostgres, type DbHandle } from '../src/lib/server/db/client';
-import { migrate } from '../src/lib/server/db/migrate';
+import { createPostgres, type DbHandle } from '../src/lib/server/db/client';
 
 const env = process.env;
 const [group, command, ...rest] = process.argv.slice(2);
@@ -65,31 +64,24 @@ const backups = storageFor('BACKUP_S3_', env.BACKUP_DIR ?? '.afb/backups');
 
 let handle = null as DbHandle | null;
 let admin = null as (Admin & { close?: () => Promise<void> }) | null;
-let target = 'the local PGlite database';
-let targetName = 'pglite';
+let target = '';
+let targetName = '';
 
 async function open() {
-	if (env.DATABASE_URL) {
-		if (!env.DATABASE_BACKUP_URL)
-			fail(
-				'DATABASE_BACKUP_URL is required on PostgreSQL: a role that bypasses row level security, used only here.'
-			);
-		const owner = env.DATABASE_OWNER_URL ?? env.DATABASE_URL;
-		handle = await createPostgres({
-			runtimeUrl: env.DATABASE_OWNER_URL ? env.DATABASE_URL : undefined,
-			ownerUrl: owner
-		});
-		admin = pgAdmin(env.DATABASE_BACKUP_URL!);
-		target = `the PostgreSQL database "${databaseName(env.DATABASE_BACKUP_URL!)}"`;
-		targetName = databaseName(env.DATABASE_BACKUP_URL!);
-	} else {
-		mkdirSync('.afb', { recursive: true });
-		const dir = env.AFB_DB_DIR ?? '.afb/dev-db';
-		target = `the local PGlite database (${dir})`;
-		handle = await createPglite(dir);
-		await migrate(handle.owner);
-		admin = adminFromExecutor(handle.owner);
-	}
+	const url = env.DATABASE_URL;
+	const backupUrl = env.DATABASE_BACKUP_URL;
+	if (!url) return fail('DATABASE_URL is required: the PostgreSQL database to run this on.');
+	if (!backupUrl)
+		return fail(
+			'DATABASE_BACKUP_URL is required: a role that bypasses row level security, used only here.'
+		);
+	handle = await createPostgres({
+		runtimeUrl: env.DATABASE_OWNER_URL ? url : undefined,
+		ownerUrl: env.DATABASE_OWNER_URL ?? url
+	});
+	admin = pgAdmin(backupUrl);
+	target = `the PostgreSQL database "${databaseName(backupUrl)}"`;
+	targetName = databaseName(backupUrl);
 }
 
 /** Every archive under a folder, the newest of each org (the folder per org that backups write). */

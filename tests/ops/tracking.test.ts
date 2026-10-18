@@ -36,7 +36,7 @@ import {
 	trackingNotes
 } from '../../src/lib/server/ops/tracking';
 import { createGithubMock } from '../support/githubMock.mjs';
-import { makePglite, makePostgres, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 import { isCodeFile, commits } from '../../src/lib/shared/code';
 
@@ -118,10 +118,8 @@ describe('nudge levels', () => {
 	});
 });
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('tracking on %s', (_name, make) => {
+describe('tracking', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let w: World;
 	const mock = createGithubMock();

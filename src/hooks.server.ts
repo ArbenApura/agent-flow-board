@@ -9,10 +9,7 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 // -- MODULES -- //
 import { getAuth } from '#lib/server/auth/index.js';
 import { getDb } from '#lib/server/db/index.js';
-import { onWorkers, workersPlatform } from '#lib/server/cloudflare/env.js';
-import { flushChanges } from '#lib/server/cloudflare/flush.js';
 import { getJobs } from '#lib/server/jobs/index.js';
-import { runWithPlatform } from '#lib/server/platform.js';
 import { seedForPreview } from '#lib/server/db/seedAuth.js';
 import { MODE_COOKIE, SYSTEM_MODE_SCRIPT, parseMode, serverMode } from '#lib/theme/mode.js';
 
@@ -110,25 +107,10 @@ const authentication: Handle = async ({ event, resolve }) => {
 	return svelteKitHandler({ auth, event, resolve, building });
 };
 
-/**
- * On a Cloudflare Worker, every request runs inside its platform (the bindings it was given) and tells the hub what it changed once
- * it has finished. On a Node server there is no platform and this does nothing.
- */
-const platform: Handle = async ({ event, resolve }) => {
-	const bindings = await workersPlatform();
-	return runWithPlatform(bindings, async () => {
-		const response = await resolve(event);
-		bindings?.ctx?.waitUntil(flushChanges());
-		return response;
-	});
-};
-
-export const handle: Handle = sequence(platform, timing, csrf, theme, authentication);
+export const handle: Handle = sequence(timing, csrf, theme, authentication);
 
 /** Fills an empty preview database with the demo data once, when the server starts. */
 export const init: ServerInit = async () => {
-	// A Worker has no process of its own: its bindings arrive with each request, so there is nothing to start here
-	if (onWorkers()) return;
 	if (AFB_SEED_DEMO) await seedForPreview(await getDb());
 	// Background jobs (publishing, backups) start with the server, not on the first request that needs them
 	await getJobs();

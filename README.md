@@ -2,7 +2,7 @@
 
 A team board for plans that people and coding agents work on together. Each piece of work is an **item** with a plan of phases and steps, decisions, documents, a log and files. People see it in a web app. Agents read and write the same items through an MCP server, a REST API or a small command line bridge, so a plan stays true while the work is done.
 
-It runs for many organisations, each with many projects and many people, on one server. You can run it yourself (a VPS with Docker, or Cloudflare) and import an existing HAPR board into it.
+It runs for many organisations, each with many projects and many people, on one server. You run it yourself, on a server with Docker and its own PostgreSQL, and you can import an existing HAPR board into it.
 
 ## What it does
 
@@ -26,13 +26,13 @@ yarn install
 node tests/runner/preview.mjs
 ```
 
-That builds the app and serves it at http://localhost:5180 with demo organisations and people (read from `.env.test`; the shared sign in password is `seed-password-for-previews` and must never reach a deployment). Sign in as `owner@acme.example`.
+That builds the app, starts a throwaway PostgreSQL of its own for the run (the same embedded server the tests use) and serves the app at http://localhost:5180 with demo organisations and people (read from `.env.test`; the shared sign in password is `seed-password-for-previews` and must never reach a deployment). Sign in as `owner@acme.example`.
 
 Localhost is always port **5180**, for the dev server and for the build preview (`vite.config.ts` sets `strictPort`, so a second server fails instead of moving to another port). Stop one before starting the other.
 
-### Fast local development (Docker PostgreSQL)
+### Local development (Docker PostgreSQL)
 
-The Supabase database is in Tokyo, so every query pays a long round trip. For day to day work run a local PostgreSQL 17 in Docker instead. It keeps its data in a Docker volume, uses the same roles as production (`app_runtime` serves requests, so forced row level security applies), and listens on `127.0.0.1:5433` only.
+For day to day work run a local PostgreSQL 17 in Docker. It keeps its data in a Docker volume, uses the same roles as production (`app_runtime` serves requests, so forced row level security applies), and listens on `127.0.0.1:5433` only.
 
 ```
 yarn db:up              # start the container (Docker Desktop must be running)
@@ -40,11 +40,9 @@ yarn db:local:migrate   # tables, plus the app_runtime login
 yarn dev:local          # http://localhost:5180 with demo data (owner@acme.example)
 ```
 
-`yarn dev:local` sets its database and `AFB_BASE_URL` in the process, which takes priority over `.env`, so your Supabase `DATABASE_URL` stays untouched and cannot be seeded by accident. `yarn db:down` stops the container and keeps the data. `yarn db:local:reset` deletes the volume and rebuilds it. The passwords in `deploy/local/compose.yaml` and `package.json` are throwaways for this machine. The local owner is the `postgres` superuser, because the demo seed needs to write across organisations, which forced row level security blocks for a normal owner.
+`yarn dev:local` sets its database and `AFB_BASE_URL` in the process, which takes priority over `.env`, so a `DATABASE_URL` in your `.env` stays untouched and cannot be seeded by accident. `yarn db:down` stops the container and keeps the data. `yarn db:local:reset` deletes the volume and rebuilds it. The passwords in `deploy/local/compose.yaml` and `package.json` are throwaways for this machine. The local owner is the `postgres` superuser, because the demo seed needs to write across organisations, which forced row level security blocks for a normal owner.
 
-To run against Supabase instead, put `AFB_BASE_URL=http://localhost:5180`, a `BETTER_AUTH_SECRET` of 32 or more characters and `DATABASE_URL` in `.env`, then run `yarn dev`.
-
-The database is PostgreSQL on Supabase (the session pooler, port 5432). `DATABASE_URL` in `.env` points at it, so the dev server and the build preview on 5180 both use it, and `AFB_DB_DIR` is ignored while `DATABASE_URL` is set. A local PGlite database (a folder, or in memory with `AFB_DB_DIR=memory`) is used only when `DATABASE_URL` is empty, and only for tests and offline work. `AFB_AUTO_MIGRATE=1` and `AFB_SEED_DEMO=1` act on whichever database is in use, so leave them out of any `.env` that points at data you want to keep. After `yarn db migrate`, run `deploy/supabase/lock-public-api.sql` as the `postgres` role (see [docs/cloudflare.md](docs/cloudflare.md)). Every variable is described in `src/env.ts`, and a missing required one stops the app at start with a plain message.
+To run `yarn dev` against another PostgreSQL, put `AFB_BASE_URL=http://localhost:5180`, a `BETTER_AUTH_SECRET` of 32 or more characters and `DATABASE_URL` in `.env`. `DATABASE_URL` is the PostgreSQL connection of the app as the `app_runtime` role, and the app refuses to start without it. `AFB_AUTO_MIGRATE=1` and `AFB_SEED_DEMO=1` act on whichever database is in use, so leave them out of any `.env` that points at data you want to keep. Every variable is described in `src/env.ts`, and a missing required one stops the app at start with a plain message.
 
 ### Item references
 
@@ -55,7 +53,7 @@ One script renames the older items. It is a dry run unless you add `--apply`: it
 ```
 yarn db:local:rename-refs            # the local Docker database: dry run, prints every rename
 yarn db:local:rename-refs --apply    # makes the changes, one transaction per organisation
-yarn db:rename-refs                  # the local PGlite folder (.afb/dev-db), or the DATABASE_URL set in your shell (it does not read .env)
+yarn db:rename-refs                  # the DATABASE_URL set in your shell (required, it does not read .env)
 ```
 
 An imported plan takes the date and time of its HAPR Board id (the Board wrote it in +08:00, so `FLOW-20261014-1047` becomes `HAPR-20261014-0247`); an item made here takes its creation time. An item already in the new form is left alone, so a second run changes nothing. For any `DATABASE_URL` other than the local script, `--apply` also needs `AFB_ALLOW_RENAME_REMOTE=1`. **Never run it with `--apply` on a real database before reading its dry run, and only when the owner has said to.** It reads the list of organisations with the owner connection and does everything else as `app_runtime`.
@@ -67,7 +65,7 @@ An imported plan takes the date and time of its HAPR Board id (the Board wrote i
 | `yarn run check`                              | Types and Svelte warnings                                                  |
 | `yarn eslint .` and `yarn prettier --check .` | Lint and format                                                            |
 | `yarn run check:packages`                     | The runner and the importer type check                                     |
-| `yarn test`                                   | Unit and operations tests on PGlite and on a real PostgreSQL               |
+| `yarn test`                                   | Unit and operations tests on an embedded real PostgreSQL                   |
 | `yarn run test:checks`                        | Browser checks on the build preview (never the dev server)                 |
 | `yarn run ui-shots`                           | The product's own UI shots over `tests/ui-shots/ui-changes.md`             |
 | `yarn perf`                                   | First load JavaScript and response times against `tests/perf/budgets.json` |
@@ -77,7 +75,6 @@ An imported plan takes the date and time of its HAPR Board id (the Board wrote i
 | You want                                          | Read                                             |
 | ------------------------------------------------- | ------------------------------------------------ |
 | A VPS with Docker, PostgreSQL and automatic HTTPS | [docs/self-hosting.md](docs/self-hosting.md)     |
-| Cloudflare Workers, Hyperdrive, R2 and Queues     | [docs/cloudflare.md](docs/cloudflare.md)         |
 | Your coding tools connected                       | [docs/connect-tools.md](docs/connect-tools.md)   |
 | Browser checks and UI shots                       | [docs/runners.md](docs/runners.md)               |
 | Publishing to GitHub                              | [docs/github-app.md](docs/github-app.md)         |
@@ -85,8 +82,8 @@ An imported plan takes the date and time of its HAPR Board id (the Board wrote i
 
 ## How it is built
 
-- SvelteKit 3 with Svelte 5 runes and Tailwind 4. `adapter-node` for a server, `adapter-cloudflare` for Workers.
-- PostgreSQL through Drizzle. Every tenant table has forced row level security, and the app connects as a role that does not own the tables. The hosted database is Supabase PostgreSQL. PGlite stands in for it only in unit tests and when `DATABASE_URL` is empty.
+- SvelteKit 3 with Svelte 5 runes and Tailwind 4, on `adapter-node`.
+- PostgreSQL through Drizzle. Every tenant table has forced row level security, and the app connects as a role that does not own the tables. Live updates use `LISTEN` and `NOTIFY`, background jobs use pg-boss on the same database, and files live on disk or in any S3 compatible store.
 - One operations layer (`src/lib/server/ops/`). The pages, the REST API, the MCP server and the commands all call it, and each verb reads the caller's live role.
 - Better Auth for sign in, with the OAuth 2.1 and device flows for tools written beside it.
 - `packages/runner` (the browser check runner), `packages/bridge` (the MCP stdio bridge and the tool hooks), `importer/` (the HAPR importer), `design/` (the brand and the size scale).

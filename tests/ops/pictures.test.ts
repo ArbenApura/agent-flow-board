@@ -18,7 +18,7 @@ import {
 	setProjectLogo
 } from '../../src/lib/server/ops/pictures';
 import { listMembers } from '../../src/lib/server/orgs/orgs';
-import { makePglite, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
 
 // -- CONSTANTS -- //
@@ -33,7 +33,7 @@ describe('pictures', () => {
 	let w: World;
 	let deps: ApiDeps;
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		w = await makeWorld(db);
 		deps = { handle: db, baseUrl: BASE };
 	}, 120_000);

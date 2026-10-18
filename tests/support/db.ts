@@ -1,103 +1,82 @@
-// TEST DATABASES: PGLITE (FAST, ONE CONNECTION) AND A REAL POSTGRESQL SERVER (EMBEDDED, SEVERAL CONNECTIONS)
-// The real server runs the migrations as a NON-SUPERUSER owner and the app as a separate login role, exactly like production,
-// so forced row level security is tested where PostgreSQL really applies it (ADR-021).
+// TEST DATABASES: A FRESH DATABASE ON THE ONE EMBEDDED POSTGRESQL SERVER OF THE RUN, CLONED FROM A MIGRATED TEMPLATE
+// The server and the template are made once by globalSetup.ts. A test file gets its own database with a copy of the template, so
+// the migrations never run again and files cannot see each other's rows. The owner is NOT a superuser, so forced row level
+// security binds it exactly like production (ADR-021); `admin` is the superuser, for seeding rows across orgs.
 
 // -- DEP-TYPES -- //
 import type { DbHandle } from '../../src/lib/server/db/client';
 // -- DEP-MODULES -- //
-import EmbeddedPostgres from 'embedded-postgres';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { createServer } from 'node:net';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import pg from 'pg';
+import { inject } from 'vitest';
 // -- MODULES -- //
-import { createPglite, createPostgres } from '../../src/lib/server/db/client';
-import { migrate } from '../../src/lib/server/db/migrate';
+import { createPostgres } from '../../src/lib/server/db/client';
+// -- CONSTANTS -- //
+import { TEMPLATE } from './globalSetup';
 
 // -- TYPES -- //
 
 export type TestDb = DbHandle & {
-	kind: 'pglite' | 'postgres';
-	/** A connection as the owner role, for proving the owner is bound by row level security (real PostgreSQL only). */
-	ownerPool?: pg.Pool;
+	kind: 'postgres';
+	/** A connection as the owner role, for proving the owner is bound by row level security. */
+	ownerPool: pg.Pool;
 	/** A superuser connection for seeding rows across orgs. */
 	admin: DbHandle['owner'];
+	/** The name of this database on the shared server. */
+	name: string;
+	/** Connection strings to this database as the app's runtime role, the owner and the superuser, for a program started from a test. */
+	urls: { runtime: string; owner: string; admin: string };
 	stop(): Promise<void>;
 };
 
 // -- FUNCTIONS -- //
 
-async function freePort(): Promise<number> {
-	return new Promise((resolve, reject) => {
-		const s = createServer();
-		s.listen(0, () => {
-			const port = (s.address() as { port: number }).port;
-			s.close(() => resolve(port));
-		});
-		s.on('error', reject);
-	});
-}
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function makePglite(): Promise<TestDb> {
-	const handle = await createPglite();
-	await migrate(handle.owner);
-	return { ...handle, kind: 'pglite', admin: handle.owner, stop: () => handle.close() };
+/** PostgreSQL copies a template one clone at a time, so a clone that meets another one in progress waits and tries again. */
+async function cloneTemplate(root: pg.Pool, name: string): Promise<void> {
+	for (let attempt = 0; ; attempt++) {
+		try {
+			await root.query(`CREATE DATABASE "${name}" TEMPLATE ${TEMPLATE} OWNER afb_owner`);
+			return;
+		} catch (e) {
+			if ((e as { code?: string }).code !== '55006' || attempt >= 60) throw e;
+			await sleep(100 + Math.random() * 300);
+		}
+	}
 }
 
 export async function makePostgres(): Promise<TestDb> {
-	const dir = mkdtempSync(join(tmpdir(), 'afb-pg-'));
-	const port = await freePort();
-	const server = new EmbeddedPostgres({
-		databaseDir: dir,
-		user: 'postgres',
-		password: 'pw',
-		port,
-		persistent: false,
-		onLog: () => {},
-		onError: () => {}
-	});
-	await server.initialise();
-	await server.start();
-	const root = new pg.Pool({
-		host: 'localhost',
-		port,
-		user: 'postgres',
-		password: 'pw',
-		database: 'postgres',
-		max: 2
-	});
-	await root.query(`CREATE ROLE afb_owner LOGIN CREATEROLE PASSWORD 'own'`);
-	await root.query(`CREATE DATABASE afb OWNER afb_owner`);
-	const url = (user: string, password: string) =>
-		`postgres://${user}:${password}@localhost:${port}/afb`;
-	// The public schema belongs to the owner, who is NOT a superuser and so is bound by forced row level security
+	const { port } = inject('afbPg');
+	const name = `afb_${randomBytes(6).toString('hex')}`;
+	const url = (user: string, password: string, database = name) =>
+		`postgres://${user}:${password}@localhost:${port}/${database}`;
+	const root = new pg.Pool({ connectionString: url('postgres', 'pw', 'postgres'), max: 1 });
+	try {
+		await cloneTemplate(root, name);
+	} finally {
+		await root.end();
+	}
 	const adminPool = new pg.Pool({ connectionString: url('postgres', 'pw'), max: 2 });
-	await adminPool.query(`ALTER SCHEMA public OWNER TO afb_owner`);
 	const ownerPool = new pg.Pool({ connectionString: url('afb_owner', 'own'), max: 2 });
-	const ownerExec = {
-		exec: async (s: string) => void (await ownerPool.query(s)),
-		query: async <T extends Record<string, unknown>>(s: string, p?: unknown[]) =>
-			(await ownerPool.query(s, p)).rows as T[]
-	};
-	// Migrations run as a single connection so BEGIN and COMMIT share a session
-	const migrationClient = await ownerPool.connect();
-	await migrate({
-		exec: async (s) => void (await migrationClient.query(s)),
-		query: async <T extends Record<string, unknown>>(s: string, p?: unknown[]) =>
-			(await migrationClient.query(s, p)).rows as T[]
-	});
-	migrationClient.release();
-	await adminPool.query(`ALTER ROLE app_runtime LOGIN PASSWORD 'rt'`);
 	const handle = await createPostgres({
 		ownerUrl: url('afb_owner', 'own'),
 		runtimeUrl: url('app_runtime', 'rt')
 	});
-	await root.end();
 	return {
 		...handle,
 		kind: 'postgres',
-		owner: ownerExec,
+		name,
+		urls: {
+			runtime: url('app_runtime', 'rt'),
+			owner: url('afb_owner', 'own'),
+			admin: url('postgres', 'pw')
+		},
+		owner: {
+			exec: async (s: string) => void (await ownerPool.query(s)),
+			query: async <T extends Record<string, unknown>>(s: string, p?: unknown[]) =>
+				(await ownerPool.query(s, p)).rows as T[]
+		},
 		ownerPool,
 		admin: {
 			exec: async (s: string) => void (await adminPool.query(s)),
@@ -108,17 +87,14 @@ export async function makePostgres(): Promise<TestDb> {
 			await handle.close();
 			await ownerPool.end();
 			await adminPool.end();
-			// The server removes its own data folder when it stops, and on Windows that can briefly fail with EBUSY
+			// The clone is dropped so a long run does not keep every database; the server goes away with the run anyway
+			const drop = new pg.Pool({ connectionString: url('postgres', 'pw', 'postgres'), max: 1 });
 			try {
-				await server.stop();
-			} catch (e) {
-				if (!/EBUSY|EPERM/.test(String((e as Error).message))) throw e;
-			}
-			// The temp folder is cleaned on a best effort basis: on Windows the server can hold a file a moment longer
-			try {
-				rmSync(dir, { recursive: true, force: true, maxRetries: 8, retryDelay: 400 });
+				await drop.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
 			} catch {
-				/* The operating system removes the temp folder later */
+				/* The server removes everything when the run ends */
+			} finally {
+				await drop.end();
 			}
 		}
 	};

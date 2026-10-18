@@ -20,7 +20,7 @@ import {
 } from '../src/lib/server/db/schema';
 import { withTenant } from '../src/lib/server/db/tenant';
 import { CHANNEL } from '../src/lib/server/realtime/notify';
-import { makePglite, makePostgres, type TestDb } from '../tests/support/db';
+import { makePostgres, type TestDb } from '../tests/support/db';
 import { makeFixtureBoard } from './fixture';
 import { listing, listingHash } from './fsro';
 import { importBoard } from './import';
@@ -64,10 +64,8 @@ describe('the importer cannot write to the board', () => {
 	});
 });
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('the import on %s', (_name, make) => {
+describe('the import', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let root: string;
 	let ownerId: string;

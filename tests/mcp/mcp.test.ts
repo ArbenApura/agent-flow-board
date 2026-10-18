@@ -12,7 +12,7 @@ import { handleMcp } from '../../src/lib/server/mcp/handler';
 import { WORKFLOWS } from '../../src/lib/server/mcp/workflows';
 import { createItem } from '../../src/lib/server/ops/items';
 import { createToken } from '../../src/lib/server/ops/tokens';
-import { makePglite, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { call, connect } from '../support/mcp';
 import { PLAN, makeWorld, type World } from '../support/ops';
 
@@ -29,7 +29,7 @@ describe('MCP server', () => {
 	let token: string;
 	let readOnlyToken: string;
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		w = await makeWorld(db);
 		deps = {
 			handle: db,

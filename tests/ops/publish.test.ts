@@ -46,7 +46,7 @@ import {
 } from '../../src/lib/server/github/webhook';
 import { run } from '../../src/lib/server/ops/context';
 import { createGithubMock, signWebhook } from '../support/githubMock.mjs';
-import { makePglite, makePostgres, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 
 // -- CONSTANTS -- //
@@ -331,10 +331,8 @@ describe('the schedule of automatic publish', () => {
 	});
 });
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('publishing on %s', (_name, make) => {
+describe('publishing', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let w: World;
 	const mock = createGithubMock();

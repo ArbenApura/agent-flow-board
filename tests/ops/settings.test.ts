@@ -33,7 +33,7 @@ import {
 import { paletteCss, paletteVars, storedPalette, styleFor } from '../../src/lib/theme/css';
 import { generatePalette } from '../../src/lib/theme/palette';
 import { DEFAULT_ACCENT, PRESETS } from '../../src/lib/theme/presets';
-import { makePglite, makePostgres, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 
 // -- CONSTANTS -- //
@@ -80,10 +80,8 @@ describe('palette styles', () => {
 	});
 });
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('settings on %s', (_name, make) => {
+describe('settings', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let w: World;
 	const ctx = (who: 'owner' | 'admin' | 'member' | 'viewer' = 'admin') => ({

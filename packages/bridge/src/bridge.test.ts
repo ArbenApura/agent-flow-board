@@ -12,7 +12,7 @@ import { memoryStorage } from '../../../src/lib/server/adapters/storage';
 import { handleMcp } from '../../../src/lib/server/mcp/handler';
 import { approveDevice, pollDevice, startDevice } from '../../../src/lib/server/oauth/oauth';
 import { createToken } from '../../../src/lib/server/ops/tokens';
-import { makePglite, type TestDb } from '../../../tests/support/db';
+import { makePostgres, type TestDb } from '../../../tests/support/db';
 import { makeWorld, type World } from '../../../tests/support/ops';
 import { runBridge } from './bridge';
 import { deviceLogin, type Fetch } from './device';
@@ -48,7 +48,7 @@ describe('bridge', () => {
 		};
 
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		w = await makeWorld(db);
 		token = (
 			await createToken(w.ctx('member'), {

@@ -26,7 +26,7 @@ import {
 	shotsAccounts,
 	storeShotImage
 } from '../../src/lib/server/ops/uiShots';
-import { makePglite, makePostgres, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
 
 // -- CONSTANTS -- //
@@ -48,10 +48,8 @@ const JPEG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
 
 // -- FUNCTIONS -- //
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('UI shots on %s', (_name, make) => {
+describe('UI shots', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let w: World;
 	let n = 0;

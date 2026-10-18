@@ -29,7 +29,7 @@ import {
 } from '../../src/lib/server/orgs/orgs';
 import { resetOwnerPassword } from '../../src/lib/server/orgs/ownerReset';
 import { canAssignRole, canRemove, effectiveProjectRole } from '../../src/lib/server/orgs/roles';
-import { makePglite, makePostgres, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 
 // -- FUNCTIONS -- //
 
@@ -55,10 +55,8 @@ describe('role rules', () => {
 	});
 });
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('orgs and invites on %s', (name, make) => {
+describe('orgs and invites', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	const mailer = createMailer({
 		provider: 'log',
@@ -240,28 +238,23 @@ describe.each([
 		expect((await listMembers(db, o.id)).map((m) => m.role).sort()).toEqual(['member', 'owner']);
 	});
 
-	it.runIf(name === 'postgres')(
-		'two owners leaving at the same moment cannot leave the org with none',
-		async () => {
-			const a = await person('ownerA');
-			const b = await person('ownerB');
-			const o = await createOrg(db, a.id, { name: 'Race', slug: slug('race') });
-			await db.admin.exec(
-				`insert into member (org_id, user_id, role) values ('${o.id}', '${b.id}', 'owner')`
-			);
-			const results = await Promise.allSettled([
-				removeMember(db, o.id, a.id, a.id),
-				removeMember(db, o.id, b.id, b.id)
-			]);
-			expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
-			expect(
-				results.filter(
-					(r) => r.status === 'rejected' && (r.reason as OrgError).code === 'LAST_OWNER'
-				)
-			).toHaveLength(1);
-			expect((await listMembers(db, o.id)).filter((m) => m.role === 'owner')).toHaveLength(1);
-		}
-	);
+	it('two owners leaving at the same moment cannot leave the org with none', async () => {
+		const a = await person('ownerA');
+		const b = await person('ownerB');
+		const o = await createOrg(db, a.id, { name: 'Race', slug: slug('race') });
+		await db.admin.exec(
+			`insert into member (org_id, user_id, role) values ('${o.id}', '${b.id}', 'owner')`
+		);
+		const results = await Promise.allSettled([
+			removeMember(db, o.id, a.id, a.id),
+			removeMember(db, o.id, b.id, b.id)
+		]);
+		expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+		expect(
+			results.filter((r) => r.status === 'rejected' && (r.reason as OrgError).code === 'LAST_OWNER')
+		).toHaveLength(1);
+		expect((await listMembers(db, o.id)).filter((m) => m.role === 'owner')).toHaveLength(1);
+	});
 
 	it('removing a member revokes their tokens in that org', async () => {
 		const owner = await person('owner');
@@ -311,7 +304,7 @@ describe.each([
 		expect(rows).toHaveLength(2);
 	});
 
-	it.runIf(name === 'pglite')('the owner reset sets a new password for an Owner only', async () => {
+	it('the owner reset sets a new password for an Owner only', async () => {
 		const owner = await person('resetowner');
 		const plain = await person('plain');
 		const o = await createOrg(db, owner.id, { name: 'Reset', slug: slug('reset') });

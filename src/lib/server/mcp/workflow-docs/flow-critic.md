@@ -7,7 +7,7 @@
 > 3. **Visibility is the user's choice per item.** Plans are on our own board now, so they are no longer forced private.
 > 4. **The branch is `main`** and the base commit comes from this repo. No `feat/demo`, no `app.thehapr.com` or `demo.thehapr.com`, no step that waits on a push or runs on a demo host.
 > 5. **Be fast and accurate**: decide with a recommended default, record it, move on; ask only what blocks and is the user's. Load `/coding-guidelines` before any Svelte, TypeScript or CSS change.
-> 6. Never stop or take over a process the user started (their dev server on 5180) without asking; never run checks against a database URL from `.env` (it points at Supabase).
+> 6. Never stop or take over a process the user started (their dev server on 5180) without asking; never run checks against a database URL from `.env` (it may point at a database you want to keep).
 > Where a section below or the text `workflow_get` serves says otherwise (a UI changes table, UI shots, browser checks), treat it as skipped.
 
 
@@ -155,7 +155,7 @@ The 6 lenses in `code-lenses.md` are a pool, not a fixed roster:
 1. **Lens A - Completeness and silent omissions** ("what should be here and is not?"): missing features and error paths, swallowed errors, missing guards, hardcoded limits, truncated lists, unhandled branches.
 2. **Lens B - Theme, tokens and visual regression**: light and dark mode, tokens only (no literal colours, no `dark:`), `src/lib/ui/` reuse, DOM structure, phone behaviour, touch targets, icons, the Svelte and Tailwind conventions of the root `CLAUDE.md`.
 3. **Lens C - Security, permissions and tenant boundary**: the one operations layer, the live role check in each verb, `withTenant` and the `app_runtime` role, Zod validation, secrets never returned or logged, untrusted Markdown sanitised, tokens and caps, Better Auth, no secrets or personal data in errors or logs.
-4. **Lens D - Data layer, RLS and runtime**: Drizzle schema and generated migrations, forced RLS from the tenant table registry, query efficiency, jobs that carry org and project ids, adapters (Node server, pg-boss, Cloudflare), missing configuration failing loudly.
+4. **Lens D - Data layer, RLS and runtime**: Drizzle schema and generated migrations, forced RLS from the tenant table registry, query efficiency, jobs that carry org and project ids, adapters (Node server, pg-boss, disk or S3 files), missing configuration failing loudly.
 5. **Lens E - Quality, testability and edge states**: error boundaries, lifecycle cleanup, form submit states, and whether the item's `validation` section and the tests really cover the code.
 6. **Lens F - Design fit**: is any screen the diff changes bigger, busier or more confusing than the pages around it? Reads `DESIGN.md`, `.claude/skills/coding-guidelines/design-fit.md` and the sibling pages' code, not only the diff. There are no UI shots (standing override 2): judge from the code and `DESIGN.md`, and say plainly that the user looks at the screen on localhost 5180. A size larger than its sibling at the same level, a new pattern where an existing one fits, a second primary action or a label that needs explaining is a `HIGH` and blocks the phase; taste alone is `MEDIUM`.
 
@@ -166,7 +166,7 @@ The 6 lenses in `code-lenses.md` are a pool, not a fixed roster:
 | A - Completeness | 1 (Fail loudly, Input and output) | any code |
 | B - Theme & UI | 4 (UI) | `.svelte`, `src/app.css`, `src/lib/theme/**`, `src/lib/ui/**`, `src/lib/actions/**` |
 | C - Security & Tenancy | 1 (Operations layer, Entry points, Auth), 2 (Tenant isolation, secrets, untrusted text) | `src/lib/server/ops/**`, `api/**`, `mcp/**`, `oauth/**`, `auth/**`, `orgs/**`, `secrets/**`, `github/**`, `src/hooks.server.ts`, any `+server.ts` / `+page.server.ts` / `+layout.server.ts`, `src/lib/markdown.ts`, `packages/runner/**`, `packages/bridge/**`, `packages/cli/**`, `importer/**` |
-| D - Data layer & RLS | 1 (Background jobs, Runtime), 3 (Database) | `src/lib/server/db/**` (schema, migrations, `tenant.ts`, `security.ts`, `zod.ts`), `src/lib/server/jobs/**`, `adapters/**`, `cloudflare/**`, `backup/**`, `drizzle.config.ts` |
+| D - Data layer & RLS | 1 (Background jobs, Runtime), 3 (Database) | `src/lib/server/db/**` (schema, migrations, `tenant.ts`, `security.ts`, `zod.ts`), `src/lib/server/jobs/**`, `adapters/**`, `backup/**`, `drizzle.config.ts` |
 | E - Quality & Tests | 6 (Tests) | `tests/**`, `*.test.ts`, `packages/*/src/*.test.ts`, the item's `validation` section |
 | F - Design Fit | 7 (Design fit) | `.svelte`, `src/app.css`, `src/lib/theme/**`, any change that alters what a screen looks like. **Never dropped for a UI diff**; with 3 subagents it shares one with Lens B (B + F) |
 | (always) | 5 (Protected surfaces) | Paste into at least one subagent's prompt every time; it is short |

@@ -1,4 +1,4 @@
-// DATABASE CLIENTS. POSTGRESQL ON A VPS OR SUPABASE (pg POOL), HYPERDRIVE ON CLOUDFLARE (SAME pg DRIVER), PGLITE FOR LOCAL DEVELOPMENT AND TESTS.
+// THE DATABASE CLIENT: A POSTGRESQL CONNECTION POOL (pg) AND THE HANDLE THE APP, THE SCRIPTS AND THE TESTS SHARE.
 
 // -- DEP-TYPES -- //
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
@@ -7,7 +7,7 @@ import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 // -- MODULES -- //
 import * as schema from './schema';
-import { pgExecutor, pgliteExecutor, type SqlExecutor } from './executor';
+import { pgExecutor, type SqlExecutor } from './executor';
 
 // -- TYPES -- //
 
@@ -18,15 +18,10 @@ export type DbHandle = {
 	/** For migrations and setup, run as the owner. */
 	owner: SqlExecutor;
 	/**
-	 * True when this connection is a superuser or the owner, so each transaction must switch to the runtime role
-	 * (PGlite is always like this). False when the connection already logs in as app_runtime.
+	 * True when this connection is a superuser or the owner, so each transaction must switch to the runtime role.
+	 * False when the connection already logs in as app_runtime.
 	 */
 	switchRole: boolean;
-	/**
-	 * True on a real PostgreSQL connection, which takes several statements in one text. The tenant setup then costs one round trip,
-	 * which matters a lot when the database is far away. PGlite does not take them.
-	 */
-	batchSetup: boolean;
 	/** Listens to a NOTIFY channel on a connection of its own. Returns the function that stops listening. */
 	listen(channel: string, onMessage: (payload: string) => void): Promise<() => Promise<void>>;
 	close(): Promise<void>;
@@ -87,30 +82,6 @@ async function listenOnPool(
 	};
 }
 
-/** PGlite, in memory or in a folder. One connection, so concurrent work queues. */
-export async function createPglite(dataDir?: string): Promise<DbHandle> {
-	// Loaded here and not at the top, so a server that uses PostgreSQL (and a Worker) never loads the WebAssembly database
-	const [{ PGlite }, { drizzle: drizzlePglite }] = await Promise.all([
-		import('@electric-sql/pglite'),
-		import('drizzle-orm/pglite')
-	]);
-	const client = new PGlite(dataDir);
-	await client.waitReady;
-	return {
-		db: drizzlePglite(client, { schema }) as unknown as Db,
-		owner: pgliteExecutor(client),
-		switchRole: true,
-		batchSetup: false,
-		listen: async (channel, onMessage) => {
-			const stop = await client.listen(channel, onMessage);
-			return async () => {
-				await stop();
-			};
-		},
-		close: () => client.close()
-	};
-}
-
 /**
  * A real PostgreSQL connection pool. `runtimeUrl` logs in as app_runtime. `ownerUrl` is used only for migrations
  * and setup and may be omitted at runtime. Without a runtime URL the owner connection switches role per transaction.
@@ -120,10 +91,8 @@ export async function createPostgres(options: {
 	ownerUrl: string;
 	/** Left out, the role is switched in each transaction when there is no runtime URL. Set false when the one URL already logs in as the runtime role. */
 	switchRole?: boolean;
-	/** Connections the pool may hold. A Worker uses 1 for each request, because Hyperdrive does the pooling. */
+	/** Connections the pool may hold. */
 	poolMax?: number;
-	/** Replaces LISTEN, for a platform where the database cannot notify (Hyperdrive). */
-	listen?: DbHandle['listen'];
 }): Promise<DbHandle> {
 	const ownerPool = new pg.Pool({ connectionString: options.ownerUrl, max: options.poolMax ?? 2 });
 	const runtimePool = options.runtimeUrl
@@ -133,9 +102,7 @@ export async function createPostgres(options: {
 		db: drizzlePg(runtimePool, { schema }) as unknown as Db,
 		owner: pgExecutor(ownerPool),
 		switchRole: options.switchRole ?? !options.runtimeUrl,
-		batchSetup: true,
-		listen:
-			options.listen ?? ((channel, onMessage) => listenOnPool(runtimePool, channel, onMessage)),
+		listen: (channel, onMessage) => listenOnPool(runtimePool, channel, onMessage),
 		close: async () => {
 			if (runtimePool !== ownerPool) await runtimePool.end();
 			await ownerPool.end();

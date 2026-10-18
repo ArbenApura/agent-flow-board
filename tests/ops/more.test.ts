@@ -50,7 +50,7 @@ import {
 	revokeToken
 } from '../../src/lib/server/ops/tokens';
 import { FORMER_MEMBER, deleteUserAccount } from '../../src/lib/server/ops/users';
-import { makePglite, makePostgres, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 
 // -- CONSTANTS -- //
@@ -91,10 +91,8 @@ describe('job payloads', () => {
 	});
 });
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('verbs on %s', (name, make) => {
+describe('verbs', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let w: World;
 	const store = memoryStorage(SECRET);
@@ -611,27 +609,24 @@ describe.each([
 		expect(await jobs.drain(new Date(Date.now() + 7_200_000))).toEqual([]);
 	});
 
-	it.runIf(name === 'postgres')(
-		'pg-boss delivers a job with its tenant context on a real server',
-		async () => {
-			const owner = db.ownerPool!;
-			const cs = (owner as unknown as { options: { connectionString: string } }).options
-				.connectionString;
-			const jobs = await pgBossJobs(db, cs);
-			let counted = -1;
-			jobs.register('count-world-items', async (job) => {
-				counted = (await job.tenant((tx) => tx.select().from(item))).length;
-			});
-			await jobs.start();
-			try {
-				await jobs.enqueue('count-world-items', { orgId: w.orgId });
-				for (let i = 0; i < 40 && counted < 0; i++) await new Promise((r) => setTimeout(r, 250));
-				expect(counted).toBeGreaterThan(0);
-			} finally {
-				await jobs.stop();
-			}
+	it('pg-boss delivers a job with its tenant context on a real server', async () => {
+		const owner = db.ownerPool!;
+		const cs = (owner as unknown as { options: { connectionString: string } }).options
+			.connectionString;
+		const jobs = await pgBossJobs(db, cs);
+		let counted = -1;
+		jobs.register('count-world-items', async (job) => {
+			counted = (await job.tenant((tx) => tx.select().from(item))).length;
+		});
+		await jobs.start();
+		try {
+			await jobs.enqueue('count-world-items', { orgId: w.orgId });
+			for (let i = 0; i < 40 && counted < 0; i++) await new Promise((r) => setTimeout(r, 250));
+			expect(counted).toBeGreaterThan(0);
+		} finally {
+			await jobs.stop();
 		}
-	);
+	});
 
 	it('decisions of another org are not reachable by number', async () => {
 		const it = await create('Cross org decisions');

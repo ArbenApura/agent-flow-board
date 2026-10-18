@@ -1,4 +1,4 @@
-// 3.10: DATABASE LEVEL ISOLATION, RUN AS app_runtime ON PGLITE AND ON A REAL POSTGRESQL SERVER
+// 3.10: DATABASE LEVEL ISOLATION, RUN AS app_runtime ON A REAL POSTGRESQL SERVER
 
 // -- DEP-MODULES -- //
 import { sql } from 'drizzle-orm';
@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { item, project, projectPin } from '../../src/lib/server/db/schema';
 import { TENANT_TABLES } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
-import { makePglite, makePostgres, seedTwoOrgs, type Seed, type TestDb } from '../support/db';
+import { makePostgres, seedTwoOrgs, type Seed, type TestDb } from '../support/db';
 
 // -- FUNCTIONS -- //
 
@@ -30,10 +30,8 @@ async function failure(p: Promise<unknown>): Promise<string> {
 	}
 }
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('tenant isolation on %s', (_name, make) => {
+describe('tenant isolation', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let s: Seed;
 
@@ -236,37 +234,31 @@ describe.each([
 		});
 	});
 
-	it.runIf(_name === 'postgres')(
-		'the owner role is bound by row level security too (no owner bypass)',
-		async () => {
-			const owner = (db as TestDb).ownerPool!;
-			const bare = await owner.query('select count(*)::int as n from item');
-			expect(bare.rows[0].n).toBe(0);
-			const client = await owner.connect();
-			await client.query('begin');
-			await client.query(`select set_config('app.org_id', $1, true)`, [s.orgA]);
-			// No policy applies to the owner, so even with a tenant set it reads nothing: forced row level security denies by default
-			const seen = await client.query('select count(*)::int as n from item');
-			await client.query('rollback');
-			client.release();
-			expect(seen.rows[0].n).toBe(0);
-		}
-	);
+	it('the owner role is bound by row level security too (no owner bypass)', async () => {
+		const owner = (db as TestDb).ownerPool!;
+		const bare = await owner.query('select count(*)::int as n from item');
+		expect(bare.rows[0].n).toBe(0);
+		const client = await owner.connect();
+		await client.query('begin');
+		await client.query(`select set_config('app.org_id', $1, true)`, [s.orgA]);
+		// No policy applies to the owner, so even with a tenant set it reads nothing: forced row level security denies by default
+		const seen = await client.query('select count(*)::int as n from item');
+		await client.query('rollback');
+		client.release();
+		expect(seen.rows[0].n).toBe(0);
+	});
 
-	it.runIf(_name === 'postgres')(
-		'a pooled connection never carries a tenant into the next request',
-		async () => {
-			// Many overlapping requests for both orgs on a small pool, each must see only its own org
-			const checks = Array.from({ length: 40 }, (_, i) => {
-				const org = i % 2 === 0 ? s.orgA : s.orgB;
-				return withTenant(db, { orgId: org }, async (tx) => {
-					await tx.execute(sql`select pg_sleep(0.01)`);
-					return (await tx.select().from(item)).map((r) => r.orgId);
-				}).then((orgs) => orgs.every((o) => o === org));
-			});
-			expect((await Promise.all(checks)).every(Boolean)).toBe(true);
-			const after = await db.db.select().from(item);
-			expect(after).toHaveLength(0);
-		}
-	);
+	it('a pooled connection never carries a tenant into the next request', async () => {
+		// Many overlapping requests for both orgs on a small pool, each must see only its own org
+		const checks = Array.from({ length: 40 }, (_, i) => {
+			const org = i % 2 === 0 ? s.orgA : s.orgB;
+			return withTenant(db, { orgId: org }, async (tx) => {
+				await tx.execute(sql`select pg_sleep(0.01)`);
+				return (await tx.select().from(item)).map((r) => r.orgId);
+			}).then((orgs) => orgs.every((o) => o === org));
+		});
+		expect((await Promise.all(checks)).every(Boolean)).toBe(true);
+		const after = await db.db.select().from(item);
+		expect(after).toHaveLength(0);
+	});
 });

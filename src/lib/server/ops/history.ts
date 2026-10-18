@@ -285,7 +285,7 @@ export async function purgeTrash(ctx: Ctx, days = TRASH_DAYS) {
 
 /**
  * The daily clean up of an org's trash, run by whoever opens the org first each day (no background process is needed, so it
- * works the same on a server and on a Worker). One caller claims the day with a guarded update, so two at once purge once.
+ * works the same on any number of processes). One caller claims the day with a guarded update, so two at once purge once.
  */
 // An org checked in the last hour is skipped without asking the database. Opening any page used to cost a transaction (four round
 // trips) just to learn that the day was already claimed, which is slow when the database is far away

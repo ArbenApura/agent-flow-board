@@ -11,7 +11,7 @@ import { withTenant } from '../../src/lib/server/db/tenant';
 import { OpError } from '../../src/lib/server/ops/context';
 import { searchBoard } from '../../src/lib/server/ops/board';
 import { createItem, getItem, listItems, trashItem } from '../../src/lib/server/ops/items';
-import { makePglite, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
 
 // -- CONSTANTS -- //
@@ -27,7 +27,7 @@ describe('the reference of a new item', () => {
 	let secondProject: string;
 
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		w = await makeWorld(db);
 		secondProject = w.projectId.replace(/11$/, '21');
 		secondKey = 'SECOND';
@@ -161,7 +161,7 @@ describe('finding an item by any name it has had', () => {
 	let w: World;
 
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		w = await makeWorld(db);
 	}, 120_000);
 	afterAll(() => db?.stop());
@@ -240,7 +240,7 @@ describe('searching for an item by its reference', () => {
 	let id: string;
 
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		w = await makeWorld(db);
 		const made = await createItem(
 			w.ctx('owner'),

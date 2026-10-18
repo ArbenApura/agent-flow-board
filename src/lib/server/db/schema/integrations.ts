@@ -496,7 +496,7 @@ export const oauthGrant = tenantTable(
 	(t) => [index('oauth_grant_user_idx').on(t.userId)]
 );
 
-/** Device code sign in state lives in the database so it works across Worker isolates and restarts (L6). */
+/** Device code sign in state lives in the database so it works across processes and restarts (L6). */
 export const deviceCode = pgTable('device_code', {
 	id: uuid('id').primaryKey().defaultRandom(),
 	deviceCodeHash: text('device_code_hash').notNull().unique(),

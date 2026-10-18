@@ -8,15 +8,15 @@ import { item, project } from '../../src/lib/server/db/schema';
 import { SEED, seedDemo } from '../../src/lib/server/db/seed';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { searchAll } from '../../src/lib/server/db/search';
-import { makePglite, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 
 // -- FUNCTIONS -- //
 
 describe('seed data', () => {
 	let db: TestDb;
 	beforeAll(async () => {
-		db = await makePglite();
-		await seedDemo(db.owner, { loadItems: 5000 });
+		db = await makePostgres();
+		await seedDemo(db.admin, { loadItems: 5000 });
 	}, 120_000);
 	afterAll(async () => {
 		await db.stop();
@@ -48,7 +48,7 @@ describe('seed data', () => {
 	});
 
 	it('is safe to run twice', async () => {
-		await seedDemo(db.owner, { loadItems: 5000 });
+		await seedDemo(db.admin, { loadItems: 5000 });
 		const [load] = await withTenant(db, { orgId: SEED.acme, projectId: SEED.load }, (tx) =>
 			tx.select({ n: count() }).from(item)
 		);

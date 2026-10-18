@@ -3,6 +3,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { startDatabase } from './database.mjs';
 
 const root = resolve(import.meta.dirname, '..', '..');
 const stateDir = resolve(root, '.afb');
@@ -75,6 +76,9 @@ function build() {
 
 build();
 if (!buildOnly) {
+	// The app needs a PostgreSQL, so the preview starts a throwaway one of its own and stops it when the preview ends
+	console.log('[preview] starting a throwaway PostgreSQL');
+	const database = await startDatabase();
 	console.log(`[preview] serving on http://localhost:${port}`);
 	const child = spawn(
 		process.execPath,
@@ -83,11 +87,14 @@ if (!buildOnly) {
 			cwd: root,
 			stdio: 'inherit',
 			// The gallery is served only on the preview, never in a deployment
-			env: { ...process.env, AFB_ENABLE_GALLERY: '1' }
+			env: { ...process.env, AFB_ENABLE_GALLERY: '1', DATABASE_URL: database.url }
 		}
 	);
 	const stop = () => child.kill();
 	process.on('SIGINT', stop);
 	process.on('SIGTERM', stop);
-	child.on('exit', (code) => process.exit(code ?? 0));
+	child.on('exit', async (code) => {
+		await database.stop();
+		process.exit(code ?? 0);
+	});
 }

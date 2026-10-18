@@ -60,7 +60,7 @@ const handler: RequestHandler = async ({ request, params, url, locals }) => {
 	});
 };
 
-/** A weak validator from a SHA-1 of the body (Web Crypto, so it runs on a VPS and in a Worker alike). */
+/** A weak validator from a SHA-1 of the body (Web Crypto). */
 async function etagOf(text: string): Promise<string> {
 	const digest = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(text));
 	return `W/"${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')}"`;

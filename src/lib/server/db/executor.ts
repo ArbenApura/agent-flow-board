@@ -1,4 +1,4 @@
-// A TINY SQL EXECUTOR SO MIGRATIONS AND ROW LEVEL SECURITY SETUP RUN THE SAME ON PGLITE AND ON A REAL POSTGRESQL SERVER
+// A TINY SQL EXECUTOR SO MIGRATIONS AND ROW LEVEL SECURITY SETUP DO NOT DEPEND ON A DRIVER
 
 // -- TYPES -- //
 
@@ -10,19 +10,6 @@ export interface SqlExecutor {
 }
 
 // -- FUNCTIONS -- //
-
-export function pgliteExecutor(client: {
-	exec(sql: string): Promise<unknown>;
-	query<T>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
-}): SqlExecutor {
-	return {
-		exec: async (sql) => {
-			await client.exec(sql);
-		},
-		query: async <T extends Record<string, unknown>>(sql: string, params?: unknown[]) =>
-			(await client.query<T>(sql, params)).rows
-	};
-}
 
 export function pgExecutor(client: {
 	query(sql: string, params?: unknown[]): Promise<{ rows: unknown[] }>;

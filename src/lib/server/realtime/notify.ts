@@ -23,9 +23,6 @@ export type Change = {
 	v?: string;
 };
 
-// -- MODULES -- //
-import { currentPlatform, pendingChanges } from '../platform';
-
 // -- CONSTANTS -- //
 
 export const CHANNEL = 'afb_change';
@@ -35,6 +32,4 @@ export const CHANNEL = 'afb_change';
 /** Queues a notice that is delivered when the surrounding transaction commits, never before. */
 export async function notifyChange(tx: Tx, change: Change): Promise<void> {
 	await tx.execute(sql`select pg_notify(${CHANNEL}, ${JSON.stringify(change)})`);
-	// On a Worker the database cannot notify anyone, so the change is kept and sent to the hub when the work is done
-	if (currentPlatform()) pendingChanges<Change>().push(change);
 }

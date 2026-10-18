@@ -7,7 +7,7 @@ import { orgOverview } from '../../src/lib/server/ops/board';
 import { createItem } from '../../src/lib/server/ops/items';
 import { pinProject, unpinProject } from '../../src/lib/server/ops/pins';
 import { removeMember, setProjectRole } from '../../src/lib/server/orgs/orgs';
-import { makePglite, makePostgres, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
 
 // -- FUNCTIONS -- //
@@ -15,10 +15,8 @@ import { makeWorld, type World } from '../support/ops';
 const pinnedOf = async (w: World, who: keyof World['people']) =>
 	(await orgOverview(w.ctx(who))).find((o) => o.project.id === w.projectId)?.pinned;
 
-describe.each([
-	['pglite', makePglite],
-	['postgres', makePostgres]
-] as const)('pinned projects on %s', (_name, make) => {
+describe('pinned projects', () => {
+	const make = makePostgres;
 	let db: TestDb;
 	let w: World;
 	beforeAll(async () => {

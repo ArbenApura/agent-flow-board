@@ -20,7 +20,7 @@ This document defines the inspection checklists for plan reviews across differen
 - [ ] **Concurrency, Retries & Race Conditions**
   What happens if rapid clicks, an agent retry or two runners trigger the same action twice? Does a write take a `requestId` where it can repeat, and do counters use the per-project counter row?
 - [ ] **Runtime Targets**
-  Does the plan respect both the Node server and the Cloudflare adapter (no Node-only API on the Worker path, adapters required loudly)?
+  Does the plan respect the Node server (`adapter-node`) and its PostgreSQL, with adapters required loudly?
 
 ### Subagent 2 - Database, Tenant Isolation, Security & Secrets
 - [ ] **Schema Integrity & Column Constraints**

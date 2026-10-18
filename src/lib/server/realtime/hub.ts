@@ -1,13 +1,11 @@
 // THE REALTIME HUB: ONE LISTENER ON THE DATABASE PER PROCESS, FANNED OUT TO THE OPEN STREAMS OF EACH PROJECT (SPEC 11, 12)
-// On a VPS this is LISTEN and NOTIFY. On Cloudflare the same interface is served by a Durable Object (Phase 13).
+// It is LISTEN and NOTIFY on the PostgreSQL connection.
 // A null change means the listening connection was lost, so every stream tells its page to refetch.
 
 // -- TYPES -- //
 import type { DbHandle } from '../db/client';
 import type { Change } from './notify';
 // -- MODULES -- //
-import { workersHub, type HubNamespace } from '../cloudflare/hub';
-import { currentPlatform, requestScoped } from '../platform';
 import { CHANNEL } from './notify';
 
 // -- TYPES -- //
@@ -76,9 +74,6 @@ async function start(handle: DbHandle): Promise<RealtimeHub> {
 
 /** The hub for this database, started on first use and shared by every stream of the process. */
 export function getHub(handle: DbHandle): Promise<RealtimeHub> {
-	// On a Worker the hub is the project's Durable Object, reached through the binding of the current request
-	const binding = currentPlatform()?.env.AFB_HUB as HubNamespace | undefined;
-	if (binding) return Promise.resolve(requestScoped('hub', () => workersHub(binding)));
 	let hub = hubs.get(handle);
 	if (!hub) {
 		hub = start(handle);

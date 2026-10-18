@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { liveOrgIds, renameOrg } from '../../src/lib/server/db/renameRefs';
 import { OpError } from '../../src/lib/server/ops/context';
 import { createItem, getItem, trashItem } from '../../src/lib/server/ops/items';
-import { makePglite, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
 
 // -- FUNCTIONS -- //
@@ -16,7 +16,7 @@ describe('renaming existing items', () => {
 	let db: TestDb;
 
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 	}, 120_000);
 	afterAll(() => db?.stop());
 
@@ -185,7 +185,8 @@ describe('renaming existing items', () => {
 		const w = await makeWorld(db);
 		const gone = await makeWorld(db);
 		await db.admin.exec(`UPDATE org SET deleted_at = now() WHERE id = '${gone.orgId}'`);
-		const ids = await liveOrgIds(db);
+		// The script runs as a superuser, so the owner connection is the superuser here too (the bound owner would see no orgs)
+		const ids = await liveOrgIds({ ...db, owner: db.admin });
 		expect(ids).toContain(w.orgId);
 		expect(ids).not.toContain(gone.orgId);
 	});

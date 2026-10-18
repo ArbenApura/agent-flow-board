@@ -1,6 +1,6 @@
 // THE PRIVILEGED CONNECTION BACKUPS AND RESTORES USE. IT MUST BYPASS ROW LEVEL SECURITY, SO IT IS NEVER THE APP'S OWN CONNECTION.
-// On a real server that is a role made for the purpose (BYPASSRLS) given in DATABASE_BACKUP_URL. In local PGlite and tests the
-// connection is already a superuser. Nothing outside the backup code and the server command ever sees this.
+// On a server that is a role made for the purpose (BYPASSRLS) given in DATABASE_BACKUP_URL. In tests the connection is the
+// superuser of the embedded server. Nothing outside the backup code and the server command ever sees this.
 
 // -- TYPES -- //
 import type { SqlExecutor } from '../db/executor';

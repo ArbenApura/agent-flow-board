@@ -1,14 +1,7 @@
-import adapterCloudflare from '@sveltejs/adapter-cloudflare';
 import adapterNode from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
-
-// ADAPTER IS CHOSEN BY AFB_ADAPTER: "node" (DEFAULT, VPS AND DOCKER) OR "cloudflare" (WORKERS)
-const adapter =
-	process.env.AFB_ADAPTER === 'cloudflare'
-		? adapterCloudflare({ config: 'wrangler.adapter.jsonc' })
-		: adapterNode();
 
 export default defineConfig({
 	plugins: [
@@ -19,7 +12,7 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter,
+			adapter: adapterNode(),
 			// Form posts are checked by our own origin check in hooks.server.ts, which exempts the token, device, registration, API and MCP endpoints (called by tools that send no Origin)
 			csrf: { trustedOrigins: ['*'] }
 		})
@@ -39,6 +32,8 @@ export default defineConfig({
 			'tests/mcp/**/*.test.ts'
 		],
 		environment: 'node',
+		// ONE EMBEDDED POSTGRESQL SERVER FOR THE RUN, SHARED WITH THE TEST FILES THROUGH provide AND inject
+		globalSetup: ['tests/support/globalSetup.ts'],
 		testTimeout: 60_000,
 		hookTimeout: 180_000
 	}

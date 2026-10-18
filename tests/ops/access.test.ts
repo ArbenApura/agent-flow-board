@@ -18,7 +18,7 @@ import {
 	undoChange,
 	undoSession
 } from '../../src/lib/server/ops/history';
-import { makePglite, type TestDb } from '../support/db';
+import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 
 describe('access rules', () => {
@@ -29,7 +29,7 @@ describe('access rules', () => {
 	let secondKey: string;
 
 	beforeAll(async () => {
-		db = await makePglite();
+		db = await makePostgres();
 		w = await makeWorld(db);
 		// A second member who did not make or hold the private item, and a second project
 		second = `${w.people.member}-two`;

@@ -12,8 +12,7 @@ import {
 	S3_SECRET_ACCESS_KEY
 } from '$app/env/private';
 // -- MODULES -- //
-import { currentPlatform, requestScoped } from '../platform';
-import { diskStorage, r2Storage, s3Storage, type R2Like } from './storage';
+import { diskStorage, s3Storage } from './storage';
 
 // -- STATES -- //
 
@@ -23,9 +22,6 @@ let storage: Storage | null = null;
 
 /** S3 compatible storage when it is configured, otherwise a folder on disk. A half configured S3 stops the app at start. */
 export function getStorage(): Storage {
-	// On a Worker the files are in the R2 bucket bound to the current request
-	const bucket = currentPlatform()?.env.AFB_FILES as R2Like | undefined;
-	if (bucket) return requestScoped('storage', () => r2Storage(bucket, BETTER_AUTH_SECRET));
 	if (storage) return storage;
 	if (S3_ENDPOINT || S3_BUCKET || S3_ACCESS_KEY_ID || S3_SECRET_ACCESS_KEY) {
 		if (!(S3_ENDPOINT && S3_BUCKET && S3_ACCESS_KEY_ID && S3_SECRET_ACCESS_KEY))
