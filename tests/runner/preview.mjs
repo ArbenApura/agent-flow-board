@@ -87,7 +87,13 @@ if (!buildOnly) {
 			cwd: root,
 			stdio: 'inherit',
 			// The gallery is served only on the preview, never in a deployment
-			env: { ...process.env, AFB_ENABLE_GALLERY: '1', DATABASE_URL: database.url }
+			// DATABASE_OWNER_URL is pinned too, so a value from .env can never send the migration to a database that holds real data
+			env: {
+				...process.env,
+				AFB_ENABLE_GALLERY: '1',
+				DATABASE_URL: database.url,
+				DATABASE_OWNER_URL: database.url
+			}
 		}
 	);
 	const stop = () => child.kill();

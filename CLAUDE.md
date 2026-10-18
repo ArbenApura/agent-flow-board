@@ -8,6 +8,7 @@ A standalone multi-project team board for agent-driven flow plans. SvelteKit (Sv
 - Work on the checked out branch (`git branch --show-current`). Never create or switch branches unless told to.
 - Never add co-author trailers or AI attribution to a commit message.
 - Never delete `node_modules` or `.git` when cleaning up. Delete only the exact files you made.
+- **Never suggest, plan or run anything that empties the local Docker PostgreSQL on 5433**: `yarn db:local:reset`, `docker compose down -v`, removing its volume, `DROP DATABASE`. It holds the real flow plans (the AFB board itself runs on it). To run things locally use `yarn db:up` and `yarn dev:local`, which keep the data. If a clean database is needed, use a throwaway one (the embedded server the tests use, or a new container with its own volume), and ask before any destructive step.
 - Package manager is Yarn 4 (`.yarnrc.yml`, `nodeLinker: node-modules`, the program is `.yarn/releases/yarn-4.18.1.cjs`), never `npm` or `pnpm`. Commit `yarn.lock`. Never commit `package-lock.json` or `pnpm-lock.yaml`.
 
 ## Flow plans and running sessions
