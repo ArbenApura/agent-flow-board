@@ -167,7 +167,9 @@
 							<span class="flex-1 sm:hidden"></span>
 							<Button size="sm" onclick={() => open(a.id)}>Open</Button>
 							{#if env.canWrite}
-								<Button size="sm" variant="ghost" onclick={() => remove(a.id)}>Remove</Button>
+								<Button size="sm" variant="ghost" tone="danger" onclick={() => remove(a.id)}
+									>Remove</Button
+								>
 							{/if}
 						</span>
 					</li>

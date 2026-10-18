@@ -122,7 +122,6 @@ export const project = tenantTable(
 		orgId: orgId(),
 		key: text('key').notNull(),
 		name: text('name').notNull(),
-		colourTag: text('colour_tag'),
 		/** A small picture as a data address. Served by /pictures/project/{id}, so reads select projectCols and never carry it. */
 		logo: text('logo'),
 		streams: jsonb('streams')

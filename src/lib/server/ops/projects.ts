@@ -25,7 +25,6 @@ import { effectiveProjectRole } from '../orgs/roles';
 export const projectInput = z.object({
 	key: z.string().regex(/^[A-Z][A-Z0-9]{1,9}$/, 'A project key is 2 to 10 capitals or digits'),
 	name: z.string().min(2).max(80),
-	colourTag: z.string().max(20).nullish(),
 	webApp: z.boolean().default(false),
 	streams: z
 		.array(
@@ -42,7 +41,6 @@ export const projectUpdateInput = z.object({
 	project: z.string().min(1),
 	expectVersion: z.number().int().optional(),
 	name: z.string().min(2).max(80).optional(),
-	colourTag: z.string().max(20).nullable().optional(),
 	webApp: z.boolean().optional(),
 	rules: z.string().max(100_000).optional(),
 	streams: z
@@ -72,7 +70,6 @@ export const projectUpdateInput = z.object({
 
 const PATCH = [
 	'name',
-	'colourTag',
 	'webApp',
 	'rules',
 	'streams',
@@ -135,7 +132,6 @@ export async function createProject(ctx: Ctx, raw: z.input<typeof projectInput>)
 				orgId: ctx.orgId,
 				key: input.key,
 				name: input.name,
-				colourTag: input.colourTag ?? null,
 				webApp: input.webApp,
 				streams: input.streams
 			})

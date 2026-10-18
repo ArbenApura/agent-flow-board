@@ -446,6 +446,7 @@
 									<Button
 										size="sm"
 										variant="ghost"
+										tone="danger"
 										loading={busy === `remove-${mc.key}`}
 										onclick={() => removeCheck(mc.key)}
 									>

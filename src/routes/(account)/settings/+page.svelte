@@ -439,7 +439,8 @@
 							{#if s.current}
 								<Badge tone="success" dot>This device</Badge>
 							{:else}
-								<Button size="sm" variant="ghost" onclick={() => endSession(s.token)}>End it</Button
+								<Button variant="ghost" tone="danger" onclick={() => endSession(s.token)}
+									>End it</Button
 								>
 							{/if}
 						{/snippet}
@@ -486,7 +487,7 @@
 							>
 							{#snippet trail()}
 								<Badge>{t.kind}</Badge>
-								<Button size="sm" variant="ghost" onclick={() => revokeTool(t.org, t.id)}
+								<Button variant="ghost" tone="danger" onclick={() => revokeTool(t.org, t.id)}
 									>Revoke</Button
 								>
 							{/snippet}

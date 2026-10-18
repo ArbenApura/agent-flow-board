@@ -56,19 +56,7 @@ export const LIST_COLS = {
 	updated: 'w-28 shrink-0 text-right max-sm:hidden'
 };
 
-/** The dot colour of a project's colour tag. Tokens only, so the dot follows the theme. */
-export const TAG_DOT: Record<string, string> = {
-	blue: 'bg-info',
-	green: 'bg-success',
-	purple: 'bg-tag-purple',
-	red: 'bg-danger',
-	amber: 'bg-warning',
-	orange: 'bg-tag-orange'
-};
-
 // -- FUNCTIONS -- //
-
-export const tagDot = (tag: string | null | undefined) => (tag && TAG_DOT[tag]) || 'bg-muted';
 
 /** "just now", "5 min ago", "3 h ago", "2 d ago", then the date. */
 export function ago(value: string | Date, now = Date.now()): string {

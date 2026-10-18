@@ -9,7 +9,8 @@
 	import { goto } from '$app/navigation';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
-	import { STATUSES, tagDot } from '#lib/board/status.js';
+	import ProjectTile from '#lib/board/ProjectTile.svelte';
+	import { STATUSES } from '#lib/board/status.js';
 	import {
 		PROJECT_SORTS,
 		PROJECT_VIEWS,
@@ -294,7 +295,12 @@
 						data-card
 					>
 						<span class="flex items-center gap-2">
-							<span class={cn('size-2.5 rounded-full', tagDot(o.project.colourTag))}></span>
+							<ProjectTile
+								id={o.project.id}
+								projectKey={o.project.key}
+								logoV={o.project.logoV}
+								size={24}
+							/>
 							<span class="font-mono text-xs text-muted">{o.project.key}</span>
 							{#if o.running > 0}<Badge tone="running">{o.running} running</Badge>{/if}
 						</span>
@@ -334,14 +340,18 @@
 							href={`/${data.org.slug}/${o.project.key}`}
 							class="flex min-w-0 flex-1 items-center gap-2 after:absolute after:inset-0"
 						>
-							<span class={cn('size-2.5 shrink-0 rounded-full', tagDot(o.project.colourTag))}
-							></span>
+							<ProjectTile
+								id={o.project.id}
+								projectKey={o.project.key}
+								logoV={o.project.logoV}
+								size={24}
+							/>
 							<span class="font-mono text-xs text-muted">{o.project.key}</span>
 							<span class="truncate font-medium text-ink">{o.project.name}</span>
 							{#if o.running > 0}<Badge tone="running">{o.running} running</Badge>{/if}
 						</a>
 						<span
-							class="flex flex-wrap items-center gap-x-4 gap-y-0.5 pl-[18px] text-xs text-muted tabular-nums sm:pl-0"
+							class="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-muted tabular-nums"
 						>
 							<span class="text-ink">{o.total} {o.total === 1 ? 'item' : 'items'}</span>
 							<span>{o.byStatus['IN PROGRESS'] ?? 0} in progress</span>

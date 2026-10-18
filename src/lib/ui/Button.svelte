@@ -11,9 +11,12 @@
 	// -- TYPES -- //
 
 	type Variant = 'primary' | 'secondary' | 'ghost' | 'subtle' | 'danger';
+	// The danger tone turns the text of a quiet button red, for destructive actions
+	type Tone = 'default' | 'danger';
 	type Props = {
 		children: Snippet;
 		variant?: Variant;
+		tone?: Tone;
 		size?: 'md' | 'sm';
 		/** Icon only buttons need an aria-label and are 44 by 44. */
 		iconOnly?: boolean;
@@ -28,6 +31,7 @@
 	let {
 		children,
 		variant = 'secondary',
+		tone = 'default',
 		size = 'md',
 		iconOnly = false,
 		loading = false,
@@ -43,17 +47,24 @@
 	const VARIANTS: Record<Variant, string> = {
 		primary:
 			'primary border-accent bg-accent text-accent-ink hover:brightness-95 focus-visible:outline-accent',
-		secondary: 'border-line bg-surface text-ink hover:bg-raised',
-		ghost: 'border-transparent bg-transparent text-ink hover:bg-raised',
+		// The quiet variants take their text colour from the tone (see QUIET below), so a danger tone never races a text-ink class
+		secondary: 'border-line bg-surface hover:bg-raised',
+		// A visible edge and a light tint on hover, so it reads as a button on both surfaces
+		ghost: 'border-line bg-transparent hover:bg-ink/10',
 		// A see-through tint of the ink token, so it reads on a plain or a tinted surface. Stays on while a menu it opened is showing.
 		subtle:
-			'border-transparent bg-transparent text-ink transition-colors hover:bg-ink/10 aria-expanded:bg-ink/10 motion-reduce:transition-none',
+			'border-transparent bg-transparent transition-colors hover:bg-ink/10 aria-expanded:bg-ink/10 motion-reduce:transition-none',
 		danger: 'border-danger bg-danger text-surface hover:brightness-95'
 	};
+
+	const QUIET = new Set<Variant>(['secondary', 'ghost', 'subtle']);
 
 	// -- REACTIVE STATES -- //
 
 	const off = $derived(disabled || loading);
+	const quietInk = $derived(
+		QUIET.has(variant) ? (tone === 'danger' ? 'text-danger' : 'text-ink') : ''
+	);
 	const classes = $derived(
 		cn(
 			'press relative inline-flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg border text-sm font-medium whitespace-nowrap select-none',
@@ -67,6 +78,7 @@
 					? 'h-8 px-3 max-sm:h-11'
 					: 'h-10 px-4 max-sm:h-11',
 			VARIANTS[variant],
+			quietInk,
 			extra
 		)
 	);

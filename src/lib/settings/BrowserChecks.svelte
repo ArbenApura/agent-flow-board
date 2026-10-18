@@ -290,8 +290,11 @@
 						{#if e.production}<Badge tone="warning">Production</Badge>{/if}
 						{#if e.writeAllowed}<Badge tone="danger">Writes allowed</Badge>{/if}
 						<span class="min-w-0 flex-1 truncate text-xs text-muted">{e.url}</span>
-						{#if can}<Button size="sm" variant="ghost" onclick={() => removeEnv(e.name)}
-								>Remove</Button
+						{#if can}<Button
+								size="sm"
+								variant="ghost"
+								tone="danger"
+								onclick={() => removeEnv(e.name)}>Remove</Button
 							>{/if}
 					</li>
 				{/each}
@@ -361,8 +364,11 @@
 						data-testid="account"
 					>
 						<span class="min-w-0 flex-1 text-sm font-medium">{a.name}</span>
-						{#if can}<Button size="sm" variant="ghost" onclick={() => removeAccount(a.name)}
-								>Remove</Button
+						{#if can}<Button
+								size="sm"
+								variant="ghost"
+								tone="danger"
+								onclick={() => removeAccount(a.name)}>Remove</Button
 							>{/if}
 					</li>
 				{/each}

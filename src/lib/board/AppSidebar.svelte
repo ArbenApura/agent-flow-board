@@ -42,7 +42,6 @@
 			id: string;
 			key: string;
 			name: string;
-			colourTag: string | null;
 			logoV?: number | null;
 		}[];
 		current?: { key: string };

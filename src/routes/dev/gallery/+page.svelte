@@ -135,6 +135,9 @@
 			<Button variant="primary">Save changes</Button>
 			<Button>Cancel</Button>
 			<Button variant="ghost">Skip</Button>
+			<Button variant="subtle">Sidebar row</Button>
+			<Button variant="ghost" tone="danger">Remove</Button>
+			<Button tone="danger">End it</Button>
 			<Button variant="danger">Delete</Button>
 			<Button variant="primary" loading>Saving</Button>
 			<Button disabled>Disabled</Button>

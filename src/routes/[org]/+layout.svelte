@@ -4,9 +4,9 @@
 	// -- ENVS -- //
 	import { navigating, page } from '$app/state';
 	// -- MODULES -- //
-	import { tagDot } from '#lib/board/status.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Button from '#lib/ui/Button.svelte';
+	import ProjectTile from '#lib/board/ProjectTile.svelte';
 	import AppSidebar from '#lib/board/AppSidebar.svelte';
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import Mark from '#lib/ui/Mark.svelte';
@@ -126,7 +126,7 @@
 			<PageFrame testid="nav-frame">
 				<div class="flex h-14 items-center gap-2 md:h-16 md:gap-3">
 					<Button
-						variant="ghost"
+						variant="subtle"
 						iconOnly
 						class="md:hidden"
 						aria-label="Open the menu"
@@ -288,7 +288,7 @@
 						onclick={() => (drawer = false)}
 						class="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm text-ink hover:bg-raised"
 					>
-						<span class={cn('size-2 rounded-full', tagDot(p.colourTag))}></span>
+						<ProjectTile id={p.id} projectKey={p.key} logoV={p.logoV} size={24} />
 						<span class="font-mono text-xs text-muted">{p.key}</span>
 						<span class="truncate">{p.name}</span>
 					</a>
@@ -337,7 +337,7 @@
 			</li>
 		</ul>
 		<form method="POST" action="/sign-out" onsubmit={signOut} class="border-t border-line pt-2">
-			<Button type="submit" variant="ghost" class="w-full justify-start">
+			<Button type="submit" variant="subtle" class="w-full justify-start">
 				<LogOut size={16} /> Sign out
 			</Button>
 		</form>

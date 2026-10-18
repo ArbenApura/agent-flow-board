@@ -23,7 +23,6 @@ export const load: LayoutServerLoad = async ({ params, locals, url }) => {
 			id: p.id,
 			key: p.key,
 			name: p.name,
-			colourTag: p.colourTag,
 			webApp: p.webApp,
 			logoV: p.logoV
 		}))

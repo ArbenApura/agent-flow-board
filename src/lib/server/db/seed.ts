@@ -81,11 +81,11 @@ export async function seedDemo(
 	await db.exec(
 		`INSERT INTO member (org_id, user_id, role) VALUES ${SEED_USERS.map((u) => `('${orgId[u.org]}', '${u.id}', '${u.role}')`).join(', ')} ON CONFLICT DO NOTHING`
 	);
-	await db.exec(`INSERT INTO project (id, org_id, key, name, colour_tag, web_app) VALUES
-		('${SEED.checkout}', '${SEED.acme}', 'CKT', 'Checkout rebuild', 'blue', true),
-		('${SEED.web}', '${SEED.acme}', 'WEB', 'Marketing site', 'green', true),
-		('${SEED.load}', '${SEED.acme}', 'LOAD', 'Load test project', null, false),
-		('${SEED.lumoraProject}', '${SEED.lumora}', 'LUM', 'Lumora launch', 'purple', false)
+	await db.exec(`INSERT INTO project (id, org_id, key, name, web_app) VALUES
+		('${SEED.checkout}', '${SEED.acme}', 'CKT', 'Checkout rebuild', true),
+		('${SEED.web}', '${SEED.acme}', 'WEB', 'Marketing site', true),
+		('${SEED.load}', '${SEED.acme}', 'LOAD', 'Load test project', false),
+		('${SEED.lumoraProject}', '${SEED.lumora}', 'LUM', 'Lumora launch', false)
 		ON CONFLICT DO NOTHING`);
 	// Named items with phases and steps, so every board page has something real to show
 	const named = [

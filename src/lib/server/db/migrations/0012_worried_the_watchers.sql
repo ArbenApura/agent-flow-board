@@ -1,0 +1,1 @@
+ALTER TABLE "project" DROP COLUMN "colour_tag";

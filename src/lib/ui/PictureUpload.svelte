@@ -71,15 +71,25 @@
 	ondragleave={() => (dragging = false)}
 	ondrop={drop}
 	class={cn(
-		'flex flex-wrap items-center gap-3 rounded-lg border p-3',
+		'flex flex-wrap items-start gap-3 rounded-lg border p-3',
 		canEdit && 'border-dashed',
 		dragging ? 'border-accent bg-accent-soft' : 'border-line'
 	)}
 >
-	<span class="inline-flex shrink-0" title={`The current ${label.toLowerCase()}`}>
-		{@render preview()}
-	</span>
+	{#snippet picture()}
+		<span
+			class="inline-flex min-h-11 shrink-0 items-center"
+			title={`The current ${label.toLowerCase()}`}
+		>
+			{@render preview()}
+		</span>
+	{/snippet}
 	{#if canEdit}
+		<!-- THE SAME LABEL AND GAP AS THE PICKER, SO THE PICTURE AND THE BUTTON CENTRE ON THE FIELD -->
+		<div class="flex flex-col gap-1.5">
+			<span aria-hidden="true" class="invisible text-xs font-medium">{label}</span>
+			{@render picture()}
+		</div>
 		{#key pickerKey}
 			<FilePicker
 				{label}
@@ -93,9 +103,16 @@
 			/>
 		{/key}
 		{#if hasPicture}
-			<Button size="sm" variant="ghost" onclick={onremove} data-testid={`${testid}-remove`}
-				>{removeLabel}</Button
-			>
+			<div class="flex flex-col gap-1.5">
+				<span aria-hidden="true" class="invisible text-xs font-medium">{label}</span>
+				<div class="flex min-h-11 items-center">
+					<Button variant="ghost" tone="danger" onclick={onremove} data-testid={`${testid}-remove`}
+						>{removeLabel}</Button
+					>
+				</div>
+			</div>
 		{/if}
+	{:else}
+		{@render picture()}
 	{/if}
 </div>

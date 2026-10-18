@@ -12,14 +12,12 @@
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
 	import { ApiError, api, deletePicture, newKey, putPicture } from '#lib/board/api.js';
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
-	import { tagDot } from '#lib/board/status.js';
 	import BrowserChecks from '#lib/settings/BrowserChecks.svelte';
 	import { canon, createFollower } from '#lib/settings/follow.js';
 	import Section from '#lib/settings/Section.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import Select from '#lib/ui/Select.svelte';
-	import SelectField from '#lib/ui/SelectField.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
 	import TagInput from '#lib/ui/TagInput.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
@@ -41,7 +39,6 @@
 
 	// -- CONSTANTS -- //
 
-	const TAGS = ['', 'blue', 'green', 'purple', 'red', 'amber', 'orange'];
 	const DELAYS = [1, 5, 10, 30, 60, 240, 1440];
 	const STALE = [1, 2, 3, 5, 7, 14, 30];
 	const DAYS = [
@@ -67,7 +64,6 @@
 	// -- STATES -- //
 
 	let name = $state('');
-	let tag = $state('');
 	let webApp = $state(false);
 	let streams = $state<{ stream: string; scopes: string[] }[]>([]);
 	let mayComplete = $state(true);
@@ -95,7 +91,7 @@
 	const dirty = $derived(
 		p
 			? {
-					general: name.trim() !== p.name || (tag || null) !== p.colourTag || webApp !== p.webApp,
+					general: name.trim() !== p.name || webApp !== p.webApp,
 					streams: canon(streams) !== canon(p.streams),
 					agents: mayComplete !== p.agentsMayComplete,
 					tracking: stale !== p.staleDays,
@@ -129,7 +125,6 @@
 	$effect(() => {
 		if (!p) return;
 		follow('name', p.name, (v) => (name = v));
-		follow('tag', p.colourTag ?? '', (v) => (tag = v));
 		follow('webApp', p.webApp, (v) => (webApp = v));
 		follow(
 			'streams',
@@ -222,14 +217,13 @@
 				id="general"
 				icon={Settings}
 				title="General"
-				text="The name and colour tag people see in the project list."
+				text="The name and logo people see in the project list."
 				dirty={dirty.general}
 				saving={st('general').saving}
 				saved={st('general').saved}
 				error={st('general').error}
 				readonly={!can}
-				onsave={() =>
-					patchProject('general', { name: name.trim(), colourTag: tag || null, webApp })}
+				onsave={() => patchProject('general', { name: name.trim(), webApp })}
 			>
 				<TextField
 					label="Project name"
@@ -259,19 +253,6 @@
 						/>{/snippet}
 				</PictureUpload>
 
-				<SelectField
-					label="Colour tag"
-					hint="A small dot beside the project name in the project list."
-					value={tag}
-					options={TAGS.map((t) => ({
-						value: t,
-						label: t === '' ? 'No colour' : t.charAt(0).toUpperCase() + t.slice(1),
-						dot: t === '' ? undefined : tagDot(t)
-					}))}
-					onchange={(v) => (tag = v)}
-					disabled={!can}
-					class="max-w-96"
-				/>
 				<Switch
 					label="This project is a web app"
 					hint="Web apps get UI shots and design checks."

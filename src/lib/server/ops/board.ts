@@ -15,6 +15,7 @@ import {
 	member,
 	project,
 	projectCols,
+	projectLogoV,
 	projectMember,
 	session,
 	step,
@@ -150,7 +151,7 @@ export async function orgOverview(ctx: Ctx) {
 			.where(and(eq(member.orgId, ctx.orgId), eq(member.userId, ctx.actor.userId)));
 		if (!m) throw new OpError('FORBIDDEN', 'You are not a member of this organisation.');
 		const projects = await tx
-			.select(projectCols)
+			.select({ ...projectCols, logoV: projectLogoV })
 			.from(project)
 			.where(eq(project.orgId, ctx.orgId))
 			.orderBy(project.key);

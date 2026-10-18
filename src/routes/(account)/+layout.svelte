@@ -63,7 +63,7 @@
 			<PageFrame testid="nav-frame">
 				<div class="flex h-14 items-center gap-2 md:h-16 md:gap-3">
 					<Button
-						variant="ghost"
+						variant="subtle"
 						iconOnly
 						class="md:hidden"
 						aria-label="Open the menu"
@@ -200,7 +200,7 @@
 			</li>
 		</ul>
 		<form method="POST" action="/sign-out" onsubmit={signOut} class="border-t border-line pt-2">
-			<Button type="submit" variant="ghost" class="w-full justify-start">
+			<Button type="submit" variant="subtle" class="w-full justify-start">
 				<LogOut size={16} /> Sign out
 			</Button>
 		</form>
