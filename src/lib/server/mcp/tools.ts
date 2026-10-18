@@ -44,6 +44,8 @@ import {
 import { itemChecks, requestRun } from '../ops/checks';
 import { itemShots, requestShots, saveUiChanges } from '../ops/uiShots';
 import { recordSteps } from '../ops/steps';
+import { getSkill, listSkills } from '../ops/skills';
+import { MAX_SKILLS_PER_PROJECT, promptNameFor } from '../../shared/skills';
 import { setStatus } from '../ops/status';
 import { trackingNotes } from '../ops/tracking';
 import { claim, requireSession, startSession } from './sessions';
@@ -446,7 +448,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'project_rules',
-		'The project rules text, its streams and scopes, and the workflows you can read with workflow_get.',
+		'The project rules text, its streams and scopes, the workflows you can read with workflow_get, and the skills you can read with skill_get.',
 		{ project: z.string() },
 		{ readOnly: true },
 		async (a, { ctx }) => {
@@ -466,6 +468,18 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 					)[0]
 			);
 			if (!p) throw new OpError('NOT_FOUND', `No project named "${a.project}".`);
+			// Names and summaries only: a skill's text is read with skill_get, so a rules call stays small. A guest, or a
+			// skill read that fails, never costs the rules their own reply
+			const all = await listSkills(ctx, { project: p.key }).catch((e) => {
+				if (e instanceof OpError && e.code === 'NOT_FOUND') return [];
+				throw e;
+			});
+			// One entry per name: the organisation level is the one an agent reads when both exist
+			const byName = new Map<string, (typeof all)[number]>();
+			for (const s of all) if (!byName.has(s.name) || s.source === 'org') byName.set(s.name, s);
+			const unique = [...byName.values()].sort((a, b) => (a.name < b.name ? -1 : 1));
+			const shown = unique.slice(0, MAX_SKILLS_PER_PROJECT);
+			const rest = unique.slice(shown.length).map((s) => s.name);
 			return {
 				key: p.key,
 				name: p.name,
@@ -475,7 +489,21 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				defaults: { stream: DEFAULT_STREAM, scope: DEFAULT_SCOPE },
 				agentsMayComplete: p.agentsMayComplete,
 				webApp: p.webApp,
-				workflows: WORKFLOWS.map((w) => ({ name: w.name, summary: w.summary }))
+				workflows: WORKFLOWS.map((w) => ({ name: w.name, summary: w.summary })),
+				skills: shown.map((s) => ({
+					name: s.name,
+					// The prompt name is not the name skill_get takes; it is named apart so an agent cannot confuse them
+					promptName: s.source === 'org' ? `org-${s.name}` : promptNameFor(p.key, s.name),
+					summary: s.summary,
+					source: s.source,
+					revision: s.revision
+				})),
+				// The remaining names are given, because skill_get has no list mode to find them any other way
+				...(rest.length
+					? {
+							skillsMore: `${rest.length} more, read each with skill_get: ${rest.join(', ')}`
+						}
+					: {})
 			};
 		}
 	);
@@ -503,6 +531,35 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				next: off + 12_000 < full.length ? off + 12_000 : null
 			};
 		}
+	);
+
+	tool(
+		'skill_get',
+		"Read a skill by name: a built-in workflow, an organisation skill or a project skill. Pass project to reach that project's skills; without it only the organisation's are read. Long skills come in parts: pass next as offset with the same revision. A .claude/skills/<name>/SKILL.md file wins over it.",
+		{
+			name: z.string().describe('The skill name, for example flow or release-notes'),
+			project: z
+				.string()
+				.optional()
+				.describe("The project key, so the project's skills and its organisation's are read"),
+			revision: z
+				.number()
+				.int()
+				.min(1)
+				.optional()
+				.describe(
+					'The revision the first page came from, so a changed skill is refused, not half read'
+				),
+			offset: z.number().int().min(0).optional()
+		},
+		{ readOnly: true },
+		async (a, { ctx }) =>
+			(await getSkill(ctx, {
+				name: a.name,
+				project: a.project,
+				revision: a.revision,
+				offset: a.offset
+			})) as never
 	);
 
 	// -- writing -- //

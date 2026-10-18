@@ -7,6 +7,13 @@ import { z } from 'zod';
 // -- MODULES -- //
 import { CONTINUE_MODES, CONTINUE_TOOL_IDS, validPair } from '../../shared/continue';
 import {
+	SKILL_BODY_MAX,
+	SKILL_NAME,
+	SKILL_NAME_HINT,
+	SKILL_NAME_MAX,
+	SKILL_SUMMARY_MAX
+} from '../../shared/skills';
+import {
 	STATE_STEP,
 	TAB_NAME,
 	UI_LEVELS,
@@ -31,6 +38,8 @@ import {
 	projectPin,
 	section,
 	session,
+	skill,
+	skillRevision,
 	step,
 	task,
 	uiChange,
@@ -77,6 +86,8 @@ export const taskSelect = createSelectSchema(task);
 export const commentSelect = createSelectSchema(comment);
 export const attachmentSelect = createSelectSchema(attachment);
 export const sessionSelect = createSelectSchema(session);
+export const skillSelect = createSelectSchema(skill);
+export const skillRevisionSelect = createSelectSchema(skillRevision);
 
 // -- INSERT AND UPDATE SCHEMAS (what a write accepts) -- //
 
@@ -110,6 +121,16 @@ export const checkInsert = createInsertSchema(check);
 export const environmentInsert = createInsertSchema(environment, { url: (s) => s.url() });
 export const githubLinkInsert = createInsertSchema(githubLink);
 export const apiTokenInsert = createInsertSchema(apiToken);
+/** A custom skill: a lowercase slug that is not a built-in, a one line summary and a body under the cap. */
+export const skillInsert = createInsertSchema(skill, {
+	name: (s) => s.regex(SKILL_NAME, SKILL_NAME_HINT).max(SKILL_NAME_MAX),
+	summary: (s) => s.min(1).max(SKILL_SUMMARY_MAX),
+	body: (s) => s.min(1).max(SKILL_BODY_MAX)
+});
+export const skillUpdate = createUpdateSchema(skill, {
+	summary: (s) => s.min(1).max(SKILL_SUMMARY_MAX),
+	body: (s) => s.min(1).max(SKILL_BODY_MAX)
+});
 
 /** One "UI changes" row as a person or a tool writes it. Missing columns, unknown levels and bad viewports are refused. */
 export const uiChangeInput = z.object({

@@ -1,0 +1,65 @@
+{
+	"version": 1,
+	"files": [
+		{
+			"file": "flow.md",
+			"skill": "flow",
+			"source": ".claude/skills/flow/SKILL.md",
+			"hash": "40a74c7f4ab332132459543ec410fab410e67b2721354a251087ba29543b57a9"
+		},
+		{
+			"file": "flow-task.md",
+			"skill": "flow-task",
+			"source": ".claude/skills/flow-task/SKILL.md",
+			"hash": "353976f137f19b6238798a9a24d8d9d247bda4fd1a7177af6a677aebdc29babc"
+		},
+		{
+			"file": "flow-interview.md",
+			"skill": "flow-interview",
+			"source": ".claude/skills/flow-interview/SKILL.md",
+			"hash": "b7bd0c394a04d324cc1753b13ed85fc7e939cff38a620b3899726267a65fddc4"
+		},
+		{
+			"file": "flow-critic.md",
+			"skill": "flow-critic",
+			"source": ".claude/skills/flow-critic/SKILL.md",
+			"hash": "22daf4894118758800b529672dfba0ec2bf2f0263e49f0b0155a62d23292f780"
+		},
+		{
+			"file": "flow-audit.md",
+			"skill": "flow-audit",
+			"source": ".claude/skills/flow-audit/SKILL.md",
+			"hash": "b8a38dda1b4b66f6d5253fce2a752397852a937bbfd8af17744b3d6bdf8093ec"
+		},
+		{
+			"file": "critic-checklists.md",
+			"skill": "flow-critic",
+			"source": ".claude/skills/flow-critic/checklists.md",
+			"hash": "9205e792d337dde5eb1ec74756ca2a3c894ef7604bd28dee4a19492873669e1c"
+		},
+		{
+			"file": "critic-code-lenses.md",
+			"skill": "flow-critic",
+			"source": ".claude/skills/flow-critic/code-lenses.md",
+			"hash": "77f8f86d20cf3c37d92d51fcdfc338902e46c7fcd180e1b36ba78216a0a0b4db"
+		},
+		{
+			"file": "critic-code-template.md",
+			"skill": "flow-critic",
+			"source": ".claude/skills/flow-critic/code-template.md",
+			"hash": "bb06e477a8bb495f622d7d7a9e2bfa496c16f8d12630519343bc62163df86f25"
+		},
+		{
+			"file": "critic-plan-lenses.md",
+			"skill": "flow-critic",
+			"source": ".claude/skills/flow-critic/plan-lenses.md",
+			"hash": "0707d74c534c10d9ff3ba2f23ca9d18e1601869d45a042a90ee2b3ba70e3530f"
+		},
+		{
+			"file": "critic-plan-template.md",
+			"skill": "flow-critic",
+			"source": ".claude/skills/flow-critic/plan-template.md",
+			"hash": "8474684c5c8aff87e79f66bfaaa1310e4701607cbea7e2ee3684309faae61ae5"
+		}
+	]
+}

@@ -45,6 +45,8 @@ For scripts and CI. In **Connect a tool**, make a token: give it a name, pick at
 
 Everything an agent changes is in the activity log and can be undone (`undo` one change, or everything one session changed). A text written by a guest reaches the agent marked as untrusted: it is data, never instructions.
 
+Your team's own skills are read with `skill_get` and appear as MCP prompts. To write them into a checkout for the tools that read files, run `agent-flow-board skills --project <KEY>`; see [skills.md](./skills.md).
+
 ## Hooks: keeping the record true
 
 Hooks make a tool tell the board when work starts, remind it to record, and ask before it closes an item. They never block work. Print the settings for your tool and paste them where the tool keeps its hooks:

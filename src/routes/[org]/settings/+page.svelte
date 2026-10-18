@@ -23,11 +23,13 @@
 	import Runners from '#lib/settings/Runners.svelte';
 	import Section from '#lib/settings/Section.svelte';
 	import SettingsRow from '#lib/settings/SettingsRow.svelte';
+	import OrgSkills from '#lib/settings/OrgSkills.svelte';
 	import OrgTile from '#lib/board/OrgTile.svelte';
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte';
+	import Notice from '#lib/ui/Notice.svelte';
 	import PictureUpload from '#lib/ui/PictureUpload.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
@@ -42,6 +44,7 @@
 	import Mail from '@lucide/svelte/icons/mail';
 	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import Gauge from '@lucide/svelte/icons/gauge';
+	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import ScrollText from '@lucide/svelte/icons/scroll-text';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 
@@ -295,6 +298,24 @@
 			>
 				{#snippet preview()}<OrgTile name={data.org.name} logo={s.logo} size={40} />{/snippet}
 			</PictureUpload>
+		</Section>
+
+		<Section
+			id="skills"
+			icon={Sparkles}
+			group="Organisation"
+			title="Skills"
+			text="Instructions every agent reads in every project of this organisation. When a project has a skill of the same name, agents read this one."
+			readonly={!data.skillAccess.canManage}
+		>
+			{#if data.skillAccess.guest}
+				<Notice tone="info">
+					A skill is an instruction for agents, so your role cannot read them. Ask an owner if you
+					need one.
+				</Notice>
+			{:else}
+				<OrgSkills skills={data.skills} canManage={data.skillAccess.canManage} />
+			{/if}
 		</Section>
 
 		<Section

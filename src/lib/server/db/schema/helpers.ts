@@ -21,6 +21,8 @@ export type TenantEntry = {
 	orgColumn: string;
 	/** Replaces the default row filter for tables that need a wider rule (the member list of a user). */
 	using?: string;
+	/** Replaces the WITH CHECK clause; it defaults to the org wall when a `using` override is set. */
+	check?: string;
 	/** Tables whose rows only ever grow. No UPDATE or DELETE is granted to the runtime role. */
 	appendOnly?: boolean;
 };
@@ -75,7 +77,7 @@ export function tenantTable<T extends Record<string, PgColumnBuilderBase>>(
 	scope: TenantScope,
 	columns: T,
 	extra?: (self: Record<string, ExtraConfigColumn>) => PgTableExtraConfigValue[],
-	options: Partial<Pick<TenantEntry, 'orgColumn' | 'using' | 'appendOnly'>> = {}
+	options: Partial<Pick<TenantEntry, 'orgColumn' | 'using' | 'check' | 'appendOnly'>> = {}
 ) {
 	TENANT_TABLES.push({ name, scope, orgColumn: options.orgColumn ?? 'org_id', ...options });
 	// The array form of the extra config is supported at runtime, its type is wider than the overloads accept

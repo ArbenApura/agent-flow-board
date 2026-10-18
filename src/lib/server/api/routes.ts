@@ -75,6 +75,19 @@ import {
 } from '../ops/plan';
 import { recordInput, recordSteps } from '../ops/steps';
 import { setStatus, setStatusInput } from '../ops/status';
+import {
+	createSkill,
+	createSkillInput,
+	getSkill,
+	getSkillRevision,
+	importSkill,
+	importSkillInput,
+	listSkillRevisions,
+	listSkills,
+	removeSkill,
+	updateSkill,
+	updateSkillInput
+} from '../ops/skills';
 import { createToken, listTokens, revokeToken, tokenInput } from '../ops/tokens';
 import { OpError, requireCap, run } from '../ops/context';
 import { sql } from 'drizzle-orm';
@@ -716,6 +729,130 @@ export const routes: Route[] = [
 		tag: 'Search',
 		query: z.object({ q: z.string().min(1), limit: z.number().optional() }),
 		handler: ({ ctx, query }) => searchBoard(ctx, query.q ?? '', { limit: num(query.limit) })
+	},
+
+	// -- skills (custom text served to agents, per project and per organisation) -- //
+	{
+		method: 'GET',
+		path: '/orgs/{org}/projects/{project}/skills',
+		summary: 'List the skills of a project and its organisation',
+		tag: 'Skills',
+		handler: ({ ctx, params }) => listSkills(ctx, { project: params.project })
+	},
+	{
+		method: 'POST',
+		path: '/orgs/{org}/projects/{project}/skills',
+		summary: 'Create a project skill (members and above)',
+		tag: 'Skills',
+		body: strip(createSkillInput, 'project'),
+		handler: ({ ctx, params, body }) =>
+			createSkill(ctx, { ...(body as object), project: params.project } as never)
+	},
+	{
+		method: 'POST',
+		path: '/orgs/{org}/projects/{project}/skills/import',
+		summary: 'Import a SKILL.md into a project (members and above)',
+		tag: 'Skills',
+		body: strip(importSkillInput, 'project'),
+		handler: ({ ctx, params, body }) =>
+			importSkill(ctx, { ...(body as object), project: params.project } as never)
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/projects/{project}/skills/{name}/revisions',
+		summary: 'The revisions of one skill, newest first',
+		tag: 'Skills',
+		handler: ({ ctx, params }) =>
+			listSkillRevisions(ctx, { skill: params.name, project: params.project })
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/projects/{project}/skills/{name}/revisions/{revision}',
+		summary: 'One revision of one skill, with its text',
+		tag: 'Skills',
+		handler: ({ ctx, params }) =>
+			getSkillRevision(ctx, {
+				skill: params.name,
+				project: params.project,
+				revision: num(params.revision) ?? 1
+			})
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/projects/{project}/skills/{name}',
+		summary: 'Read one skill by name: a built-in, the organisation one or the project one',
+		tag: 'Skills',
+		handler: ({ ctx, params, query }) =>
+			getSkill(ctx, {
+				name: params.name,
+				project: params.project,
+				revision: num(query.revision),
+				offset: num(query.offset)
+			})
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/skills',
+		summary: 'List the organisation skills (owners and admins see all, everyone else reads)',
+		tag: 'Skills',
+		handler: ({ ctx }) => listSkills(ctx, {})
+	},
+	{
+		method: 'POST',
+		path: '/orgs/{org}/skills',
+		summary: 'Create an organisation skill (owners and admins)',
+		tag: 'Skills',
+		body: createSkillInput.omit({ project: true }),
+		handler: ({ ctx, body }) => createSkill(ctx, body as never)
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/skills/{id}/revisions',
+		summary: 'The revisions of one organisation skill, newest first',
+		tag: 'Skills',
+		handler: ({ ctx, params }) => listSkillRevisions(ctx, { skill: params.id })
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/skills/{id}/revisions/{revision}',
+		summary: 'One revision of one organisation skill, with its text',
+		tag: 'Skills',
+		handler: ({ ctx, params }) =>
+			getSkillRevision(ctx, { skill: params.id, revision: num(params.revision) ?? 1 })
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/skills/{name}',
+		summary: 'Read one organisation skill by name',
+		tag: 'Skills',
+		handler: ({ ctx, params, query }) =>
+			getSkill(ctx, {
+				name: params.name,
+				revision: num(query.revision),
+				offset: num(query.offset)
+			})
+	},
+	{
+		method: 'PATCH',
+		path: '/orgs/{org}/skills/{id}',
+		summary:
+			'Save a new revision of a skill (a project skill needs write, an organisation skill needs manage)',
+		tag: 'Skills',
+		body: strip(updateSkillInput, 'skill', 'project'),
+		handler: ({ ctx, params, body }) =>
+			updateSkill(ctx, { ...(body as object), skill: params.id } as never)
+	},
+	{
+		method: 'DELETE',
+		path: '/orgs/{org}/skills/{id}',
+		summary: 'Move a skill to the trash. Its revisions stay.',
+		tag: 'Skills',
+		query: z.object({ expectVersion: z.number().optional() }),
+		handler: ({ ctx, params, query }) =>
+			removeSkill(ctx, {
+				skill: params.id,
+				expectVersion: num(query.expectVersion)
+			} as never)
 	},
 
 	// -- members and invites (people only: org level actions stay in the web app, ADR-006) -- //

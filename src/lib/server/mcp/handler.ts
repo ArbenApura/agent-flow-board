@@ -8,6 +8,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { z } from 'zod';
 // -- MODULES -- //
 import { authenticateToken } from '../ops/tokens';
+import { REPO_OVERRIDE_NOTE, SKILL_TRUST_HEADER, promptSkills } from '../ops/skills';
 import { registerCompat } from './compat';
 import { registerTools, type McpDeps } from './tools';
 import { SERVER_INSTRUCTIONS, WORKFLOWS } from './workflows';
@@ -83,6 +84,37 @@ export async function handleMcp(request: Request, deps: McpDeps): Promise<Respon
 				]
 			})
 		);
+	}
+	// Custom skills are prompts too, one per skill, so every harness discovers them without a file. The whole read and each
+	// registration are guarded: a database failure or a duplicate name must never cost a tool the five built-in prompts (ADR SKILLS 5)
+	try {
+		const skills = await promptSkills(builder.base());
+		for (const s of skills) {
+			try {
+				server.registerPrompt(
+					s.prompt,
+					{
+						title: `${s.name} (${s.source} skill)`,
+						description: s.summary.slice(0, 300)
+					},
+					async () => ({
+						messages: [
+							{
+								role: 'user',
+								content: {
+									type: 'text',
+									text: `${SKILL_TRUST_HEADER}\n\n${REPO_OVERRIDE_NOTE}\n\n${s.body}`
+								}
+							}
+						]
+					})
+				);
+			} catch {
+				// A name this client cannot register costs only this prompt
+			}
+		}
+	} catch {
+		// The built-in prompts above are already registered, and skill_get still reads every skill
 	}
 	const transport = new WebStandardStreamableHTTPServerTransport({
 		sessionIdGenerator: undefined,

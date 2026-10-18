@@ -33,7 +33,8 @@
 		"dev:local": "cross-env DATABASE_URL=postgres://app_runtime:localruntimepassword@127.0.0.1:5433/afb DATABASE_OWNER_URL=postgres://postgres:localpostgrespassword@127.0.0.1:5433/afb AFB_BASE_URL=http://localhost:5180 AFB_AUTO_MIGRATE=1 AFB_SEED_DEMO=1 vite dev",
 		"server": "tsx scripts/server.ts",
 		"import:hapr": "tsx importer/cli.ts",
-		"db:generate": "drizzle-kit generate"
+		"db:generate": "drizzle-kit generate",
+		"skills:sync": "tsx scripts/skills-sync.ts"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",

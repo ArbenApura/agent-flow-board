@@ -19,6 +19,7 @@
 	import Settings from '@lucide/svelte/icons/settings';
 	import Settings2 from '@lucide/svelte/icons/settings-2';
 	import SquareCheckBig from '@lucide/svelte/icons/square-check-big';
+	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Trash from '@lucide/svelte/icons/trash';
 	import Upload from '@lucide/svelte/icons/upload';
 
@@ -57,6 +58,7 @@
 	const TAB_ICON: Record<string, Icon> = {
 		Registry: LayoutList,
 		Tasks: SquareCheckBig,
+		Skills: Sparkles,
 		Activity,
 		Health: HeartPulse,
 		Publish: Upload,

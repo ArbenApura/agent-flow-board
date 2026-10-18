@@ -67,8 +67,8 @@ export function securityStatements(): string[] {
 		out.push(`ALTER TABLE ${q(t.name)} ENABLE ROW LEVEL SECURITY`);
 		out.push(`ALTER TABLE ${q(t.name)} FORCE ROW LEVEL SECURITY`);
 		out.push(`DROP POLICY IF EXISTS tenant_isolation ON ${q(t.name)}`);
-		// WITH CHECK stops a write that would move a row into another org
-		const check = t.using ? `"${t.orgColumn}" = ${ORG}::uuid` : using;
+		// WITH CHECK stops a write that would move a row into another org, and the same project wall as the read
+		const check = t.check ?? (t.using ? `"${t.orgColumn}" = ${ORG}::uuid` : using);
 		out.push(
 			`CREATE POLICY tenant_isolation ON ${q(t.name)} FOR ALL TO ${RUNTIME_ROLE} USING (${using}) WITH CHECK (${check})`
 		);

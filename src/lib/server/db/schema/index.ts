@@ -4,4 +4,5 @@ export * from './core';
 export * from './items';
 export * from './activity';
 export * from './integrations';
+export * from './skills';
 export * from './auth';
