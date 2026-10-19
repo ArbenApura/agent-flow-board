@@ -24,7 +24,6 @@ export default defineConfig({
 		include: [
 			'src/**/*.test.ts',
 			'packages/**/*.test.ts',
-			'importer/**/*.test.ts',
 			'tests/unit/**/*.test.ts',
 			'tests/db/**/*.test.ts',
 			'tests/auth/**/*.test.ts',

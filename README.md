@@ -15,7 +15,6 @@ It runs for many organisations, each with many projects and many people, on one 
 | Checks     | Browser checks that close a step only when they pass on the right target, UI shots that measure a new screen against the pages around it, and a runner program (local or hosted in a container).                                                                                             |
 | Publishing | A cancellable, scheduled copy of a project's public items to a GitHub repository, through a GitHub App.                                                                                                                                                                                      |
 | Backups    | Encrypted nightly backups of every organisation, a restore command, and a health panel that shows when one is late.                                                                                                                                                                          |
-| Import     | A read-only importer for a HAPR `.board`, with a report that compares every fact by content.                                                                                                                                                                                                 |
 
 ## Run it on your machine
 
@@ -64,7 +63,7 @@ An imported plan takes the date and time of its HAPR Board id (the Board wrote i
 | --------------------------------------------- | -------------------------------------------------------------------------- |
 | `yarn run check`                              | Types and Svelte warnings                                                  |
 | `yarn eslint .` and `yarn prettier --check .` | Lint and format                                                            |
-| `yarn run check:packages`                     | The runner and the importer type check                                     |
+| `yarn run check:packages`                     | The runner and scripts type check                                          |
 | `yarn test`                                   | Unit and operations tests on an embedded real PostgreSQL                   |
 | `yarn run test:checks`                        | Browser checks on the build preview (never the dev server)                 |
 | `yarn run ui-shots`                           | The product's own UI shots over `tests/ui-shots/ui-changes.md`             |
@@ -72,13 +71,12 @@ An imported plan takes the date and time of its HAPR Board id (the Board wrote i
 
 ## Run it for real
 
-| You want                                          | Read                                             |
-| ------------------------------------------------- | ------------------------------------------------ |
-| A VPS with Docker, PostgreSQL and automatic HTTPS | [docs/self-hosting.md](docs/self-hosting.md)     |
-| Your coding tools connected                       | [docs/connect-tools.md](docs/connect-tools.md)   |
-| Browser checks and UI shots                       | [docs/runners.md](docs/runners.md)               |
-| Publishing to GitHub                              | [docs/github-app.md](docs/github-app.md)         |
-| An existing HAPR board brought in                 | [docs/importing-hapr.md](docs/importing-hapr.md) |
+| You want                                          | Read                                           |
+| ------------------------------------------------- | ---------------------------------------------- |
+| A VPS with Docker, PostgreSQL and automatic HTTPS | [docs/self-hosting.md](docs/self-hosting.md)   |
+| Your coding tools connected                       | [docs/connect-tools.md](docs/connect-tools.md) |
+| Browser checks and UI shots                       | [docs/runners.md](docs/runners.md)             |
+| Publishing to GitHub                              | [docs/github-app.md](docs/github-app.md)       |
 
 ## How it is built
 
@@ -86,7 +84,7 @@ An imported plan takes the date and time of its HAPR Board id (the Board wrote i
 - PostgreSQL through Drizzle. Every tenant table has forced row level security, and the app connects as a role that does not own the tables. Live updates use `LISTEN` and `NOTIFY`, background jobs use pg-boss on the same database, and files live on disk or in any S3 compatible store.
 - One operations layer (`src/lib/server/ops/`). The pages, the REST API, the MCP server and the commands all call it, and each verb reads the caller's live role.
 - Better Auth for sign in, with the OAuth 2.1 and device flows for tools written beside it.
-- `packages/runner` (the browser check runner), `packages/bridge` (the MCP stdio bridge and the tool hooks), `importer/` (the HAPR importer), `design/` (the brand and the size scale).
+- `packages/runner` (the browser check runner), `packages/bridge` (the MCP stdio bridge and the tool hooks), `design/` (the brand and the size scale).
 
 The plan, the decisions and the loophole register this was built from live in the HAPR Board item FLOW-20261014-1047.
 
