@@ -38,11 +38,17 @@ export type ItemRow = typeof item.$inferSelect;
 /** Where an item goes when its creator names no stream or scope, and what project_rules reports for a project with none set. */
 export const DEFAULT_STREAM = 'features';
 export const DEFAULT_SCOPE = 'core';
+/** An item with the same title as one made this recently in the project is refused as a likely duplicate. */
+export const DUPLICATE_TITLE_WINDOW_MS = 10 * 60_000;
 
 const stepIn = z.object({
 	key: z
 		.string()
-		.regex(/^[0-9A-Za-z]+(\.[0-9]+[a-z]?)?$/)
+		// The same rule as step_done, step_update and plan_add_steps, so a step saved here can always be recorded later
+		.regex(
+			/^[0-9A-Za-z]+\.[0-9]+[a-z]?$/,
+			'A step key looks like 1.1: the phase key, a dot and the step number'
+		)
 		.optional(),
 	text: z.string().min(1).max(2000),
 	requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional()
@@ -192,6 +198,31 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 			await rateLimit(tx, ctx, 'write');
 			await rateLimit(tx, ctx, 'create');
 			await requireOrgMember(tx, ctx, input.assigneeId);
+			// The window is measured on the real clock because created_at comes from the database, not from options.now.
+			// An agent that creates the same title again soon after is almost always retrying a write that failed, so it is refused.
+			// A person in the web app may name two items alike on purpose, so only calls that come from a tool are checked
+			const [twin] = ctx.actor.tool
+				? await tx
+						.select({ ref: item.ref })
+						.from(item)
+						.where(
+							and(
+								eq(item.projectId, proj.id),
+								isNull(item.deletedAt),
+								// A private item the caller cannot see neither blocks nor is named in the refusal
+								visibleItemSql(ctx.actor.userId),
+								sql`lower(btrim(${item.title})) = lower(btrim(${input.title}))`,
+								gt(item.createdAt, new Date(Date.now() - DUPLICATE_TITLE_WINDOW_MS))
+							)
+						)
+						.limit(1)
+				: [];
+			if (twin)
+				throw new OpError(
+					'CONFLICT',
+					`${twin.ref} already has this title and was created in the last ${DUPLICATE_TITLE_WINDOW_MS / 60_000} minutes. Continue that item, or give the new one a different title.`,
+					{ existingRef: twin.ref }
+				);
 			const { number } = await allocateItemNumber(tx, ctx.orgId, proj.id);
 			const candidates = await freeRefs(tx, ctx.orgId, proj.key, options.now ?? new Date());
 			if (!candidates.length) throw refsExhausted();

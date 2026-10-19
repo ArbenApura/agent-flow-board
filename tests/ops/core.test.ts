@@ -91,6 +91,26 @@ describe('operations', () => {
 		expect(d.manualChecks.map((m) => m.key)).toEqual(['M1', 'M2']);
 	});
 
+	it('refuses a step key the record tools could not use, so a plan never holds an unrecordable step', async () => {
+		await expect(
+			create('member', {
+				title: 'Bare step keys',
+				phases: [{ key: '1', title: 'One', steps: [{ key: '1', text: 'A bare key' }] }]
+			})
+		).rejects.toThrow(/step key looks like 1\.1/i);
+	});
+
+	it('refuses a second item with the same title from an agent within ten minutes, and names the first', async () => {
+		const agent = { kind: 'agent', tool: 'Claude Code' } as const;
+		const first = await create('member', { title: 'Retry guard' }, agent);
+		await expect(create('member', { title: '  retry GUARD ' }, agent)).rejects.toMatchObject({
+			code: 'CONFLICT',
+			details: { existingRef: first.ref }
+		});
+		// A person may name two items alike on purpose
+		await expect(create('member', { title: 'Retry guard' })).resolves.toBeTruthy();
+	});
+
 	it('roles decide who may write, and a token never exceeds its user', async () => {
 		await expect(create('viewer')).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		// A guest sees no project until given one, so the project is simply not found
