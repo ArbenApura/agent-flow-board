@@ -145,7 +145,7 @@ export function oauthMetadata(baseUrl: string) {
 			resource: `${baseUrl}/mcp`,
 			authorization_servers: [baseUrl],
 			bearer_methods_supported: ['header'],
-			scopes_supported: ['read', 'comment', 'write', 'complete', 'delete', 'publish', 'manage']
+			scopes_supported: ['read', 'comment', 'write', 'complete', 'delete', 'manage']
 		},
 		authorizationServer: {
 			issuer: baseUrl,
@@ -161,7 +161,7 @@ export function oauthMetadata(baseUrl: string) {
 			],
 			code_challenge_methods_supported: ['S256'],
 			token_endpoint_auth_methods_supported: ['none'],
-			scopes_supported: ['read', 'comment', 'write', 'complete', 'delete', 'publish', 'manage']
+			scopes_supported: ['read', 'comment', 'write', 'complete', 'delete', 'manage']
 		}
 	};
 }

@@ -127,6 +127,13 @@
       "when": 1792387502932,
       "tag": "0017_lyrical_agent_zero",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792414296540,
+      "tag": "0018_clumsy_kulan_gath",
+      "breakpoints": true
     }
   ]
 }

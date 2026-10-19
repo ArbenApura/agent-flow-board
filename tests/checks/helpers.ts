@@ -78,21 +78,3 @@ export async function bearer(baseURL: string, token: string) {
 export async function confirmAsk(page: import('@playwright/test').Page, label: string | RegExp) {
 	await page.getByRole('dialog').getByRole('button', { name: label }).click();
 }
-
-/** The org installs the GitHub App from a project, as a person does: the install link, then GitHub's redirect back. */
-export async function installApp(
-	page: import('@playwright/test').Page,
-	orgSlug: string,
-	projectKey: string,
-	installationId = '4242'
-) {
-	const start = await page.request.get(`/github/install?org=${orgSlug}&project=${projectKey}`, {
-		maxRedirects: 0
-	});
-	const state = new URL(start.headers()['location']).searchParams.get('state')!;
-	const back = await page.request.get(
-		`/github/callback?installation_id=${installationId}&state=${state}`,
-		{ maxRedirects: 0 }
-	);
-	if (back.status() !== 303) throw new Error(`The install callback answered ${back.status()}`);
-}

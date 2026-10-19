@@ -21,7 +21,6 @@
 	import SquareCheckBig from '@lucide/svelte/icons/square-check-big';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	import Trash from '@lucide/svelte/icons/trash';
-	import Upload from '@lucide/svelte/icons/upload';
 
 	// -- TYPES -- //
 
@@ -61,7 +60,6 @@
 		Skills: Sparkles,
 		Activity,
 		Health: HeartPulse,
-		Publish: Upload,
 		Trash,
 		'Project settings': Settings2
 	};

@@ -92,18 +92,6 @@ import { createToken, listTokens, revokeToken, tokenInput } from '../ops/tokens'
 import { OpError, requireCap, run } from '../ops/context';
 import { sql } from 'drizzle-orm';
 import { project } from '../db/schema';
-import {
-	cancelPublish,
-	linkInput,
-	linkRepo,
-	previewPublish,
-	publishInput,
-	publishState,
-	requestPublish,
-	settingsInput,
-	setPublishSettings,
-	unlinkRepo
-} from '../github/publish';
 import { clearProjectLogo, setProjectLogo } from '../ops/pictures';
 import {
 	auditInput,
@@ -555,63 +543,6 @@ export const routes: Route[] = [
 		summary: 'Remove trash older than 30 days for good (admins)',
 		tag: 'Activity',
 		handler: ({ ctx }) => purgeTrash(ctx)
-	},
-
-	// -- publishing to GitHub -- //
-	{
-		method: 'GET',
-		path: '/orgs/{org}/projects/{project}/publish',
-		summary: 'The connected repository, the publish history and the waiting publish',
-		tag: 'Publishing',
-		handler: ({ ctx, params }) => publishState(ctx, params.project)
-	},
-	{
-		method: 'GET',
-		path: '/orgs/{org}/projects/{project}/publish/preview',
-		summary: 'What a publish would change, and whether the repository would accept it',
-		tag: 'Publishing',
-		handler: ({ ctx, params }) => previewPublish(ctx, params.project)
-	},
-	{
-		method: 'POST',
-		path: '/orgs/{org}/projects/{project}/publish',
-		summary: 'Publish now, or at a later time (cancellable). Needs the publish capability.',
-		tag: 'Publishing',
-		body: strip(publishInput, 'project'),
-		handler: ({ ctx, params, body }) =>
-			requestPublish(ctx, { ...(body as object), project: params.project })
-	},
-	{
-		method: 'PUT',
-		path: '/orgs/{org}/projects/{project}/publish/link',
-		summary: 'Connect the project to a repository the GitHub App can reach',
-		tag: 'Publishing',
-		body: strip(linkInput, 'project'),
-		handler: ({ ctx, params, body }) =>
-			linkRepo(ctx, { ...(body as object), project: params.project } as never)
-	},
-	{
-		method: 'DELETE',
-		path: '/orgs/{org}/projects/{project}/publish/link',
-		summary: 'Disconnect the repository and cancel waiting publishes',
-		tag: 'Publishing',
-		handler: ({ ctx, params }) => unlinkRepo(ctx, params.project)
-	},
-	{
-		method: 'PATCH',
-		path: '/orgs/{org}/projects/{project}/publish/settings',
-		summary: 'The automatic publish switch, its delay and its schedule',
-		tag: 'Publishing',
-		body: strip(settingsInput, 'project'),
-		handler: ({ ctx, params, body }) =>
-			setPublishSettings(ctx, { ...(body as object), project: params.project })
-	},
-	{
-		method: 'POST',
-		path: '/orgs/{org}/publish-runs/{id}/cancel',
-		summary: 'Cancel a publish that has not started',
-		tag: 'Publishing',
-		handler: ({ ctx, params }) => cancelPublish(ctx, params.id)
 	},
 
 	// -- organisation settings -- //

@@ -23,7 +23,7 @@
 			"file": "flow-critic.md",
 			"skill": "flow-critic",
 			"source": ".claude/skills/flow-critic/SKILL.md",
-			"hash": "22daf4894118758800b529672dfba0ec2bf2f0263e49f0b0155a62d23292f780"
+			"hash": "f6748d96b7517eb7ea1238f89467a42a5f456532fb602c112d80bc6508732599"
 		},
 		{
 			"file": "flow-audit.md",
@@ -47,7 +47,7 @@
 			"file": "critic-checklists.md",
 			"skill": "flow-critic",
 			"source": ".claude/skills/flow-critic/checklists.md",
-			"hash": "9205e792d337dde5eb1ec74756ca2a3c894ef7604bd28dee4a19492873669e1c"
+			"hash": "1b67d59e6012daa4a04b1bc0a3bc11f59f15bd71a95ace4e07dbabd219aa3503"
 		},
 		{
 			"file": "critic-code-lenses.md",

@@ -1,24 +1,19 @@
 // -- DEP-TYPES -- //
 import type { PageServerLoad } from './$types';
 // -- MODULES -- //
-import { publishState } from '#lib/server/github/publish.js';
 import { listRunners } from '#lib/server/ops/environments.js';
 import { getProject } from '#lib/server/ops/projects.js';
 import { childContext } from '#lib/server/web/ctx.js';
 
 // -- FUNCTIONS -- //
 
-/** The project's settings, and its publishing state. Everyone who can read the project may look, admins and owners change. */
+/** The project's settings, and the tools that serve it. Everyone who can read the project may look, admins and owners change. */
 export const load: PageServerLoad = async ({ params, parent, locals, depends }) => {
 	depends('afb:settings');
 	const { org, summary } = await parent();
-	if (!summary) return { project: null, publish: null, usage: [], tools: [] };
+	if (!summary) return { project: null, usage: [], tools: [] };
 	const ctx = await childContext(locals, org.id);
-	const [project, publish, runners] = await Promise.all([
-		getProject(ctx, params.project),
-		publishState(ctx, params.project),
-		listRunners(ctx)
-	]);
+	const [project, runners] = await Promise.all([getProject(ctx, params.project), listRunners(ctx)]);
 	return {
 		project: {
 			id: project.id,
@@ -45,7 +40,6 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends }) 
 				online: r.online,
 				lastSeenAt: r.lastSeenAt?.toISOString() ?? null
 			})),
-		canManage: summary.caps.includes('manage'),
-		publish
+		canManage: summary.caps.includes('manage')
 	};
 };

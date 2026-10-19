@@ -73,7 +73,7 @@ const theme: Handle = ({ event, resolve }) => {
 
 /** Paths that are not app pages, so a document request to them still reads the session. */
 const NOT_A_SHELL =
-	/^\/(api|oauth|mcp|github|internal|\.well-known|healthz|pictures)(\/|$)|\/shot\/|\/stream$|\.(json|md)$/;
+	/^\/(api|oauth|mcp|internal|\.well-known|healthz|pictures)(\/|$)|\/shot\/|\/stream$|\.(json|md)$/;
 
 /**
  * The app is a client rendered shell, so a browser asking for a page gets the same small HTML whoever asks and no database call is
@@ -112,7 +112,7 @@ export const handle: Handle = sequence(timing, csrf, theme, authentication);
 /** Fills an empty preview database with the demo data once, when the server starts. */
 export const init: ServerInit = async () => {
 	if (AFB_SEED_DEMO) await seedForPreview(await getDb());
-	// Background jobs (publishing, backups) start with the server, not on the first request that needs them
+	// Background jobs (backups, organisation purges) start with the server, not on the first request that needs them
 	await getJobs();
 };
 

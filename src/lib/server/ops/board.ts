@@ -32,12 +32,7 @@ import { listEvents } from './history';
 import { pinnedProjectIds } from './pins';
 import { canSeeItem, getItem } from './items';
 import { findProject, visibleItemSql } from './resolve';
-import {
-	NUDGE_MINUTES,
-	QUIET_RELEASE_MINUTES,
-	RUNNING_WINDOW_MINUTES,
-	unrecordedCommits
-} from './tracking';
+import { NUDGE_MINUTES, QUIET_RELEASE_MINUTES, RUNNING_WINDOW_MINUTES } from './tracking';
 
 // -- CONSTANTS -- //
 
@@ -217,19 +212,12 @@ export async function orgOverview(ctx: Ctx) {
 /** The part of an item page that shows first: the plan, decisions, documents, who is running it, and the people's names. */
 export async function itemCore(ctx: Ctx, nameOrId: string) {
 	const detail = await getItem(ctx, nameOrId);
-	const [summary, members, unrecorded] = await Promise.all([
+	const [summary, members] = await Promise.all([
 		projectSummary(ctx, detail.item.projectId),
-		listMembers(ctx.handle, ctx.orgId),
-		run(ctx, (tx) => unrecordedCommits(tx, [detail.item.id]))
+		listMembers(ctx.handle, ctx.orgId)
 	]);
 	return {
 		...detail,
-		/** Commits of this item nobody recorded a step for, newest first (SPEC 9.4). */
-		unrecorded: unrecorded.map((c) => ({
-			sha: c.sha,
-			message: c.message.split('\n')[0] ?? '',
-			at: c.committedAt ?? c.createdAt
-		})),
 		project: summary.project,
 		role: summary.role,
 		caps: summary.caps,

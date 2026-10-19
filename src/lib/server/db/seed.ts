@@ -135,10 +135,7 @@ export async function seedDemo(
 			jsonb_build_object('status', i.status, 'note', 'Automatic'), false
 		FROM item i WHERE i.project_id = '${SEED.checkout}' AND i.status <> 'PLANNED'
 		AND NOT EXISTS (SELECT 1 FROM event e WHERE e.item_id = i.id AND e.verb = 'item.status')`);
-	// Work the health panel can show: a commit nobody recorded, a quiet item in progress, and an item ready for sign-off
-	await db.exec(`INSERT INTO commit_link (org_id, project_id, item_id, sha, repo, message, matched_by, recorded, files)
-		SELECT i.org_id, i.project_id, i.id, repeat('a', 40), 'acme/checkout', 'Add saved cards to checkout', 'trailer', false, '["src/cards.ts"]'::jsonb
-		FROM item i WHERE i.id = '${SEED.firstItem}' ON CONFLICT DO NOTHING`);
+	// Work the health panel can show: a quiet item in progress, and an item ready for sign-off
 	await db.exec(
 		`UPDATE item SET last_activity_at = now() - interval '10 days' WHERE id = '${SEED.firstItem}'`
 	);

@@ -12,18 +12,16 @@ import {
 // -- MODULES -- //
 import { getStorage } from './adapters/index';
 import { getMailer } from './auth/index';
-import { getGithub } from './github/index';
 import { getJobs } from './jobs/index';
 
 // -- FUNCTIONS -- //
 
-/** File storage, the public address, mail, GitHub (when set up) and the job runner. */
+/** File storage, the public address, mail and the job runner. */
 export async function appServices(): Promise<NonNullable<Ctx['services']>> {
 	return {
 		storage: getStorage(),
 		baseUrl: AFB_BASE_URL,
 		mailer: getMailer(),
-		github: getGithub() ?? undefined,
 		jobs: await getJobs(),
 		backups: Boolean(BACKUP_KEY),
 		masterKey: AFB_MASTER_KEY,

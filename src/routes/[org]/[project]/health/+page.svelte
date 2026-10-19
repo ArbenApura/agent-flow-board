@@ -8,13 +8,12 @@
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { cn } from '#lib/ui/cn.js';
-	import { DRIFT_TEXT, ago } from '#lib/board/status.js';
+	import { DRIFT_TEXT } from '#lib/board/status.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import Sparkline from '#lib/ui/Sparkline.svelte';
 	import Card from '#lib/ui/Card.svelte';
 	// -- DEP-COMPONENTS -- //
-	import GitCommitHorizontal from '@lucide/svelte/icons/git-commit-horizontal';
 	import GitCompare from '@lucide/svelte/icons/git-compare';
 	import Hourglass from '@lucide/svelte/icons/hourglass';
 	import Moon from '@lucide/svelte/icons/moon';
@@ -32,11 +31,6 @@
 	const tiles = $derived(
 		h
 			? [
-					{
-						label: 'Unrecorded commits',
-						icon: GitCommitHorizontal,
-						count: h.unrecordedCommits.length
-					},
 					{ label: 'Stale claims', icon: Hourglass, count: h.staleClaims.length },
 					{ label: 'Quiet items', icon: Moon, count: h.quietItems.length },
 					{ label: 'Drift', icon: GitCompare, count: h.drift.length }
@@ -45,12 +39,10 @@
 	);
 	const total = $derived(
 		h
-			? h.unrecordedCommits.length +
-					h.staleClaims.length +
+			? h.staleClaims.length +
 					h.stepsWithoutEvidence.length +
 					h.quietItems.length +
 					h.drift.length +
-					(h.publish?.pausedReason ? 1 : 0) +
 					(h.backup && !h.backup.ok ? 1 : 0)
 			: 0
 	);
@@ -66,7 +58,7 @@
 	/>
 
 	{#if h}
-		<ul class="grid grid-cols-2 gap-4 lg:grid-cols-4" data-testid="health-tiles">
+		<ul class="grid grid-cols-2 gap-4 lg:grid-cols-3" data-testid="health-tiles">
 			{#each tiles as t (t.label)}
 				<li
 					class="flex items-center gap-4 rounded-xl border border-line bg-surface p-5 shadow-[var(--elev-1)]"
@@ -116,38 +108,11 @@
 		<EmptyState
 			kind="health"
 			title="Nothing needs attention"
-			text="Every commit is recorded, no claim is stale, and no item has drifted from its steps."
+			text="No claim is stale, and no item has drifted from its steps."
 		/>
 	{/if}
 
 	{#if h}
-		{#if h.unrecordedCommits.length || h.unlinkedCommits}
-			<section class="flex flex-col gap-2" aria-label="Unrecorded commits" data-testid="unrecorded">
-				<h2 class="text-lg font-semibold">Unrecorded commits</h2>
-				<ul class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
-					{#each h.unrecordedCommits as c (c.sha)}
-						<li
-							class="flex min-h-12 items-center gap-3 border-b border-line px-3 py-2 last:border-b-0"
-							data-row
-							data-testid="unrecorded-commit"
-						>
-							<span class="w-16 shrink-0 font-mono text-xs text-muted">{c.sha.slice(0, 7)}</span>
-							<span class="min-w-0 flex-1 truncate text-sm">{c.message}</span>
-							<a class="font-mono text-xs text-accent-text hover:underline" href={link(c.itemRef)}
-								>{c.itemRef}</a
-							>
-							<span class="shrink-0 text-xs text-muted">{ago(c.at)}</span>
-						</li>
-					{/each}
-				</ul>
-				{#if h.unlinkedCommits}
-					<div class="text-xs text-muted">
-						{h.unlinkedCommits} commit{h.unlinkedCommits === 1 ? '' : 's'} named no item at all.
-					</div>
-				{/if}
-			</section>
-		{/if}
-
 		{#if h.staleClaims.length}
 			<section class="flex flex-col gap-2" aria-label="Stale claims" data-testid="stale-claims">
 				<h2 class="text-lg font-semibold">Stale claims</h2>
@@ -241,17 +206,6 @@
 						</li>
 					{/each}
 				</ul>
-			</section>
-		{/if}
-
-		{#if h.publish && (h.publish.pausedReason || h.publish.failedRuns.length)}
-			<section class="flex flex-col gap-2" aria-label="Publishing" data-testid="publish-health">
-				<h2 class="text-lg font-semibold">Publishing</h2>
-				<Notice tone="warning"
-					>{#if h.publish.pausedReason}Automatic publish to {h.publish.repo} is paused. {h.publish
-							.pausedReason}{:else}The last publish to {h.publish.repo} failed.{/if}
-					<a class="ml-1 underline" href={`/${org}/${key}/publish`}>Open Publish</a></Notice
-				>
 			</section>
 		{/if}
 

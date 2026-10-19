@@ -32,7 +32,6 @@ import {
 	comment,
 	decision,
 	environment,
-	githubLink,
 	item,
 	manualCheck,
 	member,
@@ -123,7 +122,6 @@ export const attachmentInsert = createInsertSchema(attachment, {
 });
 export const checkInsert = createInsertSchema(check);
 export const environmentInsert = createInsertSchema(environment, { url: (s) => s.url() });
-export const githubLinkInsert = createInsertSchema(githubLink);
 export const apiTokenInsert = createInsertSchema(apiToken);
 /** One supporting file of a skill. A jsonb column is untyped to drizzle-zod, so the shape and the path rule live here. */
 export const skillFileInput = z

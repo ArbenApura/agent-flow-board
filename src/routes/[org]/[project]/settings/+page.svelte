@@ -5,7 +5,6 @@
 	import { invalidate, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
-	import Notice from '#lib/ui/Notice.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import PictureUpload from '#lib/ui/PictureUpload.svelte';
@@ -33,7 +32,6 @@
 	import Settings from '@lucide/svelte/icons/settings';
 	import Layers from '@lucide/svelte/icons/layers';
 	import Bot from '@lucide/svelte/icons/bot';
-	import GitBranch from '@lucide/svelte/icons/git-branch';
 	import Activity from '@lucide/svelte/icons/activity';
 	import Download from '@lucide/svelte/icons/download';
 	import Trash from '@lucide/svelte/icons/trash';
@@ -45,28 +43,7 @@
 
 	// -- CONSTANTS -- //
 
-	const DELAYS = [1, 5, 10, 30, 60, 240, 1440];
 	const STALE = [1, 2, 3, 5, 7, 14, 30];
-	const DAYS = [
-		{ n: 1, label: 'Mon' },
-		{ n: 2, label: 'Tue' },
-		{ n: 3, label: 'Wed' },
-		{ n: 4, label: 'Thu' },
-		{ n: 5, label: 'Fri' },
-		{ n: 6, label: 'Sat' },
-		{ n: 0, label: 'Sun' }
-	];
-	const ZONES = [
-		'UTC',
-		'Europe/London',
-		'Europe/Berlin',
-		'America/New_York',
-		'America/Los_Angeles',
-		'Asia/Singapore',
-		'Asia/Manila',
-		'Australia/Sydney'
-	];
-
 	// -- STATES -- //
 
 	let name = $state('');
@@ -74,13 +51,6 @@
 	let streams = $state<StreamRow[]>([]);
 	let mayComplete = $state(true);
 	let stale = $state(3);
-	let auto = $state(false);
-	let delay = $state(10);
-	let windowed = $state(false);
-	let days = $state<number[]>([1, 2, 3, 4, 5]);
-	let from = $state('09:00');
-	let to = $state('18:00');
-	let zone = $state('UTC');
 	let status = $state<Record<string, { saving: boolean; saved: boolean; error: string }>>({});
 
 	// -- FUNCTIONS -- //
@@ -91,26 +61,19 @@
 	const key = $derived(page.params.project ?? '');
 	const p = $derived(data.project);
 	const can = $derived(data.canManage);
-	const link = $derived(data.publish?.link ?? null);
 	const dirty = $derived(
 		p
 			? {
 					general: name.trim() !== p.name || webApp !== p.webApp,
 					streams: canon(savedStreams(streams)) !== canon(p.streams),
 					agents: mayComplete !== p.agentsMayComplete,
-					tracking: stale !== p.staleDays,
-					publish: link
-						? auto !== link.autoPublish ||
-							delay !== link.delayMinutes ||
-							canon(scheduleValue()) !== canon(link.schedule ?? null)
-						: false
+					tracking: stale !== p.staleDays
 				}
 			: {
 					general: false,
 					streams: false,
 					agents: false,
-					tracking: false,
-					publish: false
+					tracking: false
 				}
 	);
 
@@ -121,10 +84,6 @@
 
 	const st = (id: string) => status[id] ?? { saving: false, saved: false, error: '' };
 
-	function scheduleValue() {
-		return windowed ? { days: [...days].sort((a, b) => a - b), from, to, timezone: zone } : null;
-	}
-
 	// The fields follow the saved values whenever the page data is replaced
 	const follow = createFollower();
 	$effect(() => {
@@ -134,19 +93,6 @@
 		follow('streams', p.streams, (v) => (streams = withIds(v)));
 		follow('mayComplete', p.agentsMayComplete, (v) => (mayComplete = v));
 		follow('stale', p.staleDays, (v) => (stale = v));
-		if (link) {
-			follow('auto', link.autoPublish, (v) => (auto = v));
-			follow('delay', link.delayMinutes, (v) => (delay = v));
-			follow('schedule', link.schedule, (v) => {
-				windowed = v !== null;
-				if (v) {
-					days = [...v.days];
-					from = v.from;
-					to = v.to;
-					zone = v.timezone;
-				}
-			});
-		}
 	});
 
 	async function save(id: string, path: string, body: Record<string, unknown>, method = 'PATCH') {
@@ -188,10 +134,6 @@
 
 	const patchProject = (id: string, body: Record<string, unknown>) =>
 		save(id, `/projects/${key}`, body);
-
-	function toggleDay(n: number) {
-		days = days.includes(n) ? days.filter((d) => d !== n) : [...days, n];
-	}
 </script>
 
 <svelte:head><title>Project settings, {p?.name ?? ''}</title></svelte:head>
@@ -297,99 +239,6 @@
 					bind:checked={mayComplete}
 					disabled={!can}
 				/>
-			</Section>
-
-			<Section
-				id="publishing"
-				icon={GitBranch}
-				title="GitHub publishing"
-				text="A readable reference copy of this project in a repository. It is not a backup."
-				dirty={dirty.publish}
-				saving={st('publishing').saving}
-				saved={st('publishing').saved}
-				error={st('publishing').error}
-				readonly={!can || !link}
-				onsave={() =>
-					save('publishing', `/projects/${key}/publish/settings`, {
-						autoPublish: auto,
-						delayMinutes: delay,
-						schedule: scheduleValue()
-					})}
-			>
-				{#if !data.publish?.configured}
-					<div class="text-sm text-muted">GitHub publishing is not set up on this server.</div>
-				{:else if !link}
-					<div class="text-sm text-muted">
-						No repository is connected. <a
-							class="text-accent-text hover:underline"
-							href={`/${org}/${key}/publish`}>Connect one on the Publish page.</a
-						>
-					</div>
-				{:else}
-					<div class="text-sm">
-						Publishing to <span class="font-mono text-xs">{link.repo}</span>.
-						<a class="text-accent-text hover:underline" href={`/${org}/${key}/publish`}
-							>Open the Publish page</a
-						>
-					</div>
-					{#if link.pausedReason}
-						<Notice tone="warning"
-							>Automatic publish is paused. {link.pausedReason} Turn it on again to resume.</Notice
-						>
-					{/if}
-					<Switch
-						label="Publish automatically"
-						hint="After a change, after the delay below, unless you cancel it."
-						bind:checked={auto}
-						disabled={!can}
-					/>
-					<Select
-						label="Wait this long after a change"
-						value={String(delay)}
-						options={DELAYS.map((d) => ({
-							value: String(d),
-							label:
-								d >= 60
-									? `${d / 60} ${d === 60 ? 'hour' : 'hours'}`
-									: `${d} ${d === 1 ? 'minute' : 'minutes'}`
-						}))}
-						onchange={(v) => (delay = Number(v))}
-						disabled={!can}
-						class="w-48"
-					/>
-					<Switch
-						label="Only publish inside a time window"
-						bind:checked={windowed}
-						disabled={!can}
-					/>
-					{#if windowed}
-						<div class="flex flex-wrap gap-1.5" role="group" aria-label="Days of the week">
-							{#each DAYS as d (d.n)}
-								<button
-									type="button"
-									role="checkbox"
-									aria-checked={days.includes(d.n)}
-									disabled={!can}
-									onclick={() => toggleDay(d.n)}
-									class="min-h-11 min-w-12 cursor-pointer rounded-lg border border-line bg-surface px-2 text-xs font-medium text-muted hover:bg-raised disabled:cursor-not-allowed disabled:opacity-50 aria-checked:border-accent aria-checked:bg-accent-soft aria-checked:text-accent-text"
-									>{d.label}</button
-								>
-							{/each}
-						</div>
-						<div class="flex flex-wrap items-end gap-2">
-							<TextField label="From" type="time" bind:value={from} disabled={!can} class="w-36" />
-							<TextField label="To" type="time" bind:value={to} disabled={!can} class="w-36" />
-							<Select
-								label="Time zone"
-								value={zone}
-								options={ZONES.map((z) => ({ value: z, label: z }))}
-								onchange={(v) => (zone = v)}
-								disabled={!can}
-								class="w-56"
-							/>
-						</div>
-					{/if}
-				{/if}
 			</Section>
 
 			<Section

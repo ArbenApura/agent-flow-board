@@ -1,7 +1,6 @@
 // RECORDING PROGRESS: MARKING STEPS AND MANUAL CHECKS, WITH THE AUTOMATIC STATUS MOVES AND THE NEXT PHASE (SPEC 9.1, 9.2)
 
 // -- TYPES -- //
-import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 import type { Status, StatusChange } from './status';
 // -- DEP-MODULES -- //
@@ -10,7 +9,7 @@ import { z } from 'zod';
 // -- MODULES -- //
 import { recalcItem } from '../db/calc';
 import { appendEvent } from '../db/events';
-import { githubLink, item, manualCheck, phase, step } from '../db/schema';
+import { item, manualCheck, phase, step } from '../db/schema';
 import { OpError, idempotent, maybeDry, rateLimit, requireCap } from './context';
 import { actorFields, checkVersion } from './items';
 import { findItem } from './resolve';
@@ -49,15 +48,6 @@ export const recordInput = z.object({
 });
 
 // -- FUNCTIONS -- //
-
-/** Looks a commit up at GitHub when the project has a connected repository and the server has the App. */
-async function commitVerifier(tx: Tx, ctx: Ctx, projectId: string) {
-	const api = ctx.services?.github;
-	if (!api) return undefined;
-	const [link] = await tx.select().from(githubLink).where(eq(githubLink.projectId, projectId));
-	if (!link) return undefined;
-	return async (sha: string) => api.getCommit(link.installationId, link.repo, sha);
-}
 
 /**
  * Marks steps and manual checks, recalculates the item, and applies the automatic status moves, all in one
@@ -115,14 +105,7 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 				if (!isCheck && m.mark === 'done') {
 					const stepRow = row as typeof step.$inferSelect;
 					if (m.evidence || stepRow.requiredTarget)
-						await validateEvidence(
-							tx,
-							ctx,
-							it,
-							stepRow,
-							m.evidence,
-							await commitVerifier(tx, ctx, it.projectId)
-						);
+						await validateEvidence(tx, ctx, it, stepRow, m.evidence);
 				}
 				const reason =
 					m.mark === 'waived'
@@ -238,7 +221,6 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 			const claim = await afterRecord(tx, ctx, it, {
 				finishedPhases,
 				nextPhase,
-				anyDone,
 				changedAny: changed.length > 0
 			});
 			const [fresh] = await tx

@@ -467,7 +467,7 @@ describe('verbs', () => {
 			createToken(ctx('viewer'), { name: 'sneaky', permissions: ['read', 'write'] })
 		).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		await expect(
-			createToken(ctx('member'), { name: 'sneaky', permissions: ['publish'] })
+			createToken(ctx('member'), { name: 'sneaky', permissions: ['manage'] })
 		).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		// Using the token as the member, with its own limits
 		const asToken = {

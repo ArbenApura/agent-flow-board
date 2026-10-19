@@ -26,7 +26,6 @@ const SCREENS = [
 	'/acme/CKT/tasks',
 	'/acme/CKT/activity',
 	'/acme/search?q=promo',
-	'/acme/CKT/publish',
 	'/acme/CKT/health',
 	'/settings',
 	'/acme/settings',

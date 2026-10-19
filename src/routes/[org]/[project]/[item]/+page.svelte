@@ -62,7 +62,6 @@
 	import Paperclip from '@lucide/svelte/icons/paperclip';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash from '@lucide/svelte/icons/trash';
-	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 
 	// -- REQUIRED PROPS -- //
 
@@ -111,7 +110,6 @@
 	let refCopied = $state(false);
 	let refTimer: ReturnType<typeof setTimeout> | undefined;
 	let renaming = $state(false);
-	let commitsOpen = $state(false);
 	let title = $state('');
 	let renameError = $state('');
 	let trashing = $state(false);
@@ -604,22 +602,6 @@
 			</ul>
 		{/if}
 
-		{#if d.unrecorded.length}
-			<div
-				class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-warning"
-				data-testid="unrecorded-commits"
-			>
-				<span class="flex items-center gap-2"
-					><TriangleAlert size={18} />
-					{d.unrecorded.length}
-					{d.unrecorded.length === 1 ? 'commit has' : 'commits have'} no recorded step.</span
-				>
-				<Button size="sm" onclick={() => (commitsOpen = true)} data-testid="review-commits"
-					>Review commits</Button
-				>
-			</div>
-		{/if}
-
 		<!-- THE TAB BAR. A CARD THE SAME WIDTH AS THE HEADER ABOVE IT, STICKING JUST UNDER THE TOP BAR (56 PX PLUS ITS LINE, 64 PX PLUS ITS LINE FROM MD) WITH A GAP -->
 		<nav
 			aria-label="Item sections"
@@ -738,23 +720,6 @@
 				<Button type="submit" variant="primary" loading={busy}>Save</Button>
 			</div>
 		</form>
-	</ResponsiveModal>
-
-	<ResponsiveModal
-		open={commitsOpen}
-		onclose={() => (commitsOpen = false)}
-		title="Commits with no recorded step"
-		variant="drawer"
-	>
-		<p class="mb-4 text-sm text-muted">Record the steps these commits finished, or ignore them.</p>
-		<ul class="flex flex-col divide-y divide-line">
-			{#each d.unrecorded as c (c.sha)}
-				<li class="flex gap-3 py-3 text-sm">
-					<span class="font-mono text-xs text-muted">{c.sha.slice(0, 7)}</span>
-					<span>{c.message}</span>
-				</li>
-			{/each}
-		</ul>
 	</ResponsiveModal>
 
 	<ConfirmDialog

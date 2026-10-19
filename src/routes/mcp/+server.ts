@@ -10,7 +10,7 @@ import { appServices } from '#lib/server/services.js';
 /** The deps of one request: the database and the outside services the tools may need. */
 async function deps() {
 	const s = await appServices();
-	return { handle: await getDb(), storage: s.storage, baseUrl: s.baseUrl!, github: s.github };
+	return { handle: await getDb(), storage: s.storage, baseUrl: s.baseUrl! };
 }
 
 /** The MCP endpoint. Every request is self contained, so it works behind any number of server processes. */

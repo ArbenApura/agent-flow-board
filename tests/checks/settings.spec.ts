@@ -1,12 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- API replies are parsed from JSON and read loosely in checks */
-// M8: the automatic publish switch turns on and off and persists, delay and schedule save, the palette live preview shows both
+// M8: the palette live preview shows both
 // modes, the "Agents may set COMPLETED" switch persists, and each settings section saves on its own. Organisation changes run in
 // a fresh organisation of their own, so they never disturb the seeded one the other checks use.
 import { expect, test, type Browser } from '@playwright/test';
 import { hexToRgb, generatePalette } from '../../src/lib/theme/palette';
-import { PASSWORD, confirmAsk, installApp, newPerson, signIn } from './helpers';
+import { PASSWORD, confirmAsk, newPerson, signIn } from './helpers';
 
-const MOCK = `http://localhost:${process.env.AFB_GITHUB_MOCK_PORT ?? 5181}`;
 const tag = Date.now().toString(36).toLowerCase().slice(-5);
 let counter = 0;
 const PNG = Buffer.from(
@@ -171,24 +170,15 @@ test('M8 an organisation: each section saves on its own, the palette preview sho
 	await ctx.close();
 });
 
-test('M8 a project: the Agents may set COMPLETED switch, the publish switch with its delay and schedule, and other sections persist', async ({
+test('M8 a project: the Agents may set COMPLETED switch and other sections persist', async ({
 	browser,
-	baseURL,
-	request
+	baseURL
 }) => {
 	const { ctx, page } = await as(browser, baseURL!, 'owner@acme.example');
 	const key = `ST${tag.toUpperCase()}${++counter}`;
-	const repo = `acme/${key.toLowerCase()}`;
 	await page.request.post('/api/v1/orgs/acme/projects', { data: { key, name: `Settings ${key}` } });
-	await request.post(`${MOCK}/__mock/repo`, { data: { fullName: repo, private: true } });
-	await installApp(page, 'acme', key);
-	await page.request.put(`/api/v1/orgs/acme/projects/${key}/publish/link`, {
-		data: { installationId: '4242', repo }
-	});
 	const project = async () =>
 		(await (await page.request.get(`/api/v1/orgs/acme/projects/${key}`)).json()) as any;
-	const publish = async () =>
-		(await (await page.request.get(`/api/v1/orgs/acme/projects/${key}/publish`)).json()) as any;
 	await page.goto(`/acme/${key}/settings`);
 	await expect(page.getByTestId('page-title')).toHaveText('Project settings');
 
@@ -211,58 +201,6 @@ test('M8 a project: the Agents may set COMPLETED switch, the publish switch with
 	await page.getByTestId('save-agents').click();
 	await expect(page.getByTestId('saved-agents')).toBeVisible();
 	expect((await project()).agentsMayComplete).toBe(true);
-
-	// Automatic publish: on, a delay and a schedule, all saved by their own section
-	await tab(page, 'publishing');
-	await expect(page.getByRole('switch', { name: 'Publish automatically' })).toHaveAttribute(
-		'aria-checked',
-		'false'
-	);
-	await page.getByRole('switch', { name: 'Publish automatically' }).click();
-	await page.getByRole('button', { name: 'Wait this long after a change' }).click();
-	await page.getByRole('option', { name: '30 minutes' }).click();
-	await page.getByRole('switch', { name: 'Only publish inside a time window' }).click();
-	await page.getByRole('checkbox', { name: 'Sat' }).click();
-	await page.getByRole('checkbox', { name: 'Mon' }).click();
-	await page.getByLabel('From').fill('08:30');
-	await page.getByLabel('To', { exact: true }).fill('17:45');
-	await page.getByRole('button', { name: 'Time zone' }).click();
-	await page.getByRole('option', { name: 'Europe/Berlin' }).click();
-	await page.getByTestId('save-publishing').click();
-	await expect(page.getByTestId('saved-publishing')).toBeVisible();
-	let state = await publish();
-	expect(state.link).toMatchObject({
-		autoPublish: true,
-		delayMinutes: 30,
-		schedule: { days: [2, 3, 4, 5, 6], from: '08:30', to: '17:45', timezone: 'Europe/Berlin' }
-	});
-	// Persists across a reload, and shows as it was saved
-	await page.reload();
-	await expect(page.getByRole('switch', { name: 'Publish automatically' })).toHaveAttribute(
-		'aria-checked',
-		'true'
-	);
-	await expect(page.getByRole('button', { name: 'Wait this long after a change' })).toContainText(
-		'30 minutes'
-	);
-	await expect(page.getByLabel('From')).toHaveValue('08:30');
-	await expect(page.getByRole('checkbox', { name: 'Sat' })).toHaveAttribute('aria-checked', 'true');
-	await expect(page.getByRole('checkbox', { name: 'Mon' })).toHaveAttribute(
-		'aria-checked',
-		'false'
-	);
-	// Off again, the window off, and that persists too
-	await page.getByRole('switch', { name: 'Publish automatically' }).click();
-	await page.getByRole('switch', { name: 'Only publish inside a time window' }).click();
-	await page.getByTestId('save-publishing').click();
-	await expect(page.getByTestId('saved-publishing')).toBeVisible();
-	state = await publish();
-	expect(state.link).toMatchObject({ autoPublish: false, delayMinutes: 30, schedule: null });
-	await page.reload();
-	await expect(page.getByRole('switch', { name: 'Publish automatically' })).toHaveAttribute(
-		'aria-checked',
-		'false'
-	);
 
 	// Each section saves alone: an unsaved name stays unsaved while the tracking section saves
 	await tab(page, 'general');
@@ -352,10 +290,6 @@ test('M8 your own settings: name, theme, accent, notifications, password, sessio
 	await expect(page.getByRole('switch', { name: 'Backup problems' })).toHaveAttribute(
 		'aria-checked',
 		'false'
-	);
-	await expect(page.getByRole('switch', { name: 'Publishing paused' })).toHaveAttribute(
-		'aria-checked',
-		'true'
 	);
 	await tab(page, 'checks');
 	await expect(page.getByRole('button', { name: 'Run checks on' })).toContainText('Build preview');

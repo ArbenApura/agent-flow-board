@@ -131,23 +131,6 @@ export async function loadPublishable(tx: Tx, projectId: string) {
 	};
 }
 
-/** Why a public repository must not receive this project, or null when it holds nothing private (L13). */
-export function privateContentReason(d: {
-	privateItems: number;
-	privateFiles: number;
-}): string | null {
-	const parts: string[] = [];
-	if (d.privateItems)
-		parts.push(`${d.privateItems} private item${d.privateItems === 1 ? '' : 's'}`);
-	if (d.privateFiles)
-		parts.push(
-			`${d.privateFiles} private file${d.privateFiles === 1 ? '' : 's'} (screenshots and check pictures are private by default)`
-		);
-	return parts.length
-		? `This repository is public and the project holds ${parts.join(' and ')}. Nothing was published. Make the repository private, or make that content public first.`
-		: null;
-}
-
 const cell = (v: unknown) =>
 	String(v ?? '')
 		.replace(/\r?\n/g, ' ')
@@ -384,12 +367,4 @@ export function renderExport(data: Awaited<ReturnType<typeof loadPublishable>>):
 			2
 		) + '\n';
 	return { files, hashes, itemCount: data.items.length };
-}
-
-/** What changed between the last publish and now, by item reference. */
-export function diffHashes(before: Record<string, string>, now: Record<string, string>) {
-	const added = Object.keys(now).filter((r) => !(r in before));
-	const removed = Object.keys(before).filter((r) => !(r in now));
-	const changed = Object.keys(now).filter((r) => r in before && before[r] !== now[r]);
-	return { added, removed, changed, total: added.length + removed.length + changed.length };
 }

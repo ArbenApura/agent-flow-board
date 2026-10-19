@@ -3,7 +3,6 @@
 // -- TYPES -- //
 import type { JobRunner } from '../adapters/jobs';
 import type { Storage } from '../adapters/storage';
-import type { GithubApi } from '../github/app';
 import type { Mailer } from '../email/mailer';
 import type { DbHandle } from '../db/client';
 import type { Actor, Ctx } from '../ops/context';
@@ -39,7 +38,6 @@ export type ApiDeps = {
 	storage?: Storage;
 	baseUrl: string;
 	mailer?: Mailer;
-	github?: GithubApi;
 	jobs?: JobRunner;
 	/** Wraps the org data keys for test account secrets, and the wait for a runner. */
 	masterKey?: string;
@@ -170,7 +168,6 @@ export async function handleApi(req: ApiRequest, deps: ApiDeps): Promise<ApiResp
 				storage: deps.storage,
 				baseUrl: deps.baseUrl,
 				mailer: deps.mailer,
-				github: deps.github,
 				jobs: deps.jobs,
 				masterKey: deps.masterKey,
 				runnerQueueMinutes: deps.runnerQueueMinutes

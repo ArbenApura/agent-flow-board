@@ -21,7 +21,6 @@
 		write: 'Create and change items, steps and documents',
 		complete: 'Set an item to COMPLETED where the project allows it',
 		delete: 'Move items to the trash',
-		publish: 'Publish to GitHub',
 		manage: 'Change project settings'
 	};
 	const DEFAULT_ON = ['read', 'write'];

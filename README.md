@@ -6,15 +6,14 @@ It runs for many organisations, each with many projects and many people, on one 
 
 ## What it does
 
-| Area       | What you get                                                                                                                                                                                                                                                                                 |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Plans      | Items with phases, counted steps, manual checks, ADRs, a "Settled without asking" list and free documents. Percent and status are calculated from the steps and move by themselves where the rules say so.                                                                                   |
-| People     | Owners, admins, members, viewers and guests, per organisation and per project. Invitations by email. Sign in with email and password or Google.                                                                                                                                              |
-| Agents     | An MCP server at `/mcp`, a REST API at `/api/v1` (OpenAPI at `/api/v1/openapi.json`), personal access tokens, OAuth for tools that support it, a device code flow, and a local stdio bridge. Hooks for Claude Code, Antigravity and Gemini CLI keep a session bound to the item it works on. |
-| Live       | Every open page updates as items change. A change can be undone for 30 days.                                                                                                                                                                                                                 |
-| Checks     | Browser checks that close a step only when they pass on the right target, UI shots that measure a new screen against the pages around it, and a runner program (local or hosted in a container).                                                                                             |
-| Publishing | A cancellable, scheduled copy of a project's public items to a GitHub repository, through a GitHub App.                                                                                                                                                                                      |
-| Backups    | Encrypted nightly backups of every organisation, a restore command, and a health panel that shows when one is late.                                                                                                                                                                          |
+| Area    | What you get                                                                                                                                                                                                                                                                                 |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plans   | Items with phases, counted steps, manual checks, ADRs, a "Settled without asking" list and free documents. Percent and status are calculated from the steps and move by themselves where the rules say so.                                                                                   |
+| People  | Owners, admins, members, viewers and guests, per organisation and per project. Invitations by email. Sign in with email and password or Google.                                                                                                                                              |
+| Agents  | An MCP server at `/mcp`, a REST API at `/api/v1` (OpenAPI at `/api/v1/openapi.json`), personal access tokens, OAuth for tools that support it, a device code flow, and a local stdio bridge. Hooks for Claude Code, Antigravity and Gemini CLI keep a session bound to the item it works on. |
+| Live    | Every open page updates as items change. A change can be undone for 30 days.                                                                                                                                                                                                                 |
+| Checks  | Browser checks that close a step only when they pass on the right target, UI shots that measure a new screen against the pages around it, and a runner program (local or hosted in a container).                                                                                             |
+| Backups | Encrypted nightly backups of every organisation, a restore command, and a health panel that shows when one is late.                                                                                                                                                                          |
 
 ## Run it on your machine
 
@@ -76,7 +75,6 @@ An imported plan takes the date and time of its HAPR Board id (the Board wrote i
 | A VPS with Docker, PostgreSQL and automatic HTTPS | [docs/self-hosting.md](docs/self-hosting.md)   |
 | Your coding tools connected                       | [docs/connect-tools.md](docs/connect-tools.md) |
 | Browser checks and UI shots                       | [docs/runners.md](docs/runners.md)             |
-| Publishing to GitHub                              | [docs/github-app.md](docs/github-app.md)       |
 
 ## How it is built
 

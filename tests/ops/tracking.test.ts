@@ -1,22 +1,11 @@
-// PHASE 9: SESSION CLAIMS, EVIDENCE, CLOSE HANDLING, COMMIT LINKING, THE PULL REQUEST CHECK, HOOK LOGIC, REMINDERS AND HEALTH
-// GitHub is the stand in server (tests/support/githubMock.mjs). Nothing touches the network.
+// PHASE 9: SESSION CLAIMS, EVIDENCE, CLOSE HANDLING, HOOK LOGIC, REMINDERS AND HEALTH
 
 // -- DEP-MODULES -- //
-import { generateKeyPairSync } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { createGithubApi } from '../../src/lib/server/github/app';
-import { trailerRefs, checkSummary } from '../../src/lib/server/github/commits';
-import { handleWebhook } from '../../src/lib/server/github/webhook';
 import { claim, startSession } from '../../src/lib/server/mcp/sessions';
-import {
-	commitLink,
-	githubInstallation,
-	githubLink,
-	session,
-	step
-} from '../../src/lib/server/db/schema';
+import { session, step } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { run } from '../../src/lib/server/ops/context';
 import { canonicalTool } from '../../src/lib/shared/tool';
@@ -35,18 +24,9 @@ import {
 	renewSession,
 	trackingNotes
 } from '../../src/lib/server/ops/tracking';
-import { createGithubMock } from '../support/githubMock.mjs';
 import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 import { isCodeFile, commits } from '../../src/lib/shared/code';
-
-// -- CONSTANTS -- //
-
-const PKCS1 = generateKeyPairSync('rsa', { modulusLength: 2048 })
-	.privateKey.export({ type: 'pkcs1', format: 'pem' })
-	.toString();
-const INSTALL = '777';
-const REPO = 'acme/track';
 
 // -- FUNCTIONS -- //
 
@@ -75,33 +55,6 @@ describe('small helpers', () => {
 		expect(commits('git commit --dry-run')).toBe(false);
 		expect(commits('git status')).toBe(false);
 	});
-	it('reads item references from trailers and from the end of the subject, and says what a check found', () => {
-		expect(trailerRefs('Fix cards\n\nItem: CKT-12')).toEqual(['CKT-12']);
-		expect(trailerRefs('Fix cards (CKT-12)')).toEqual(['CKT-12']);
-		expect(
-			trailerRefs('feat: a thing (FLOW-20261015-1120)\n\nRefs: CKT-3, WEB-9\nCloses: CKT-3')
-		).toEqual(['CKT-3', 'WEB-9', 'FLOW-20261015-1120']);
-		// The stamp form of a new item, with and without a suffix (FLOW-20261017-0950)
-		expect(trailerRefs('Fix cards (HAPR-20261017-0950)')).toEqual(['HAPR-20261017-0950']);
-		expect(trailerRefs('Fix cards\n\nRefs: HAPR-20261017-0950-b, CKT-3')).toEqual([
-			'HAPR-20261017-0950-b',
-			'CKT-3'
-		]);
-		expect(trailerRefs('Mentions CKT-12 in the middle of a sentence')).toEqual([]);
-		const ok = checkSummary([{ sha: 'a'.repeat(40), itemRef: 'CKT-1', recorded: true }], []);
-		expect(ok.conclusion).toBe('success');
-		const warn = checkSummary(
-			[
-				{ sha: 'b'.repeat(40), itemRef: 'CKT-1', recorded: false },
-				{ sha: 'c'.repeat(40), itemRef: null, recorded: false }
-			],
-			['d'.repeat(40)]
-		);
-		expect(warn.conclusion).toBe('neutral');
-		expect(warn.summary).toMatch(/no step was recorded/);
-		expect(warn.summary).toMatch(/not linked to any item/);
-		expect(warn.summary).toMatch(/only warns/);
-	});
 });
 
 describe('nudge levels', () => {
@@ -122,24 +75,13 @@ describe('tracking', () => {
 	const make = makePostgres;
 	let db: TestDb;
 	let w: World;
-	const mock = createGithubMock();
-	const github = createGithubApi(
-		{ apiUrl: 'http://gh', appId: '1', privateKey: PKCS1 },
-		mock.fetch
-	);
 	let n = 0;
 	const agent = (
 		who: 'member' | 'admin' | 'owner' | 'viewer',
 		sessionId: string,
 		tool = 'claude-code'
-	) => ({
-		...w.ctx(who, { kind: 'agent', sessionId, tool }),
-		services: { github }
-	});
-	const person = (who: 'member' | 'admin' | 'owner' | 'viewer' = 'member') => ({
-		...w.ctx(who),
-		services: { github }
-	});
+	) => w.ctx(who, { kind: 'agent', sessionId, tool });
+	const person = (who: 'member' | 'admin' | 'owner' | 'viewer' = 'member') => w.ctx(who);
 	const newItem = (title: string, extra = {}) =>
 		createItem(person(), { project: w.projectKey, title: `${title} ${++n}`, ...PLAN, ...extra });
 	const newSession = async (tool = 'claude-code') =>
@@ -373,11 +315,7 @@ describe('tracking', () => {
 				message: expect.stringMatching(message),
 				details: expect.objectContaining({ reason: 'evidence' })
 			});
-		// No repository is connected, so a commit cannot be verified at all
-		await refused(
-			[{ key: '1.1', mark: 'done', evidence: { commit: 'abc1234def' } }],
-			/no connected repository/
-		);
+		// A commit is plain text: it must look like a git hash, and nothing asks a repository about it
 		await refused(
 			[{ key: '1.1', mark: 'done', evidence: { commit: 'not-a-hash' } }],
 			/not a git hash/
@@ -397,47 +335,13 @@ describe('tracking', () => {
 			],
 			/no such check run/
 		);
-		// Connect a repository with a commit that changes files and one that changes none
-		await db.admin.exec(
-			`insert into github_installation (installation_id, org_id) values ('${INSTALL}', '${w.orgId}') on conflict do nothing`
-		);
-		await withTenant(db, { orgId: w.orgId }, (tx) =>
-			tx
-				.insert(githubLink)
-				.values({ orgId: w.orgId, projectId: w.projectId, installationId: INSTALL, repo: REPO })
-				.onConflictDoNothing()
-		);
-		mock.seed(REPO, { private: true });
-		await mock.fetch('http://gh/__mock/commit', {
-			method: 'POST',
-			body: JSON.stringify({
-				repo: REPO,
-				sha: 'a'.repeat(40),
-				message: 'Real work',
-				files: ['src/a.ts']
-			}),
-			headers: { 'content-type': 'application/json' }
-		});
-		await mock.fetch('http://gh/__mock/commit', {
-			method: 'POST',
-			body: JSON.stringify({ repo: REPO, sha: 'b'.repeat(40), message: 'Empty', files: [] }),
-			headers: { 'content-type': 'application/json' }
-		});
-		await refused(
-			[{ key: '1.1', mark: 'done', evidence: { commit: 'c'.repeat(40) } }],
-			/not in the connected repository/
-		);
-		await refused(
-			[{ key: '1.1', mark: 'done', evidence: { commit: 'b'.repeat(40) } }],
-			/changes no files/
-		);
 		const ok = await recordSteps(ctx(), {
 			item: it.ref,
 			marks: [
 				{
 					key: '1.1',
 					mark: 'done',
-					evidence: { commit: 'a'.repeat(10), note: 'Verified by GitHub' }
+					evidence: { commit: 'a'.repeat(10), note: 'Checked by hand' }
 				}
 			]
 		});
@@ -484,7 +388,7 @@ describe('tracking', () => {
 			[
 				{ key: '1.2', mark: 'done', evidence: { checkRunId: goodRun, commit: 'a'.repeat(7) + 'f' } }
 			],
-			/different commit|not in the connected repository/
+			/different commit/
 		);
 		// A pass on a stronger target satisfies the requirement, on the same commit
 		const good = await recordSteps(ctx(), {
@@ -505,143 +409,6 @@ describe('tracking', () => {
 		// A step with no evidence and no required target needs none, and waiving needs none either
 		const plain = await recordSteps(ctx(), { item: it.ref, marks: [{ key: '1.3', mark: 'done' }] });
 		expect(plain.changed[0].to).toBe('done');
-	});
-
-	it('a push links commits by trailer, then by claim, never by branch alone, and an unrecorded commit reaches the reply notes until a step is recorded', async () => {
-		await db.admin.query(
-			`update "user" set email = 'member-claims@example.com' where id = '${w.people.member}'`
-		);
-		const trailer = await newItem('Linked by trailer');
-		const claimed = await newItem('Linked by claim');
-		const id = await newSession();
-		await claim(agent('member', id), id, claimed.ref, '1');
-		const push = (commitsList: unknown[], ref = 'refs/heads/main') =>
-			handleWebhook(
-				db,
-				'push',
-				{
-					installation: { id: INSTALL as never },
-					repository: { full_name: REPO },
-					ref,
-					commits: commitsList as never
-				},
-				{ github }
-			);
-		const now = new Date().toISOString();
-		const result = await push(
-			[
-				{
-					id: '1'.repeat(40),
-					message: `Add cards\n\nItem: ${trailer.ref}`,
-					timestamp: now,
-					author: { email: 'someone@example.com' },
-					modified: ['src/a.ts']
-				},
-				{
-					id: '2'.repeat(40),
-					message: 'Tidy things up',
-					timestamp: now,
-					author: { email: 'member-claims@example.com' },
-					added: ['src/b.ts']
-				},
-				{
-					id: '3'.repeat(40),
-					message: 'No item and nobody claims',
-					timestamp: now,
-					author: { email: 'nobody@example.com' },
-					modified: ['src/c.ts']
-				},
-				{
-					id: '4'.repeat(40),
-					message: `Branch is named ${trailer.ref} but the message is not`,
-					timestamp: now,
-					author: { email: 'x@example.com' }
-				}
-			],
-			`refs/heads/${trailer.ref}`
-		);
-		expect(result.detail).toBe('linked 2, unmatched 2');
-		const rows = await withTenant(db, { orgId: w.orgId }, (tx) => tx.select().from(commitLink));
-		const by = (sha: string) => rows.find((r) => r.sha === sha)!;
-		expect(by('1'.repeat(40))).toMatchObject({
-			itemId: trailer.id,
-			matchedBy: 'trailer',
-			recorded: false,
-			files: ['src/a.ts'],
-			branch: `${trailer.ref}`
-		});
-		expect(by('2'.repeat(40))).toMatchObject({
-			itemId: claimed.id,
-			matchedBy: 'claim',
-			authorEmail: 'member-claims@example.com'
-		});
-		expect(by('3'.repeat(40))).toMatchObject({ itemId: null, matchedBy: 'none' });
-		expect(by('4'.repeat(40))).toMatchObject({ itemId: null, matchedBy: 'none' });
-		// The same push again changes nothing
-		expect((await push([{ id: '1'.repeat(40), message: 'Again', timestamp: now }])).detail).toBe(
-			'linked 0, unmatched 0'
-		);
-		// The session on the claimed item is reminded in its next reply
-		const notes = await run(person(), (tx) => trackingNotes(tx, id));
-		expect(notes.join(' ')).toMatch(
-			new RegExp(`1 commit on ${claimed.ref} has no recorded step \\(2222222\\)`)
-		);
-		// Recording a step marks the item's commits recorded and ends the reminder
-		await recordSteps(agent('member', id), {
-			item: claimed.ref,
-			marks: [{ key: '1.1', mark: 'done' }]
-		});
-		expect(
-			(await withTenant(db, { orgId: w.orgId }, (tx) => tx.select().from(commitLink))).find(
-				(r) => r.sha === '2'.repeat(40)
-			)!.recorded
-		).toBe(true);
-		expect(await run(person(), (tx) => trackingNotes(tx, id))).toEqual([]);
-		// The other item's commit is still unrecorded, and the health panel and the pull request check say so
-		const health = await projectHealth(person('admin'), w.projectKey);
-		expect(health.unrecordedCommits.map((c) => c.itemRef)).toContain(trailer.ref);
-		expect(health.unrecordedCommits.every((c) => c.itemRef !== claimed.ref)).toBe(true);
-		expect(health.unlinkedCommits).toBe(2);
-		await mock.fetch('http://gh/__mock/pull', {
-			method: 'POST',
-			body: JSON.stringify({
-				repo: REPO,
-				number: 7,
-				shas: ['1'.repeat(40), '2'.repeat(40), '3'.repeat(40)]
-			}),
-			headers: { 'content-type': 'application/json' }
-		});
-		const pr = await handleWebhook(
-			db,
-			'pull_request',
-			{
-				action: 'opened',
-				installation: { id: INSTALL as never },
-				repository: { full_name: REPO },
-				pull_request: { number: 7, head: { sha: '3'.repeat(40) } }
-			},
-			{ github }
-		);
-		expect(pr.detail).toBe('check neutral');
-		const checks = (await (await mock.fetch('http://gh/__mock/checks')).json()) as {
-			checks: { head_sha: string; conclusion: string; output: { summary: string } }[];
-		};
-		expect(checks.checks.at(-1)).toMatchObject({ head_sha: '3'.repeat(40), conclusion: 'neutral' });
-		expect(checks.checks.at(-1)!.output.summary).toMatch(
-			/1111111 belongs to .* no step was recorded/
-		);
-		expect(checks.checks.at(-1)!.output.summary).toMatch(/3333333 is not linked to any item/);
-		// Without the App (no github dependency) a pull request event is accepted and ignored
-		expect(
-			(
-				await handleWebhook(db, 'pull_request', {
-					action: 'opened',
-					installation: { id: INSTALL as never },
-					repository: { full_name: REPO },
-					pull_request: { number: 7, head: { sha: 'x' } }
-				})
-			).detail
-		).toBe('ignored');
 	});
 
 	it('a quiet claim is reminded, and only a busy session that recorded nothing for a while', async () => {
@@ -1021,16 +788,7 @@ describe('tracking', () => {
 			`update session set last_seen_at = now() - interval '5 hours' where id = '${id}'`
 		);
 		await db.admin.exec(
-			`insert into commit_link (org_id, project_id, item_id, sha, repo, message, matched_by, recorded, files) values ('${w.orgId}', '${w.projectId}', '${secret.id}', '${'9'.repeat(40)}', '${REPO}', 'A private commit', 'trailer', false, '["a.ts"]')`
-		);
-		await db.admin.exec(
 			`update step set required_target = 'preview' where item_id = '${quiet.id}' and key = '1.1'`
-		);
-		await withTenant(db, { orgId: w.orgId }, (tx) =>
-			tx
-				.update(githubLink)
-				.set({ failures: 3, pausedReason: 'Publishing failed 3 times in a row.' })
-				.where(eq(githubLink.projectId, w.projectId))
 		);
 		// A review with a step still open is drift, and says so
 		const review = await newItem('Review with an open step');
@@ -1041,7 +799,7 @@ describe('tracking', () => {
 			note: 'Moved to review early'
 		});
 		const admin = await projectHealth(
-			{ ...person('admin'), services: { github, backups: true } },
+			{ ...person('admin'), services: { backups: true } },
 			w.projectKey
 		);
 		expect(admin.quietItems.map((q) => q.ref)).toContain(quiet.ref);
@@ -1054,31 +812,20 @@ describe('tracking', () => {
 		expect(
 			admin.stepsWithoutEvidence.some((s) => s.itemRef === quiet.ref && s.target === 'preview')
 		).toBe(true);
-		expect(admin.unrecordedCommits.some((c) => c.itemRef === secret.ref)).toBe(false);
 		// Its maker still sees it on the panel
 		const maker = await projectHealth(person('owner'), w.projectKey);
 		expect(maker.quietItems.map((q) => q.ref)).toContain(secret.ref);
-		expect(maker.unrecordedCommits.some((c) => c.itemRef === secret.ref)).toBe(true);
 		expect(admin.drift.find((d) => d.ref === review.ref)?.codes).toContain(
 			'in-review-with-open-steps'
 		);
-		expect(admin.publish?.pausedReason).toMatch(/3 times in a row/);
 		expect(admin.backup?.ok).toBe(false);
-		// A member sees the public items only, and neither the publish nor the backup state
+		// A member sees the public items only, and not the backup state
 		const member = await projectHealth(person('member'), w.projectKey);
 		expect(member.quietItems.map((q) => q.ref)).toContain(quiet.ref);
 		expect(member.quietItems.map((q) => q.ref)).not.toContain(secret.ref);
-		expect(member.unrecordedCommits.some((c) => c.itemRef === secret.ref)).toBe(false);
-		expect(member.publish).toBeNull();
 		expect(member.backup).toBeNull();
 		// A closed item with a claim is flagged (a claim on a closed item should not survive, so it is made by hand here)
 		await db.admin.exec(`update item set status = 'ON HOLD' where id = '${stale.id}'`);
-		await db.admin.exec(
-			`update github_installation set account = 'x' where installation_id = '${INSTALL}'`
-		);
-		expect(
-			await withTenant(db, { orgId: w.orgId }, (tx) => tx.select().from(githubInstallation))
-		).toHaveLength(1);
 		await updateItem(person('owner'), { item: quiet.ref, title: 'Quiet and old, renamed' });
 	});
 

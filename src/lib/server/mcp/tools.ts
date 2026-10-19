@@ -4,7 +4,6 @@
 // -- TYPES -- //
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Storage } from '../adapters/storage';
-import type { GithubApi } from '../github/app';
 import type { DbHandle } from '../db/client';
 import { searchBoard } from '../ops/board';
 import type { Capability, Ctx } from '../ops/context';
@@ -64,7 +63,6 @@ export type McpDeps = {
 	handle: DbHandle;
 	storage?: Storage;
 	baseUrl: string;
-	github?: GithubApi;
 };
 type Shape = z.ZodRawShape;
 type Reply = {
@@ -221,7 +219,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		handle: deps.handle,
 		orgId: auth.orgId,
 		requestId: rid,
-		services: { storage: deps.storage, baseUrl: deps.baseUrl, github: deps.github },
+		services: { storage: deps.storage, baseUrl: deps.baseUrl },
 		actor: {
 			userId: auth.userId,
 			kind: 'agent',
@@ -278,7 +276,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 						ctx.fingerprint = fingerprintOf(name, rest);
 					}
 					const out = await fn(args as never, { ctx, claimed: sessionRow?.claimedItemId ?? null });
-					// Reminders ride inside the reply: unrecorded commits, a quiet claim, a claim released by a close (SPEC 9.4)
+					// Reminders ride inside the reply: a quiet claim, a claim released by a close (SPEC 9.4)
 					if (sessionRow) {
 						const notes = await run(ctx, (tx) => trackingNotes(tx, sessionRow!.id));
 						if (notes.length) return reply({ ...out, notes });

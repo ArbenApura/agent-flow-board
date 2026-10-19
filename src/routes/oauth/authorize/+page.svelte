@@ -20,7 +20,6 @@
 		write: 'Create and change items and steps',
 		complete: 'Mark items COMPLETED',
 		delete: 'Move items to the trash',
-		publish: 'Publish to GitHub',
 		manage: 'Change project settings'
 	};
 	const VIEW_CAPS = ['read', 'comment'];

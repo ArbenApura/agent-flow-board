@@ -26,7 +26,6 @@ import {
 import { appendEvent } from '../db/events';
 import {
 	check,
-	commitLink,
 	designScale,
 	environment,
 	item,
@@ -469,17 +468,11 @@ export async function claimShotsJob(
 			const [it] = r.itemId ? await tx.select().from(item).where(eq(item.id, r.itemId)) : [];
 			let ownPaths: string[] = [];
 			if (r.itemId) {
-				const commits = await tx
-					.select({ files: commitLink.files })
-					.from(commitLink)
-					.where(eq(commitLink.itemId, r.itemId));
 				const checks = await tx
 					.select({ paths: check.coveredPaths })
 					.from(check)
 					.where(eq(check.itemId, r.itemId));
-				ownPaths = [
-					...new Set([...commits.flatMap((c) => c.files), ...checks.flatMap((c) => c.paths)])
-				];
+				ownPaths = [...new Set(checks.flatMap((c) => c.paths))];
 			}
 			const accounts = await openAccountNames(tx, r.projectId);
 			return {
@@ -673,18 +666,14 @@ export async function finishShotsRun(
 					flags.push({ ...f, page: x.page, theme: x.theme, viewport: x.viewport });
 			}
 		}
-		// Changes that belong to other work: not under any path this item's commits or checks touch
+		// Changes that belong to other work: not under any path this item's checks cover
 		let own: string[] = [];
 		if (r.itemId) {
-			const commits = await tx
-				.select({ files: commitLink.files })
-				.from(commitLink)
-				.where(eq(commitLink.itemId, r.itemId));
 			const checks = await tx
 				.select({ paths: check.coveredPaths })
 				.from(check)
 				.where(eq(check.itemId, r.itemId));
-			own = [...commits.flatMap((c) => c.files), ...checks.flatMap((c) => c.paths)];
+			own = checks.flatMap((c) => c.paths);
 		}
 		const foreignPaths = own.length
 			? report.changedPaths.filter((c) => !own.some((o) => underPath(c, o)))

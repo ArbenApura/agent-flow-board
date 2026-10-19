@@ -165,7 +165,7 @@ The 6 lenses in `code-lenses.md` are a pool, not a fixed roster:
 |---|---|---|
 | A - Completeness | 1 (Fail loudly, Input and output) | any code |
 | B - Theme & UI | 4 (UI) | `.svelte`, `src/app.css`, `src/lib/theme/**`, `src/lib/ui/**`, `src/lib/actions/**` |
-| C - Security & Tenancy | 1 (Operations layer, Entry points, Auth), 2 (Tenant isolation, secrets, untrusted text) | `src/lib/server/ops/**`, `api/**`, `mcp/**`, `oauth/**`, `auth/**`, `orgs/**`, `secrets/**`, `github/**`, `src/hooks.server.ts`, any `+server.ts` / `+page.server.ts` / `+layout.server.ts`, `src/lib/markdown.ts`, `packages/runner/**`, `packages/bridge/**`, `packages/cli/**`, `importer/**` |
+| C - Security & Tenancy | 1 (Operations layer, Entry points, Auth), 2 (Tenant isolation, secrets, untrusted text) | `src/lib/server/ops/**`, `api/**`, `mcp/**`, `oauth/**`, `auth/**`, `orgs/**`, `secrets/**`, `src/hooks.server.ts`, any `+server.ts` / `+page.server.ts` / `+layout.server.ts`, `src/lib/markdown.ts`, `packages/runner/**`, `packages/bridge/**`, `packages/cli/**`, `importer/**` |
 | D - Data layer & RLS | 1 (Background jobs, Runtime), 3 (Database) | `src/lib/server/db/**` (schema, migrations, `tenant.ts`, `security.ts`, `zod.ts`), `src/lib/server/jobs/**`, `adapters/**`, `backup/**`, `drizzle.config.ts` |
 | E - Quality & Tests | 6 (Tests) | `tests/**`, `*.test.ts`, `packages/*/src/*.test.ts`, the item's `validation` section |
 | F - Design Fit | 7 (Design fit) | `.svelte`, `src/app.css`, `src/lib/theme/**`, any change that alters what a screen looks like. **Never dropped for a UI diff**; with 3 subagents it shares one with Lens B (B + F) |

@@ -42,8 +42,7 @@ wording does not cover. Paths are repo-relative.
 
 - [ ] **Every `+server.ts` and form action authenticates and builds its `Ctx` before any work**, then
       calls a verb. Public routes (`/healthz`, `/oauth/*`, sign-in pages, `/device`, an invite link)
-      are deliberate and validate their token server-side. `/internal/jobs` and webhooks
-      (`src/lib/server/github/webhook.ts`) check their own signature or secret.
+      are deliberate and validate their token server-side. `/internal/jobs` and any webhook check their own signature or secret.
 - [ ] **Better Auth is the only session source** (`src/lib/server/auth/auth.ts`, `index.ts`).
       Lockout (`lockout.ts`), rate limits, email verification (`unverified.ts`), device sign-in
       (`devices.ts`) and post-sign-in redirects (`next.ts`, tested in `next.test.ts`) are not bypassed
@@ -79,7 +78,7 @@ wording does not cover. Paths are repo-relative.
 - [ ] Errors surfaced to the person are actionable; server logs carry ids and the operation, never
       tokens, passwords, keys or secret values.
 
-**Background jobs (`src/lib/server/jobs/index.ts`, `adapters/jobs.ts`, `github/jobs.ts`, `routes/internal/jobs`)**
+**Background jobs (`src/lib/server/jobs/index.ts`, `adapters/jobs.ts`, `routes/internal/jobs`)**
 
 - [ ] **Every job payload carries its org id and project id** and the job runs its queries through
       `withTenant` with them before the first query. A job that reads "all projects" or uses the owner
@@ -131,8 +130,8 @@ wording does not cover. Paths are repo-relative.
       outside the registry that holds org data, or a hand-written policy that differs, is a finding.
       Tables with no tenant data (users, OAuth clients, device codes, auth tables) are listed in
       `PLAIN_TABLES` / `USER_TABLES` on purpose.
-- [ ] Cross-org entry points (a GitHub installation webhook, an org slug lookup, a token lookup by
-      its org id prefix) use the narrow `Tenant` fields (`installationId`, `orgSlug`) that expose one
+- [ ] Cross-org entry points (an org slug lookup, a token lookup by
+      its org id prefix) use the narrow `Tenant` fields (`orgSlug`) that expose one
       row, not a wide read.
 - [ ] Seed and test data (`db/seed.ts`, `db/seedAuth.ts`, `tests/support/db.ts`) never run on a real
       database; the importer (`importer/`) sets the tenant context for what it writes.
@@ -141,7 +140,7 @@ wording does not cover. Paths are repo-relative.
 
 - [ ] **No password, token, key, client secret, device code, master key or sealed value is returned**
       by a verb, `/api/v1`, an MCP tool, a page `load`, a backup or export (`backup/`,
-      `github/export.ts`), or written to a log, an activity event or an error message. Check
+      `ops/export.ts`), or written to a log, an activity event or an error message. Check
       `select()` shapes: a table read as a whole may carry a hash or ciphertext column.
 - [ ] **Project secrets use the vault** (`src/lib/server/secrets/vault.ts`): sealed with the org data
       key, bound to org, project and name, wrapped by `AFB_MASTER_KEY`. No second encryption scheme,
@@ -156,7 +155,7 @@ wording does not cover. Paths are repo-relative.
 - [ ] **All Markdown is rendered through `src/lib/markdown.ts`**: no raw HTML, safe link and image
       schemes only, and guest (untrusted) text gets no images. No `{@html}` on anything that did not
       come from that renderer, and no second Markdown or HTML path.
-- [ ] Guest text in an email (`email/templates.ts`), a GitHub comment or commit (`github/`), a
+- [ ] Guest text in an email (`email/templates.ts`), a
       Slack-like notification or a filename is escaped for its target; it never becomes a command
       line argument, a path, a header or HTML.
 - [ ] Uploads (`ops/attachments.ts`, `routes/api/v1/files`) check size, type and org/project on the

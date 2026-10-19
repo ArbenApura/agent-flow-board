@@ -1,4 +1,4 @@
-// INTEGRATION TABLES: BROWSER CHECKS, UI SHOTS, RUNNERS, SECRETS, GITHUB, TOKENS AND CONNECTIONS (SPEC 5, 6, 8 AND 10)
+// INTEGRATION TABLES: BROWSER CHECKS, UI SHOTS, RUNNERS, SECRETS, BACKUPS, TOKENS AND CONNECTIONS (SPEC 5, 6, 8 AND 10)
 
 // -- DEP-MODULES -- //
 import { sql } from 'drizzle-orm';
@@ -325,91 +325,7 @@ export const secret = tenantTable(
 	(t) => [unique('secret_name_uq').on(t.projectId, t.name)]
 );
 
-// -- GITHUB PUBLISHING AND BACKUPS (SPEC 8) -- //
-
-export const githubLink = tenantTable(
-	'github_link',
-	'project',
-	{
-		id: id(),
-		orgId: orgId(),
-		projectId: projectId().unique(),
-		installationId: text('installation_id').notNull(),
-		repo: text('repo').notNull(),
-		branch: text('branch').notNull().default('main'),
-		/** The folder inside the repo that the published files live in, so nothing else in the repo is touched. */
-		path: text('path').notNull().default('board'),
-		repoVisibility: text('repo_visibility').notNull().default('private'),
-		autoPublish: boolean('auto_publish').notNull().default(false),
-		delayMinutes: integer('delay_minutes').notNull().default(10),
-		schedule: jsonb('schedule'),
-		pausedReason: text('paused_reason'),
-		/** Failed publishes in a row. Three pause the automatic publish until a person publishes by hand (SPEC 8). */
-		failures: integer('failures').notNull().default(0),
-		...stamps(),
-		version: version()
-	},
-	(t) => [oneOf('github_link_visibility_chk', t.repoVisibility, ['private', 'public'])]
-);
-
-/**
- * Which org an installation of the GitHub App belongs to. GitHub sends webhooks with an installation id and no org, so the
- * policy lets a request that names the installation (app.installation_id) read that one row and learn the org. Everything
- * after that runs inside that org's own tenant.
- */
-export const githubInstallation = tenantTable(
-	'github_installation',
-	'org',
-	{
-		installationId: text('installation_id').primaryKey(),
-		orgId: orgId(),
-		account: text('account'),
-		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
-	},
-	undefined,
-	{
-		using:
-			"org_id = nullif(current_setting('app.org_id', true), '')::uuid or installation_id = nullif(current_setting('app.installation_id', true), '')"
-	}
-);
-
-export const publishRun = tenantTable(
-	'publish_run',
-	'project',
-	{
-		id: id(),
-		orgId: orgId(),
-		projectId: projectId(),
-		commitSha: text('commit_sha'),
-		changedItems: jsonb('changed_items')
-			.$type<string[]>()
-			.notNull()
-			.default(sql`'[]'::jsonb`),
-		/** Cancel works by state: the job checks this column before writing (ADR-023). */
-		state: text('state').notNull().default('pending'),
-		runAt: timestamp('run_at', { withTimezone: true }).notNull().defaultNow(),
-		error: text('error'),
-		/** manual (Publish now or later), auto (the switch) or schedule. */
-		trigger: text('trigger').notNull().default('manual'),
-		requestedBy: text('requested_by'),
-		repo: text('repo'),
-		/** Tries so far. A rate limit or a short outage puts the run back with a later time until it hits the limit. */
-		attempt: integer('attempt').notNull().default(0),
-		/** The content hash of each published item by reference, so the next publish can show what changed. */
-		hashes: jsonb('hashes')
-			.$type<Record<string, string>>()
-			.notNull()
-			.default(sql`'{}'::jsonb`),
-		fileCount: integer('file_count').notNull().default(0),
-		/** The newest event id covered by this publish, so automatic publish knows when something new happened. */
-		lastEventId: integer('last_event_id').notNull().default(0),
-		message: text('message'),
-		...stamps()
-	},
-	(t) => [
-		oneOf('publish_run_state_chk', t.state, ['pending', 'cancelled', 'running', 'done', 'failed'])
-	]
-);
+// -- BACKUPS (SPEC 8) -- //
 
 export const backupRun = tenantTable(
 	'backup_run',

@@ -19,8 +19,6 @@ export type Tenant = {
 	/** Narrows project scoped tables to one project. Left out, the whole org is visible to the org checks. */
 	projectId?: string;
 	userId?: string;
-	/** Names a GitHub App installation, so a webhook can find the org it belongs to. Only that one row is visible. */
-	installationId?: string;
 	/** Lets the purge sweep list the orgs an owner deleted, and nothing else. Used by no request path. */
 	purgeSweep?: boolean;
 };
@@ -49,10 +47,6 @@ export async function withTenant<T>(
 	const project = uuidOrEmpty(tenant.projectId, 'projectId');
 	const userId = tenant.userId ?? '';
 	const orgSlug = tenant.orgSlug ?? '';
-	// The id goes into a setting, never into SQL text, and must be digits
-	if (tenant.installationId !== undefined && !/^[0-9]{1,20}$/.test(tenant.installationId))
-		throw new Error('installationId must be digits');
-	const installationId = tenant.installationId ?? '';
 	const purgeSweep = tenant.purgeSweep ? 'on' : '';
 	return handle.db.transaction(async (tx) => {
 		// One round trip for the whole setup. The values are escaped as literals, and the ids are checked above
@@ -60,7 +54,7 @@ export async function withTenant<T>(
 		const role = handle.switchRole ? `SET LOCAL ROLE ${RUNTIME_ROLE}; ` : '';
 		await tx.execute(
 			sql.raw(
-				`${role}select set_config('app.org_id', ${lit(org)}, true), set_config('app.project_id', ${lit(project)}, true), set_config('app.user_id', ${lit(userId)}, true), set_config('app.org_slug', ${lit(orgSlug)}, true), set_config('app.installation_id', ${lit(installationId)}, true), set_config('app.purge_sweep', ${lit(purgeSweep)}, true)`
+				`${role}select set_config('app.org_id', ${lit(org)}, true), set_config('app.project_id', ${lit(project)}, true), set_config('app.user_id', ${lit(userId)}, true), set_config('app.org_slug', ${lit(orgSlug)}, true), set_config('app.purge_sweep', ${lit(purgeSweep)}, true)`
 			)
 		);
 		return fn(tx);

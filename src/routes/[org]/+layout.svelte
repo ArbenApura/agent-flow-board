@@ -42,15 +42,14 @@
 
 	const base = $derived(`/${data.org.slug}`);
 	const current = $derived(data.projects.find((p) => p.key === page.params.project));
-	// Five links stay in the bar. The rest of the project lives under More (ADR-004)
+	// Four links stay in the bar. The rest of the project lives under More (ADR-004)
 	const primary = $derived(
 		current
 			? [
 					{ href: `${base}/${current.key}`, label: 'Registry', exact: true },
 					{ href: `${base}/${current.key}/tasks`, label: 'Tasks' },
 					{ href: `${base}/${current.key}/activity`, label: 'Activity' },
-					{ href: `${base}/${current.key}/health`, label: 'Health' },
-					{ href: `${base}/${current.key}/publish`, label: 'Publish' }
+					{ href: `${base}/${current.key}/health`, label: 'Health' }
 				]
 			: []
 	);

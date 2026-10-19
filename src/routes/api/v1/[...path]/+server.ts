@@ -30,7 +30,6 @@ const handler: RequestHandler = async ({ request, params, url, locals }) => {
 			storage: services.storage,
 			baseUrl: services.baseUrl!,
 			mailer: services.mailer,
-			github: services.github,
 			jobs: services.jobs,
 			masterKey: services.masterKey,
 			runnerQueueMinutes: services.runnerQueueMinutes

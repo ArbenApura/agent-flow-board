@@ -326,12 +326,12 @@ describe('OAuth and device flows', () => {
 				userId: w.people.member,
 				typed,
 				orgId: w.orgId,
-				scopes: ['read', 'write', 'publish']
+				scopes: ['read', 'write', 'manage']
 			})
 		).toMatchObject({ ok: true, client: 'Gemini CLI' });
 		await db.db.update(deviceCode).set({ lastPolledAt: new Date(Date.now() - 60_000) });
 		const token = ok(await pollDevice(db, start.device_code));
-		// A member asked for publish and was given only what a member may hold
+		// A member asked for manage and was given only what a member may hold
 		expect(token.scope).toBe('read write');
 		expect(await authenticateToken(db, token.access_token)).toMatchObject({
 			userId: w.people.member,

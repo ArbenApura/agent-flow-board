@@ -124,7 +124,6 @@ export async function exportOrg(
 	);
 	registry.set('user', 'id');
 	registry.set('auth_account', 'user_id');
-	registry.set('github_installation', 'org_id');
 	const order = await tableOrder(db, [...registry.keys()]);
 	const migrations = (
 		await db.query<{ tag: string }>(

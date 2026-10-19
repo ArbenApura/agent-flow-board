@@ -7,9 +7,9 @@
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
-import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { check, checkRun, commitLink, item, session, step } from '../db/schema';
+import { check, checkRun, item, session, step } from '../db/schema';
 import { notifyChange } from '../realtime/notify';
 import { OpError } from './context';
 
@@ -177,15 +177,9 @@ export async function afterRecord(
 	result: {
 		finishedPhases: string[];
 		nextPhase: string | null;
-		anyDone: boolean;
 		changedAny: boolean;
 	}
 ): Promise<{ item: string; phase: string | null; moved: boolean } | null> {
-	if (result.anyDone)
-		await tx
-			.update(commitLink)
-			.set({ recorded: true, updatedAt: sql`now()` })
-			.where(and(eq(commitLink.itemId, it.id), eq(commitLink.recorded, false)));
 	// A recorded step clears the unrecorded edit count of every session working on the item, not only the recording one
 	if (result.changedAny)
 		await tx
@@ -235,12 +229,6 @@ export async function trackingNotes(
 			.where(eq(session.id, s.id));
 	if (s.claimedItemId) {
 		const [it] = await tx.select({ ref: item.ref }).from(item).where(eq(item.id, s.claimedItemId));
-		const unrecorded = await tx
-			.select({ sha: commitLink.sha, message: commitLink.message })
-			.from(commitLink)
-			.where(and(eq(commitLink.itemId, s.claimedItemId), eq(commitLink.recorded, false)))
-			.orderBy(desc(commitLink.createdAt))
-			.limit(3);
 		// Edits since the last record: a read only line, the nudge state is never consumed here, so a session without hooks still hears it
 		if (
 			it &&
@@ -253,10 +241,6 @@ export async function trackingNotes(
 				.where(and(eq(step.itemId, s.claimedItemId), eq(step.state, 'open')));
 			if (open && open.n > 0) notes.push(staleProgressNote(it.ref, s.codeEditsSinceRecord));
 		}
-		if (it && unrecorded.length)
-			notes.push(
-				`${unrecorded.length === 3 ? '3 or more commits' : unrecorded.length === 1 ? '1 commit' : `${unrecorded.length} commits`} on ${it.ref} ${unrecorded.length === 1 ? 'has' : 'have'} no recorded step (${unrecorded.map((c) => c.sha.slice(0, 7)).join(', ')}). Record the finished steps with step_done.`
-			);
 		const since = s.lastRecordAt ?? s.createdAt;
 		if (it && now.getTime() - since.getTime() > QUIET_RECORD_MINUTES * 60_000)
 			notes.push(
@@ -270,17 +254,15 @@ const sameCommit = (sha: string, given: string) =>
 	given.length >= 7 && sha.toLowerCase().startsWith(given.toLowerCase());
 
 /**
- * Evidence is checked by the server, never taken on trust (L22). A commit must be known and must change files. A check run
+ * Evidence is checked by the server, never taken on trust (L22). A commit is plain text and only has to look like a git hash. A check run
  * must exist on this item, have passed, match the commit, and be on a target at least as strong as the step requires.
- * `verifyCommit` asks GitHub when the commit was not seen through a webhook.
  */
 export async function validateEvidence(
 	tx: Tx,
 	ctx: Ctx,
 	it: { id: string; ref: string; projectId: string },
 	stepRow: { key: string; requiredTarget: string | null },
-	evidence: Evidence | undefined,
-	verifyCommit?: (sha: string) => Promise<{ files: string[]; message: string } | null>
+	evidence: Evidence | undefined
 ): Promise<void> {
 	const fail = (message: string) => {
 		throw new OpError('INVALID', `Step ${stepRow.key}: ${message}`, {
@@ -320,38 +302,7 @@ export async function validateEvidence(
 		if (!/^[0-9a-fA-F]{7,40}$/.test(evidence.commit)) fail('the commit is not a git hash.');
 		if (runCommit && !sameCommit(runCommit, evidence.commit))
 			fail('the check run was made on a different commit than the one given.');
-		const rows = await tx
-			.select({ files: commitLink.files, sha: commitLink.sha })
-			.from(commitLink)
-			.where(
-				and(
-					eq(commitLink.projectId, it.projectId),
-					sql`${commitLink.sha} like ${evidence.commit.toLowerCase() + '%'}`
-				)
-			);
-		let files = rows[0]?.files;
-		if (!rows.length) {
-			if (!verifyCommit)
-				fail(
-					'this project has no connected repository, so a commit cannot be verified. Leave the commit out, or connect a repository.'
-				);
-			const found = await verifyCommit!(evidence.commit);
-			if (!found) fail('that commit is not in the connected repository.');
-			files = found!.files;
-		}
-		if (!files || files.length === 0) fail('that commit changes no files.');
 	}
-}
-
-/** The newest 20 unrecorded commits of one item, for the item page and the health panel. */
-export async function unrecordedCommits(tx: Tx, itemIds: string[]) {
-	if (!itemIds.length) return [];
-	return tx
-		.select()
-		.from(commitLink)
-		.where(and(inArray(commitLink.itemId, itemIds), eq(commitLink.recorded, false)))
-		.orderBy(desc(commitLink.createdAt))
-		.limit(200);
 }
 
 /** Open steps that need a passed check on a target and have none, among done steps (SPEC 9.4 "steps without evidence"). */

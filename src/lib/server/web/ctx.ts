@@ -33,7 +33,6 @@ const CAP_ROLE: Record<string, Role> = {
 	write: 'member',
 	complete: 'member',
 	delete: 'member',
-	publish: 'admin',
 	manage: 'admin'
 };
 

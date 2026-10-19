@@ -70,9 +70,7 @@ export const load: PageServerLoad = async ({ locals, request, url, depends }) =>
 			checkTarget: p?.checkTarget ?? '',
 			notifications: {
 				backupAlerts:
-					(p?.notifications as { backupAlerts?: boolean } | undefined)?.backupAlerts ?? true,
-				publishPaused:
-					(p?.notifications as { publishPaused?: boolean } | undefined)?.publishPaused ?? true
+					(p?.notifications as { backupAlerts?: boolean } | undefined)?.backupAlerts ?? true
 			}
 		}
 	};
@@ -156,8 +154,7 @@ export const actions: Actions = {
 		if (checkTarget && !TARGETS.includes(checkTarget))
 			return fail(400, { message: 'Pick dev, preview or deployed.' });
 		const notifications = {
-			backupAlerts: f.get('backupAlerts') === 'on',
-			publishPaused: f.get('publishPaused') === 'on'
+			backupAlerts: f.get('backupAlerts') === 'on'
 		};
 		const values = {
 			userId: user.id,

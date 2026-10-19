@@ -1,14 +1,13 @@
 // THE PROJECT HEALTH PANEL: WHAT NEEDS ATTENTION IN ONE PLACE, AND NONE OF IT BLOCKS ANYTHING (SPEC 9.4)
-// Unrecorded commits, stale claims, steps without evidence, quiet items, drift warnings, and the failures of publishing and
-// backups. Private items are left out for people who may not see them. Every list is capped so the page stays quick.
+// Stale claims, steps without evidence, quiet items, drift warnings and the failures of backups. Private items are left out for people who may not see them. Every list is capped so the page stays quick.
 
 // -- TYPES -- //
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
-import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { and, eq, isNull, lt } from 'drizzle-orm';
 // -- MODULES -- //
 import { backupHealth, type BackupHealth } from '../backup/run';
-import { commitLink, githubLink, item, publishRun } from '../db/schema';
+import { item } from '../db/schema';
 import { requireCap, run } from './context';
 import { findProject, visibleItemSql } from './resolve';
 import { RUNNING_WINDOW_MINUTES, claimsIn, stepsWithoutEvidence } from './tracking';
@@ -43,25 +42,6 @@ export async function projectHealth(ctx: Ctx, projectKey: string, now = new Date
 			.from(item)
 			.where(inProject);
 		const byId = new Map(items.map((i) => [i.id, i]));
-		const ids = items.map((i) => i.id);
-		const commits = ids.length
-			? await tx
-					.select()
-					.from(commitLink)
-					.where(
-						and(
-							eq(commitLink.projectId, proj.id),
-							eq(commitLink.recorded, false),
-							inArray(commitLink.itemId, ids)
-						)
-					)
-					.orderBy(desc(commitLink.createdAt))
-					.limit(CAP)
-			: [];
-		const [unlinked] = await tx
-			.select({ n: sql<number>`count(*)::int` })
-			.from(commitLink)
-			.where(and(eq(commitLink.projectId, proj.id), isNull(commitLink.itemId)));
 		const claims = (await claimsIn(tx, proj.id)).filter((c) => byId.has(c.itemId));
 		const noEvidence = (await stepsWithoutEvidence(tx, proj.id)).filter((s) => byId.has(s.itemId));
 		const quietBefore = new Date(now.getTime() - proj.staleDays * 86_400_000);
@@ -71,30 +51,15 @@ export async function projectHealth(ctx: Ctx, projectKey: string, now = new Date
 			.where(and(inProject, eq(item.status, 'IN PROGRESS'), lt(item.lastActivityAt, quietBefore)))
 			.orderBy(item.lastActivityAt)
 			.limit(CAP);
-		const link = caps.includes('publish')
-			? (await tx.select().from(githubLink).where(eq(githubLink.projectId, proj.id)))[0]
-			: undefined;
-		const failedRuns = link
-			? await tx
-					.select()
-					.from(publishRun)
-					.where(and(eq(publishRun.projectId, proj.id), eq(publishRun.state, 'failed')))
-					.orderBy(desc(publishRun.createdAt))
-					.limit(3)
-			: [];
 		return {
 			proj,
 			role,
 			caps,
 			items,
 			byId,
-			commits,
-			unlinked: unlinked?.n ?? 0,
 			claims,
 			noEvidence,
-			quiet,
-			link,
-			failedRuns
+			quiet
 		};
 	});
 
@@ -107,13 +72,6 @@ export async function projectHealth(ctx: Ctx, projectKey: string, now = new Date
 			: null;
 	return {
 		project: { key: base.proj.key, name: base.proj.name, staleDays: base.proj.staleDays },
-		unrecordedCommits: base.commits.map((c) => ({
-			sha: c.sha,
-			message: c.message.split('\n')[0] ?? '',
-			itemRef: refOf(c.itemId!),
-			at: c.committedAt ?? c.createdAt
-		})),
-		unlinkedCommits: base.unlinked,
 		// A claim is listed when it is idle or its item closed, or when it left finished work unrecorded past the nudge time
 		staleClaims: base.claims
 			.filter(
@@ -153,14 +111,6 @@ export async function projectHealth(ctx: Ctx, projectKey: string, now = new Date
 			.filter((i) => i.drift.drift.length > 0)
 			.slice(0, CAP)
 			.map((i) => ({ ref: i.ref, title: i.title, status: i.status, codes: i.drift.drift })),
-		publish: base.link
-			? {
-					repo: base.link.repo,
-					pausedReason: base.link.pausedReason,
-					failures: base.link.failures,
-					failedRuns: base.failedRuns.map((r) => ({ at: r.updatedAt, error: r.error ?? '' }))
-				}
-			: null,
 		backup
 	};
 }

@@ -1,5 +1,5 @@
 // THE NIGHTLY BACKUP: ONE ENCRYPTED ARCHIVE PER ORG, KEPT BY RETENTION RULES, WITH AN ALERT AND A HEALTH FLAG WHEN IT FAILS OR IS LATE (L12)
-// A published copy on GitHub is a reference, not a backup. This is the real one: database rows and attachment files, encrypted
+// Database rows and attachment files, encrypted
 // with BACKUP_KEY, stored apart from the app's own file storage.
 
 // -- TYPES -- //

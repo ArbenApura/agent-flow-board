@@ -11,7 +11,7 @@ import { org, userPref } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import type { Mail, Mailer } from '../../src/lib/server/email/mailer';
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
-import { notifyPublishPaused } from '../../src/lib/server/github/notify';
+import { loadPublishable, renderExport } from '../../src/lib/server/ops/export';
 import { createInvite } from '../../src/lib/server/orgs/invites';
 import { createItem } from '../../src/lib/server/ops/items';
 import { createToken } from '../../src/lib/server/ops/tokens';
@@ -286,6 +286,16 @@ describe('settings', () => {
 		});
 	});
 
+	it('the export is deterministic: the same data renders the same files and hashes', async () => {
+		const a = await withTenant(db, { orgId: w.orgId }, async (tx) =>
+			renderExport(await loadPublishable(tx, w.projectId))
+		);
+		const b = await withTenant(db, { orgId: w.orgId }, async (tx) =>
+			renderExport(await loadPublishable(tx, w.projectId))
+		);
+		expect(a).toEqual(b);
+	});
+
 	it('the export holds the public items only, as JSON and as one Markdown file', async () => {
 		await createItem(w.ctx('owner'), {
 			project: w.projectKey,
@@ -351,34 +361,21 @@ describe('settings', () => {
 		await expect(orgBackups(ctx('member'))).rejects.toMatchObject({ code: 'FORBIDDEN' });
 	});
 
-	it('mails about backups and a paused publish go to the people who did not switch them off', async () => {
+	it('mails about backups go to the people who did not switch them off', async () => {
 		await db.admin.exec(
 			`update "user" set email = 'owner-pref@example.com' where id = '${w.people.owner}'`
 		);
 		await db.admin.exec(
 			`update "user" set email = 'admin-pref@example.com' where id = '${w.people.admin}'`
 		);
-		// The owner switches both off, the admin leaves them on
+		// The owner switches the alert off, the admin leaves it on
 		await withTenant(db, { userId: w.people.owner }, (tx) =>
 			tx.insert(userPref).values({
 				userId: w.people.owner,
-				notifications: { backupAlerts: false, publishPaused: false }
+				notifications: { backupAlerts: false }
 			})
 		);
 		mails.length = 0;
-		const sent = await notifyPublishPaused(
-			{ handle: db, mailer, baseUrl: 'https://board.example.com' },
-			w.orgId,
-			w.projectId,
-			'Publishing failed 3 times in a row.'
-		);
-		expect(sent).toBe(1);
-		expect(mails.map((m) => m.to)).toEqual(['admin-pref@example.com']);
-		expect(mails[0].subject).toMatch(/is paused/);
-		expect(mails[0].text).toContain('Publishing failed 3 times in a row.');
-		expect(mails[0].text).toContain(
-			`https://board.example.com/${(await getOrgSettings(ctx())).slug}/${w.projectKey}/settings`
-		);
 		// Backup alerts: a live attachment whose file is gone fails the backup. The owner opted out, so nobody is mailed
 		mails.length = 0;
 		const files = memoryStorage('storage-secret-for-tests-0123456789');
@@ -405,7 +402,7 @@ describe('settings', () => {
 		await withTenant(db, { userId: w.people.owner }, (tx) =>
 			tx
 				.update(userPref)
-				.set({ notifications: { backupAlerts: true, publishPaused: true } })
+				.set({ notifications: { backupAlerts: true } })
 				.where(eq(userPref.userId, w.people.owner))
 		);
 		await runBackup(deps, { now: new Date(Date.now() + 1000) });

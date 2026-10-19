@@ -94,7 +94,6 @@
 	let continueTool = $state<ContinueToolId>('claude-code');
 	let continueMode = $state<ContinueMode>('vscode');
 	let backupAlerts = $state(true);
-	let publishPaused = $state(true);
 	let status = $state<Record<string, { saving: boolean; saved: boolean; error: string }>>({});
 
 	// -- REACTIVE STATES -- //
@@ -121,9 +120,7 @@
 		password: current !== '' && next !== '',
 		checks: target !== prefs.checkTarget,
 		continue: continueTool !== data.continueTool || continueMode !== data.continueMode,
-		notifications:
-			backupAlerts !== prefs.notifications.backupAlerts ||
-			publishPaused !== prefs.notifications.publishPaused
+		notifications: backupAlerts !== prefs.notifications.backupAlerts
 	});
 
 	// -- FUNCTIONS -- //
@@ -137,7 +134,6 @@
 		follow('continueTool', parseTool(data.continueTool), (v) => (continueTool = v));
 		follow('continueMode', parseMode(data.continueMode), (v) => (continueMode = v));
 		follow('backupAlerts', prefs.notifications.backupAlerts, (v) => (backupAlerts = v));
-		follow('publishPaused', prefs.notifications.publishPaused, (v) => (publishPaused = v));
 	});
 
 	/** Sets or removes the avatar at once: a picture is not a form field, so it has no Save button. The layout is read again so the top bar changes too. */
@@ -219,7 +215,6 @@
 		themeMode: live.mode,
 		checkTarget: prefs.checkTarget,
 		...(prefs.notifications.backupAlerts ? { backupAlerts: 'on' } : {}),
-		...(prefs.notifications.publishPaused ? { publishPaused: 'on' } : {}),
 		...own
 	});
 
@@ -616,8 +611,7 @@
 					'notifications',
 					'prefs',
 					prefsFields({
-						...(backupAlerts ? { backupAlerts: 'on' } : { backupAlerts: '' }),
-						...(publishPaused ? { publishPaused: 'on' } : { publishPaused: '' })
+						...(backupAlerts ? { backupAlerts: 'on' } : { backupAlerts: '' })
 					}),
 					'Email settings saved.'
 				)}
@@ -627,11 +621,6 @@
 					label="Backup problems"
 					hint="When a nightly backup fails or is late, for organisations you own."
 					bind:checked={backupAlerts}
-				/>
-				<Switch
-					label="Publishing paused"
-					hint="When automatic publishing stops after repeated failures, for projects you manage."
-					bind:checked={publishPaused}
 				/>
 			</div>
 		</Section>

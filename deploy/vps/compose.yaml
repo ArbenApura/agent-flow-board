@@ -63,10 +63,6 @@ services:
       SMTP_URL: ${SMTP_URL:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
-      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-}
-      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
-      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
     volumes:
       # Attachments and backups. Back up this volume and the database separately, and keep BACKUP_KEY somewhere else
       - appdata:/data

@@ -1,25 +1,16 @@
-// THE APP'S BACKGROUND JOB RUNNER AND THE WATCHER THAT QUEUES AUTOMATIC PUBLISHES. STARTED ONCE WHEN THE SERVER STARTS.
+// THE APP'S BACKGROUND JOB RUNNER STARTED ONCE WHEN THE SERVER STARTS.
 
 // -- TYPES -- //
 import type { JobRunner } from '../adapters/jobs';
 // -- ENVS -- //
-import { AFB_BASE_URL, BACKUP_KEY, DATABASE_OWNER_URL, DATABASE_URL } from '$app/env/private';
+import { BACKUP_KEY, DATABASE_OWNER_URL, DATABASE_URL } from '$app/env/private';
 // -- MODULES -- //
 import { pgBossJobs } from '../adapters/jobs';
 import { getStorage } from '../adapters/index';
 import { backupStorage, registerBackups } from '../backup/index';
 import { NIL_ORG } from '../backup/run';
-import { getMailer } from '../auth/index';
 import { getDb } from '../db/index';
-import { getGithub } from '../github/index';
-import { SCHEDULE_JOB, registerPublishJobs } from '../github/jobs';
 import { ORG_PURGE_JOB, ORG_PURGE_SWEEP_JOB, dueOrgPurges, purgeOrg } from '../orgs/purge';
-import { getHub } from '../realtime/hub';
-
-// -- CONSTANTS -- //
-
-/** A burst of changes in one project becomes one look at it. */
-const DEBOUNCE_MS = 3000;
 
 // -- STATES -- //
 
@@ -51,36 +42,11 @@ async function open(): Promise<JobRunner> {
 	const handle = await getDb();
 	// pg-boss makes its own tables, so it connects as the owner when there is one
 	const jobs = await pgBossJobs(handle, (DATABASE_OWNER_URL ?? DATABASE_URL)!);
-	const github = getGithub();
-	if (github)
-		registerPublishJobs(jobs, {
-			github,
-			notify: { handle, mailer: getMailer(), baseUrl: AFB_BASE_URL }
-		});
 	const scheduleBackups = await registerBackups(jobs);
 	const scheduleOrgPurge = registerOrgPurge(jobs, handle);
 	await jobs.start();
 	await scheduleBackups?.();
 	await scheduleOrgPurge();
-	if (github) {
-		// Every change in any project asks the schedule job to look at that project once things settle
-		const hub = await getHub(handle);
-		const timers = new Map<string, ReturnType<typeof setTimeout>>();
-		hub.subscribeAll((change) => {
-			if (!change || change.k !== 'event') return;
-			if (change.v?.startsWith('publish.') || change.v?.startsWith('github.')) return;
-			clearTimeout(timers.get(change.p));
-			timers.set(
-				change.p,
-				setTimeout(() => {
-					timers.delete(change.p);
-					void jobs
-						.enqueue(SCHEDULE_JOB, { orgId: change.o, projectId: change.p })
-						.catch((e) => console.error('Could not queue the publish check', e));
-				}, DEBOUNCE_MS)
-			);
-		});
-	}
 	return jobs;
 }
 

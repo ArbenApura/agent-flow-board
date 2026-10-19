@@ -469,7 +469,7 @@
 				icon={DatabaseBackup}
 				group="Delivery"
 				title="Backups"
-				text="A nightly encrypted copy of this organisation, kept apart from the app. A copy on GitHub is a reference, not a backup."
+				text="A nightly encrypted copy of this organisation, kept apart from the app."
 			>
 				{#if !data.backups?.enabled}
 					<div class="text-sm text-muted" data-testid="backups-off">

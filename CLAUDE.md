@@ -90,4 +90,4 @@ A plan with a new or changed screen carries a "UI changes" table, a clickable mo
 
 ## Where things live
 
-`src/lib/server/ops/` verbs, `src/lib/server/db/` schema and RLS, `src/lib/server/auth/`, `src/lib/server/mcp/`, `src/lib/server/adapters/`, `src/lib/server/github/`, `src/lib/ui/` components, `src/lib/actions/` ripple, focusTrap and scrollLock, `src/lib/theme/` tokens and the palette generator, `packages/runner|bridge|cli`, `importer/`, `tests/checks/` browser checks, `tests/ui-shots/`, `design/`.
+`src/lib/server/ops/` verbs, `src/lib/server/db/` schema and RLS, `src/lib/server/auth/`, `src/lib/server/mcp/`, `src/lib/server/adapters/`, `src/lib/ui/` components, `src/lib/actions/` ripple, focusTrap and scrollLock, `src/lib/theme/` tokens and the palette generator, `packages/runner|bridge|cli`, `importer/`, `tests/checks/` browser checks, `tests/ui-shots/`, `design/`.

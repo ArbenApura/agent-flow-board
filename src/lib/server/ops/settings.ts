@@ -15,7 +15,7 @@ import { appendEvent } from '../db/events';
 import { backupRun, event, org, project } from '../db/schema';
 import type { OrgSettings } from '../db/schema/core';
 import { OpError, requireCap, run } from './context';
-import { loadPublishable, renderExport } from '../github/export';
+import { loadPublishable, renderExport } from './export';
 import { actorFields } from './items';
 import { pictureDataAddress } from './pictures';
 import { findProject } from './resolve';
@@ -278,7 +278,7 @@ export const emailStatus = (ctx: Ctx) => ({
 	provider: ctx.services?.mailer?.kind ?? null
 });
 
-/** The public items of a project as the files a publish would write, for a download. Private items are never in it. */
+/** The public items of a project as files, for a download. Private items are never in it. */
 export async function exportProject(ctx: Ctx, projectKey: string) {
 	return run(ctx, async (tx) => {
 		const proj = await findProject(tx, ctx, projectKey);

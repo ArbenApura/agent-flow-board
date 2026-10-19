@@ -7,7 +7,6 @@ import type { Role } from '../orgs/roles';
 import type { Storage } from '../adapters/storage';
 import type { Mailer } from '../email/mailer';
 import type { JobRunner } from '../adapters/jobs';
-import type { GithubApi } from '../github/app';
 // -- DEP-MODULES -- //
 import { createHash } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
@@ -18,8 +17,7 @@ import { effectiveProjectRole } from '../orgs/roles';
 
 // -- TYPES -- //
 
-export type Capability =
-	'read' | 'comment' | 'write' | 'complete' | 'delete' | 'publish' | 'manage';
+export type Capability = 'read' | 'comment' | 'write' | 'complete' | 'delete' | 'manage';
 
 export type Actor = {
 	userId: string;
@@ -52,7 +50,6 @@ export type Ctx = {
 		storage?: Storage;
 		baseUrl?: string;
 		mailer?: Mailer;
-		github?: GithubApi;
 		jobs?: JobRunner;
 		/** True when nightly backups are set up on this server, so a missing backup is a problem worth showing. */
 		backups?: boolean;
@@ -91,19 +88,11 @@ const ROLE_CAPS: Record<Role, Capability[]> = {
 	guest: ['read', 'comment'],
 	viewer: ['read', 'comment'],
 	member: ['read', 'comment', 'write', 'complete', 'delete'],
-	admin: ['read', 'comment', 'write', 'complete', 'delete', 'publish', 'manage'],
-	owner: ['read', 'comment', 'write', 'complete', 'delete', 'publish', 'manage']
+	admin: ['read', 'comment', 'write', 'complete', 'delete', 'manage'],
+	owner: ['read', 'comment', 'write', 'complete', 'delete', 'manage']
 };
 
-export const ALL_CAPS: Capability[] = [
-	'read',
-	'comment',
-	'write',
-	'complete',
-	'delete',
-	'publish',
-	'manage'
-];
+export const ALL_CAPS: Capability[] = ['read', 'comment', 'write', 'complete', 'delete', 'manage'];
 
 // -- FUNCTIONS -- //
 

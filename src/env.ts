@@ -107,34 +107,6 @@ export const variables = defineEnvVars({
 		schema: optional
 	},
 	GOOGLE_CLIENT_SECRET: { description: 'Google sign in client secret.', schema: optional },
-	GITHUB_APP_ID: {
-		description:
-			'The numeric id of the GitHub App that publishes reference copies. Publishing is off while this or the private key is unset.',
-		schema: optional
-	},
-	GITHUB_APP_SLUG: {
-		description:
-			'The URL name of the GitHub App (github.com/apps/<slug>), used for the install link.',
-		schema: optional
-	},
-	GITHUB_APP_PRIVATE_KEY: {
-		description:
-			'The GitHub App private key in PEM form. In an env file write the line breaks as \n.',
-		schema: optional
-	},
-	GITHUB_WEBHOOK_SECRET: {
-		description: 'The secret GitHub signs webhooks with. Webhooks are refused while this is unset.',
-		schema: optional
-	},
-	GITHUB_API_URL: {
-		description: 'The GitHub API address. Only a test server changes it.',
-		schema: (value) => (optional(value) ?? 'https://api.github.com').replace(/\/$/, '')
-	},
-	GITHUB_WEB_URL: {
-		description:
-			'The GitHub web address, for install and commit links. Only a test server changes it.',
-		schema: (value) => (optional(value) ?? 'https://github.com').replace(/\/$/, '')
-	},
 	BACKUP_KEY: {
 		description:
 			'At least 32 characters. Encrypts every backup. Nightly backups are off while this is unset. Lose it and the backups cannot be read.',

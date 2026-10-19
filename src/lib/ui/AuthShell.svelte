@@ -11,7 +11,6 @@
 	import Bot from '@lucide/svelte/icons/bot';
 	import Circle from '@lucide/svelte/icons/circle';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
-	import GitBranch from '@lucide/svelte/icons/git-branch';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import Plug from '@lucide/svelte/icons/plug';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
@@ -42,8 +41,7 @@
 
 	const POINTS = [
 		{ icon: Plug, title: 'Agents record as they work', text: 'Through MCP or the REST API' },
-		{ icon: Users, title: 'One plan for the team', text: 'The same steps, progress and checks' },
-		{ icon: GitBranch, title: 'Yours to keep', text: 'Publish plans to your own GitHub repository' }
+		{ icon: Users, title: 'One plan for the team', text: 'The same steps, progress and checks' }
 	];
 	const MESSAGES = [
 		'An agent is working on step 1, phase 1',

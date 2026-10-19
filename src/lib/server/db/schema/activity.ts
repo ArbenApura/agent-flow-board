@@ -17,7 +17,7 @@ import {
 // -- MODULES -- //
 import { orgId, projectId } from './core';
 import { item } from './items';
-import { id, oneOf, stamps, tenantTable } from './helpers';
+import { id, stamps, tenantTable } from './helpers';
 
 // -- TYPES -- //
 
@@ -126,37 +126,6 @@ export const requestLog = tenantTable(
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(t) => [unique('request_log_uq').on(t.orgId, t.actor, t.requestId)]
-);
-
-// -- COMMIT LINKS -- //
-
-export const commitLink = tenantTable(
-	'commit_link',
-	'project',
-	{
-		id: id(),
-		orgId: orgId(),
-		projectId: projectId(),
-		itemId: uuid('item_id').references(() => item.id, { onDelete: 'cascade' }),
-		sha: text('sha').notNull(),
-		repo: text('repo').notNull(),
-		message: text('message').notNull(),
-		authorEmail: text('author_email'),
-		branch: text('branch'),
-		committedAt: timestamp('committed_at', { withTimezone: true }),
-		files: jsonb('files')
-			.$type<string[]>()
-			.notNull()
-			.default(sql`'[]'::jsonb`),
-		matchedBy: text('matched_by').notNull(),
-		recorded: boolean('recorded').notNull().default(false),
-		...stamps()
-	},
-	(t) => [
-		unique('commit_link_repo_sha_uq').on(t.orgId, t.repo, t.sha),
-		index('commit_link_item_idx').on(t.itemId),
-		oneOf('commit_link_matched_chk', t.matchedBy, ['trailer', 'claim', 'none'])
-	]
 );
 
 export const rateBucket = tenantTable(

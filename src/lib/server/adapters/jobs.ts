@@ -23,7 +23,7 @@ export type JobHandler = (job: JobContext) => Promise<void>;
 export interface JobRunner {
 	readonly kind: 'memory' | 'pg-boss';
 	register(name: string, handler: JobHandler): void;
-	/** Queues a job. `runAt` delays it (the cancellable publish delay uses this). Returns an id. */
+	/** Queues a job. `runAt` delays it (a delayed job uses this). Returns an id. */
 	enqueue(name: string, payload: JobPayload, options?: { runAt?: Date }): Promise<string>;
 	/**
 	 * Runs a job on a repeating schedule, "minute hour * * *" in UTC (a number, a star, or a star and a step in the first two
