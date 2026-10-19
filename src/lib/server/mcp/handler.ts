@@ -91,7 +91,7 @@ export async function handleMcp(request: Request, deps: McpDeps): Promise<Respon
 		);
 	}
 	// Custom skills are prompts too, one per skill, so every harness discovers them without a file. The whole read and each
-	// registration are guarded: a database failure or a duplicate name must never cost a tool the five built-in prompts (ADR SKILLS 5)
+	// registration are guarded: a database failure or a duplicate name must never cost a tool the built-in prompts (ADR SKILLS 5)
 	try {
 		const skills = await promptSkills(builder.base());
 		for (const s of skills) {

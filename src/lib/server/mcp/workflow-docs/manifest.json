@@ -5,7 +5,7 @@
 			"file": "flow.md",
 			"skill": "flow",
 			"source": ".claude/skills/flow/SKILL.md",
-			"hash": "b9f1d1e35526d02fc92d1372bf50ded846d8bdc14942184d9a98449a8dd49450"
+			"hash": "b0b2233deec10ed4551b6027794ff24f19344ad251eb2ecaa24fb21726319ea6"
 		},
 		{
 			"file": "flow-task.md",
@@ -30,6 +30,18 @@
 			"skill": "flow-audit",
 			"source": ".claude/skills/flow-audit/SKILL.md",
 			"hash": "b8a38dda1b4b66f6d5253fce2a752397852a937bbfd8af17744b3d6bdf8093ec"
+		},
+		{
+			"file": "flow-check.md",
+			"skill": "flow-check",
+			"source": ".claude/skills/flow-check/SKILL.md",
+			"hash": "336dd85ad688676930c96cca1e83b825df25c7f28be7c59d9378719a76ea1867"
+		},
+		{
+			"file": "flow-verify.md",
+			"skill": "flow-verify",
+			"source": ".claude/skills/flow-verify/SKILL.md",
+			"hash": "09c2b138c416bec1ceffcd44630a2e799c39d673c39d4755ab81d1460591c022"
 		},
 		{
 			"file": "critic-checklists.md",

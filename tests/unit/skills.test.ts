@@ -38,13 +38,21 @@ const GOLDEN_FILES = 'bc3632dd6d647067c2338388f2ac4159de3078b7bcb9a52abdc78d85b3
 // -- TESTS -- //
 
 describe('skill names', () => {
-	it('accepts a lowercase slug and refuses the five built-ins', () => {
+	it('accepts a lowercase slug and refuses the seven built-ins', () => {
 		expect(isSkillName('release-notes')).toBe(true);
 		expect(isSkillName('notes2')).toBe(true);
 		expect(isSkillName('Release-Notes')).toBe(false);
 		expect(isSkillName('-notes')).toBe(false);
 		expect(isSkillName('notes--two')).toBe(false);
-		for (const name of ['flow', 'flow-task', 'flow-interview', 'flow-critic', 'flow-audit']) {
+		for (const name of [
+			'flow',
+			'flow-task',
+			'flow-interview',
+			'flow-critic',
+			'flow-audit',
+			'flow-check',
+			'flow-verify'
+		]) {
 			expect(isBuiltinSkillName(name)).toBe(true);
 			expect(isSkillName(name)).toBe(false);
 		}

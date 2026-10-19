@@ -22,8 +22,10 @@ describe('workflow text', () => {
 	});
 
 	it('serves the AFB skills first, with the standing overrides, and the shared rules after them', () => {
+		// flow-check and flow-verify are tools, not planning workflows: flow-check runs the browser checks that the planning overrides skip
+		const tools = ['flow-check', 'flow-verify'];
 		for (const w of WORKFLOWS) {
-			expect(w.body, w.name).toContain('Standing AFB overrides');
+			if (!tools.includes(w.name)) expect(w.body, w.name).toContain('Standing AFB overrides');
 			expect(w.body, w.name).not.toContain('allowed-tools');
 			expect(w.body.startsWith('> This workflow is the Agent Flow Board one'), w.name).toBe(true);
 		}

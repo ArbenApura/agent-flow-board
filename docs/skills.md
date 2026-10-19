@@ -8,7 +8,7 @@ Built by `AFB-20261018-0622`.
 
 An agent that reads a name sees exactly one skill. The order is:
 
-1. **Built-in.** The five workflows the board ships (`flow`, `flow-task`, `flow-interview`, `flow-critic`, `flow-audit`). They cannot be renamed, removed or shadowed; a custom skill may not take their names.
+1. **Built-in.** The seven workflows the board ships (`flow`, `flow-task`, `flow-interview`, `flow-critic`, `flow-audit`, `flow-check`, `flow-verify`). They cannot be renamed, removed or shadowed; a custom skill may not take their names.
 2. **Organisation.** Written by an owner or an admin, read by every project in the organisation.
 3. **Project.** Written by a member of that project and read by it.
 4. **A file in the checkout**, at `.claude/skills/<name>/SKILL.md`. When it exists it wins, and every read says so.

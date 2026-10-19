@@ -48,7 +48,7 @@ import { skillHash } from '../skills/hash';
 
 // -- TYPES -- //
 
-/** Where a read skill came from. Built-ins are the board's own five workflows, then the organisation, then the project. */
+/** Where a read skill came from. Built-ins are the board's own seven workflows, then the organisation, then the project. */
 export type SkillSource = 'builtin' | 'org' | 'project';
 
 export type SkillRow = typeof skill.$inferSelect;
@@ -263,7 +263,7 @@ const asSummary = (row: SkillRow, author: string | null): SkillSummary => ({
 	updatedAt: row.updatedAt
 });
 
-/** A name a person can use: the shape, and never one of the five built-in workflows (ADR SKILLS 1). */
+/** A name a person can use: the shape, and never one of the seven built-in workflows (ADR SKILLS 1). */
 function assertName(name: string) {
 	if (!SKILL_NAME.test(name) || name.length > SKILL_NAME_MAX)
 		throw new OpError('INVALID', SKILL_NAME_HINT, { field: 'name' });

@@ -145,7 +145,9 @@ describe('custom skills over MCP', () => {
 			'flow-task',
 			'flow-interview',
 			'flow-critic',
-			'flow-audit'
+			'flow-audit',
+			'flow-check',
+			'flow-verify'
 		]);
 		const denied = await call(guest, 'skill_get', { name: 'release-notes', project: w.projectKey });
 		expect(denied.error.code).toBe('NOT_FOUND');
@@ -162,7 +164,15 @@ describe('custom skills over MCP', () => {
 		).token;
 		const client = await connect(deps, writeOnly);
 		const prompts = (await client.listPrompts()).prompts.map((p) => p.name);
-		expect(prompts).toEqual(['flow', 'flow-task', 'flow-interview', 'flow-critic', 'flow-audit']);
+		expect(prompts).toEqual([
+			'flow',
+			'flow-task',
+			'flow-interview',
+			'flow-critic',
+			'flow-audit',
+			'flow-check',
+			'flow-verify'
+		]);
 		const denied = await call(client, 'skill_get', {
 			name: 'release-notes',
 			project: w.projectKey

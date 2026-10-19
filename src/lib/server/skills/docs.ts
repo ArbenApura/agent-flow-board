@@ -29,6 +29,8 @@ export const SKILL_SOURCES: SkillSource[] = [
 	},
 	{ file: 'flow-critic.md', skill: 'flow-critic', source: '.claude/skills/flow-critic/SKILL.md' },
 	{ file: 'flow-audit.md', skill: 'flow-audit', source: '.claude/skills/flow-audit/SKILL.md' },
+	{ file: 'flow-check.md', skill: 'flow-check', source: '.claude/skills/flow-check/SKILL.md' },
+	{ file: 'flow-verify.md', skill: 'flow-verify', source: '.claude/skills/flow-verify/SKILL.md' },
 	{
 		file: 'critic-checklists.md',
 		skill: 'flow-critic',

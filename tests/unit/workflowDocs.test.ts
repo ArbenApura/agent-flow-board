@@ -54,10 +54,18 @@ describe('the served workflow copies', () => {
 	});
 
 	it('are listed in one place, so a new skill cannot be served without being copied', () => {
-		// The five workflows the MCP serves and the five skill files of this guard are the same list
+		// The seven workflows the MCP serves and the seven skill files of this guard are the same list
 		expect(
 			SKILL_SOURCES.filter((s) => /^flow(-[a-z]+)?\.md$/.test(s.file)).map((s) => s.file)
-		).toEqual(['flow.md', 'flow-task.md', 'flow-interview.md', 'flow-critic.md', 'flow-audit.md']);
+		).toEqual([
+			'flow.md',
+			'flow-task.md',
+			'flow-interview.md',
+			'flow-critic.md',
+			'flow-audit.md',
+			'flow-check.md',
+			'flow-verify.md'
+		]);
 		expect(DOCS_DIR.replaceAll('\\', '/').endsWith('mcp/workflow-docs')).toBe(true);
 		expect(MANIFEST_FILE).toBe(join(DOCS_DIR, 'manifest.json'));
 	});

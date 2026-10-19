@@ -6,13 +6,15 @@
 /** Lowercase letters, digits and single dashes. The same shape a Claude skill folder takes. */
 export const SKILL_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
-/** The five workflows the board serves itself. A custom skill may not take one of these names (ADR SKILLS 1). */
+/** The seven workflows the board serves itself. A custom skill may not take one of these names (ADR SKILLS 1). */
 export const BUILTIN_SKILL_NAMES = [
 	'flow',
 	'flow-task',
 	'flow-interview',
 	'flow-critic',
-	'flow-audit'
+	'flow-audit',
+	'flow-check',
+	'flow-verify'
 ] as const;
 
 export const SKILL_NAME_MAX = 64;
