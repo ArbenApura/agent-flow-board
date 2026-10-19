@@ -1,0 +1,24 @@
+{
+	"version": 1,
+	"build": "yarn build",
+	"start": "yarn preview --port {port} --host 127.0.0.1",
+	"ready": "/healthz",
+	"needsDatabase": true,
+	"runtimeRole": "app_runtime",
+	"testUser": {
+		"email": "owner@acme.example",
+		"password": "seed-password-for-previews"
+	},
+	"env": {
+		"AFB_BASE_URL": "{baseUrl}",
+		"BETTER_AUTH_SECRET": "{random}",
+		"AFB_MASTER_KEY": "{random}",
+		"DATABASE_URL": "{databaseUrl}",
+		"DATABASE_OWNER_URL": "{databaseOwnerUrl}",
+		"AFB_AUTO_MIGRATE": "1",
+		"AFB_SEED_DEMO": "1",
+		"EMAIL_PROVIDER": "log",
+		"AFB_PWNED_CHECK": "0",
+		"AFB_RATE_LIMIT": "0"
+	}
+}
