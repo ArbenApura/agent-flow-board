@@ -9,7 +9,6 @@ node_modules
 .output
 .vercel
 .netlify
-.wrangler
 /.svelte-kit
 /build
 
@@ -30,10 +29,11 @@ vite.config.ts.timestamp-*
 test-results/
 playwright-report/
 /cli
-.dev.vars
 
 # Claude Code: machine-local setup (absolute paths to the HAPR Board in hapr-gameplan)
 .claude/
 .mcp.json
 
-deploy/tunnel/tunnel.log
+
+# Private operator notes (VPS access and secrets)
+VPS.md

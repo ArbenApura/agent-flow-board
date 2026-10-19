@@ -1,6 +1,6 @@
 # agent-flow-board rules
 
-A standalone multi-project team board for agent-driven flow plans. SvelteKit (Svelte 5 runes, TypeScript strict), Tailwind 4, a self-hosted PostgreSQL through Drizzle, Better Auth, one operations layer behind the UI, `/api/v1` and `/mcp`. Plans live on Agent Flow Board itself (project AFB, https://agent-flow-board.arbenger.com/arbenger/AFB) and are read and written through its MCP by the `/flow` skills; the original plan of this product is the HAPR Board item FLOW-20261014-1047. This file is the working rulebook for the code.
+A standalone multi-project team board for agent-driven flow plans. SvelteKit (Svelte 5 runes, TypeScript strict), Tailwind 4, a self-hosted PostgreSQL through Drizzle, Better Auth, one operations layer behind the UI, `/api/v1` and `/mcp`. Plans live on Agent Flow Board itself (project AFB, https://afb.arbenger.com/arbenger/AFB) and are read and written through its MCP by the `/flow` skills; the original plan of this product is the HAPR Board item FLOW-20261014-1047. This file is the working rulebook for the code.
 
 ## Git and safety
 
@@ -19,7 +19,7 @@ A standalone multi-project team board for agent-driven flow plans. SvelteKit (Sv
 
 ## Local development
 
-- Two fixed ports. **5180 is the dev server.** **5190 is the build preview (`yarn build && yarn preview`) that the Cloudflare tunnel serves as agent-flow-board.arbenger.com**, and it uses the same local Docker PostgreSQL as dev. Never start either on another port. If a port is busy, find out what holds it and stop that process first; never move to 5173 or any other port. Checks and UI shots run against a preview (ADR-017), never the dev server.
+- Two fixed ports. **5180 is the dev server.** **5190 is the build preview (`yarn build && yarn preview`) for local checks only (the live board is the VPS at https://afb.arbenger.com, deployed with `yarn deploy:vps`)**, and it uses the same local Docker PostgreSQL as dev. Never start either on another port. If a port is busy, find out what holds it and stop that process first; never move to 5173 or any other port. Checks and UI shots run against a preview (ADR-017), never the dev server.
 - Day to day work uses the local Docker PostgreSQL (`yarn db:up`, `yarn db:local:migrate`, `yarn dev:local`; see README). Never point a dev server or a seed at a database that holds data you want to keep, and never put a `DATABASE_URL` with a real password in a command line or a log.
 
 ## The gates

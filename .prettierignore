@@ -8,7 +8,6 @@ test-results
 playwright-report
 cli
 .afb
-.wrangler
 
 # Verbatim copies of the AFB skills, served by the MCP (workflows.ts)
 src/lib/server/mcp/workflow-docs

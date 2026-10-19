@@ -10,7 +10,6 @@ export default ts.config(
 			'.svelte-kit/',
 			'cli/',
 			'.afb/',
-			'.wrangler/',
 			'build/',
 			'node_modules/',
 			'.yarn/',
