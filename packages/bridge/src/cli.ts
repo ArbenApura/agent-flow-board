@@ -9,7 +9,7 @@
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
 
 // -- DEP-MODULES -- //
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { runBridge } from './bridge.js';
 import { ADAPTERS, runHook } from './hooks/adapters.js';
@@ -144,11 +144,14 @@ async function main() {
 			const path = join(dir, f.path);
 			if (f.action === 'remove') {
 				rmSync(path, { force: true });
-				// The skill's own folder goes too, when nothing else is in it
-				try {
-					rmSync(dirname(path), { recursive: false });
-				} catch {
-					/* Another file is still there */
+				// The folders it sat in go too, up to the skill's own folder, while nothing else is in them
+				for (let up = dirname(f.path); up.split('/').length >= 3; up = dirname(up)) {
+					try {
+						rmdirSync(join(dir, up));
+					} catch {
+						/* Another file is still there */
+						break;
+					}
 				}
 				continue;
 			}

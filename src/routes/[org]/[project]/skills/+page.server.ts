@@ -24,6 +24,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends }) 
 			id: s.id,
 			name: s.name,
 			summary: s.summary,
+			files: s.files,
 			source: s.source,
 			author: s.author,
 			revision: s.revision,

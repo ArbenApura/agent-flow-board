@@ -2,20 +2,23 @@
 	// -- DEP-TYPES -- //
 	import type { PageProps } from './$types';
 	// -- TYPES -- //
-	import type { SkillFile } from '#lib/shared/skills.js';
+	import type { SkillSupportFile } from '#lib/shared/skills.js';
 	// -- ENVS -- //
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
+	import { filesChanged, fromDrafts, toDrafts, type DraftFile } from '#lib/settings/skillFiles.js';
 	import {
 		SKILL_BODY_MAX,
 		SKILL_NAME_HINT,
 		SKILL_SUMMARY_MAX,
 		isBuiltinSkillName,
 		isSkillName,
-		parseSkillFile
+		parseSkillFile,
+		readSkillPicks,
+		skillFilesError
 	} from '#lib/shared/skills.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { cn } from '#lib/ui/cn.js';
@@ -35,6 +38,7 @@
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import PermissionDenied from '#lib/ui/PermissionDenied.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
+	import SkillFilesEditor from '#lib/settings/SkillFilesEditor.svelte';
 	import StaleWriteDialog from '#lib/ui/StaleWriteDialog.svelte';
 	import TextArea from '#lib/ui/TextArea.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
@@ -50,8 +54,15 @@
 		revision: number;
 		hash: string;
 		summary: string;
+		files: { path: string; size: number }[];
 		author: string | null;
 		createdAt: string;
+	};
+	type RevisionView = {
+		revision: number;
+		body: string;
+		summary: string;
+		files: SkillSupportFile[];
 	};
 
 	// -- CONSTANTS -- //
@@ -76,13 +87,21 @@
 	let historyOf = $state<SkillRow | null>(null);
 	let historyOpen = $state(false);
 	let revisions = $state<RevisionRow[]>([]);
-	let viewing = $state<{ revision: number; body: string; summary: string } | null>(null);
+	let viewing = $state<RevisionView | null>(null);
+	/** The file of the open revision whose text is showing. */
+	let viewingFile = $state<string | null>(null);
 	let historyBusy = $state(false);
 	let historyError = $state('');
 	let removing = $state<string | null>(null);
 	/** The summary and body the editor opened with, so a save sends only what the person changed. */
 	let bodyAtOpen = $state('');
 	let summaryAtOpen = $state('');
+	/** The supporting files as editable rows, and the files the editor opened with. */
+	let files = $state<DraftFile[]>([]);
+	let filesAtOpen = $state<SkillSupportFile[]>([]);
+	/** One idempotency key for one save, kept across a retry of the same content so a timeout cannot save twice. */
+	let saveKey = $state(newKey());
+	let saveSignature = $state('');
 	/** The SKILL.md intake: a file or pasted text that fills the form. */
 	let intakeOpen = $state(false);
 	let pasted = $state('');
@@ -101,6 +120,8 @@
 				: SKILL_NAME_HINT
 			: ''
 	);
+	/** Why the body and the files do not fit together, or an empty string. */
+	const filesProblem = $derived(skillFilesError(form.body, fromDrafts(files)) ?? '');
 	const changed = $derived(
 		!!form.name.trim() &&
 			!!form.summary.trim() &&
@@ -108,7 +129,8 @@
 			(editing === null ||
 				form.name !== editing.name ||
 				form.summary !== editing.summary ||
-				form.body !== bodyAtOpen)
+				form.body !== bodyAtOpen ||
+				filesChanged(files, filesAtOpen))
 	);
 
 	// -- FUNCTIONS -- //
@@ -123,6 +145,8 @@
 		form = { ...EMPTY };
 		bodyAtOpen = '';
 		summaryAtOpen = '';
+		files = [];
+		filesAtOpen = [];
 		baseline = null;
 		error = '';
 		intakeOpen = false;
@@ -136,6 +160,8 @@
 		form = { name: s.name, summary: s.summary, body: '' };
 		bodyAtOpen = '';
 		summaryAtOpen = s.summary;
+		files = [];
+		filesAtOpen = [];
 		baseline = s.version;
 		error = '';
 		intakeOpen = false;
@@ -145,13 +171,15 @@
 		bodyLoading = true;
 		try {
 			// The id names exactly one row, so an organisation skill of the same name is never read in its place
-			const rev = await api<{ body: string; summary: string }>(
+			const rev = await api<{ body: string; summary: string; files: SkillSupportFile[] }>(
 				page.params.org ?? '',
 				`/projects/${page.params.project}/skills/${s.id}/revisions/${s.revision}`
 			);
 			form = { name: s.name, summary: rev.summary, body: rev.body };
 			bodyAtOpen = rev.body;
 			summaryAtOpen = rev.summary;
+			files = toDrafts(rev.files);
+			filesAtOpen = fromDrafts(files);
 		} catch (e) {
 			error = e instanceof ApiError ? e.message : 'The skill text was not read.';
 		} finally {
@@ -173,10 +201,10 @@
 		editorOpen = false;
 	}
 
-	/** Reads a SKILL.md into the form, from a file or from text the person pasted. */
+	/** Reads pasted SKILL.md text into the form. */
 	function fillFrom(text: string) {
 		try {
-			const file: SkillFile = parseSkillFile(text);
+			const file = parseSkillFile(text);
 			form = { name: file.name, summary: file.summary, body: file.body };
 			intakeError = '';
 			intakeOpen = false;
@@ -187,16 +215,48 @@
 		}
 	}
 
-	async function fromFile(file: File | undefined) {
-		if (!file) return;
-		fillFrom(await file.text());
+	/** Reads the picked files: the SKILL.md fills the form and the other Markdown files become the supporting files. */
+	async function fromFiles(picked: File[]) {
+		if (!picked.length) return;
+		const picks = await Promise.all(
+			picked.map(async (f) => ({
+				name: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name,
+				text: await f.text()
+			}))
+		);
+		const read = readSkillPicks(picks, { needSkill: true });
+		if (!read.skill) {
+			intakeError = read.problems.join(' ');
+			return;
+		}
+		form = { name: read.skill.name, summary: read.skill.summary, body: read.skill.body };
+		// Picked files replace the supporting files; a pick of the SKILL.md alone leaves the ones already here
+		if (read.files.length) files = toDrafts(read.files);
+		intakeError = '';
+		intakeOpen = false;
+		pasted = '';
+		if (read.problems.length) toast.warning(read.problems.join(' '));
+		else toast.success('Read the skill files. Check them, then save.');
 	}
 
 	async function save() {
-		if (saving || nameError || !form.name.trim() || !form.summary.trim() || !form.body.trim())
+		if (
+			saving ||
+			nameError ||
+			filesProblem ||
+			!form.name.trim() ||
+			!form.summary.trim() ||
+			!form.body.trim()
+		)
 			return;
 		saving = true;
 		error = '';
+		// The same content keeps its key through a retry, and a change gets a new one
+		const signature = JSON.stringify([form, fromDrafts(files)]);
+		if (signature !== saveSignature) {
+			saveSignature = signature;
+			saveKey = newKey();
+		}
 		const org = page.params.org ?? '';
 		const key = page.params.project ?? '';
 		try {
@@ -206,16 +266,17 @@
 				if (form.name !== editing.name) patch.name = form.name;
 				if (form.summary !== summaryAtOpen) patch.summary = form.summary;
 				if (form.body !== bodyAtOpen) patch.body = form.body;
+				if (filesChanged(files, filesAtOpen)) patch.files = fromDrafts(files);
 				await api(org, `/skills/${editing.id}`, {
 					method: 'PATCH',
 					body: patch,
-					key: newKey()
+					key: saveKey
 				});
 			} else {
 				await api(org, `/projects/${key}/skills`, {
 					method: 'POST',
-					body: form,
-					key: newKey()
+					body: { ...form, files: fromDrafts(files) },
+					key: saveKey
 				});
 			}
 			toast.success(editing ? 'Skill saved as a new revision.' : 'Skill added.');
@@ -286,7 +347,8 @@
 		historyBusy = true;
 		historyError = '';
 		try {
-			viewing = await api<{ revision: number; body: string; summary: string }>(
+			viewingFile = null;
+			viewing = await api<RevisionView>(
 				page.params.org ?? '',
 				`/projects/${page.params.project}/skills/${historyOf.id}/revisions/${revision}`
 			);
@@ -312,7 +374,10 @@
 				<span class="text-xs text-muted tabular-nums">revision {s.revision}</span>
 			</div>
 			<p class="mt-0.5 line-clamp-2 text-sm [overflow-wrap:anywhere] text-muted">{s.summary}</p>
-			<p class="mt-0.5 text-xs text-muted">Last saved by {edited(s)}</p>
+			<p class="mt-0.5 text-xs text-muted">
+				Last saved by {edited(s)}{#if s.files.length}, {s.files.length}
+					{s.files.length === 1 ? 'supporting file' : 'supporting files'}{/if}
+			</p>
 		</div>
 		<div class="flex items-center gap-1">
 			<Button
@@ -449,11 +514,12 @@
 			<!-- ONE SKILL.md FILLS THE FORM. THE FILE AND A PASTE GO THROUGH THE SAME FLAT PARSER AS THE IMPORT VERB -->
 			<div class="flex flex-col gap-3 rounded-lg border border-line bg-raised p-3">
 				<FilePicker
-					label="Upload a SKILL.md"
-					hint="Its name and description fill the fields below."
+					label="Upload a SKILL.md and its other Markdown files"
+					hint="The SKILL.md fills the fields below. The other files become the supporting files."
 					accept=".md,text/markdown"
+					multiple
 					disabled={saving}
-					onchange={(file) => void fromFile(file)}
+					onfiles={(picked) => void fromFiles(picked)}
 				/>
 				<TextArea
 					label="or paste the text of a SKILL.md"
@@ -520,6 +586,7 @@
 				: `${form.body.length} of ${SKILL_BODY_MAX} characters. Markdown is kept as you write it.`}
 			data-testid="skill-body"
 		/>
+		<SkillFilesEditor bind:files body={form.body} disabled={saving} loading={bodyLoading} />
 		{#if error}
 			<p role="alert" class={cn(TEXT, 'text-danger')}>{error}</p>
 		{/if}
@@ -531,7 +598,7 @@
 			form="skill-form"
 			variant="primary"
 			loading={saving}
-			disabled={!changed || !!nameError || bodyLoading}
+			disabled={!changed || !!nameError || bodyLoading || !!filesProblem}
 			data-testid="skill-save"
 		>
 			{editing ? 'Save changes' : 'Add skill'}
@@ -583,6 +650,31 @@
 				<p class="text-sm text-muted">{viewing.summary}</p>
 				<pre
 					class="max-h-[50vh] overflow-auto rounded-lg border border-line bg-raised p-3 font-mono text-xs whitespace-pre-wrap text-ink">{viewing.body}</pre>
+				{#if viewing.files.length}
+					<!-- THE FILES THIS REVISION HELD, SHOWN AS PLAIN TEXT LIKE THE BODY -->
+					<h3 class="mt-2 text-sm font-medium text-ink">Supporting files</h3>
+					<ul class="flex flex-col gap-1">
+						{#each viewing.files as f (f.path)}
+							<li>
+								<button
+									type="button"
+									class="flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left hover:bg-raised"
+									aria-expanded={viewingFile === f.path}
+									onclick={() => (viewingFile = viewingFile === f.path ? null : f.path)}
+								>
+									<span class="min-w-0 truncate font-mono text-sm text-ink">{f.path}</span>
+									<span class="shrink-0 text-xs text-muted tabular-nums"
+										>{f.body.length} characters</span
+									>
+								</button>
+								{#if viewingFile === f.path}
+									<pre
+										class="mt-1 max-h-[40vh] overflow-auto rounded-lg border border-line bg-raised p-3 font-mono text-xs whitespace-pre-wrap text-ink">{f.body}</pre>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			</div>
 		{/if}
 	{/if}

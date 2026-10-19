@@ -2,9 +2,11 @@
 // A skill is text every agent obeys, so the row carries its content hash, its author and the revision number it is at.
 // The org scope is carried from day one: a project skill has a project, an organisation skill does not.
 
+// -- TYPES -- //
+import type { SkillSupportFile } from '../../../shared/skills';
 // -- DEP-MODULES -- //
 import { sql } from 'drizzle-orm';
-import { index, integer, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, jsonb, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 // -- MODULES -- //
 import { orgId, project, user } from './core';
 import { id, stamps, tenantTable, version } from './helpers';
@@ -28,7 +30,12 @@ export const skill = tenantTable(
 		summary: text('summary').notNull(),
 		/** The skill text as it is served, at most 100,000 characters. */
 		body: text('body').notNull(),
-		/** SHA-256 over the name, the summary and the body (the bridge reuses it for drift detection). */
+		/** Supporting Markdown files in path order, at most 20, 300,000 characters with the body. Empty for most skills. */
+		files: jsonb('files')
+			.$type<SkillSupportFile[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		/** SHA-256 over the name, the summary, the body and the files (the bridge reuses it for drift detection). */
 		hash: text('hash').notNull(),
 		/** The newest revision number of this skill. */
 		revision: integer('revision').notNull().default(1),
@@ -71,6 +78,11 @@ export const skillRevision = tenantTable(
 		name: text('name').notNull(),
 		summary: text('summary').notNull(),
 		body: text('body').notNull(),
+		/** The files this revision held, so a history view shows the whole skill as it was. */
+		files: jsonb('files')
+			.$type<SkillSupportFile[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		hash: text('hash').notNull(),
 		authorId: text('author_id'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()

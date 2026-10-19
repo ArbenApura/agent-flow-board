@@ -12,6 +12,7 @@ import type { RunnerAuth } from './environments';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
+import { classifyRun } from '../../shared/runErrors';
 import { findSecret, maskSecrets, type Needle } from '../../shared/scan';
 import { appendEvent } from '../db/events';
 import {
@@ -29,10 +30,17 @@ import {
 } from '../db/schema';
 import { TARGETS } from '../db/schema/helpers';
 import { withTenant } from '../db/tenant';
-import { OpError, requireCap, run } from './context';
-import { RUNNER_ONLINE_SECONDS, openProjectAccounts } from './environments';
+import { OpError, idempotent, projectAllowed, requireCap, run } from './context';
+import {
+	RUNNER_ONLINE_SECONDS,
+	TOOL_ENV_NAME,
+	TOOL_PROTOCOL_MIN,
+	openProjectAccounts,
+	reachesPrivate,
+	toolEnvironment
+} from './environments';
 import { actorFields, canSeeItem } from './items';
-import { findItem } from './resolve';
+import { findItem, findProject } from './resolve';
 import { recordSteps } from './steps';
 import { addAttachment } from './attachments';
 
@@ -52,7 +60,15 @@ export const TARGET_RANK: Record<Target, number> = { dev: 1, preview: 2, deploye
 export const DEFAULT_QUEUE_MINUTES = 10;
 /** A run that was taken and never reported back for this long is reported as stuck. */
 export const RUNNING_TIMEOUT_MINUTES = 30;
+/** A run whose runner sends a heartbeat is reported stuck when the beat stops for this long. A runner that never beats keeps the longer rule above. */
+export const BEAT_TIMEOUT_MINUTES = 10;
 const LOG_KEEP = 20_000;
+/** The longest a single wait may last, and the default, in seconds. Keep it under the time an agent's tool call may take. */
+export const WAIT_MAX_SECONDS = 90;
+const WAIT_DEFAULT_SECONDS = 30;
+const WAIT_POLL_MS = 2000;
+/** How many runs per org may be waited for at once in one server process. */
+const WAITERS_PER_ORG = 5;
 
 export const checkInput = z.object({
 	item: z.string().min(1),
@@ -147,12 +163,18 @@ export async function targetStatuses(
 		);
 	return TARGETS.map((target) => {
 		const candidates = envs.filter((e) => e.kind === target);
+		// The afb-checks tool starts the preview itself, so a project needs no environment row for it
+		if (!candidates.length && target === 'preview' && runners.some((r) => r.kind === 'tool'))
+			return { target, available: true, environment: toolEnvironment(target).name, reason: null };
 		if (!candidates.length)
 			return {
 				target,
 				available: false,
 				environment: null,
-				reason: `This project has no ${target} environment yet.`
+				reason:
+					target === 'preview'
+						? 'This project has no preview environment, and the afb-checks tool is not connected. See the Browser checks tab in the project settings.'
+						: `This project has no ${target} environment yet.`
 			};
 		if (!runners.length)
 			return {
@@ -162,7 +184,7 @@ export async function targetStatuses(
 				reason: 'No runner that serves this project is online.'
 			};
 		const reachable = candidates.find((e) =>
-			runners.some((r) => r.kind === 'local' || !isPrivateUrl(e.url))
+			runners.some((r) => reachesPrivate(r.kind) || !isPrivateUrl(e.url))
 		);
 		if (!reachable)
 			return {
@@ -204,103 +226,153 @@ export async function sweepRuns(tx: Tx, orgId: string, minutes: number): Promise
 			and(
 				eq(checkRun.orgId, orgId),
 				eq(checkRun.result, 'running'),
+				// A runner that has beaten at least once is held to its beat below; one that never beats (an older tool) keeps this rule
+				sql`${checkRun.lastBeatAt} is null`,
 				sql`${checkRun.startedAt} < now() - make_interval(mins => ${RUNNING_TIMEOUT_MINUTES})`
 			)
 		)
 		.returning({ id: checkRun.id });
-	return queued.length + stuck.length;
+	const silent = await tx
+		.update(checkRun)
+		.set({
+			result: 'timeout',
+			finishedAt: sql`now()`,
+			reason: `The runner that took this run stopped reporting for ${BEAT_TIMEOUT_MINUTES} minutes.`
+		})
+		.where(
+			and(
+				eq(checkRun.orgId, orgId),
+				eq(checkRun.result, 'running'),
+				sql`${checkRun.lastBeatAt} < now() - make_interval(mins => ${BEAT_TIMEOUT_MINUTES})`
+			)
+		)
+		.returning({ id: checkRun.id });
+	return queued.length + stuck.length + silent.length;
 }
 
 // -- FUNCTIONS: CHECKS -- //
 
-/** Adds or replaces the browser check of one manual check. */
+/**
+ * Adds or replaces the browser check of one manual check, and marks that manual check automatic in the same transaction so
+ * the check can run. A manual check that is already done or waived keeps its state and is not flipped; the answer says so.
+ */
 export async function saveCheck(ctx: Ctx, raw: z.input<typeof checkInput>) {
 	const input = checkInput.parse(raw);
-	return run(ctx, async (tx) => {
-		const it = await findItem(tx, ctx, input.item);
-		await requireCap(tx, ctx, 'write', it.projectId);
-		const [p] = await tx.select().from(project).where(eq(project.id, it.projectId));
-		if (!p.webApp)
-			throw new OpError(
-				'INVALID',
-				'Browser checks are for web app projects. Turn on the web app switch in the project settings.'
-			);
-		const [mc] = await tx
-			.select()
-			.from(manualCheck)
-			.where(and(eq(manualCheck.itemId, it.id), eq(manualCheck.key, input.key)));
-		if (!mc) throw new OpError('NOT_FOUND', `${it.ref} has no manual check ${input.key}.`);
-		const values = {
-			script: input.script,
-			coveredPaths: input.coveredPaths,
-			requiredTarget: input.requiredTarget,
-			pinnedTarget: input.pinnedTarget ?? null
-		};
-		const [existing] = await tx
-			.select({ id: check.id })
-			.from(check)
-			.where(and(eq(check.itemId, it.id), eq(check.manualKey, input.key)));
-		let id: string;
-		if (existing) {
-			await tx
-				.update(check)
-				.set({ ...values, updatedAt: sql`now()`, version: sql`${check.version} + 1` })
-				.where(eq(check.id, existing.id));
-			id = existing.id;
-		} else {
-			const [row] = await tx
-				.insert(check)
-				.values({
-					orgId: ctx.orgId,
-					projectId: it.projectId,
-					itemId: it.id,
-					manualKey: input.key,
-					...values
-				})
-				.returning({ id: check.id });
-			id = row.id;
-		}
-		await appendEvent(tx, {
-			orgId: ctx.orgId,
-			projectId: it.projectId,
-			itemId: it.id,
-			...actorFields(ctx),
-			verb: 'check.save',
-			targetType: 'check',
-			targetId: id,
-			after: {
-				key: input.key,
+	return run(ctx, (tx) =>
+		idempotent(ctx, tx, async () => {
+			const it = await findItem(tx, ctx, input.item);
+			await requireCap(tx, ctx, 'write', it.projectId);
+			const [p] = await tx.select().from(project).where(eq(project.id, it.projectId));
+			if (!p.webApp)
+				throw new OpError(
+					'INVALID',
+					'Browser checks are for web app projects. Turn on the web app switch in the project settings.'
+				);
+			const [mc] = await tx
+				.select()
+				.from(manualCheck)
+				.where(and(eq(manualCheck.itemId, it.id), eq(manualCheck.key, input.key)));
+			if (!mc) throw new OpError('NOT_FOUND', `${it.ref} has no manual check ${input.key}.`);
+			const values = {
+				script: input.script,
+				coveredPaths: input.coveredPaths,
 				requiredTarget: input.requiredTarget,
-				pinnedTarget: values.pinnedTarget
-			} as never,
-			undoable: false
-		});
-		return { id, created: !existing };
-	});
+				pinnedTarget: input.pinnedTarget ?? null
+			};
+			const [existing] = await tx
+				.select({ id: check.id })
+				.from(check)
+				.where(and(eq(check.itemId, it.id), eq(check.manualKey, input.key)));
+			let id: string;
+			if (existing) {
+				await tx
+					.update(check)
+					.set({ ...values, updatedAt: sql`now()`, version: sql`${check.version} + 1` })
+					.where(eq(check.id, existing.id));
+				id = existing.id;
+			} else {
+				const [row] = await tx
+					.insert(check)
+					.values({
+						orgId: ctx.orgId,
+						projectId: it.projectId,
+						itemId: it.id,
+						manualKey: input.key,
+						...values
+					})
+					.returning({ id: check.id });
+				id = row.id;
+			}
+			// The manual check must be automatic for the check to run. A closed one is left as the person closed it
+			let auto = mc.auto;
+			let note: string | null = null;
+			if (mc.state !== 'open') {
+				note = `${input.key} is ${mc.state}, so its automatic flag was not changed.`;
+			} else if (!mc.auto) {
+				await tx
+					.update(manualCheck)
+					.set({ auto: true, updatedAt: sql`now()`, version: sql`${manualCheck.version} + 1` })
+					.where(eq(manualCheck.id, mc.id));
+				auto = true;
+			}
+			await appendEvent(tx, {
+				orgId: ctx.orgId,
+				projectId: it.projectId,
+				itemId: it.id,
+				...actorFields(ctx),
+				verb: 'check.save',
+				targetType: 'check',
+				targetId: id,
+				after: {
+					key: input.key,
+					requiredTarget: input.requiredTarget,
+					pinnedTarget: values.pinnedTarget,
+					auto
+				} as never,
+				undoable: false
+			});
+			return { id, created: !existing, auto, note };
+		})
+	);
 }
 
 export async function deleteCheck(ctx: Ctx, itemName: string, key: string) {
-	return run(ctx, async (tx) => {
-		const it = await findItem(tx, ctx, itemName);
-		await requireCap(tx, ctx, 'write', it.projectId);
-		const gone = await tx
-			.delete(check)
-			.where(and(eq(check.itemId, it.id), eq(check.manualKey, key)))
-			.returning({ id: check.id });
-		if (!gone.length) throw new OpError('NOT_FOUND', `${it.ref} has no browser check for ${key}.`);
-		await appendEvent(tx, {
-			orgId: ctx.orgId,
-			projectId: it.projectId,
-			itemId: it.id,
-			...actorFields(ctx),
-			verb: 'check.delete',
-			targetType: 'check',
-			targetId: gone[0].id,
-			before: { key } as never,
-			undoable: false
-		});
-		return { deleted: true };
-	});
+	return run(ctx, (tx) =>
+		idempotent(ctx, tx, async () => {
+			const it = await findItem(tx, ctx, itemName);
+			await requireCap(tx, ctx, 'write', it.projectId);
+			const gone = await tx
+				.delete(check)
+				.where(and(eq(check.itemId, it.id), eq(check.manualKey, key)))
+				.returning({ id: check.id });
+			if (!gone.length)
+				throw new OpError('NOT_FOUND', `${it.ref} has no browser check for ${key}.`);
+			// With no browser check left the manual check is plain again. A closed one is left as it was closed
+			await tx
+				.update(manualCheck)
+				.set({ auto: false, updatedAt: sql`now()`, version: sql`${manualCheck.version} + 1` })
+				.where(
+					and(
+						eq(manualCheck.itemId, it.id),
+						eq(manualCheck.key, key),
+						eq(manualCheck.state, 'open'),
+						eq(manualCheck.auto, true)
+					)
+				);
+			await appendEvent(tx, {
+				orgId: ctx.orgId,
+				projectId: it.projectId,
+				itemId: it.id,
+				...actorFields(ctx),
+				verb: 'check.delete',
+				targetType: 'check',
+				targetId: gone[0].id,
+				before: { key } as never,
+				undoable: false
+			});
+			return { deleted: true };
+		})
+	);
 }
 
 const runView = (r: typeof checkRun.$inferSelect) => ({
@@ -319,7 +391,9 @@ const runView = (r: typeof checkRun.$inferSelect) => ({
 	requestedBy: r.requestedBy,
 	createdAt: r.createdAt,
 	startedAt: r.startedAt,
-	finishedAt: r.finishedAt
+	finishedAt: r.finishedAt,
+	// The code and fix line are the board's own text, never the tool's. Both are null when nothing needs fixing
+	...classifyRun(r.result, r.reason)
 });
 
 /** What the Checks view of an item shows: each check with its manual check, its newest runs and which targets can run now. */
@@ -396,89 +470,136 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
  */
 export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>) {
 	const input = requestRunInput.parse(raw);
-	return run(ctx, async (tx) => {
-		const it = await findItem(tx, ctx, input.item);
-		const { role } = await requireCap(tx, ctx, 'write', it.projectId);
-		if (!canSeeItem(role, it, ctx.actor.userId))
-			throw new OpError('NOT_FOUND', `No item named "${input.item}".`);
-		const [chk] = await tx
-			.select()
-			.from(check)
-			.where(and(eq(check.itemId, it.id), eq(check.manualKey, input.key)));
-		if (!chk)
-			throw new OpError(
-				'NOT_FOUND',
-				`${it.ref} has no browser check for ${input.key}. Save one first.`
-			);
-		if (input.step) {
-			const [s] = await tx
-				.select({ id: step.id })
-				.from(step)
-				.where(and(eq(step.itemId, it.id), eq(step.key, input.step)));
-			if (!s) throw new OpError('NOT_FOUND', `${it.ref} has no step ${input.step}.`);
-		}
-		await sweepRuns(tx, ctx.orgId, queueMinutes(ctx));
-		const [p] = await tx.select().from(project).where(eq(project.id, it.projectId));
-		const [pref] = await tx.select().from(userPref).where(eq(userPref.userId, ctx.actor.userId));
-		const asked = (input.target ??
-			chk.pinnedTarget ??
-			pref?.checkTarget ??
-			p.defaultTarget) as Target;
-		const statuses = await targetStatuses(tx, ctx.orgId, it.projectId);
-		const status = statuses.find((s) => s.target === asked)!;
-		let envName = status.environment;
-		if (input.environment) {
-			const [e] = await tx
+	return run(ctx, (tx) =>
+		idempotent(ctx, tx, async () => {
+			const it = await findItem(tx, ctx, input.item);
+			const { role } = await requireCap(tx, ctx, 'write', it.projectId);
+			if (!canSeeItem(role, it, ctx.actor.userId))
+				throw new OpError('NOT_FOUND', `No item named "${input.item}".`);
+			const [chk] = await tx
 				.select()
-				.from(environment)
-				.where(
-					and(
-						eq(environment.projectId, it.projectId),
-						eq(environment.name, input.environment),
-						eq(environment.kind, asked)
-					)
-				);
-			if (!e)
+				.from(check)
+				.where(and(eq(check.itemId, it.id), eq(check.manualKey, input.key)));
+			if (!chk)
 				throw new OpError(
 					'NOT_FOUND',
-					`This project has no ${asked} environment named "${input.environment}".`
+					`${it.ref} has no browser check for ${input.key}. Save one first.`
 				);
-			envName = e.name;
-		}
-		const offer = statuses.filter((s) => s.available && s.target !== asked).map((s) => s.target);
-		const [row] = await tx
-			.insert(checkRun)
-			.values({
+			if (input.step) {
+				const [s] = await tx
+					.select({ id: step.id })
+					.from(step)
+					.where(and(eq(step.itemId, it.id), eq(step.key, input.step)));
+				if (!s) throw new OpError('NOT_FOUND', `${it.ref} has no step ${input.step}.`);
+			}
+			await sweepRuns(tx, ctx.orgId, queueMinutes(ctx));
+			const [p] = await tx.select().from(project).where(eq(project.id, it.projectId));
+			const [pref] = await tx.select().from(userPref).where(eq(userPref.userId, ctx.actor.userId));
+			const asked = (input.target ??
+				chk.pinnedTarget ??
+				pref?.checkTarget ??
+				p.defaultTarget) as Target;
+			const statuses = await targetStatuses(tx, ctx.orgId, it.projectId);
+			const status = statuses.find((s) => s.target === asked)!;
+			// One open run per check and target: two agents, or a retry, get the run that is already waiting or running. The check
+			// row is locked so two calls at the same moment cannot both insert
+			await tx.select({ id: check.id }).from(check).where(eq(check.id, chk.id)).for('update');
+			// A target that cannot run now is reported as unavailable, as before, never answered with a run that is still waiting
+			const [open] = status.available
+				? await tx
+						.select()
+						.from(checkRun)
+						.where(
+							and(
+								eq(checkRun.checkId, chk.id),
+								eq(checkRun.target, asked),
+								inArray(checkRun.result, ['queued', 'running'])
+							)
+						)
+						.orderBy(desc(checkRun.createdAt))
+						.limit(1)
+				: [];
+			// A run asked for a named environment is reused only when that is the environment the open run was queued for
+			const sameEnv = !input.environment || open?.reason === `Environment ${input.environment}`;
+			if (open && sameEnv) {
+				// A run that has no step yet takes the one named now, so the pass still closes it
+				if (input.step && !open.stepKey)
+					await tx.update(checkRun).set({ stepKey: input.step }).where(eq(checkRun.id, open.id));
+				return {
+					run: runView({ ...open, stepKey: open.stepKey ?? input.step ?? null }),
+					unavailable: false,
+					offer: [] as Target[],
+					target: asked,
+					reused: true
+				};
+			}
+			let envName = status.environment;
+			if (
+				input.environment &&
+				input.environment === TOOL_ENV_NAME &&
+				status.environment === TOOL_ENV_NAME
+			) {
+				// The name the board offered for a tool preview is accepted as it was offered
+				envName = TOOL_ENV_NAME;
+			} else if (input.environment) {
+				const [e] = await tx
+					.select()
+					.from(environment)
+					.where(
+						and(
+							eq(environment.projectId, it.projectId),
+							eq(environment.name, input.environment),
+							eq(environment.kind, asked)
+						)
+					);
+				if (!e)
+					throw new OpError(
+						'NOT_FOUND',
+						`This project has no ${asked} environment named "${input.environment}".`
+					);
+				envName = e.name;
+			}
+			const offer = statuses.filter((s) => s.available && s.target !== asked).map((s) => s.target);
+			const [row] = await tx
+				.insert(checkRun)
+				.values({
+					orgId: ctx.orgId,
+					projectId: it.projectId,
+					checkId: chk.id,
+					target: asked,
+					requestedTarget: asked,
+					requestedBy: ctx.actor.userId,
+					stepKey: input.step ?? null,
+					result: status.available ? 'queued' : 'unavailable',
+					url: null,
+					reason: status.available
+						? envName
+							? `Environment ${envName}`
+							: null
+						: `${status.reason}${offer.length ? ` You can run it on ${offer.join(' or ')} instead.` : ''}`,
+					finishedAt: status.available ? null : sql`now()`
+				})
+				.returning();
+			await appendEvent(tx, {
 				orgId: ctx.orgId,
 				projectId: it.projectId,
-				checkId: chk.id,
+				itemId: it.id,
+				...actorFields(ctx),
+				verb: 'check_run.request',
+				targetType: 'check_run',
+				targetId: row.id,
+				after: { key: input.key, target: asked, available: status.available } as never,
+				undoable: false
+			});
+			return {
+				run: runView(row),
+				unavailable: !status.available,
+				offer,
 				target: asked,
-				requestedTarget: asked,
-				requestedBy: ctx.actor.userId,
-				stepKey: input.step ?? null,
-				result: status.available ? 'queued' : 'unavailable',
-				url: null,
-				reason: status.available
-					? envName
-						? `Environment ${envName}`
-						: null
-					: `${status.reason}${offer.length ? ` You can run it on ${offer.join(' or ')} instead.` : ''}`,
-				finishedAt: status.available ? null : sql`now()`
-			})
-			.returning();
-		await appendEvent(tx, {
-			orgId: ctx.orgId,
-			projectId: it.projectId,
-			itemId: it.id,
-			...actorFields(ctx),
-			verb: 'check_run.request',
-			targetType: 'check_run',
-			targetId: row.id,
-			after: { key: input.key, target: asked, available: status.available } as never,
-			undoable: false
-		});
-		return { run: runView(row), unavailable: !status.available, offer, target: asked };
-	});
+				reused: false
+			};
+		})
+	);
 }
 
 /** Newest runs of a project or an item, for the checks view. Sweeps stale runs first so a stuck one shows as stuck. */
@@ -517,6 +638,163 @@ export async function listRuns(ctx: Ctx, opts: { item?: string; limit?: number }
 	});
 }
 
+// -- FUNCTIONS: WAITING FOR A RUN AND RUNNER STATUS -- //
+
+const OPEN_RESULTS = new Set(['queued', 'running']);
+/** Waiters per org in this process, so a few agents waiting cannot starve the database of connections. */
+const waiters = new Map<string, number>();
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** How many waits an org has open in this process. Read by the tests, so they wait for the real state and not a fixed time. */
+export const waitersFor = (orgId: string) => waiters.get(orgId) ?? 0;
+
+export const waitRunInput = z.object({
+	run: z.string().uuid('Give the run id from check_run or check_status'),
+	seconds: z.number().int().min(0).max(WAIT_MAX_SECONDS).default(WAIT_DEFAULT_SECONDS)
+});
+
+/**
+ * One run by id, for a person who may read its item. A missing run, a private item of someone else, another org and a project
+ * the token does not cover all answer the same NOT_FOUND, so a run id cannot be used to probe. Sweeps stale runs first.
+ */
+export async function getRun(ctx: Ctx, runId: string) {
+	return run(ctx, async (tx) => {
+		// The role check does not depend on the run, so it says nothing about whether the run exists
+		await requireCap(tx, ctx, 'read');
+		await sweepRuns(tx, ctx.orgId, queueMinutes(ctx));
+		const gone = () => new OpError('NOT_FOUND', 'No such run.');
+		const [row] = await tx
+			.select({ run: checkRun, itemId: check.itemId, key: check.manualKey })
+			.from(checkRun)
+			.innerJoin(check, eq(check.id, checkRun.checkId))
+			.where(eq(checkRun.id, runId));
+		if (!row) throw gone();
+		let ref: string;
+		try {
+			const it = await findItem(tx, ctx, row.itemId);
+			await requireCap(tx, ctx, 'read', it.projectId);
+			ref = it.ref;
+		} catch (e) {
+			if (e instanceof OpError && (e.code === 'NOT_FOUND' || e.code === 'FORBIDDEN')) throw gone();
+			throw e;
+		}
+		return { ...runView(row.run), key: row.key, item: ref };
+	});
+}
+
+/**
+ * Waits for a run to finish. Each look is its own short transaction with a sleep between, never one transaction held open, and
+ * at most a few waiters per org run at once. Returns the run and whether it finished; unfinished means ask again.
+ */
+export async function waitForRun(
+	ctx: Ctx,
+	raw: z.input<typeof waitRunInput>,
+	opts: { pollMs?: number } = {}
+) {
+	const input = waitRunInput.parse(raw);
+	let view = await getRun(ctx, input.run);
+	if (!OPEN_RESULTS.has(view.result) || input.seconds === 0)
+		return { run: view, finished: !OPEN_RESULTS.has(view.result) };
+	const now = waiters.get(ctx.orgId) ?? 0;
+	if (now >= WAITERS_PER_ORG)
+		throw new OpError(
+			'RATE_LIMITED',
+			'Too many runs are being waited for at once. Try again in a moment.',
+			{ limit: WAITERS_PER_ORG }
+		);
+	waiters.set(ctx.orgId, now + 1);
+	try {
+		const until = Date.now() + input.seconds * 1000;
+		const poll = opts.pollMs ?? WAIT_POLL_MS;
+		while (OPEN_RESULTS.has(view.result) && Date.now() < until) {
+			await sleep(Math.min(poll, Math.max(0, until - Date.now())));
+			view = await getRun(ctx, input.run);
+		}
+	} finally {
+		const left = (waiters.get(ctx.orgId) ?? 1) - 1;
+		if (left <= 0) waiters.delete(ctx.orgId);
+		else waiters.set(ctx.orgId, left);
+	}
+	return { run: view, finished: !OPEN_RESULTS.has(view.result) };
+}
+
+/**
+ * Whether a tool is online to take runs, per project the caller can reach. Built on the same online window as targetStatuses.
+ * Shows a fixed shape and never a token, an owner or a device name.
+ */
+export async function runnerStatus(ctx: Ctx, keyOrId?: string) {
+	return run(ctx, async (tx) => {
+		await requireCap(tx, ctx, 'read');
+		const projects: { id: string; key: string }[] = [];
+		if (keyOrId) {
+			const p = await findProject(tx, ctx, keyOrId);
+			await requireCap(tx, ctx, 'read', p.id);
+			projects.push({ id: p.id, key: p.key });
+		} else {
+			const all = await tx
+				.select({ id: project.id, key: project.key })
+				.from(project)
+				.where(eq(project.orgId, ctx.orgId))
+				.orderBy(asc(project.key));
+			for (const p of all) {
+				if (!projectAllowed(ctx.actor, p.id)) continue;
+				try {
+					await requireCap(tx, ctx, 'read', p.id);
+					projects.push(p);
+				} catch (e) {
+					if (!(e instanceof OpError)) throw e;
+				}
+			}
+		}
+		const out = [];
+		for (const p of projects) {
+			const runners = await tx
+				.select({ id: runner.id, kind: runner.kind, lastSeenAt: runner.lastSeenAt })
+				.from(runner)
+				.where(and(eq(runner.orgId, ctx.orgId), sql`${p.id}::uuid = any(${runner.projectIds})`));
+			const onlineNow = runners.filter(
+				(r) => r.lastSeenAt && Date.now() - r.lastSeenAt.getTime() < RUNNER_ONLINE_SECONDS * 1000
+			);
+			const seen = runners
+				.map((r) => r.lastSeenAt)
+				.filter((d): d is Date => Boolean(d))
+				.sort((a, b) => b.getTime() - a.getTime())[0];
+			const [held] = runners.length
+				? await tx
+						.select({ n: sql<number>`count(*)::int` })
+						.from(checkRun)
+						.where(
+							and(
+								eq(checkRun.projectId, p.id),
+								eq(checkRun.result, 'running'),
+								inArray(
+									checkRun.runnerId,
+									runners.map((r) => r.id)
+								)
+							)
+						)
+				: [{ n: 0 }];
+			const kind = (onlineNow[0] ?? runners[0])?.kind ?? null;
+			const hasTool = runners.some((r) => r.kind === 'tool');
+			out.push({
+				project: p.key,
+				online: onlineNow.length > 0,
+				lastSeen: seen ?? null,
+				kind,
+				minProtocol: TOOL_PROTOCOL_MIN,
+				heldRuns: held?.n ?? 0,
+				hint: onlineNow.length
+					? 'A runner is online and will take the next run.'
+					: hasTool
+						? 'The afb-checks tool is connected but not running. Start it with: node afb-checks.mjs work (or the service, once installed).'
+						: runners.length
+							? 'A runner serves this project but is offline. Start it and ask again.'
+							: 'No afb-checks tool is connected to this project. Run once: node afb-checks.mjs connect --server <board address> --org <org slug>.'
+			});
+		}
+		return { projects: out };
+	});
+}
+
 // -- FUNCTIONS: THE RUNNER SIDE -- //
 
 /** The acting person for a run: whoever asked for it, as an agent called browser-check. Their live role still applies. */
@@ -533,6 +811,11 @@ export function runnerCtx(
 		actor: { userId, kind: 'agent', tool: 'browser-check', label: `Runner ${auth.name}` }
 	};
 }
+
+type JobEnv = Pick<
+	typeof environment.$inferSelect,
+	'name' | 'url' | 'kind' | 'production' | 'writeAllowed' | 'versionPath'
+>;
 
 export type CheckJob = {
 	kind: 'check';
@@ -579,8 +862,7 @@ export async function claimCheckJob(
 			.orderBy(asc(checkRun.createdAt))
 			.limit(25)
 			.for('update', { skipLocked: true });
-		let picked: { r: typeof checkRun.$inferSelect; env: typeof environment.$inferSelect } | null =
-			null;
+		let picked: { r: typeof checkRun.$inferSelect; env: JobEnv } | null = null;
 		for (const w of waiting) {
 			const [r] = await tx.select().from(checkRun).where(eq(checkRun.id, w.id));
 			const envs = await tx
@@ -590,14 +872,22 @@ export async function claimCheckJob(
 					and(eq(environment.projectId, r.projectId), eq(environment.kind, r.target as Target))
 				);
 			// A local runner reaches any address; a hosted one only a public address
-			const usable = envs.filter((e) => auth.kind === 'local' || !isPrivateUrl(e.url));
+			const usable = envs.filter((e) => reachesPrivate(auth.kind) || !isPrivateUrl(e.url));
 			const wanted = r.reason?.startsWith('Environment ')
 				? r.reason.slice('Environment '.length)
 				: null;
 			// An environment asked for by name is that one or none: it is never swapped for another of the same kind
-			const env = wanted
+			let env: JobEnv | undefined = wanted
 				? usable.find((e) => e.name === wanted)
 				: usable.sort((a, b) => Number(a.production) - Number(b.production))[0];
+			// The tool brings its own preview, so it takes a preview run that has no environment row
+			if (
+				!env &&
+				auth.kind === 'tool' &&
+				r.target === 'preview' &&
+				(!wanted || wanted === TOOL_ENV_NAME)
+			)
+				env = toolEnvironment('preview');
 			if (env) {
 				picked = { r, env };
 				break;
@@ -656,6 +946,27 @@ async function heldRun(tx: Tx, auth: RunnerAuth, runId: string) {
 	if (!auth.projectIds.includes(r.projectId))
 		throw new OpError('FORBIDDEN', 'This runner no longer serves that project.');
 	return r;
+}
+
+/**
+ * The runner says it is alive and still working on a run it holds. A run the board already gave up on (timeout) or that finished answers
+ * CONFLICT, with the code RUN_TIMED_OUT for a timeout, so the tool stops instead of working on a run nobody will read.
+ */
+export async function beatCheckRun(handle: DbHandle, auth: RunnerAuth, runId: string) {
+	return withTenant(handle, { orgId: auth.orgId }, async (tx) => {
+		const r = await heldRun(tx, auth, runId);
+		if (r.result !== 'running')
+			throw new OpError(
+				'CONFLICT',
+				`The run already finished (${r.result}).`,
+				r.result === 'timeout' ? { code: 'RUN_TIMED_OUT' } : undefined
+			);
+		await tx
+			.update(checkRun)
+			.set({ lastBeatAt: sql`now()` })
+			.where(eq(checkRun.id, runId));
+		return { ok: true, beatMinutes: BEAT_TIMEOUT_MINUTES };
+	});
 }
 
 /** The test accounts for a run the runner holds, opened. Only this project's accounts, and only while the run is running. */
@@ -767,7 +1078,11 @@ export async function finishCheckRun(
 	const held = await withTenant(handle, { orgId: auth.orgId }, async (tx) => {
 		const r = await heldRun(tx, auth, runId);
 		if (r.result !== 'running')
-			throw new OpError('CONFLICT', `The run already finished (${r.result}).`);
+			throw new OpError(
+				'CONFLICT',
+				`The run already finished (${r.result}).`,
+				r.result === 'timeout' ? { code: 'RUN_TIMED_OUT' } : undefined
+			);
 		return r;
 	});
 	const needles = await scanNeedles(handle, auth, held.projectId, held.requestedBy, services);
@@ -1015,7 +1330,7 @@ export async function releaseRunnerRuns(handle: DbHandle, auth: RunnerAuth) {
 	return withTenant(handle, { orgId: auth.orgId }, async (tx) => {
 		const back = await tx
 			.update(checkRun)
-			.set({ result: 'queued', runnerId: null, startedAt: null })
+			.set({ result: 'queued', runnerId: null, startedAt: null, lastBeatAt: null })
 			.where(and(eq(checkRun.runnerId, auth.runnerId), eq(checkRun.result, 'running')))
 			.returning({ id: checkRun.id });
 		return back.length;

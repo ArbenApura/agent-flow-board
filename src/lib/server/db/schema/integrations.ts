@@ -110,6 +110,8 @@ export const checkRun = tenantTable(
 		stepKey: text('step_key'),
 		runnerId: uuid('runner_id'),
 		startedAt: timestamp('started_at', { withTimezone: true }),
+		/** The last time the runner holding this run said it is alive. A tool run with no beat for ten minutes is reported stuck. */
+		lastBeatAt: timestamp('last_beat_at', { withTimezone: true }),
 		finishedAt: timestamp('finished_at', { withTimezone: true }),
 		/** Why a run failed, timed out or was unavailable, with the next target offered. Never holds a secret. */
 		reason: text('reason'),
@@ -255,7 +257,7 @@ export const runner = tenantTable(
 	{
 		id: id(),
 		orgId: orgId(),
-		kind: text('kind', { enum: ['local', 'hosted'] as const }).notNull(),
+		kind: text('kind', { enum: ['local', 'hosted', 'tool'] as const }).notNull(),
 		name: text('name').notNull(),
 		ownerId: text('owner_id').references(() => user.id, { onDelete: 'set null' }),
 		projectIds: uuid('project_ids')
@@ -266,7 +268,7 @@ export const runner = tenantTable(
 		tokenHash: text('token_hash'),
 		...stamps()
 	},
-	(t) => [oneOf('runner_kind_chk', t.kind, ['local', 'hosted'])]
+	(t) => [oneOf('runner_kind_chk', t.kind, ['local', 'hosted', 'tool'])]
 );
 
 export const environment = tenantTable(

@@ -6,6 +6,7 @@ import type { Ctx } from './context';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
+import { standardStreams, streamsProblem } from '../../board/streams';
 import { appendEvent } from '../db/events';
 import {
 	member,
@@ -20,21 +21,43 @@ import { actorFields, checkVersion } from './items';
 import { findProject } from './resolve';
 import { effectiveProjectRole } from '../orgs/roles';
 
+// -- FUNCTIONS -- //
+
+/** The streams a project files items under: names within the limits, none listed twice (without caring about case or spaces). */
+function streamList() {
+	return (
+		z
+			.array(
+				z.object({
+					stream: z.string().min(1).max(40),
+					scopes: z.array(z.string().min(1).max(40)).max(20)
+				})
+			)
+			.max(20)
+			.superRefine((list, ctx) => {
+				const problem = streamsProblem(list);
+				if (problem) ctx.addIssue({ code: 'custom', message: problem });
+			})
+			// Saved the way people mean it: names without spaces at the ends, no blank stream or scope
+			.transform((list) =>
+				list
+					.filter((s) => s.stream.trim())
+					.map((s) => ({
+						stream: s.stream.trim(),
+						scopes: s.scopes.map((t) => t.trim()).filter(Boolean)
+					}))
+			)
+	);
+}
+
 // -- CONSTANTS -- //
 
 export const projectInput = z.object({
 	key: z.string().regex(/^[A-Z][A-Z0-9]{1,9}$/, 'A project key is 2 to 10 capitals or digits'),
 	name: z.string().min(2).max(80),
 	webApp: z.boolean().default(false),
-	streams: z
-		.array(
-			z.object({
-				stream: z.string().min(1).max(40),
-				scopes: z.array(z.string().min(1).max(40)).max(20)
-			})
-		)
-		.max(20)
-		.default([])
+	// Left out, a project starts with the standard set. An explicit empty list means none.
+	streams: streamList().default(() => standardStreams())
 });
 
 export const projectUpdateInput = z.object({
@@ -43,15 +66,7 @@ export const projectUpdateInput = z.object({
 	name: z.string().min(2).max(80).optional(),
 	webApp: z.boolean().optional(),
 	rules: z.string().max(100_000).optional(),
-	streams: z
-		.array(
-			z.object({
-				stream: z.string().min(1).max(40),
-				scopes: z.array(z.string().min(1).max(40)).max(20)
-			})
-		)
-		.max(20)
-		.optional(),
+	streams: streamList().optional(),
 	themes: z
 		.array(z.object({ key: z.string().min(1).max(30), label: z.string().min(1).max(40) }))
 		.max(8)

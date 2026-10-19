@@ -14,12 +14,19 @@
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
 	import BrowserChecks from '#lib/settings/BrowserChecks.svelte';
 	import { canon, createFollower } from '#lib/settings/follow.js';
+	import {
+		savedStreams,
+		streamsProblem,
+		withIds,
+		withoutIds,
+		type StreamRow
+	} from '#lib/board/streams.js';
 	import Section from '#lib/settings/Section.svelte';
+	import StreamsEditor from '#lib/settings/StreamsEditor.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
-	import TagInput from '#lib/ui/TagInput.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
@@ -28,7 +35,6 @@
 	import Bot from '@lucide/svelte/icons/bot';
 	import GitBranch from '@lucide/svelte/icons/git-branch';
 	import Activity from '@lucide/svelte/icons/activity';
-	import Image from '@lucide/svelte/icons/image';
 	import Download from '@lucide/svelte/icons/download';
 	import Trash from '@lucide/svelte/icons/trash';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
@@ -65,11 +71,9 @@
 
 	let name = $state('');
 	let webApp = $state(false);
-	let streams = $state<{ stream: string; scopes: string[] }[]>([]);
+	let streams = $state<StreamRow[]>([]);
 	let mayComplete = $state(true);
 	let stale = $state(3);
-	let themes = $state<{ key: string; label: string }[]>([]);
-	let refs = $state<string[]>([]);
 	let auto = $state(false);
 	let delay = $state(10);
 	let windowed = $state(false);
@@ -92,10 +96,9 @@
 		p
 			? {
 					general: name.trim() !== p.name || webApp !== p.webApp,
-					streams: canon(streams) !== canon(p.streams),
+					streams: canon(savedStreams(streams)) !== canon(p.streams),
 					agents: mayComplete !== p.agentsMayComplete,
 					tracking: stale !== p.staleDays,
-					shots: canon(themes) !== canon(p.themes) || canon(refs) !== canon(p.referencePages),
 					publish: link
 						? auto !== link.autoPublish ||
 							delay !== link.delayMinutes ||
@@ -107,10 +110,12 @@
 					streams: false,
 					agents: false,
 					tracking: false,
-					shots: false,
 					publish: false
 				}
 	);
+
+	// Why the streams cannot be saved yet, in plain words, or null
+	const streamsIssue = $derived(streamsProblem(withoutIds(streams)));
 
 	// -- FUNCTIONS -- //
 
@@ -126,15 +131,9 @@
 		if (!p) return;
 		follow('name', p.name, (v) => (name = v));
 		follow('webApp', p.webApp, (v) => (webApp = v));
-		follow(
-			'streams',
-			p.streams,
-			(v) => (streams = v.map((s) => ({ stream: s.stream, scopes: [...s.scopes] })))
-		);
+		follow('streams', p.streams, (v) => (streams = withIds(v)));
 		follow('mayComplete', p.agentsMayComplete, (v) => (mayComplete = v));
 		follow('stale', p.staleDays, (v) => (stale = v));
-		follow('themes', p.themes, (v) => (themes = v.map((t) => ({ ...t }))));
-		follow('refs', p.referencePages, (v) => (refs = [...v]));
 		if (link) {
 			follow('auto', link.autoPublish, (v) => (auto = v));
 			follow('delay', link.delayMinutes, (v) => (delay = v));
@@ -255,7 +254,7 @@
 
 				<Switch
 					label="This project is a web app"
-					hint="Web apps get UI shots and design checks."
+					hint="Web apps can run browser checks and UI shots through the afb-checks tool."
 					bind:checked={webApp}
 					disabled={!can}
 				/>
@@ -265,39 +264,19 @@
 				id="streams"
 				icon={Layers}
 				title="Streams and scopes"
-				text="The groups items are filed under, for example features with the scopes core and routes."
+				text="How this project sorts its items: the kind of work, and the part of the product it touches."
 				dirty={dirty.streams}
+				blocked={Boolean(streamsIssue)}
 				saving={st('streams').saving}
 				saved={st('streams').saved}
-				error={st('streams').error}
+				error={streamsIssue ?? st('streams').error}
 				readonly={!can}
-				onsave={() => patchProject('streams', { streams: streams.filter((s) => s.stream.trim()) })}
+				onsave={() =>
+					patchProject('streams', {
+						streams: savedStreams(streams)
+					})}
 			>
-				{#each streams as s, i (i)}
-					<div
-						class="flex flex-wrap items-end gap-2 rounded-lg border border-line p-3"
-						data-testid="stream"
-					>
-						<TextField label="Stream" bind:value={s.stream} disabled={!can} class="w-44" />
-						<TagInput label="Scopes" bind:tags={s.scopes} class="min-w-56 flex-1" />
-						{#if can}
-							<Button
-								size="sm"
-								variant="ghost"
-								onclick={() => (streams = streams.filter((_, k) => k !== i))}>Remove</Button
-							>
-						{/if}
-					</div>
-				{/each}
-				{#if can}
-					<div>
-						<Button
-							size="sm"
-							onclick={() => (streams = [...streams, { stream: '', scopes: [] }])}
-							data-testid="add-stream">Add a stream</Button
-						>
-					</div>
-				{/if}
+				<StreamsEditor bind:rows={streams} usage={data.usage} can={Boolean(can)} />
 			</Section>
 
 			<Section
@@ -438,53 +417,12 @@
 				/>
 			</Section>
 
-			<Section
-				id="shots"
-				icon={Image}
-				title="UI shots"
-				text="The themes a screen is shot in, and the pages new screens are compared with."
-				dirty={dirty.shots}
-				saving={st('shots').saving}
-				saved={st('shots').saved}
-				error={st('shots').error}
-				readonly={!can}
-				onsave={() =>
-					patchProject('shots', {
-						themes: themes.filter((t) => t.key.trim() && t.label.trim()),
-						referencePages: refs
-					})}
-			>
-				{#each themes as t, i (i)}
-					<div class="flex flex-wrap items-end gap-2" data-testid="theme-row">
-						<TextField label="Theme key" bind:value={t.key} disabled={!can} class="w-40" />
-						<TextField label="Theme name" bind:value={t.label} disabled={!can} class="w-48" />
-						{#if can}<Button
-								size="sm"
-								variant="ghost"
-								onclick={() => (themes = themes.filter((_, k) => k !== i))}>Remove</Button
-							>{/if}
-					</div>
-				{/each}
-				{#if can && themes.length < 8}
-					<div>
-						<Button size="sm" onclick={() => (themes = [...themes, { key: '', label: '' }])}
-							>Add a theme</Button
-						>
-					</div>
-				{/if}
-				<TagInput
-					label="Reference pages"
-					bind:tags={refs}
-					hint="Addresses inside your app, such as /settings. Press Enter after each."
-					validate={(t) => (/^\/\S{0,198}$/.test(t) ? null : 'Start with / and use no spaces')}
-				/>
-			</Section>
-
 			<BrowserChecks
 				{org}
 				projectKey={key}
 				webApp={p.webApp}
 				defaultTarget={p.defaultTarget}
+				tools={data.tools}
 				can={can ?? false}
 			/>
 

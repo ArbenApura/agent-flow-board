@@ -10,10 +10,12 @@
 		label,
 		hint,
 		accept,
+		multiple = false,
 		required = false,
 		disabled = false,
 		el = $bindable(),
 		onchange,
+		onfiles,
 		class: extra,
 		...rest
 	}: {
@@ -21,11 +23,15 @@
 		/** One line under the field, for example the size limit. */
 		hint?: string;
 		accept?: string;
+		/** Lets the person pick several files at once. They arrive together in onfiles. */
+		multiple?: boolean;
 		required?: boolean;
 		disabled?: boolean;
 		/** The native input, so a form can read its files and clear it. */
 		el?: HTMLInputElement;
 		onchange?: (file: File | undefined) => void;
+		/** Every file picked, for a picker that takes several. */
+		onfiles?: (files: File[]) => void;
 		class?: string;
 		'data-testid'?: string;
 	} = $props();
@@ -49,21 +55,24 @@
 	>
 		<Upload size={18} class="shrink-0 text-muted" aria-hidden="true" />
 		<span class="min-w-0 flex-1 truncate text-sm {name ? 'text-ink' : 'text-muted'}"
-			>{name || 'Choose a file'}</span
+			>{name || (multiple ? 'Choose files' : 'Choose a file')}</span
 		>
 		<span class="shrink-0 text-sm font-medium text-accent-text">Browse</span>
 		<input
 			bind:this={el}
 			type="file"
 			{accept}
+			{multiple}
 			{required}
 			{disabled}
 			aria-labelledby={`${uid}-label`}
 			class="absolute inset-0 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
 			onchange={(e) => {
-				const f = e.currentTarget.files?.[0];
-				name = f?.name ?? '';
+				const all = [...(e.currentTarget.files ?? [])];
+				const f = all[0];
+				name = all.length > 1 ? `${all.length} files` : (f?.name ?? '');
 				onchange?.(f);
+				onfiles?.(all);
 			}}
 			{...rest}
 		/>

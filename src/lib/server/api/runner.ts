@@ -8,6 +8,7 @@ import type { Ctx } from '../ops/context';
 import type { ApiDeps, ApiRequest, ApiResponse } from './dispatch';
 // -- MODULES -- //
 import {
+	beatCheckRun,
 	claimCheckJob,
 	finishCheckRun,
 	peekQueue,
@@ -19,7 +20,9 @@ import {
 	authenticateRunKey,
 	authenticateRunner,
 	makeRunKey,
-	RUN_KEY_PREFIX
+	RUN_KEY_PREFIX,
+	TOOL_PROTOCOL_HEADER,
+	TOOL_PROTOCOL_MIN
 } from '../ops/environments';
 import { claimShotsJob, finishShotsRun, shotsAccounts, storeShotImage } from '../ops/uiShots';
 import { MAX_ATTACHMENT_BYTES } from '../ops/attachments';
@@ -47,6 +50,14 @@ export async function handleRunnerApi(req: ApiRequest, deps: ApiDeps): Promise<A
 			: null;
 		const auth = runKey ?? (bearer ? await authenticateRunner(deps.handle, bearer) : null);
 		if (!auth) return fail(401, 'UNAUTHENTICATED', 'The runner token is not valid or was removed.');
+		// The afb-checks tool names the version of this conversation. A runner program that names none is unchanged.
+		const protocol = req.headers.get(TOOL_PROTOCOL_HEADER);
+		if (protocol !== null && !(/^\d+$/.test(protocol) && Number(protocol) >= TOOL_PROTOCOL_MIN))
+			return fail(
+				426,
+				'UPGRADE_REQUIRED',
+				'This afb-checks is too old for this board. Run: node afb-checks.mjs upgrade <a folder with a newer template>.'
+			);
 		const services: Ctx['services'] = {
 			storage: deps.storage,
 			baseUrl: deps.baseUrl,
@@ -77,6 +88,7 @@ export async function handleRunnerApi(req: ApiRequest, deps: ApiDeps): Promise<A
 			return fail(413, 'INVALID', 'The upload is larger than 15 MB.');
 		if (route === 'GET runs/:id/accounts')
 			return ok({ accounts: await runAccounts(deps.handle, auth, id, services) });
+		if (route === 'POST runs/:id/beat') return ok(await beatCheckRun(deps.handle, auth, id));
 		if (route === 'GET shots/:id/accounts')
 			return ok({ accounts: await shotsAccounts(deps.handle, auth, id, services) });
 		if (route === 'POST runs/:id/artifacts')

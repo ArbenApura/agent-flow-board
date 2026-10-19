@@ -6,7 +6,6 @@
 	// -- ENVS -- //
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
-	import { page } from '$app/state';
 	// -- MODULES -- //
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
@@ -462,7 +461,7 @@
 			{/if}
 		</Section>
 
-		<Runners {org} projects={data.projects} {can} baseUrl={page.url.origin} group="Delivery" />
+		<Runners {org} projects={data.projects} {can} group="Delivery" />
 
 		{#if can}
 			<Section

@@ -21,12 +21,17 @@ const KEY = Symbol('settings-tabs');
 
 // -- FUNCTIONS -- //
 
-class SettingsTabs {
+export class SettingsTabs {
 	items = $state<SettingsTab[]>([]);
 
 	/** Called by each section while it renders, on the server and in the browser, so the list is complete in the first HTML. */
 	add(tab: SettingsTab) {
 		if (!this.items.some((t) => t.id === tab.id)) this.items.push(tab);
+	}
+
+	/** Called when a section leaves the page (hidden by a switch), so its tab leaves the navigation with it. */
+	remove(id: string) {
+		this.items = this.items.filter((t) => t.id !== id);
 	}
 }
 

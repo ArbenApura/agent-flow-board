@@ -135,10 +135,12 @@ import {
 	listAccounts,
 	listEnvironments,
 	listRunners,
+	registerToolRunner,
 	runnerInput,
 	saveAccount,
 	saveEnvironment,
-	setRunnerProjects
+	setRunnerProjects,
+	toolRunnerInput
 } from '../ops/environments';
 import {
 	getScale,
@@ -787,7 +789,8 @@ export const routes: Route[] = [
 				name: params.name,
 				project: params.project,
 				revision: num(query.revision),
-				offset: num(query.offset)
+				offset: num(query.offset),
+				file: query.file || undefined
 			})
 	},
 	{
@@ -829,7 +832,8 @@ export const routes: Route[] = [
 			getSkill(ctx, {
 				name: params.name,
 				revision: num(query.revision),
-				offset: num(query.offset)
+				offset: num(query.offset),
+				file: query.file || undefined
 			})
 	},
 	{
@@ -1044,6 +1048,15 @@ export const routes: Route[] = [
 		sessionOnly: true,
 		body: runnerInput,
 		handler: ({ ctx, body }) => createRunner(ctx, body as never)
+	},
+	{
+		method: 'POST',
+		path: '/orgs/{org}/runners/tool',
+		summary:
+			'Register the afb-checks tool as a runner. A personal token that may manage is enough. Its runner token is shown once.',
+		tag: 'Browser checks',
+		body: toolRunnerInput,
+		handler: ({ ctx, body }) => registerToolRunner(ctx, body as never)
 	},
 	{
 		method: 'PUT',

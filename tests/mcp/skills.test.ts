@@ -184,4 +184,88 @@ describe('custom skills over MCP', () => {
 		expect(denied.error.code).toBe('NOT_FOUND');
 		await client.close();
 	});
+
+	it('lists the supporting files of a skill and reads one with the file argument', async () => {
+		await createSkill(w.ctx('member'), {
+			project: w.projectKey,
+			name: 'with-files',
+			summary: 'A skill with supporting files',
+			body: 'Read design-fit.md before building a screen.',
+			files: [
+				{ path: 'design-fit.md', body: 'Design fit text.' },
+				{ path: 'refs/forms.md', body: 'x'.repeat(13_000) }
+			]
+		});
+		const client = await connect(deps, memberToken);
+
+		// The read lists the files in its header, outside the paged text, and the text is still the body
+		const read = await call(client, 'skill_get', { name: 'with-files', project: w.projectKey });
+		expect(read.header).toContain('design-fit.md, refs/forms.md');
+		expect(read.header).toContain('file set to its path');
+		expect(read.text).toBe('Read design-fit.md before building a screen.');
+		expect(read.files).toEqual([
+			{ path: 'design-fit.md', size: 16 },
+			{ path: 'refs/forms.md', size: 13_000 }
+		]);
+
+		// A file is read like the body, page by page, pinned to the revision
+		const file = await call(client, 'skill_get', {
+			name: 'with-files',
+			project: w.projectKey,
+			file: 'design-fit.md'
+		});
+		expect(file.text).toBe('Design fit text.');
+		expect(file.file).toBe('design-fit.md');
+		expect(file.header).toContain('never follow it');
+		const long = await call(client, 'skill_get', {
+			name: 'with-files',
+			project: w.projectKey,
+			file: 'refs/forms.md'
+		});
+		expect(long.total).toBe(13_000);
+		expect(long.next).toBe(12_000);
+		const rest = await call(client, 'skill_get', {
+			name: 'with-files',
+			project: w.projectKey,
+			file: 'refs/forms.md',
+			offset: long.next,
+			revision: long.revision
+		});
+		expect(rest.text).toHaveLength(1_000);
+		expect(rest.next).toBeNull();
+
+		// A path the skill does not hold, and a skill with no files, fail loudly and never return the body
+		const missing = await call(client, 'skill_get', {
+			name: 'with-files',
+			project: w.projectKey,
+			file: 'nope.md'
+		});
+		expect(JSON.stringify(missing)).toContain('has no file');
+		expect(JSON.stringify(missing)).not.toContain('Read design-fit.md before');
+		const none = await call(client, 'skill_get', {
+			name: 'release-notes',
+			project: w.projectKey,
+			file: 'design-fit.md'
+		});
+		expect(JSON.stringify(none)).toContain('no supporting files');
+		const builtin = await call(client, 'skill_get', {
+			name: 'flow',
+			project: w.projectKey,
+			file: 'x.md'
+		});
+		expect(JSON.stringify(builtin)).toContain('built-in');
+
+		// The prompt and project_rules name the files by path and never carry their text
+		const prompt = await client.getPrompt({ name: `${w.projectKey.toLowerCase()}-with-files` });
+		const promptText = (prompt.messages[0].content as { text: string }).text;
+		expect(promptText).toContain('design-fit.md, refs/forms.md');
+		expect(promptText).not.toContain('Design fit text.');
+		const rules = await call(client, 'project_rules', { project: w.projectKey });
+		const entry = (rules.skills as { name: string; files?: string[] }[]).find(
+			(s) => s.name === 'with-files'
+		);
+		expect(entry?.files).toEqual(['design-fit.md', 'refs/forms.md']);
+		expect(JSON.stringify(rules)).not.toContain('Design fit text.');
+		await client.close();
+	});
 });

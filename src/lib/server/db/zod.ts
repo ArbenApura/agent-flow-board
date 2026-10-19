@@ -8,10 +8,14 @@ import { z } from 'zod';
 import { CONTINUE_MODES, CONTINUE_TOOL_IDS, validPair } from '../../shared/continue';
 import {
 	SKILL_BODY_MAX,
+	SKILL_FILE_BODY_MAX,
+	SKILL_FILES_MAX,
 	SKILL_NAME,
 	SKILL_NAME_HINT,
 	SKILL_NAME_MAX,
-	SKILL_SUMMARY_MAX
+	SKILL_SUMMARY_MAX,
+	skillFilePathError,
+	skillFilesError
 } from '../../shared/skills';
 import {
 	STATE_STEP,
@@ -121,15 +125,35 @@ export const checkInsert = createInsertSchema(check);
 export const environmentInsert = createInsertSchema(environment, { url: (s) => s.url() });
 export const githubLinkInsert = createInsertSchema(githubLink);
 export const apiTokenInsert = createInsertSchema(apiToken);
+/** One supporting file of a skill. A jsonb column is untyped to drizzle-zod, so the shape and the path rule live here. */
+export const skillFileInput = z
+	.object({
+		path: z.string().superRefine((path, ctx) => {
+			const bad = skillFilePathError(path);
+			if (bad) ctx.addIssue({ code: 'custom', message: bad });
+		}),
+		body: z.string().min(1).max(SKILL_FILE_BODY_MAX)
+	})
+	.strict();
+/** The files of one skill: the count, each path and a path used twice. The total with the body is checked where the body is known. */
+export const skillFilesInput = z
+	.array(skillFileInput)
+	.max(SKILL_FILES_MAX, `A skill holds at most ${SKILL_FILES_MAX} supporting files.`)
+	.superRefine((files, ctx) => {
+		const bad = skillFilesError('', files);
+		if (bad) ctx.addIssue({ code: 'custom', message: bad });
+	});
 /** A custom skill: a lowercase slug that is not a built-in, a one line summary and a body under the cap. */
 export const skillInsert = createInsertSchema(skill, {
 	name: (s) => s.regex(SKILL_NAME, SKILL_NAME_HINT).max(SKILL_NAME_MAX),
 	summary: (s) => s.min(1).max(SKILL_SUMMARY_MAX),
-	body: (s) => s.min(1).max(SKILL_BODY_MAX)
+	body: (s) => s.min(1).max(SKILL_BODY_MAX),
+	files: skillFilesInput.optional()
 });
 export const skillUpdate = createUpdateSchema(skill, {
 	summary: (s) => s.min(1).max(SKILL_SUMMARY_MAX),
-	body: (s) => s.min(1).max(SKILL_BODY_MAX)
+	body: (s) => s.min(1).max(SKILL_BODY_MAX),
+	files: skillFilesInput.optional()
 });
 
 /** One "UI changes" row as a person or a tool writes it. Missing columns, unknown levels and bad viewports are refused. */

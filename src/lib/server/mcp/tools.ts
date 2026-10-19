@@ -41,7 +41,14 @@ import {
 	updateItem,
 	type ItemDetail
 } from '../ops/items';
-import { itemChecks, requestRun } from '../ops/checks';
+import {
+	deleteCheck,
+	itemChecks,
+	requestRun,
+	runnerStatus,
+	saveCheck,
+	waitForRun
+} from '../ops/checks';
 import { itemShots, requestShots, saveUiChanges } from '../ops/uiShots';
 import { recordSteps } from '../ops/steps';
 import { getSkill, listSkills } from '../ops/skills';
@@ -496,7 +503,9 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 					promptName: s.source === 'org' ? `org-${s.name}` : promptNameFor(p.key, s.name),
 					summary: s.summary,
 					source: s.source,
-					revision: s.revision
+					revision: s.revision,
+					// Paths only: each file is read with skill_get and its file argument
+					...(s.files.length ? { files: s.files.map((f) => f.path) } : {})
 				})),
 				// The remaining names are given, because skill_get has no list mode to find them any other way
 				...(rest.length
@@ -535,7 +544,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'skill_get',
-		"Read a skill by name: a built-in workflow, an organisation skill or a project skill. Pass project to reach that project's skills; without it only the organisation's are read. Long skills come in parts: pass next as offset with the same revision. A .claude/skills/<name>/SKILL.md file wins over it.",
+		"Read a skill by name: a built-in workflow, an organisation skill or a project skill. Pass project to reach its skills. A read lists the skill's supporting files; file reads one. Long texts come in parts: pass next as offset with the same revision. A .claude/skills/<name>/SKILL.md wins.",
 		{
 			name: z.string().describe('The skill name, for example flow or release-notes'),
 			project: z
@@ -550,7 +559,14 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				.describe(
 					'The revision the first page came from, so a changed skill is refused, not half read'
 				),
-			offset: z.number().int().min(0).optional()
+			offset: z.number().int().min(0).optional(),
+			file: z
+				.string()
+				.min(1)
+				.optional()
+				.describe(
+					'The path of a supporting file listed by a read of the skill, for example design-fit.md. Without it the skill itself is read'
+				)
 		},
 		{ readOnly: true },
 		async (a, { ctx }) =>
@@ -558,7 +574,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				name: a.name,
 				project: a.project,
 				revision: a.revision,
-				offset: a.offset
+				offset: a.offset,
+				file: a.file
 			})) as never
 	);
 
@@ -1090,8 +1107,52 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 	);
 
 	tool(
+		'check_save',
+		'Save the browser check script of a manual check and mark it automatic so it can run. Replaces an existing script. Also write the same script to checks/<item>/<check>.mjs on the machine that runs it: the tool only runs a local file.',
+		{
+			item: itemName.optional().describe('Defaults to your claimed item'),
+			check: z.string().describe('The manual check key, for example M2'),
+			script: z.string().min(1).max(100_000).describe('The check script (an ES module)'),
+			target: z
+				.enum(['dev', 'preview', 'deployed'])
+				.optional()
+				.describe('The weakest target whose pass closes the check. Defaults to preview'),
+			pinnedTarget: z
+				.enum(['dev', 'preview', 'deployed'])
+				.optional()
+				.describe('Always run on this target unless a run names another'),
+			coveredPaths: z
+				.array(z.string().min(1).max(200))
+				.max(50)
+				.optional()
+				.describe('Code paths this check covers; a change under them means it should run again')
+		},
+		{ session: true },
+		async (a, { ctx, claimed }) =>
+			(await saveCheck(ctx, {
+				item: need(a.item, claimed),
+				key: a.check,
+				script: a.script,
+				requiredTarget: a.target,
+				pinnedTarget: a.pinnedTarget,
+				coveredPaths: a.coveredPaths
+			})) as never
+	);
+
+	tool(
+		'check_delete',
+		'Remove the browser check of a manual check. The manual check is plain again unless it was already closed.',
+		{
+			item: itemName.optional().describe('Defaults to your claimed item'),
+			check: z.string().describe('The manual check key, for example M2')
+		},
+		{ session: true },
+		async (a, { ctx, claimed }) => (await deleteCheck(ctx, need(a.item, claimed), a.check)) as never
+	);
+
+	tool(
 		'check_run',
-		'Ask for a browser check run of a manual check. A pass on the required target closes the check and the step you name; a weaker target closes nothing. An unavailable target is reported with the targets that can run, never swapped. Read the outcome with check_status.',
+		'Ask for a browser check run. A pass on the required target closes the check and the step you name. An open run for the same check and target is returned, not a second. Pass wait (at most 90 seconds) for the finished run. A failed run carries a code and a fix line.',
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
 			check: z.string().describe('The manual check key, for example M8'),
@@ -1099,7 +1160,14 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			step: z
 				.string()
 				.optional()
-				.describe('The plan step to close when the run passes, for example 7.3')
+				.describe('The plan step to close when the run passes, for example 7.3'),
+			wait: z
+				.number()
+				.int()
+				.min(0)
+				.max(90)
+				.optional()
+				.describe('Seconds to wait for the run to finish, at most 90')
 		},
 		{ session: true },
 		async (a, { ctx, claimed }) => {
@@ -1109,8 +1177,35 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				target: a.target,
 				step: a.step
 			});
-			return out as never;
+			// An unavailable run is already finished, so there is nothing to wait for
+			if (!a.wait || out.unavailable) return out as never;
+			const waited = await waitForRun(ctx, { run: out.run.id, seconds: a.wait });
+			return { ...out, run: waited.run, finished: waited.finished } as never;
 		}
+	);
+
+	tool(
+		'check_wait',
+		'Wait for a run to finish and return it. Waits up to the seconds given (at most 90, default 30); finished false means ask again. A failed run carries a code and a fix line.',
+		{
+			run: z.string().describe('The run id from check_run or check_status'),
+			seconds: z.number().int().min(0).max(90).optional().describe('Seconds to wait, default 30')
+		},
+		{ readOnly: true },
+		async (a, { ctx }) => (await waitForRun(ctx, { run: a.run, seconds: a.seconds })) as never
+	);
+
+	tool(
+		'runner_status',
+		'Is an afb-checks tool online to take runs? Per project: online, last seen, kind, runs held and one plain line on what to do when it is offline. Never shows a token or a name.',
+		{
+			project: z
+				.string()
+				.optional()
+				.describe('A project key. Defaults to every project you can reach')
+		},
+		{ readOnly: true },
+		async (a, { ctx }) => (await runnerStatus(ctx, a.project)) as never
 	);
 
 	tool(

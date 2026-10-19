@@ -6,11 +6,19 @@ import { describe, expect, it } from 'vitest';
 import {
 	MAX_SKILLS_PER_PROJECT,
 	SKILL_BODY_MAX,
+	SKILL_FILE_BODY_MAX,
+	SKILL_FILE_PATH_MAX,
+	SKILL_FILES_MAX,
+	SKILL_TOTAL_MAX,
 	isBuiltinSkillName,
 	isSkillName,
 	parseSkillFile,
 	promptNameFor,
-	skillNameFrom
+	readSkillPicks,
+	skillFilePathError,
+	skillFilesError,
+	skillNameFrom,
+	sortSkillFiles
 } from '../../src/lib/shared/skills';
 import { skillHash } from '../../src/lib/server/skills/hash';
 
@@ -23,6 +31,9 @@ description: How we write the release notes
 
 Read the commits since the last tag.
 `;
+
+const GOLDEN_NO_FILES = '5980b4ad0796bac403ef0ce3b4178e6ff0f486f7ff8b0acf9a69212fdc2b3738';
+const GOLDEN_FILES = 'bc3632dd6d647067c2338388f2ac4159de3078b7bcb9a52abdc78d85b3d5626d';
 
 // -- TESTS -- //
 
@@ -68,23 +79,43 @@ describe('SKILL.md', () => {
 		expect(file.body).toBe('Body.');
 	});
 
-	it('refuses a file with no front matter, an unclosed one, and an unknown key', () => {
+	it('refuses a file with no front matter and an unclosed one', () => {
 		expect(() => parseSkillFile('Just text.')).toThrow('front matter');
 		expect(() => parseSkillFile('---\nname: x\n')).toThrow('not closed');
-		expect(() => parseSkillFile('---\nname: x\nallowed-tools: yes\n---\n\nBody.')).toThrow(
-			'Only name and description'
+	});
+
+	it('skips other flat keys such as disable-model-invocation', () => {
+		const file = parseSkillFile(
+			'---\nname: x\ndescription: Does x\ndisable-model-invocation: true\nallowed-tools: yes\n---\n\nBody.'
+		);
+		expect(file).toEqual({ name: 'x', summary: 'Does x', body: 'Body.' });
+		expect(() => parseSkillFile('---\nname: x\nallowed-tools:\n  inner: y\n---\n\nBody.')).toThrow(
+			'nested'
 		);
 	});
 
-	it('refuses an anchor, an alias, a block value and a nested line', () => {
+	it('folds a block description into one line, as a folded or a literal block', () => {
+		const folded = parseSkillFile(
+			'---\nname: x\ndescription: >\n    Enforces coding rules,\n    covers "quotes" and: colons.\n\n    Second part.\nallowed-tools: >-\n  a b\n---\n\nBody.'
+		);
+		expect(folded.summary).toBe('Enforces coding rules, covers "quotes" and: colons. Second part.');
+		expect(folded.body).toBe('Body.');
+		expect(parseSkillFile('---\nname: x\ndescription: |-\n  one\n  two\n---\n\nB.').summary).toBe(
+			'one two'
+		);
+		// A block under a key that is skipped does not turn its lines into keys
+		expect(
+			parseSkillFile('---\nname: x\ndescription: d\nnotes: |\n  a: b\n---\n\nB.').summary
+		).toBe('d');
+		expect(() => parseSkillFile('---\nname: x\ndescription: >\n---\n\nBody.')).toThrow('empty');
+	});
+
+	it('refuses an anchor, an alias and a nested line', () => {
 		expect(() => parseSkillFile('---\nname: x\ndescription: &a text\n---\n\nBody.')).toThrow(
 			'Anchors and aliases'
 		);
 		expect(() => parseSkillFile('---\nname: x\ndescription: *a\n---\n\nBody.')).toThrow(
 			'Anchors and aliases'
-		);
-		expect(() => parseSkillFile('---\nname: x\ndescription: |\n  two lines\n---\n\nBody.')).toThrow(
-			'one line'
 		);
 		expect(() => parseSkillFile('---\nname: x\ndescription:\n  inner: y\n---\n\nBody.')).toThrow();
 	});
@@ -105,5 +136,155 @@ describe('skill hash', () => {
 		expect(skillHash({ ...base, body: 'd' })).not.toBe(h);
 		expect(skillHash({ ...base, summary: 'd' })).not.toBe(h);
 		expect(skillHash({ ...base, name: 'd' })).not.toBe(h);
+	});
+
+	// The same two vectors are asserted by the bridge's own copy of this hash (packages/bridge), so the two cannot drift
+	it('matches the golden vectors, with and without files, in any file order', () => {
+		const skill = { name: 'release-notes', summary: 'How we write', body: 'Read the commits.' };
+		expect(skillHash(skill)).toBe(GOLDEN_NO_FILES);
+		expect(skillHash(skill, [])).toBe(GOLDEN_NO_FILES);
+		const files = [
+			{ path: 'refs/zeta.md', body: 'Zeta text.' },
+			{ path: 'design-fit.md', body: 'Design text.' }
+		];
+		expect(skillHash(skill, files)).toBe(GOLDEN_FILES);
+		expect(skillHash(skill, [...files].reverse())).toBe(GOLDEN_FILES);
+		expect(skillHash(skill, [files[0]])).not.toBe(GOLDEN_FILES);
+	});
+});
+
+describe('skill supporting files', () => {
+	it('accepts a relative Markdown path and refuses one that could leave the skill folder', () => {
+		for (const ok of ['design-fit.md', 'refs/a.md', 'a/b/c.MD'])
+			expect(skillFilePathError(ok), ok).toBeNull();
+		const bad = [
+			'',
+			'/x.md',
+			'../x.md',
+			'a/../x.md',
+			'./x.md',
+			'a//x.md',
+			'a\\x.md',
+			'C:/x.md',
+			'x.txt',
+			'x',
+			'SKILL.md',
+			'skill.md',
+			'con.md',
+			'a/NUL.md',
+			'x\u0000.md',
+			'dot..md.',
+			`${'a'.repeat(SKILL_FILE_PATH_MAX)}.md`
+		];
+		for (const path of bad) expect(skillFilePathError(path), path).not.toBeNull();
+	});
+
+	it('counts the body and every file together, and names what is wrong', () => {
+		const file = (path: string, n = 5) => ({ path, body: 'x'.repeat(n) });
+		expect(skillFilesError('body', [file('a.md'), file('b.md')])).toBeNull();
+		expect(skillFilesError('body', [file('a.md'), file('A.md')])).toContain('twice');
+		expect(skillFilesError('body', [file('a.md', 0)])).toContain('empty');
+		expect(skillFilesError('body', [file('a.md', SKILL_FILE_BODY_MAX + 1)])).toContain('longer');
+		const many = Array.from({ length: SKILL_FILES_MAX + 1 }, (_, i) => file(`f${i}.md`));
+		expect(skillFilesError('body', many)).toContain(`${SKILL_FILES_MAX}`);
+		const three = ['a', 'b', 'c'].map((n) => file(`${n}.md`, SKILL_FILE_BODY_MAX));
+		expect(skillFilesError('x', three)).toContain(`${SKILL_TOTAL_MAX}`);
+		expect(skillFilesError('', three)).toBeNull();
+	});
+
+	it('keeps files in path order', () => {
+		const sorted = sortSkillFiles([
+			{ path: 'b.md', body: '1' },
+			{ path: 'a/z.md', body: '2' },
+			{ path: 'a.md', body: '3' }
+		]);
+		expect(sorted.map((f) => f.path)).toEqual(['a.md', 'a/z.md', 'b.md']);
+	});
+});
+
+describe('picked skill files', () => {
+	const SKILL =
+		'---\nname: coding-guidelines\ndescription: How we code\n---\n\nRead design-fit.md.\n';
+
+	it('takes the SKILL.md as the skill and every other Markdown file as a supporting file', () => {
+		const read = readSkillPicks(
+			[
+				{ name: 'design-fit.md', text: 'Design.\r\n' },
+				{ name: 'SKILL.md', text: '\uFEFF' + SKILL },
+				{ name: 'refs/forms.md', text: 'Forms.' }
+			],
+			{ needSkill: true }
+		);
+		expect(read.problems).toEqual([]);
+		expect(read.skill?.name).toBe('coding-guidelines');
+		expect(read.files).toEqual([
+			{ path: 'design-fit.md', body: 'Design.\n' },
+			{ path: 'refs/forms.md', body: 'Forms.' }
+		]);
+	});
+
+	it('drops the folder name a folder pick puts in front of every file', () => {
+		const read = readSkillPicks(
+			[
+				{ name: 'coding-guidelines/SKILL.md', text: SKILL },
+				{ name: 'coding-guidelines/design-fit.md', text: 'Design.' }
+			],
+			{ needSkill: true }
+		);
+		expect(read.skill?.name).toBe('coding-guidelines');
+		expect(read.files.map((f) => f.path)).toEqual(['design-fit.md']);
+	});
+
+	it('names each pick it leaves out instead of dropping it silently', () => {
+		const read = readSkillPicks(
+			[
+				{ name: 'SKILL.md', text: SKILL },
+				{ name: 'notes.txt', text: 'Not Markdown.' },
+				{ name: 'empty.md', text: '  \n' },
+				{ name: '../escape.md', text: 'Out.' },
+				{ name: 'a.md', text: 'One.' },
+				{ name: 'A.md', text: 'Two.' }
+			],
+			{ needSkill: true }
+		);
+		expect(read.files.map((f) => f.path)).toEqual(['a.md']);
+		expect(read.problems).toHaveLength(4);
+		expect(read.problems.join(' ')).toContain('notes.txt');
+		expect(read.problems.join(' ')).toContain('empty.md');
+		expect(read.problems.join(' ')).toContain('picked twice');
+	});
+
+	it('refuses a pick with no SKILL.md or two of them when a skill is needed', () => {
+		expect(readSkillPicks([{ name: 'a.md', text: 'One.' }], { needSkill: true }).skill).toBeNull();
+		expect(
+			readSkillPicks([{ name: 'a.md', text: 'One.' }], { needSkill: true }).problems.join(' ')
+		).toContain('SKILL.md');
+		const two = readSkillPicks(
+			[
+				{ name: 'SKILL.md', text: SKILL },
+				{ name: 'skill.md', text: SKILL }
+			],
+			{ needSkill: true }
+		);
+		expect(two.skill).toBeNull();
+		expect(two.problems.join(' ')).toContain('More than one');
+		const bad = readSkillPicks([{ name: 'SKILL.md', text: 'No front matter.' }], {
+			needSkill: true
+		});
+		expect(bad.skill).toBeNull();
+		expect(bad.problems).toHaveLength(1);
+	});
+
+	it('leaves a SKILL.md out of the files when only files are being added', () => {
+		const read = readSkillPicks(
+			[
+				{ name: 'SKILL.md', text: SKILL },
+				{ name: 'extra.md', text: 'Extra.' }
+			],
+			{ needSkill: false }
+		);
+		expect(read.skill).toBeNull();
+		expect(read.files.map((f) => f.path)).toEqual(['extra.md']);
+		expect(read.problems.join(' ')).toContain('SKILL.md');
 	});
 });

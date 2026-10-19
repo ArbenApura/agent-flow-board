@@ -102,7 +102,7 @@ Steps are small enough to finish and check, and each says what is verified. The 
 | Talk and files | `comment_add`, `comment_list`, `attach` (base64, at most 5 MB, private unless the user says otherwise, every file has a caption), `task_new`, `task_list`, `task_update` |
 | Check | `board_validate` |
 
-`check_run`, `check_status`, `ui_shots_run`, `ui_shots_get` and `ui_changes_save` exist on the server and stay unused here (standing override 2).
+Browser checks are run only when the user asks for one (the `/flow-check` skill does everything itself through `check_save`, `check_run` with `wait`, `check_wait`, `check_status` and `runner_status`, and asks the user only the four questions it lists). Standing override 2 keeps them out of plans and out of this workflow's gates. `ui_shots_run`, `ui_shots_get` and `ui_changes_save` stay unused here.
 
 ### Errors
 

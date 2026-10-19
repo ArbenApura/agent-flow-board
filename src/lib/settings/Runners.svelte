@@ -9,8 +9,6 @@
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Checkbox from '#lib/ui/Checkbox.svelte';
-	import Select from '#lib/ui/Select.svelte';
-	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
 	import Server from '@lucide/svelte/icons/server';
@@ -25,13 +23,11 @@
 		org,
 		projects,
 		can,
-		baseUrl,
 		group
 	}: {
 		org: string;
 		projects: { key: string; name: string; webApp: boolean }[];
 		can: boolean;
-		baseUrl: string;
 		/** The heading its tab sits under in the settings navigation. */
 		group?: string;
 	} = $props();
@@ -39,21 +35,12 @@
 	// -- STATES -- //
 
 	let runners = $state<Runners>([]);
-	let name = $state('');
-	let kind = $state('local');
-	let chosen = $state<Record<string, boolean>>({});
-	let made = $state<{ token: string; name: string; kind: string } | null>(null);
 	let busy = $state('');
 	let editing = $state<{ id: string; chosen: Record<string, boolean> } | null>(null);
 
 	// -- REACTIVE STATES -- //
 
 	const webApps = $derived(projects.filter((p) => p.webApp));
-	const startLine = $derived(
-		made
-			? `node --import tsx packages/runner/src/cli.ts start --server ${baseUrl} --token ${made.token}${made.kind === 'hosted' ? ' --hosted' : ''}`
-			: ''
-	);
 
 	// -- FUNCTIONS -- //
 
@@ -69,36 +56,6 @@
 		void org;
 		void load();
 	});
-
-	async function create() {
-		busy = 'create';
-		try {
-			// The text is fixed on purpose: the token is shown once on the page, never in a toast
-			const r = await toast.promise(
-				api<{ token: string; name: string; kind: string }>(org, '/runners', {
-					body: {
-						name: name.trim(),
-						kind,
-						projects: webApps.filter((p) => chosen[p.key]).map((p) => p.key)
-					}
-				}),
-				{
-					id: 'runner-create',
-					loading: 'Making the runner...',
-					success: 'Runner made. Copy its token now, it is shown once.',
-					error: (e) => (e instanceof ApiError ? e.message : 'The runner was not made.')
-				}
-			);
-			made = r;
-			name = '';
-			chosen = {};
-			await load();
-		} catch {
-			// The promise toast already shows the failure
-		} finally {
-			busy = '';
-		}
-	}
 
 	async function saveProjects() {
 		if (!editing) return;
@@ -128,8 +85,8 @@
 	async function remove(id: string) {
 		if (
 			!(await askConfirm({
-				title: 'Remove this runner?',
-				body: 'Its token stops working at once. Runs it holds are given back.',
+				title: 'Remove this tool?',
+				body: 'Its token stops working at once. Runs it holds are given back. To connect it again, run connect in its folder.',
 				confirmLabel: 'Remove'
 			}))
 		)
@@ -138,9 +95,9 @@
 		try {
 			await toast.promise(api(org, `/runners/${id}`, { method: 'DELETE' }), {
 				id: 'runner-remove',
-				loading: 'Removing the runner...',
-				success: 'Runner removed.',
-				error: (e) => (e instanceof ApiError ? e.message : 'The runner was not removed.')
+				loading: 'Removing...',
+				success: 'Removed.',
+				error: (e) => (e instanceof ApiError ? e.message : 'It was not removed.')
 			});
 			await load();
 		} catch {
@@ -158,11 +115,14 @@
 	id="runners"
 	icon={Server}
 	{group}
-	title="Runners"
-	text="Programs that run browser checks and UI shots. A local runner works on a machine you own and asks you before it runs anything new. A hosted runner runs in a throwaway container."
+	title="Connected tools"
+	text="The afb-checks tools that answer browser checks and UI shots for this organisation. A tool connects itself from its own folder, with node afb-checks.mjs connect."
 >
 	{#if runners.length === 0}
-		<div class="text-sm text-muted">No runners yet.</div>
+		<div class="text-sm text-muted">
+			No tool is connected yet. In the afb-checks folder run
+			<span class="font-mono text-xs break-all">node afb-checks.mjs connect</span>.
+		</div>
 	{:else}
 		<ul class="rounded-lg border border-line" data-testid="runner-list">
 			{#each runners as r (r.id)}
@@ -173,7 +133,9 @@
 				>
 					<div class="flex flex-wrap items-center gap-2">
 						<span class="text-sm font-medium">{r.name}</span>
-						<Badge>{r.kind === 'local' ? 'Local' : 'Hosted'}</Badge>
+						<Badge
+							>{r.kind === 'tool' ? 'afb-checks' : r.kind === 'local' ? 'Local' : 'Hosted'}</Badge
+						>
 						<Badge tone={r.online ? 'success' : 'neutral'}>{r.online ? 'Online' : 'Offline'}</Badge>
 						<span class="min-w-0 flex-1 text-xs text-muted">
 							{r.projects.length ? r.projects.join(', ') : 'No project yet'}{r.lastSeenAt
@@ -185,6 +147,7 @@
 							<Button
 								size="sm"
 								variant="ghost"
+								tone="danger"
 								loading={busy === `remove-${r.id}`}
 								onclick={() => remove(r.id)}>Remove</Button
 							>
@@ -212,75 +175,5 @@
 				</li>
 			{/each}
 		</ul>
-	{/if}
-
-	{#if can}
-		{#if made}
-			<div
-				class="flex flex-col gap-2 rounded-lg border border-line bg-raised p-3"
-				data-testid="runner-token-box"
-			>
-				<p class="text-sm font-medium">
-					Copy this now. The token is shown once and cannot be read again.
-				</p>
-				<code class="block text-xs break-all" data-testid="runner-token">{made.token}</code>
-				<p class="text-xs text-muted">
-					Start it on the machine that will run the checks, from the project folder:
-				</p>
-				<code class="block text-xs break-all">{startLine}</code>
-				<div><Button size="sm" onclick={() => (made = null)}>I have copied it</Button></div>
-			</div>
-		{/if}
-		<form
-			class="flex flex-col gap-3 rounded-lg border border-line p-3"
-			onsubmit={(e) => {
-				e.preventDefault();
-				void create();
-			}}
-		>
-			<div class="flex flex-wrap items-end gap-2">
-				<TextField
-					label="Name"
-					bind:value={name}
-					placeholder="Laptop"
-					class="w-56"
-					data-testid="runner-name"
-				/>
-				<Select
-					label="Kind"
-					options={[
-						{ value: 'local', label: 'Local' },
-						{ value: 'hosted', label: 'Hosted' }
-					]}
-					bind:value={kind}
-					class="w-40"
-				/>
-			</div>
-			{#if webApps.length}
-				<div class="flex flex-col">
-					<span class="text-xs font-medium text-muted">Projects it serves</span>
-					{#each webApps as p (p.key)}
-						<Checkbox
-							label={`${p.key} ${p.name}`}
-							checked={!!chosen[p.key]}
-							onchange={(e) => (chosen[p.key] = e.currentTarget.checked)}
-						/>
-					{/each}
-				</div>
-			{:else}
-				<p class="text-xs text-muted">
-					No project is a web app yet. Turn that on in a project's settings first.
-				</p>
-			{/if}
-			<div>
-				<Button
-					type="submit"
-					variant="primary"
-					loading={busy === 'create'}
-					disabled={name.trim().length < 2}
-					data-testid="runner-create">Register runner</Button
-				>
-			</div>
-		</form>
 	{/if}
 </Section>

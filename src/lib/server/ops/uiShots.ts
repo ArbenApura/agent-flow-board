@@ -41,7 +41,12 @@ import type { ShotResult, UiFlag } from '../db/schema/integrations';
 import { TARGETS } from '../db/schema/helpers';
 import { withTenant } from '../db/tenant';
 import { OpError, requireCap, run } from './context';
-import { RUNNER_ONLINE_SECONDS, openProjectAccounts } from './environments';
+import {
+	RUNNER_ONLINE_SECONDS,
+	openProjectAccounts,
+	reachesPrivate,
+	toolEnvironment
+} from './environments';
 import { actorFields, canSeeItem } from './items';
 import { findItem, findProject } from './resolve';
 import { addAttachment } from './attachments';
@@ -202,14 +207,19 @@ async function rowsOf(tx: Tx, itemId: string) {
 type Env = typeof environment.$inferSelect;
 
 /** The environment a shots run uses for a target. Never a production one: a shots run only reads, and production is left alone (L40). */
-function shotEnv(envs: Env[], target: Target, runners: { kind: string }[]): Env | null {
+type ShotEnv = Pick<Env, 'name' | 'url' | 'kind' | 'production' | 'writeAllowed' | 'versionPath'>;
+function shotEnv(envs: Env[], target: Target, runners: { kind: string }[]): ShotEnv | null {
 	const usable = envs.filter(
 		(e) =>
 			e.kind === target &&
 			!e.production &&
-			runners.some((r) => r.kind === 'local' || !isPrivateUrl(e.url))
+			runners.some((r) => reachesPrivate(r.kind) || !isPrivateUrl(e.url))
 	);
-	return usable[0] ?? null;
+	if (usable[0]) return usable[0];
+	// The afb-checks tool brings its own preview, so a project needs no environment row for it
+	if (target === 'preview' && runners.some((r) => r.kind === 'tool'))
+		return toolEnvironment(target);
+	return null;
 }
 
 async function onlineRunners(tx: Tx, orgId: string, projectId: string) {

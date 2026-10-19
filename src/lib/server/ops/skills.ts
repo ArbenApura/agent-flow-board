@@ -6,6 +6,7 @@
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 import type { Role } from '../orgs/roles';
+import type { SkillSupportFile } from '../../shared/skills';
 // -- DEP-MODULES -- //
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -13,6 +14,8 @@ import { z } from 'zod';
 import {
 	MAX_SKILLS_PER_PROJECT,
 	SKILL_BODY_MAX,
+	SKILL_FILES_MAX,
+	SKILL_TOTAL_MAX,
 	SKILL_NAME,
 	SKILL_NAME_HINT,
 	SKILL_NAME_MAX,
@@ -20,11 +23,13 @@ import {
 	isBuiltinSkillName,
 	isSkillName,
 	parseSkillFile,
-	promptNameFor
+	promptNameFor,
+	skillFilesError,
+	sortSkillFiles
 } from '../../shared/skills';
 import { appendEvent } from '../db/events';
 import { member, project, projectMember, skill, skillRevision, user } from '../db/schema';
-import { skillInsert, skillUpdate } from '../db/zod';
+import { skillFilesInput, skillInsert, skillUpdate } from '../db/zod';
 import { effectiveProjectRole } from '../orgs/roles';
 import { notifyChange } from '../realtime/notify';
 import { WORKFLOWS } from '../mcp/workflows';
@@ -52,6 +57,8 @@ export type SkillSummary = {
 	id: string;
 	name: string;
 	summary: string;
+	/** The supporting files by path and length. A list never carries their text. */
+	files: { path: string; size: number }[];
 	source: SkillSource;
 	projectId: string | null;
 	author: string | null;
@@ -64,7 +71,9 @@ export type SkillSummary = {
 export type SkillRead = SkillSummary & {
 	/** One line to read first: what a skill is allowed to ask and where it comes from. */
 	header: string;
-	/** The skill text, paged. */
+	/** The path of the supporting file this read returned, or null for the skill body. */
+	file: string | null;
+	/** The skill text, or the text of the supporting file, paged. */
 	text: string;
 	offset: number;
 	total: number;
@@ -73,6 +82,8 @@ export type SkillRead = SkillSummary & {
 
 type Scope = { orgId: string; projectId: string | null };
 type SkillText = { name: string; summary: string; body: string };
+/** A skill as it is stored: its text and its supporting files. */
+type SkillContent = SkillText & { files: SkillSupportFile[] };
 
 // -- CONSTANTS -- //
 
@@ -90,6 +101,15 @@ export const SKILL_TRUST_HEADER =
 export const REPO_OVERRIDE_NOTE =
 	'A file at .claude/skills/<name>/SKILL.md in the checkout wins over this one; read it first when it exists.';
 
+/**
+ * The line that tells an agent a skill has supporting files and how to read one. Served with the skill in every harness (the
+ * read header, the MCP prompt), because an agent can only ask for a file it knows about.
+ */
+export function skillFilesNote(skill: { name: string; files: string[] }): string {
+	if (!skill.files.length) return '';
+	return `\n\nThis skill has supporting files: ${skill.files.join(', ')}. Read one with skill_get (name "${skill.name}", file set to its path).`;
+}
+
 /** Built-ins keep their own served text and hash, so a read of one is the same text the prompt serves. */
 const BUILTINS = new Map(WORKFLOWS.map((w) => [w.name, w]));
 
@@ -102,7 +122,8 @@ export const createSkillInput = z.object({
 	project: z.string().min(1).optional(),
 	name: z.string().min(1),
 	summary: z.string().min(1),
-	body: z.string().min(1)
+	body: z.string().min(1),
+	files: skillFilesInput.optional()
 });
 
 export const updateSkillInput = z.object({
@@ -111,6 +132,8 @@ export const updateSkillInput = z.object({
 	name: z.string().optional(),
 	summary: z.string().optional(),
 	body: z.string().optional(),
+	/** Left out, the files stay as they are; an empty list clears them. */
+	files: skillFilesInput.optional(),
 	expectVersion: z.number().int().optional()
 });
 
@@ -119,7 +142,9 @@ export const readSkillInput = z.object({
 	project: z.string().min(1).optional(),
 	/** Pins a continuation to the revision the first page came from. */
 	revision: z.number().int().min(1).optional(),
-	offset: z.number().int().min(0).optional()
+	offset: z.number().int().min(0).optional(),
+	/** The path of a supporting file to read instead of the skill body. */
+	file: z.string().min(1).optional()
 });
 
 export const removeSkillInput = z.object({
@@ -130,11 +155,19 @@ export const removeSkillInput = z.object({
 
 export const importSkillInput = z.object({
 	project: z.string().min(1).optional(),
-	text: z.string().min(1)
+	text: z.string().min(1),
+	/** Replaces the files of the skill. Left out, a skill that already exists keeps the files it has. */
+	files: skillFilesInput.optional()
 });
 
 /** The body cap and the name rule, so a form and a verb tell the same story. */
-export const SKILL_LIMITS = { name: SKILL_NAME, body: SKILL_BODY_MAX, summary: SKILL_SUMMARY_MAX };
+export const SKILL_LIMITS = {
+	name: SKILL_NAME,
+	body: SKILL_BODY_MAX,
+	summary: SKILL_SUMMARY_MAX,
+	files: SKILL_FILES_MAX,
+	total: SKILL_TOTAL_MAX
+};
 
 // -- FUNCTIONS -- //
 
@@ -220,6 +253,7 @@ const asSummary = (row: SkillRow, author: string | null): SkillSummary => ({
 	id: row.id,
 	name: row.name,
 	summary: row.summary,
+	files: row.files.map((f) => ({ path: f.path, size: f.body.length })),
 	source: row.projectId ? 'project' : 'org',
 	projectId: row.projectId,
 	author,
@@ -239,6 +273,12 @@ function assertName(name: string) {
 			`"${name}" is one of the board's own workflows, so it cannot be a custom skill. Pick another name.`,
 			{ field: 'name' }
 		);
+}
+
+/** The body and the files of one save fit together, checked on the merged value so a patch cannot push a skill over the cap. */
+function assertFiles(body: string, files: SkillSupportFile[]) {
+	const bad = skillFilesError(body, files);
+	if (bad) throw new OpError('INVALID', bad, { field: 'files' });
 }
 
 /** Two live skills cannot share a name inside one scope. The partial unique index is the final word under a race. */
@@ -311,8 +351,8 @@ export async function orgSkillAccess(ctx: Ctx) {
 }
 
 /** Creates a skill and its first revision in one transaction, so a save can never leave the row without its history. */
-async function insertSkill(tx: Tx, ctx: Ctx, scope: Scope, input: SkillText) {
-	const hash = skillHash(input);
+async function insertSkill(tx: Tx, ctx: Ctx, scope: Scope, input: SkillContent) {
+	const hash = skillHash(input, input.files);
 	const [row] = await tx
 		.insert(skill)
 		.values({
@@ -321,6 +361,7 @@ async function insertSkill(tx: Tx, ctx: Ctx, scope: Scope, input: SkillText) {
 			name: input.name,
 			summary: input.summary,
 			body: input.body,
+			files: input.files,
 			hash,
 			revision: 1,
 			authorId: ctx.actor.userId
@@ -334,6 +375,7 @@ async function insertSkill(tx: Tx, ctx: Ctx, scope: Scope, input: SkillText) {
 		name: row.name,
 		summary: row.summary,
 		body: row.body,
+		files: row.files,
 		hash,
 		authorId: ctx.actor.userId
 	});
@@ -341,9 +383,18 @@ async function insertSkill(tx: Tx, ctx: Ctx, scope: Scope, input: SkillText) {
 }
 
 /** The create rules inside an open transaction, shared by createSkill and importSkill. */
-async function createInTx(tx: Tx, ctx: Ctx, proj: { id: string } | null, input: SkillText) {
-	const checked = skillInsert.pick({ name: true, summary: true, body: true }).parse(input);
+async function createInTx(
+	tx: Tx,
+	ctx: Ctx,
+	proj: { id: string } | null,
+	input: SkillText & { files?: SkillSupportFile[] }
+) {
+	const checked = skillInsert
+		.pick({ name: true, summary: true, body: true, files: true })
+		.parse({ ...input, files: input.files ?? [] });
+	const files = sortSkillFiles(checked.files ?? []);
 	assertName(checked.name);
+	assertFiles(checked.body, files);
 	await requireWrite(tx, ctx, proj?.id ?? null);
 	await rateLimit(tx, ctx, 'write');
 	if (proj) {
@@ -362,7 +413,7 @@ async function createInTx(tx: Tx, ctx: Ctx, proj: { id: string } | null, input: 
 		tx,
 		ctx,
 		{ orgId: ctx.orgId, projectId: proj?.id ?? null },
-		checked
+		{ name: checked.name, summary: checked.summary, body: checked.body, files }
 	);
 	if (proj)
 		await appendEvent(tx, {
@@ -384,26 +435,41 @@ async function updateInTx(
 	tx: Tx,
 	ctx: Ctx,
 	row: SkillRow,
-	patch: { name?: string; summary?: string; body?: string; expectVersion?: number }
+	patch: {
+		name?: string;
+		summary?: string;
+		body?: string;
+		files?: SkillSupportFile[];
+		expectVersion?: number;
+	}
 ) {
 	await requireWrite(tx, ctx, row.projectId);
 	await rateLimit(tx, ctx, 'write');
 	checkVersion(row, patch.expectVersion);
 	const clean = skillUpdate
-		.pick({ summary: true, body: true })
-		.parse({ summary: patch.summary, body: patch.body });
-	const next: SkillText = {
+		.pick({ summary: true, body: true, files: true })
+		.parse({ summary: patch.summary, body: patch.body, files: patch.files });
+	const next: SkillContent = {
 		name: patch.name ?? row.name,
 		summary: clean.summary ?? row.summary,
-		body: clean.body ?? row.body
+		body: clean.body ?? row.body,
+		// Left out the files stay as they are, and an empty list clears them
+		files: clean.files ? sortSkillFiles(clean.files) : row.files
 	};
+	assertFiles(next.body, next.files);
 	if (next.name !== row.name) {
 		assertName(next.name);
 		await assertNameFree(tx, ctx.orgId, row.projectId, next.name, row.id);
 	}
-	if (next.name === row.name && next.summary === row.summary && next.body === row.body)
+	// A save that only changes the files is still a change, so it gets its own revision and hash
+	if (
+		next.name === row.name &&
+		next.summary === row.summary &&
+		next.body === row.body &&
+		JSON.stringify(next.files) === JSON.stringify(row.files)
+	)
 		return { row, changed: false };
-	const hash = skillHash(next);
+	const hash = skillHash(next, next.files);
 	const revision = row.revision + 1;
 	await tx.insert(skillRevision).values({
 		orgId: ctx.orgId,
@@ -495,6 +561,7 @@ function builtinRead(name: string, offset: number, revision?: number): SkillRead
 		id: `builtin:${w.name}`,
 		name: w.name,
 		summary: w.summary,
+		files: [],
 		source: 'builtin',
 		projectId: null,
 		author: null,
@@ -503,6 +570,7 @@ function builtinRead(name: string, offset: number, revision?: number): SkillRead
 		version: 1,
 		updatedAt: new Date(0),
 		header: `${SKILL_TRUST_HEADER} This one is built into the board and cannot be changed.`,
+		file: null,
 		text: w.body.slice(off, off + SKILL_PAGE),
 		offset: off,
 		total: w.body.length,
@@ -520,7 +588,15 @@ export async function getSkill(ctx: Ctx, raw: z.input<typeof readSkillInput>): P
 	return run(ctx, async (tx) => {
 		const proj = input.project ? await findProject(tx, ctx, input.project) : null;
 		await requireRead(tx, ctx, proj?.id);
-		if (BUILTINS.has(input.name)) return builtinRead(input.name, offset, input.revision);
+		if (BUILTINS.has(input.name)) {
+			if (input.file !== undefined)
+				throw new OpError(
+					'INVALID',
+					`"${input.name}" is a built-in workflow and has no supporting files.`,
+					{ field: 'file' }
+				);
+			return builtinRead(input.name, offset, input.revision);
+		}
 		const rows = await tx
 			.select()
 			.from(skill)
@@ -549,24 +625,45 @@ export async function getSkill(ctx: Ctx, raw: z.input<typeof readSkillInput>): P
 				{ reason: 'stale-revision', revision: row.revision, currentVersion: row.version }
 			);
 		const names = await authorNames(tx, ctx.orgId, [row.authorId]);
-		const off = Math.min(offset, row.body.length);
+		// A supporting file is read the same way as the body, page by page; a path the skill does not hold is refused
+		// rather than answered with the body
+		let text = row.body;
+		if (input.file !== undefined) {
+			const found = row.files.find((f) => f.path === input.file);
+			if (!found)
+				throw new OpError(
+					'INVALID',
+					row.files.length
+						? `"${row.name}" has no file "${input.file}". Its files are: ${row.files.map((f) => f.path).join(', ')}.`
+						: `"${row.name}" has no supporting files.`,
+					{ field: 'file' }
+				);
+			text = found.body;
+		}
+		const off = Math.min(offset, text.length);
 		return {
 			...asSummary(row, row.authorId ? (names.get(row.authorId) ?? null) : null),
-			header: `${SKILL_TRUST_HEADER} ${REPO_OVERRIDE_NOTE}`,
-			text: row.body.slice(off, off + SKILL_PAGE),
+			// The header sits outside the paged text, so the file list never shifts an offset
+			header: `${SKILL_TRUST_HEADER} ${REPO_OVERRIDE_NOTE}${
+				input.file === undefined
+					? skillFilesNote({ name: row.name, files: row.files.map((f) => f.path) })
+					: ` This is the supporting file ${input.file} of the skill ${row.name}.`
+			}`,
+			file: input.file ?? null,
+			text: text.slice(off, off + SKILL_PAGE),
 			offset: off,
-			total: row.body.length,
-			next: off + SKILL_PAGE < row.body.length ? off + SKILL_PAGE : null
+			total: text.length,
+			next: off + SKILL_PAGE < text.length ? off + SKILL_PAGE : null
 		};
 	});
 }
 
 export async function createSkill(ctx: Ctx, raw: z.input<typeof createSkillInput>) {
-	createSkillInput.parse(raw);
+	const input = createSkillInput.parse(raw);
 	return run(ctx, async (tx) =>
 		idempotent(ctx, tx, async () => {
-			const proj = raw.project ? await findProject(tx, ctx, raw.project) : null;
-			const row = await createInTx(tx, ctx, proj, raw as SkillText);
+			const proj = input.project ? await findProject(tx, ctx, input.project) : null;
+			const row = await createInTx(tx, ctx, proj, input);
 			return asSummary(row, ctx.actor.label ?? null);
 		})
 	);
@@ -633,6 +730,7 @@ export async function listSkillRevisions(ctx: Ctx, raw: z.input<typeof skillRefI
 				revision: skillRevision.revision,
 				hash: skillRevision.hash,
 				summary: skillRevision.summary,
+				files: skillRevision.files,
 				authorId: skillRevision.authorId,
 				createdAt: skillRevision.createdAt
 			})
@@ -648,6 +746,7 @@ export async function listSkillRevisions(ctx: Ctx, raw: z.input<typeof skillRefI
 			revision: r.revision,
 			hash: r.hash,
 			summary: r.summary,
+			files: r.files.map((f) => ({ path: f.path, size: f.body.length })),
 			author: r.authorId ? (names.get(r.authorId) ?? null) : null,
 			createdAt: r.createdAt
 		}));
@@ -678,6 +777,8 @@ export async function getSkillRevision(
 			name: rev.name,
 			summary: rev.summary,
 			body: rev.body,
+			// The editor loads the whole skill as it was, so the files come with their text here
+			files: rev.files,
 			hash: rev.hash
 		};
 	});
@@ -711,6 +812,7 @@ export async function importSkill(ctx: Ctx, raw: z.input<typeof importSkillInput
 		throw new OpError('INVALID', `The description is longer than ${SKILL_SUMMARY_MAX} characters.`);
 	if (file.body.length > SKILL_BODY_MAX)
 		throw new OpError('INVALID', `The body is longer than ${SKILL_BODY_MAX} characters.`);
+	if (input.files) assertFiles(file.body, input.files);
 	return run(ctx, async (tx) =>
 		idempotent(ctx, tx, async () => {
 			const proj = input.project ? await findProject(tx, ctx, input.project) : null;
@@ -720,6 +822,8 @@ export async function importSkill(ctx: Ctx, raw: z.input<typeof importSkillInput
 				const saved = await updateInTx(tx, ctx, existing, {
 					summary: file.summary,
 					body: file.body,
+					// Without files in the import the skill keeps the ones it has
+					files: input.files,
 					expectVersion: existing.version
 				});
 				return {
@@ -729,7 +833,7 @@ export async function importSkill(ctx: Ctx, raw: z.input<typeof importSkillInput
 					created: false
 				};
 			}
-			const row = await createInTx(tx, ctx, proj, file);
+			const row = await createInTx(tx, ctx, proj, { ...file, files: input.files });
 			return {
 				skill: asSummary(row, ctx.actor.label ?? null),
 				changed: true,
@@ -746,6 +850,8 @@ export type PromptSkill = {
 	name: string;
 	summary: string;
 	body: string;
+	/** The paths of the supporting files, never their text. */
+	files: string[];
 	source: SkillSource;
 	projectKey: string | null;
 };
@@ -792,6 +898,7 @@ export async function promptSkills(ctx: Ctx): Promise<PromptSkill[]> {
 					name: r.name,
 					summary: r.summary,
 					body: r.body,
+					files: r.files.map((f) => f.path),
 					source: 'org',
 					projectKey: null
 				});
@@ -806,6 +913,7 @@ export async function promptSkills(ctx: Ctx): Promise<PromptSkill[]> {
 				name: r.name,
 				summary: r.summary,
 				body: r.body,
+				files: r.files.map((f) => f.path),
 				source: 'project',
 				projectKey: key
 			});
@@ -844,6 +952,7 @@ export async function skillsForPrompts(ctx: Ctx, projectId: string) {
 				name: r.name,
 				summary: r.summary,
 				body: r.body,
+				files: r.files.map((f) => f.path),
 				source: (r.projectId ? 'project' : 'org') as SkillSource
 			}));
 		},

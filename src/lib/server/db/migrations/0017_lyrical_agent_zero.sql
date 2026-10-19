@@ -1,0 +1,1 @@
+ALTER TABLE "check_run" ADD COLUMN "last_beat_at" timestamp with time zone;

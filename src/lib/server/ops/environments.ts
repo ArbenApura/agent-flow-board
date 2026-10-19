@@ -11,9 +11,18 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { appendEvent } from '../db/events';
-import { checkRun, environment, org, project, runner, secret, uiShotRun } from '../db/schema';
+import {
+	checkRun,
+	environment,
+	member,
+	org,
+	project,
+	runner,
+	secret,
+	uiShotRun
+} from '../db/schema';
 import { withTenant } from '../db/tenant';
-import { OpError, requireCap, run } from './context';
+import { OpError, capsOf, projectAllowed, requireCap, run } from './context';
 import { actorFields } from './items';
 import { findProject } from './resolve';
 import { openSecret, sealSecret } from '../secrets/vault';
@@ -65,6 +74,31 @@ export const runnerInput = z.object({
 	kind: z.enum(['local', 'hosted']),
 	/** Project keys or ids the runner may take jobs from. */
 	projects: z.array(z.string().min(1)).max(50).default([])
+});
+
+/** The portable afb-checks tool: signed in by its owner once, it gets a runner of its own and no token has to be pasted. */
+export const toolRunnerInput = z.object({
+	name: z.string().min(2).max(60),
+	/** Project keys the tool serves. Left out, every project of the organisation that the caller may use. */
+	projects: z.array(z.string().min(1)).max(50).optional()
+});
+
+/** The version of the conversation between the board and the afb-checks tool. A tool older than the minimum is told to upgrade. */
+export const TOOL_PROTOCOL_MIN = 1;
+export const TOOL_PROTOCOL_HEADER = 'x-afb-tool-protocol';
+
+/** Only a runner that is not hosted reaches an address on this machine's network (a local runner and the tool). */
+export const reachesPrivate = (kind: string) => kind !== 'hosted';
+
+/** What stands in for an environment when the tool brings its own preview: the board has no address for it. */
+export const TOOL_ENV_NAME = 'afb-checks';
+export const toolEnvironment = (target: (typeof TARGETS)[number]) => ({
+	name: TOOL_ENV_NAME,
+	url: '',
+	kind: target,
+	production: false,
+	writeAllowed: false,
+	versionPath: null as string | null
 });
 
 // -- FUNCTIONS: ENVIRONMENTS -- //
@@ -301,6 +335,87 @@ export async function createRunner(ctx: Ctx, raw: z.input<typeof runnerInput>) {
 	});
 }
 
+/**
+ * Registers (or renews) the afb-checks tool of this person as a runner of kind tool and returns its token once. The tool signs in
+ * with a device sign-in approved with the manage permission, calls this once, keeps only the runner token and forgets the
+ * personal one. Running the same name again replaces the old token, so a lost one is cut off.
+ */
+export async function registerToolRunner(ctx: Ctx, raw: z.input<typeof toolRunnerInput>) {
+	const input = toolRunnerInput.parse(raw);
+	return run(ctx, async (tx) => {
+		await requireCap(tx, ctx, 'manage');
+		let ids: string[] = [];
+		if (input.projects) {
+			for (const key of input.projects) ids.push((await findProject(tx, ctx, key)).id);
+		} else {
+			const all = await tx
+				.select({ id: project.id })
+				.from(project)
+				.where(eq(project.orgId, ctx.orgId));
+			ids = all.map((p) => p.id).filter((pid) => projectAllowed(ctx.actor, pid));
+		}
+		const token = `${RUNNER_PREFIX}${ctx.orgId}.${randomBytes(32).toString('base64url')}`;
+		const existing = await tx
+			.select({ id: runner.id, projectIds: runner.projectIds })
+			.from(runner)
+			.where(
+				and(
+					eq(runner.orgId, ctx.orgId),
+					eq(runner.kind, 'tool'),
+					eq(runner.ownerId, ctx.actor.userId),
+					eq(runner.name, input.name)
+				)
+			)
+			.orderBy(asc(runner.createdAt));
+		let runnerId: string;
+		if (existing.length) {
+			runnerId = existing[0].id;
+			// Every row of that name takes the new token, so no older token survives. A renewal that names no projects keeps the ones the tool already serves
+			const keep = input.projects ? ids : existing[0].projectIds;
+			await tx
+				.update(runner)
+				.set({ tokenHash: hashOf(token), projectIds: keep, updatedAt: sql`now()` })
+				.where(
+					and(
+						eq(runner.orgId, ctx.orgId),
+						eq(runner.kind, 'tool'),
+						eq(runner.ownerId, ctx.actor.userId),
+						eq(runner.name, input.name)
+					)
+				);
+			ids = keep;
+			await appendOrgEvent(
+				tx,
+				ctx,
+				'runner.update',
+				{},
+				{ name: input.name, kind: 'tool', by: ctx.actor.kind }
+			);
+		} else {
+			const [row] = await tx
+				.insert(runner)
+				.values({
+					orgId: ctx.orgId,
+					kind: 'tool',
+					name: input.name,
+					ownerId: ctx.actor.userId,
+					projectIds: ids,
+					tokenHash: hashOf(token)
+				})
+				.returning({ id: runner.id });
+			runnerId = row.id;
+			await appendOrgEvent(
+				tx,
+				ctx,
+				'runner.create',
+				{},
+				{ name: input.name, kind: 'tool', by: ctx.actor.kind }
+			);
+		}
+		return { id: runnerId, token, name: input.name, kind: 'tool' as const, projects: ids.length };
+	});
+}
+
 export async function listRunners(ctx: Ctx) {
 	return run(ctx, async (tx) => {
 		await requireCap(tx, ctx, 'read');
@@ -339,7 +454,7 @@ export async function setRunnerProjects(ctx: Ctx, runnerId: string, projects: st
 			.from(runner)
 			.where(and(eq(runner.id, runnerId), eq(runner.orgId, ctx.orgId)));
 		if (!r) throw new OpError('NOT_FOUND', 'No such runner.');
-		if (r.kind === 'local' && r.ownerId !== ctx.actor.userId)
+		if (r.kind !== 'hosted' && r.ownerId !== ctx.actor.userId)
 			throw new OpError(
 				'FORBIDDEN',
 				'Only the owner of a local runner chooses the projects it serves.'
@@ -377,7 +492,7 @@ export async function deleteRunner(ctx: Ctx, runnerId: string) {
 export type RunnerAuth = {
 	runnerId: string;
 	orgId: string;
-	kind: 'local' | 'hosted';
+	kind: 'local' | 'hosted' | 'tool';
 	ownerId: string | null;
 	projectIds: string[];
 	name: string;
@@ -400,6 +515,14 @@ export async function authenticateRunner(
 		// A runner of an org scheduled for deletion stops working until the org is restored
 		const [o] = await tx.select({ deletedAt: org.deletedAt }).from(org).where(eq(org.id, orgId));
 		if (!o || o.deletedAt) return null;
+		// The afb-checks tool acts for the person who made it, so it stops working the moment that person is removed or can no longer manage
+		if (r.kind === 'tool') {
+			const [m] = await tx
+				.select({ role: member.role })
+				.from(member)
+				.where(and(eq(member.orgId, orgId), eq(member.userId, r.ownerId ?? '')));
+			if (!m || !capsOf(m.role).includes('manage')) return null;
+		}
 		await tx
 			.update(runner)
 			.set({ lastSeenAt: sql`now()` })

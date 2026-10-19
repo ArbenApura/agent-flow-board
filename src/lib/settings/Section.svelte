@@ -23,7 +23,8 @@
 		error = '',
 		onsave,
 		saveLabel = 'Save',
-		readonly = false
+		readonly = false,
+		blocked = false
 	}: {
 		title: string;
 		/** One plain sentence saying what this section controls. */
@@ -46,12 +47,16 @@
 		saveLabel?: string;
 		/** A person who may only look sees the section without a save button. */
 		readonly?: boolean;
+		/** True while what is typed cannot be saved yet (the error says why). Keeps the button off even though there is a change. */
+		blocked?: boolean;
 	} = $props();
 
 	// -- CONSTANTS -- //
 
 	const tabs = useTabs();
 	untrack(() => tabs?.add({ id, title, icon: Icon, group }));
+	// Effects run only in the browser, so the first HTML still lists every section; one hidden later takes its tab with it
+	$effect(() => () => untrack(() => tabs?.remove(id)));
 
 	// -- REACTIVE STATES -- //
 
@@ -119,7 +124,7 @@
 		>
 			<Button
 				variant="primary"
-				disabled={!dirty}
+				disabled={!dirty || blocked}
 				loading={saving}
 				onclick={() => void onsave()}
 				data-testid={`save-${id}`}>{saveLabel}</Button

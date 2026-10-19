@@ -16,6 +16,7 @@ import {
 	updateSkill
 } from '../../src/lib/server/ops/skills';
 import { setProjectRole } from '../../src/lib/server/orgs/orgs';
+import { skillHash } from '../../src/lib/server/skills/hash';
 import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
 
@@ -336,5 +337,201 @@ describe('custom skills', () => {
 		await expect(
 			importSkill(w.ctx('member'), { project: w.projectKey, text: 'No front matter here.' })
 		).rejects.toMatchObject({ code: 'INVALID' });
+	});
+
+	it('keeps supporting files with each revision, and a files-only save is a change', async () => {
+		const made = await createSkill(w.ctx('member'), {
+			project: w.projectKey,
+			name: 'with-files',
+			summary: 'A skill with supporting files',
+			body: 'Read design-fit.md first.',
+			files: [
+				{ path: 'refs/zeta.md', body: 'Zeta text.' },
+				{ path: 'design-fit.md', body: 'Design text.' }
+			]
+		});
+		// Stored in path order, listed by path and size only
+		expect(made.files).toEqual([
+			{ path: 'design-fit.md', size: 12 },
+			{ path: 'refs/zeta.md', size: 10 }
+		]);
+		expect(made.hash).toBe(
+			skillHash(
+				{
+					name: 'with-files',
+					summary: 'A skill with supporting files',
+					body: 'Read design-fit.md first.'
+				},
+				[
+					{ path: 'design-fit.md', body: 'Design text.' },
+					{ path: 'refs/zeta.md', body: 'Zeta text.' }
+				]
+			)
+		);
+
+		// A read of one file pages that file, and a path the skill does not hold is refused, never answered with the body
+		const file = await getSkill(w.ctx('viewer'), {
+			name: 'with-files',
+			project: w.projectKey,
+			file: 'design-fit.md'
+		});
+		expect(file.text).toBe('Design text.');
+		expect(file.file).toBe('design-fit.md');
+		await expect(
+			getSkill(w.ctx('viewer'), { name: 'with-files', project: w.projectKey, file: 'nope.md' })
+		).rejects.toMatchObject({ code: 'INVALID' });
+		await expect(
+			getSkill(w.ctx('viewer'), { name: 'flow', project: w.projectKey, file: 'x.md' })
+		).rejects.toMatchObject({ code: 'INVALID' });
+
+		// Only the files change: still a new revision, a new hash and a new version
+		const saved = await updateSkill(w.ctx('member'), {
+			skill: 'with-files',
+			project: w.projectKey,
+			files: [{ path: 'design-fit.md', body: 'Changed design text.' }],
+			expectVersion: made.version
+		});
+		expect(saved.changed).toBe(true);
+		expect(saved.skill.revision).toBe(2);
+		expect(saved.skill.hash).not.toBe(made.hash);
+		expect(saved.skill.files).toEqual([{ path: 'design-fit.md', size: 20 }]);
+
+		// Left out the files stay, an empty list clears them
+		const renamed = await updateSkill(w.ctx('member'), {
+			skill: 'with-files',
+			project: w.projectKey,
+			summary: 'Same files, new summary'
+		});
+		expect(renamed.skill.files).toHaveLength(1);
+		const cleared = await updateSkill(w.ctx('member'), {
+			skill: 'with-files',
+			project: w.projectKey,
+			files: []
+		});
+		expect(cleared.skill.files).toEqual([]);
+		const same = await updateSkill(w.ctx('member'), {
+			skill: 'with-files',
+			project: w.projectKey,
+			files: []
+		});
+		expect(same.changed).toBe(false);
+
+		// Every revision keeps the files it held, and its hash is the hash of that content
+		const revisions = await listSkillRevisions(w.ctx('member'), {
+			skill: 'with-files',
+			project: w.projectKey
+		});
+		expect(revisions.map((r) => r.files.length)).toEqual([0, 1, 1, 2]);
+		const first = await getSkillRevision(w.ctx('member'), {
+			skill: 'with-files',
+			project: w.projectKey,
+			revision: 1
+		});
+		expect(first.files.map((f) => f.path)).toEqual(['design-fit.md', 'refs/zeta.md']);
+		expect(first.files[0].body).toBe('Design text.');
+		expect(first.hash).toBe(made.hash);
+
+		// A stale save that carries files is refused like any other
+		await expect(
+			updateSkill(w.ctx('member'), {
+				skill: 'with-files',
+				project: w.projectKey,
+				files: [{ path: 'late.md', body: 'Late.' }],
+				expectVersion: made.version
+			})
+		).rejects.toMatchObject({ code: 'STALE_VERSION' });
+	});
+
+	it('refuses bad paths, too many files and a body and files over the total', async () => {
+		const base = { project: w.projectKey, summary: 'A skill', body: 'Body.' };
+		const badPaths = [
+			'../x.md',
+			'/x.md',
+			'a\\b.md',
+			'C:/x.md',
+			'x.txt',
+			'SKILL.md',
+			'con.md',
+			'a//b.md'
+		];
+		for (const path of badPaths)
+			await expect(
+				createSkill(w.ctx('member'), {
+					...base,
+					name: 'bad-path',
+					files: [{ path, body: 'Text.' }]
+				})
+			).rejects.toThrow();
+		await expect(
+			createSkill(w.ctx('member'), {
+				...base,
+				name: 'twice',
+				files: [
+					{ path: 'a.md', body: 'One.' },
+					{ path: 'A.md', body: 'Two.' }
+				]
+			})
+		).rejects.toThrow();
+		await expect(
+			createSkill(w.ctx('member'), {
+				...base,
+				name: 'too-many',
+				files: Array.from({ length: 21 }, (_, i) => ({ path: `f${i}.md`, body: 'Text.' }))
+			})
+		).rejects.toThrow();
+		await expect(
+			createSkill(w.ctx('member'), {
+				...base,
+				name: 'file-too-long',
+				files: [{ path: 'long.md', body: 'x'.repeat(100_001) }]
+			})
+		).rejects.toThrow();
+		// Three files of 100,000 and a body are over 300,000 in total, though every part is within its own cap
+		await expect(
+			createSkill(w.ctx('member'), {
+				...base,
+				name: 'over-total',
+				files: ['a', 'b', 'c'].map((n) => ({ path: `${n}.md`, body: 'x'.repeat(100_000) }))
+			})
+		).rejects.toMatchObject({ code: 'INVALID' });
+
+		// A patch that only changes the files is checked against the body the skill already holds
+		const made = await createSkill(w.ctx('member'), {
+			...base,
+			name: 'merged-total',
+			body: 'y'.repeat(100_000),
+			files: ['a', 'b'].map((n) => ({ path: `${n}.md`, body: 'x'.repeat(100_000) }))
+		});
+		await expect(
+			updateSkill(w.ctx('member'), {
+				skill: made.name,
+				project: w.projectKey,
+				files: ['a', 'b', 'c'].map((n) => ({ path: `${n}.md`, body: 'x'.repeat(100_000) }))
+			})
+		).rejects.toMatchObject({ code: 'INVALID' });
+	});
+
+	it('imports a SKILL.md with files, and an import without files keeps the files', async () => {
+		const text = FILE.replace('release-checklist', 'imported-files');
+		const first = await importSkill(w.ctx('member'), {
+			project: w.projectKey,
+			text,
+			files: [{ path: 'form-validation.md', body: 'Validate.' }]
+		});
+		expect(first.skill.files).toEqual([{ path: 'form-validation.md', size: 9 }]);
+		const again = await importSkill(w.ctx('member'), {
+			project: w.projectKey,
+			text: text.replace('one paragraph', 'two')
+		});
+		expect(again.created).toBe(false);
+		expect(again.skill.files).toEqual([{ path: 'form-validation.md', size: 9 }]);
+		const replaced = await importSkill(w.ctx('member'), {
+			project: w.projectKey,
+			text: text.replace('one paragraph', 'two'),
+			files: [{ path: 'other.md', body: 'Other.' }]
+		});
+		expect(replaced.skill.files).toEqual([{ path: 'other.md', size: 6 }]);
+		const prompts = await promptSkills(w.ctx('member'));
+		expect(prompts.find((p) => p.name === 'imported-files')?.files).toEqual(['other.md']);
 	});
 });

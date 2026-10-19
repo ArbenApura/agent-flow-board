@@ -3,7 +3,9 @@
 
 // -- TYPES -- //
 import type { Fetch } from '../device.js';
-import type { RemoteSkill } from './materialize.js';
+import type { RemoteSkill, RemoteSkillFile } from './materialize.js';
+// -- MODULES -- //
+import { filePathError, skillHashOf } from './materialize.js';
 
 // -- TYPES -- //
 
@@ -55,10 +57,16 @@ export async function resolveOrg(o: SkillSourceOptions): Promise<string> {
 export async function fetchSkills(o: SkillSourceOptions): Promise<RemoteSkill[]> {
 	const org = await resolveOrg(o);
 	const base = `/api/v1/orgs/${org}${o.project ? `/projects/${o.project}` : ''}/skills`;
-	const list = await getJson<{ name: string; summary: string; hash: string; revision: number }[]>(
-		o,
-		base
-	);
+	const list = await getJson<
+		{
+			name: string;
+			summary: string;
+			hash: string;
+			revision: number;
+			/** The supporting files by path. A board that predates them leaves it out. */
+			files?: { path: string; size: number }[];
+		}[]
+	>(o, base);
 	const out: RemoteSkill[] = [];
 	for (const s of list) {
 		// The name becomes a path in the checkout, so anything that is not a plain slug is refused before it is written
@@ -66,23 +74,57 @@ export async function fetchSkills(o: SkillSourceOptions): Promise<RemoteSkill[]>
 			throw new SkillSourceError(
 				`The board returned a skill name that is not a slug: "${s.name}".`
 			);
-		let offset = 0;
-		let body = '';
-		let hash = s.hash;
-		for (;;) {
-			// The revision pins every page, so a save in the middle answers CONFLICT instead of joining two versions
-			const page = await getJson<{
-				text: string;
-				total: number;
-				next: number | null;
-				hash: string;
-			}>(o, `${base}/${encodeURIComponent(s.name)}?offset=${offset}&revision=${s.revision}`);
-			body += page.text;
-			hash = page.hash ?? hash;
-			if (page.next === null) break;
-			offset = page.next;
+		// Every path is checked here too: the board is trusted for the text, but a path is written onto this disk
+		for (const f of s.files ?? []) {
+			const bad = filePathError(f.path);
+			if (bad)
+				throw new SkillSourceError(
+					`The board returned an unsafe file path for "${s.name}": ${bad}`
+				);
 		}
-		out.push({ name: s.name, summary: s.summary, body, hash });
+		// The revision pins every page, so a save in the middle answers CONFLICT instead of joining two versions
+		const readText = async (file?: string) => {
+			let offset = 0;
+			let text = '';
+			let hash = s.hash;
+			for (;;) {
+				const page = await getJson<{
+					text: string;
+					total: number;
+					next: number | null;
+					hash: string;
+				}>(
+					o,
+					`${base}/${encodeURIComponent(s.name)}?offset=${offset}&revision=${s.revision}${
+						file === undefined ? '' : `&file=${encodeURIComponent(file)}`
+					}`
+				);
+				text += page.text;
+				hash = page.hash ?? hash;
+				if (page.next === null) break;
+				offset = page.next;
+			}
+			return { text, hash };
+		};
+		const main = await readText();
+		const files: RemoteSkillFile[] = [];
+		for (const f of s.files ?? [])
+			files.push({ path: f.path, body: (await readText(f.path)).text });
+		// With files the hash covers them too, so a file that changed between two reads is caught here, not written
+		if (
+			files.length &&
+			skillHashOf({ name: s.name, summary: s.summary, body: main.text }, files) !== main.hash
+		)
+			throw new SkillSourceError(
+				`"${s.name}" changed while it was being read, or its files do not match the board's hash. Run it again.`
+			);
+		out.push({
+			name: s.name,
+			summary: s.summary,
+			body: main.text,
+			hash: main.hash,
+			...(files.length ? { files } : {})
+		});
 	}
 	return out;
 }

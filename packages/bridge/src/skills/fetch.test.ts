@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { fetchSkills, resolveOrg, SkillSourceError } from './fetch';
+import { skillHashOf } from './materialize';
 import type { Fetch } from '../device.js';
 
 // -- CONSTANTS -- //
@@ -109,5 +110,101 @@ describe('the bridge reads skills', () => {
 		await expect(
 			fetchSkills({ server: SERVER, token: 't', fetch: f.fetch, org: 'acme', project: 'AFB' })
 		).rejects.toThrow('not a slug');
+	});
+});
+
+describe('the bridge reads supporting files', () => {
+	const files = [
+		{ path: 'design-fit.md', size: 12 },
+		{ path: 'refs/forms.md', size: 6 }
+	];
+	const hash = skillHashOf({ name: 'guide', summary: 'How we code', body: 'Read design-fit.md.' }, [
+		{ path: 'design-fit.md', body: 'Design text.' },
+		{ path: 'refs/forms.md', body: 'Forms.' }
+	]);
+	const routes = (over: Record<string, unknown> = {}) => ({
+		'/api/v1/orgs/acme/projects/AFB/skills/guide?offset=0&revision=2&file=design-fit.md': {
+			text: 'Design text.',
+			total: 12,
+			next: null,
+			hash
+		},
+		'/api/v1/orgs/acme/projects/AFB/skills/guide?offset=0&revision=2&file=refs%2Fforms.md': {
+			text: 'Forms.',
+			total: 6,
+			next: null,
+			hash
+		},
+		'/api/v1/orgs/acme/projects/AFB/skills/guide?offset=0&revision=2': {
+			text: 'Read design-fit.md.',
+			total: 19,
+			next: null,
+			hash
+		},
+		'/api/v1/orgs/acme/projects/AFB/skills': [
+			{ name: 'guide', summary: 'How we code', hash, revision: 2, files }
+		],
+		...over
+	});
+
+	it('reads each file under the pinned revision and checks the hash that covers them', async () => {
+		const f = fakeFetch(routes());
+		const skills = await fetchSkills({
+			server: SERVER,
+			token: 't',
+			fetch: f.fetch,
+			org: 'acme',
+			project: 'AFB'
+		});
+		expect(skills).toEqual([
+			{
+				name: 'guide',
+				summary: 'How we code',
+				body: 'Read design-fit.md.',
+				hash,
+				files: [
+					{ path: 'design-fit.md', body: 'Design text.' },
+					{ path: 'refs/forms.md', body: 'Forms.' }
+				]
+			}
+		]);
+		expect(f.asked.filter((p) => p.includes('file='))).toHaveLength(2);
+		expect(f.asked.every((p) => !p.includes('revision=2') || p.includes('offset='))).toBe(true);
+	});
+
+	it('refuses a skill whose files do not match the hash the board gave', async () => {
+		const f = fakeFetch(
+			routes({
+				'/api/v1/orgs/acme/projects/AFB/skills/guide?offset=0&revision=2&file=refs%2Fforms.md': {
+					text: 'Changed.',
+					total: 8,
+					next: null,
+					hash
+				}
+			})
+		);
+		await expect(
+			fetchSkills({ server: SERVER, token: 't', fetch: f.fetch, org: 'acme', project: 'AFB' })
+		).rejects.toThrow('do not match');
+	});
+
+	it('refuses a file path that could leave the skill folder before reading anything', async () => {
+		const f = fakeFetch(
+			routes({
+				'/api/v1/orgs/acme/projects/AFB/skills': [
+					{
+						name: 'guide',
+						summary: 'How we code',
+						hash,
+						revision: 2,
+						files: [{ path: '../../.git/hooks/x.md', size: 1 }]
+					}
+				]
+			})
+		);
+		await expect(
+			fetchSkills({ server: SERVER, token: 't', fetch: f.fetch, org: 'acme', project: 'AFB' })
+		).rejects.toBeInstanceOf(SkillSourceError);
+		expect(f.asked.some((p) => p.includes('file='))).toBe(false);
 	});
 });

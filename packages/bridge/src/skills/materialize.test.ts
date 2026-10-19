@@ -7,11 +7,15 @@ import {
 	EMPTY_MANIFEST,
 	MANIFEST_PATH,
 	TARGETS,
+	TARGET_NAMES,
 	contentHash,
+	filePathError,
 	manifestText,
 	parseManifest,
 	planSkills,
+	skillDir,
 	skillFileText,
+	skillHashOf,
 	type RemoteSkill
 } from './materialize';
 
@@ -166,5 +170,149 @@ describe('skill files', () => {
 		expect(parseManifest(null)).toEqual(EMPTY_MANIFEST);
 		expect(parseManifest('not json')).toEqual(EMPTY_MANIFEST);
 		expect(parseManifest('{"version":2}')).toEqual(EMPTY_MANIFEST);
+	});
+});
+
+// -- SUPPORTING FILES -- //
+
+const GUIDE: RemoteSkill = {
+	name: 'coding-guidelines',
+	summary: 'How we code',
+	body: 'Read design-fit.md first.',
+	hash: '',
+	files: [
+		{ path: 'refs/zeta.md', body: 'Zeta text.' },
+		{ path: 'design-fit.md', body: 'Design text.' }
+	]
+};
+GUIDE.hash = skillHashOf(GUIDE, GUIDE.files);
+
+describe('skill supporting files', () => {
+	// The same two values are asserted by the board's own hash in tests/unit/skills.test.ts, so the two copies cannot drift
+	it('hash the same as the board does, with and without files', () => {
+		const skill = { name: 'release-notes', summary: 'How we write', body: 'Read the commits.' };
+		expect(skillHashOf(skill)).toBe(
+			'5980b4ad0796bac403ef0ce3b4178e6ff0f486f7ff8b0acf9a69212fdc2b3738'
+		);
+		const files = [
+			{ path: 'refs/zeta.md', body: 'Zeta text.' },
+			{ path: 'design-fit.md', body: 'Design text.' }
+		];
+		const golden = 'bc3632dd6d647067c2338388f2ac4159de3078b7bcb9a52abdc78d85b3d5626d';
+		expect(skillHashOf(skill, files)).toBe(golden);
+		expect(skillHashOf(skill, [...files].reverse())).toBe(golden);
+	});
+
+	// The same lists are asserted by the board's path rule in tests/unit/skills.test.ts
+	it('refuse the paths the board refuses, and accept the ones it accepts', () => {
+		for (const ok of ['design-fit.md', 'refs/a.md', 'a/b/c.MD'])
+			expect(filePathError(ok), ok).toBeNull();
+		const bad = [
+			'',
+			'/x.md',
+			'../x.md',
+			'a/../x.md',
+			'./x.md',
+			'a//x.md',
+			'a\\x.md',
+			'C:/x.md',
+			'x.txt',
+			'x',
+			'SKILL.md',
+			'skill.md',
+			'con.md',
+			'a/NUL.md',
+			'x\u0000.md',
+			'dot..md.',
+			`${'a'.repeat(120)}.md`
+		];
+		for (const path of bad) expect(filePathError(path), path).not.toBeNull();
+	});
+
+	it('write each file beside the SKILL.md of every tool, and record each in the manifest', () => {
+		const d = disk();
+		const plan = planSkills([GUIDE], EMPTY_MANIFEST, d.read);
+		apply(d, plan);
+		for (const target of TARGET_NAMES) {
+			const dir = skillDir(target, 'coding-guidelines');
+			expect(d.get(`${dir}/design-fit.md`), target).toBe('Design text.\n');
+			expect(d.get(`${dir}/refs/zeta.md`), target).toBe('Zeta text.\n');
+		}
+		expect(plan.files.filter((f) => f.action === 'create')).toHaveLength(9);
+		const recorded = parseManifest(d.get(MANIFEST_PATH)).skills['coding-guidelines'];
+		expect(recorded.hash).toBe(GUIDE.hash);
+		expect(Object.keys(recorded.files)).toHaveLength(9);
+		// Nothing to do on the next run
+		expect(
+			planSkills([GUIDE], parseManifest(d.get(MANIFEST_PATH)), d.read).files.every(
+				(f) => f.action === 'unchanged'
+			)
+		).toBe(true);
+	});
+
+	it('update a file whose text changed on the board, and leave the other files alone', () => {
+		const d = disk();
+		apply(d, planSkills([GUIDE], EMPTY_MANIFEST, d.read));
+		const changed: RemoteSkill = {
+			...GUIDE,
+			files: [
+				{ path: 'refs/zeta.md', body: 'Zeta text.' },
+				{ path: 'design-fit.md', body: 'New design text.' }
+			]
+		};
+		changed.hash = skillHashOf(changed, changed.files);
+		const plan = planSkills([changed], parseManifest(d.get(MANIFEST_PATH)), d.read);
+		expect(
+			plan.files.filter((f) => f.action === 'update').map((f) => f.path.split('/').pop())
+		).toEqual(['design-fit.md', 'design-fit.md', 'design-fit.md']);
+		apply(d, plan);
+		expect(d.get('.claude/skills/coding-guidelines/design-fit.md')).toBe('New design text.\n');
+	});
+
+	it('remove a file the board no longer has while it is still ours, and keep one somebody edited', () => {
+		const d = disk();
+		apply(d, planSkills([GUIDE], EMPTY_MANIFEST, d.read));
+		const fewer: RemoteSkill = {
+			...GUIDE,
+			files: [{ path: 'design-fit.md', body: 'Design text.' }]
+		};
+		fewer.hash = skillHashOf(fewer, fewer.files);
+		// One tool's copy was edited by hand, the other two are untouched
+		const edited = '.claude/skills/coding-guidelines/refs/zeta.md';
+		d.write(edited, 'A person edited this file.');
+		const plan = planSkills([fewer], parseManifest(d.get(MANIFEST_PATH)), d.read);
+		const zeta = plan.files.filter((f) => f.path.endsWith('refs/zeta.md'));
+		expect(zeta.find((f) => f.path === edited)?.action).toBe('drift');
+		expect(zeta.filter((f) => f.action === 'remove')).toHaveLength(2);
+		apply(d, plan);
+		expect(d.get(edited)).toBe('A person edited this file.');
+		expect(d.has('.agents/skills/coding-guidelines/refs/zeta.md')).toBe(false);
+		// The hand edit stays on record, and the removed copies do not come back as ghosts in the manifest
+		const files = parseManifest(d.get(MANIFEST_PATH)).skills['coding-guidelines'].files;
+		expect(Object.keys(files).filter((p) => p.endsWith('refs/zeta.md'))).toEqual([edited]);
+	});
+
+	it('remove every file of a skill the board no longer has', () => {
+		const d = disk();
+		apply(d, planSkills([GUIDE], EMPTY_MANIFEST, d.read));
+		const plan = planSkills([], parseManifest(d.get(MANIFEST_PATH)), d.read);
+		expect(plan.files.filter((f) => f.action === 'remove')).toHaveLength(9);
+		apply(d, plan);
+		expect(d.has('.gemini/skills/coding-guidelines/refs/zeta.md')).toBe(false);
+	});
+
+	it('stop the whole run on a path that could leave the skill folder', () => {
+		const d = disk();
+		for (const path of ['../../.git/hooks/pre-commit.md', '/etc/x.md', 'a/../../b.md', 'C:/x.md']) {
+			const evil: RemoteSkill = { ...GUIDE, files: [{ path, body: 'Out.' }] };
+			expect(() => planSkills([evil], EMPTY_MANIFEST, d.read), path).toThrow('not safe');
+		}
+	});
+
+	it('write a skill from a board without files exactly as before', () => {
+		const d = disk();
+		const plan = planSkills([NOTES], EMPTY_MANIFEST, d.read);
+		expect(plan.files).toHaveLength(3);
+		expect(plan.manifest.skills['release-notes'].hash).toBe(NOTES.hash);
 	});
 });

@@ -8,7 +8,12 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { z } from 'zod';
 // -- MODULES -- //
 import { authenticateToken } from '../ops/tokens';
-import { REPO_OVERRIDE_NOTE, SKILL_TRUST_HEADER, promptSkills } from '../ops/skills';
+import {
+	REPO_OVERRIDE_NOTE,
+	SKILL_TRUST_HEADER,
+	promptSkills,
+	skillFilesNote
+} from '../ops/skills';
 import { registerCompat } from './compat';
 import { registerTools, type McpDeps } from './tools';
 import { SERVER_INSTRUCTIONS, WORKFLOWS } from './workflows';
@@ -103,7 +108,7 @@ export async function handleMcp(request: Request, deps: McpDeps): Promise<Respon
 								role: 'user',
 								content: {
 									type: 'text',
-									text: `${SKILL_TRUST_HEADER}\n\n${REPO_OVERRIDE_NOTE}\n\n${s.body}`
+									text: `${SKILL_TRUST_HEADER}\n\n${REPO_OVERRIDE_NOTE}\n\n${s.body}${skillFilesNote(s)}`
 								}
 							}
 						]

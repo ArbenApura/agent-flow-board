@@ -106,7 +106,12 @@ describe('MCP server', () => {
 			'decision_delete',
 			'item_history',
 			'project_pin',
-			'project_unpin'
+			'project_unpin',
+			'check_save',
+			'check_delete',
+			'check_run',
+			'check_wait',
+			'runner_status'
 		])
 			expect(names).toContain(n);
 		expect(
@@ -783,5 +788,56 @@ describe('MCP server', () => {
 		console.warn(`MCP item_get p95 ${p95.toFixed(1)} ms over ${times.length} calls`);
 		expect(p95).toBeLessThan(150);
 		await client.close();
+	});
+	it('drives a check through the tools: save, run, wait and runner_status, with the code and fix on a run that cannot start', async () => {
+		await db.admin.exec(`update project set web_app = true where id = '${w.projectId}'`);
+		const made = await createItem(w.ctx('member'), {
+			project: w.projectKey,
+			title: 'Check through MCP',
+			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Run it' }] }],
+			manualChecks: [{ key: 'M1', text: 'The page works' }]
+		});
+		const client = await connect(deps, token);
+		const { sessionId } = await call(client, 'session_start', { tool: 'claude-code' });
+		const saved = await call(client, 'check_save', {
+			sessionId,
+			item: made.ref,
+			check: 'M1',
+			script: 'export default async ({ page }) => { await page.goto("/"); };',
+			target: 'preview'
+		});
+		expect(saved).toMatchObject({ created: true, auto: true });
+		// Nothing connected: the status says what to do, and the run says why it cannot start, at once
+		const status = await call(client, 'runner_status', { project: w.projectKey });
+		expect(status.projects[0]).toMatchObject({ online: false, kind: null });
+		expect(status.projects[0].hint).toMatch(/connect/);
+		const asked = await call(client, 'check_run', {
+			sessionId,
+			item: made.ref,
+			check: 'M1',
+			target: 'preview',
+			wait: 5
+		});
+		expect(asked.unavailable).toBe(true);
+		expect(asked.finished).toBeUndefined();
+		expect(asked.run).toMatchObject({ result: 'unavailable', code: 'TOOL_OFFLINE' });
+		expect(asked.run.fix).toMatch(/runner_status/);
+		const waited = await call(client, 'check_wait', { run: asked.run.id, seconds: 5 });
+		expect(waited).toMatchObject({ finished: true });
+		expect(waited.run).toMatchObject({ code: 'TOOL_OFFLINE', key: 'M1', item: made.ref });
+		// A bad run id is refused as input, a missing one is not found, and a reader may wait but not save
+		expect((await call(client, 'check_wait', { run: 'nope' })).error).toBeDefined();
+		expect(
+			(await call(client, 'check_wait', { run: '00000000-0000-4000-8000-000000000000' })).error
+		).toMatchObject({ code: 'NOT_FOUND' });
+		const reader = await connect(deps, readOnlyToken, 'reader');
+		expect((await call(reader, 'check_wait', { run: asked.run.id, seconds: 0 })).finished).toBe(
+			true
+		);
+		expect(
+			(await call(reader, 'check_save', { item: made.ref, check: 'M1', script: 's' })).error
+		).toBeDefined();
+		const deleted = await call(client, 'check_delete', { sessionId, item: made.ref, check: 'M1' });
+		expect(deleted).toEqual({ deleted: true });
 	});
 });
