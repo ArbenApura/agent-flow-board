@@ -193,8 +193,11 @@ body {
 .md {
 	font-size: 15px;
 	line-height: 24px;
-	max-width: 72ch;
 	overflow-wrap: anywhere;
+}
+/* TEXT KEEPS A READABLE LINE LENGTH, TABLES AND CODE USE THE WHOLE CARD */
+.md > :not(table, pre) {
+	max-width: 72ch;
 }
 .md > * + * {
 	margin-top: 0.75rem;
@@ -257,6 +260,9 @@ body {
 }
 .md th,
 .md td {
+	/* WORDS STAY WHOLE AND A COLUMN NEVER SQUEEZES BELOW A READABLE WIDTH, THE TABLE SCROLLS SIDEWAYS INSTEAD */
+	overflow-wrap: break-word;
+	min-width: 6rem;
 	border: 1px solid var(--line);
 	padding: 4px 8px;
 	text-align: left;

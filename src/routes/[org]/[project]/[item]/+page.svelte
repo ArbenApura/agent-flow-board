@@ -602,10 +602,10 @@
 			</ul>
 		{/if}
 
-		<!-- THE TAB BAR. A CARD THE SAME WIDTH AS THE HEADER ABOVE IT, STICKING JUST UNDER THE TOP BAR (56 PX PLUS ITS LINE, 64 PX PLUS ITS LINE FROM MD) WITH A GAP -->
+		<!-- THE TAB BAR. A CARD THE SAME WIDTH AS THE HEADER ABOVE IT, STICKING JUST UNDER THE TOP BAR (56 PX PLUS ITS LINE, 64 PX PLUS ITS LINE FROM MD) WITH A GAP. THE GAP IS FILLED WITH THE PAGE COLOUR SO SCROLLED TEXT DOES NOT SHOW THROUGH THE TRANSLUCENT TOP BAR -->
 		<nav
 			aria-label="Item sections"
-			class="sticky top-[65px] z-20 rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-1)] md:top-[73px]"
+			class="sticky top-[65px] z-20 rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-1)] before:pointer-events-none before:absolute before:inset-x-0 before:-top-2 before:h-2 before:bg-[var(--bg)] md:top-[73px]"
 		>
 			<div
 				bind:this={tabRow}
