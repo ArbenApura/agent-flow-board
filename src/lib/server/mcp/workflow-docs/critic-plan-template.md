@@ -1,6 +1,6 @@
 # Plan Critic Prompt Template (agent-flow-board)
 
-Fill every placeholder and pass the result as the prompt for each critic subagent during plan review. Use an `Agent` call with `subagent_type: "general-purpose"` and `model: "sonnet"`, all in the same message.
+Fill every placeholder and pass the result as the prompt for each critic subagent during plan review. Use an `Agent` call with `subagent_type: "general-purpose"`, all in the same message.
 
 ---
 

@@ -1,6 +1,6 @@
 # Code Critic Prompt Template (agent-flow-board)
 
-Fill every placeholder and pass the result as the prompt for each critic subagent (3 by default, or the user-requested count) during post-implementation review. Use an `Agent` call with `subagent_type: "general-purpose"`, `model: "sonnet"` and a `description` like `"Code Critic - Security & Tenancy"`, all in the same message.
+Fill every placeholder and pass the result as the prompt for each critic subagent (3 by default, or the user-requested count) during post-implementation review. Use an `Agent` call with `subagent_type: "general-purpose"` and a `description` like `"Code Critic - Security & Tenancy"`, all in the same message.
 
 Do not paraphrase the template. Do not paste your conversation history into it; the critic judges the work product, not your reasoning about it.
 

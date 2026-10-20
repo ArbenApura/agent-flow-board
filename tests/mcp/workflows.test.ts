@@ -55,6 +55,13 @@ describe('workflow text', () => {
 		expect(body.slice(note, body.indexOf('# Flow Critic'))).not.toContain('skill_get');
 	});
 
+	it('names no model for the critic subagents, so it fits every harness', () => {
+		// A person sets a model preference in their own private CLAUDE.md; "sonnet" is only a Claude Code alias
+		const body = workflowByName('flow-critic')!.body;
+		const texts = [body, ...WORKFLOW_FILE_NAMES.map((f) => workflowFile(f))];
+		for (const t of texts) expect(t).not.toMatch(/sonnet|opus|model:/i);
+	});
+
 	it('shares the rule with every workflow through the common rules', () => {
 		for (const w of WORKFLOWS) {
 			if (w.name === 'flow-task') continue;

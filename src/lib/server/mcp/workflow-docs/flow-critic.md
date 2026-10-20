@@ -73,7 +73,7 @@ Say the mode and the reason in one line before dispatching, for example: "Code m
 5. **Default to approval.** When the work meets its requirements and invariants, return 0 findings and `APPROVED`.
 
 ### Dispatch
-Invoke all subagents in a single message, one `Agent` tool call each (`subagent_type: "general-purpose"`, **`model: "sonnet"`**), so they run in parallel. **Every critic runs on Sonnet 5.5, never Opus** (set by the project owner, 2026-10-14, mandatory, to reduce cost; ADR-006 of an earlier item). Passing `model: "sonnet"` explicitly keeps it true in a session started before the global `CLAUDE_CODE_SUBAGENT_MODEL` was changed to `claude-sonnet-5-5[1m]`. Each runs independently in read-only mode: it must not edit files, commit, push, deploy, run SQL against any remote database, or start the dev server or a browser. Wait quietly for all of them without polling.
+Invoke all subagents in a single message, one `Agent` tool call each (`subagent_type: "general-purpose"`), so they run in parallel. Pass no `model`: the critics use the session's own model, and a person who wants a specific one sets it in their private CLAUDE.md. Each runs independently in read-only mode: it must not edit files, commit, push, deploy, run SQL against any remote database, or start the dev server or a browser. Wait quietly for all of them without polling.
 
 ---
 
