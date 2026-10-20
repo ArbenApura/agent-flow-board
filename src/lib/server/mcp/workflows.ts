@@ -50,7 +50,12 @@ const TASK_RULES = `## Rules for tasks
 // Said once at the top of every served workflow: the texts are the AFB skills, so they name this repo's own commands and files
 const NOTE = `> This workflow is the Agent Flow Board one. Its examples name the AFB repo (yarn, DESIGN.md, ports 5180 and 5190, the project key AFB). When you work in another project, apply the same step with that project's own commands and rules (read them with project_rules and the repo's rulebook). Where this text and the shared rules at the end differ, this text wins. Slash names such as /flow-critic mean the workflow of that name: read it with workflow_get.`;
 
-const CRITIC_NOTE = `\n\n> The supporting files this workflow names (checklists.md, code-lenses.md, code-template.md, plan-lenses.md, plan-template.md) are read with workflow_get name flow-critic and file set to checklists, code-lenses, code-template, plan-lenses or plan-template.`;
+// The prompt is only this text: the supporting files are not attached, so the model has to fetch them before it reviews anything
+const CRITIC_NOTE = `\n\n> **First action, before you choose a mode or dispatch any subagent: read the supporting files.** The files this workflow lists under "Files in this skill" (checklists.md, code-lenses.md, code-template.md, plan-lenses.md, plan-template.md) are NOT attached to this text, and a workflow_get call without file returns this text again. If workflow_get is a deferred tool, load its schema first (your connection's tool prefix applies). Read each file with workflow_get name flow-critic and file set to its name without .md.
+> - Plan mode: read plan-template and plan-lenses.
+> - Code mode: read code-template, code-lenses and checklists.
+> - Every reply is served in parts of 12000 characters. When a reply has a next value, call again with offset set to it, and read to the end (this text is 3 parts, code-lenses and checklists are 2 parts each). A file you read only in part gives you a partial lens list.
+> - Do not dispatch any subagent until the files for your mode are read in full. Then follow the subagent count and dispatch rules below (3 subagents by default).`;
 
 export const WORKFLOW_FILE_NAMES = [
 	'checklists',

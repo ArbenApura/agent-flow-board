@@ -37,7 +37,22 @@ describe('workflow text', () => {
 
 	it('has the critic supporting files readable by name', () => {
 		for (const f of WORKFLOW_FILE_NAMES) expect(workflowFile(f).length, f).toBeGreaterThan(500);
-		expect(workflowByName('flow-critic')?.body).toContain('workflow_get name flow-critic and file');
+	});
+
+	it('tells the critic prompt to read its supporting files first, in parts, before any subagent', () => {
+		const body = workflowByName('flow-critic')!.body;
+		// The note comes first, ahead of the critic text
+		const note = body.indexOf('First action');
+		expect(note).toBeGreaterThan(-1);
+		expect(note).toBeLessThan(body.indexOf('# Flow Critic'));
+		for (const f of WORKFLOW_FILE_NAMES) expect(body, f).toContain(f);
+		expect(body).toContain('workflow_get name flow-critic and file');
+		expect(body).toContain('Plan mode: read plan-template and plan-lenses');
+		expect(body).toContain('Code mode: read code-template, code-lenses and checklists');
+		expect(body).toContain('offset');
+		expect(body).toContain('Do not dispatch any subagent until the files for your mode are read');
+		// A built-in refuses file on skill_get, so the note must not send the model there
+		expect(body.slice(note, body.indexOf('# Flow Critic'))).not.toContain('skill_get');
 	});
 
 	it('shares the rule with every workflow through the common rules', () => {
