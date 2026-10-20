@@ -398,6 +398,8 @@ export const listItemsInput = z.object({
 	/** The item number to continue from (keyset paging, so page 200 costs the same as page 1). */
 	cursor: z.number().int().optional(),
 	order: z.enum(['asc', 'desc']).default('desc'),
+	/** 'activity' puts the most recently touched first and is for a first page only (no keyset paging). */
+	sort: z.enum(['number', 'activity']).default('number'),
 	limit: z.number().int().min(1).max(200).default(50),
 	trashed: z.boolean().default(false)
 });
@@ -443,7 +445,11 @@ export async function listItems(ctx: Ctx, raw: z.input<typeof listItemsInput>) {
 			.select()
 			.from(item)
 			.where(where)
-			.orderBy(input.order === 'desc' ? desc(item.number) : asc(item.number))
+			.orderBy(
+				...(input.sort === 'activity'
+					? [desc(item.lastActivityAt), desc(item.number)]
+					: [input.order === 'desc' ? desc(item.number) : asc(item.number)])
+			)
 			.limit(input.limit + 1);
 		const page = rows.slice(0, input.limit);
 		return {

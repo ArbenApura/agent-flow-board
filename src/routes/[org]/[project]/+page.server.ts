@@ -36,7 +36,12 @@ export const load: PageServerLoad = async ({ params, parent, locals, url, depend
 	if (view === 'board') {
 		const columns = await Promise.all(
 			BOARD_COLUMNS.filter((s) => !wanted.length || wanted.includes(s)).map(async (status) => {
-				const page = await listItems(ctx, { ...common, status: [status], limit: COLUMN_LIMIT });
+				const page = await listItems(ctx, {
+					...common,
+					status: [status],
+					sort: 'activity',
+					limit: COLUMN_LIMIT
+				});
 				return { status, total: page.total ?? 0, items: page.items.map(slimItem) };
 			})
 		);
