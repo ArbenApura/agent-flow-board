@@ -21,6 +21,7 @@
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 	// -- DEP-COMPONENTS -- //
+	import Bot from '@lucide/svelte/icons/bot';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import KeyRound from '@lucide/svelte/icons/key-round';
@@ -31,9 +32,14 @@
 
 	let { data, form }: PageProps = $props();
 
+	// -- CONSTANTS -- //
+
+	const uid = $props.id();
+
 	// -- STATES -- //
 
 	let picking = $state(false);
+	let previewOpen = $state(false);
 
 	let active = $state('claude-code');
 	let name = $state('');
@@ -54,6 +60,16 @@
 		} catch {
 			toast.warning('Copy did not work here. Select the text and copy it by hand.');
 		}
+	}
+
+	/** Saves the brief as a Markdown file, made in the browser from the text already on the page. */
+	function downloadSetup() {
+		const url = URL.createObjectURL(new Blob([data.agentSetup], { type: 'text/markdown' }));
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `connect-${data.org?.slug ?? 'organisation'}.md`;
+		a.click();
+		URL.revokeObjectURL(url);
 	}
 
 	const when = (iso: string | Date | null) =>
@@ -145,12 +161,71 @@
 			</EmptyState></Card
 		>
 	{:else}
+		<!-- COPY SETUP FOR YOUR AGENT -->
+		<Card
+			data-testid="agent-setup"
+			icon={Bot}
+			title="Let your agent do it"
+			description="Copy this, paste it into your agent, then only approve the sign in."
+		>
+			<!-- BOTH BUTTONS ARE THE SAME SIZE AND SIT ON ONE ROW, TWO ACROSS ON A PHONE -->
+			<div class="grid grid-cols-2 gap-2 sm:flex" data-testid="agent-setup-actions">
+				<Button onclick={() => copy(data.agentSetup)} data-testid="agent-setup-copy">
+					Copy setup
+				</Button>
+				<Button onclick={downloadSetup}>Download .md</Button>
+			</div>
+			<!-- WHAT THE AGENT READS: A FULL WIDTH ROW THAT OPENS THE TEXT, THE SAME WAY THE ITEM CARDS COLLAPSE -->
+			<div class="mt-3 border-t border-line pt-1" data-testid="agent-setup-preview">
+				<button
+					type="button"
+					aria-expanded={previewOpen}
+					aria-controls="{uid}-preview"
+					onclick={() => (previewOpen = !previewOpen)}
+					class="flex min-h-11 w-full cursor-pointer items-center gap-2 text-left text-sm text-ink"
+				>
+					<ChevronDown
+						size={16}
+						class={cn(
+							'shrink-0 text-muted transition-transform motion-reduce:transition-none',
+							!previewOpen && '-rotate-90'
+						)}
+						aria-hidden="true"
+					/>
+					What the agent reads
+				</button>
+				<!-- THE TEXT OPENS AND CLOSES BY ANIMATING ITS GRID ROW BETWEEN 0 AND 1 FRACTION, LIKE THE ITEM CARDS. CLOSED, IT IS INVISIBLE AND INERT -->
+				<div
+					id="{uid}-preview"
+					inert={!previewOpen}
+					class={cn(
+						'grid transition-[grid-template-rows,visibility] duration-200 ease-out motion-reduce:transition-none',
+						previewOpen ? 'grid-rows-[1fr]' : 'invisible grid-rows-[0fr]'
+					)}
+				>
+					<div class="min-h-0 overflow-hidden">
+						<pre
+							class="mt-1 max-h-80 overflow-auto rounded-lg border border-line bg-raised p-3 font-mono text-xs leading-5 text-ink">{data.agentSetup}</pre>
+					</div>
+				</div>
+			</div>
+		</Card>
+
 		<Card
 			data-testid="connect-snippets"
 			icon={Plug}
 			title="Add it to your tool"
 			description="Paste one line into the tool you use."
 		>
+			<!-- ONE CONNECTION PER ORGANISATION, NAMED AFTER IT -->
+			<p class="mb-2 text-sm" data-testid="connect-per-org">
+				One connection per organisation, so name it after the organisation. This one is for {data
+					.org.name}.
+			</p>
+			<p class="mb-3 text-xs text-muted">
+				Its tools start with <span class="font-mono">{data.prefix}</span>. Rule files and permission
+				lists that name tools must use that prefix.
+			</p>
 			<div
 				class="-mx-1 mb-4 flex [scrollbar-width:none]! gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-line [&::-webkit-scrollbar]:hidden"
 				role="tablist"
@@ -235,6 +310,16 @@
 										c.expiresAt
 									)}.</span
 								>
+								<!-- THE ADDRESS IS SHOWN ONLY WHEN IT IS NOT THIS ORGANISATION'S OWN ADDRESS -->
+								{#if c.kind === 'oauth' && !c.resource}
+									<span class="text-xs text-muted" data-testid="connection-address"
+										>Address: plain <span class="font-mono">/mcp</span></span
+									>
+								{:else if c.kind === 'oauth' && c.resource && c.resource !== data.ownAddress}
+									<span class="text-xs break-all text-muted" data-testid="connection-address"
+										>Address: <span class="font-mono">{c.resource}</span></span
+									>
+								{/if}
 							</div>
 							<form
 								method="POST"
@@ -261,12 +346,13 @@
 			data-testid="token-form"
 			icon={KeyRound}
 			title="Personal access token"
-			description="For scripts and tools that cannot sign in through a browser."
+			description={`For scripts and tools that cannot sign in through a browser. It works only in ${data.org.name}.`}
 		>
 			<p class="mb-3 text-sm text-muted">
 				The token is shown once. It lasts at most 90 days and never holds more than your role ({ROLE_LABEL[
 					data.org.role
-				]}) allows.
+				]}) in {data.org.name} allows. Send it as a bearer header to
+				<span class="font-mono text-xs break-all">{data.ownAddress}</span>.
 			</p>
 			{#if created}
 				<div

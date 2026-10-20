@@ -408,6 +408,8 @@ export const oauthGrant = tenantTable(
 			.array()
 			.notNull()
 			.default(sql`'{}'::text[]`),
+		/** The MCP address the tool was approved for (/mcp/<slug>), shown in Connected apps. Display only: the org binding is the token's own. Null for older grants. */
+		resource: text('resource'),
 		revokedAt: timestamp('revoked_at', { withTimezone: true }),
 		...stamps()
 	},
@@ -449,6 +451,8 @@ export const oauthCode = tenantTable('oauth_code', 'org', {
 		.array()
 		.notNull()
 		.default(sql`'{}'::text[]`),
+	/** The MCP address the approval was for, copied to the grant when the code is exchanged. */
+	resource: text('resource'),
 	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 	usedAt: timestamp('used_at', { withTimezone: true })
 });

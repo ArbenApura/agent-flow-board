@@ -17,7 +17,8 @@ export type Adapter = {
 
 // -- CONSTANTS -- //
 
-const BOARD_SERVER = /agent[-_]flow[-_]board/i;
+// The board under its older name, and under a per organisation connection name (afb-<org-slug>)
+const BOARD_SERVER = /agent[-_]flow[-_]board|^(?:mcp_+)?afb-[a-z0-9]/i;
 
 // -- FUNCTIONS -- //
 

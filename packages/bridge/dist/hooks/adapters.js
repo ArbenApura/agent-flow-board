@@ -2,7 +2,8 @@
 // Claude Code and Antigravity payloads follow what was captured on real runs. The Gemini CLI mapping follows its documented hook
 // protocol and has not been captured on a real install. Every adapter prints one JSON object, `{}` when there is nothing to say.
 // -- CONSTANTS -- //
-const BOARD_SERVER = /agent[-_]flow[-_]board/i;
+// The board under its older name, and under a per organisation connection name (afb-<org-slug>)
+const BOARD_SERVER = /agent[-_]flow[-_]board|^(?:mcp_+)?afb-[a-z0-9]/i;
 // -- FUNCTIONS -- //
 const text = (v) => (typeof v === 'string' ? v : '');
 const obj = (v) => v && typeof v === 'object' && !Array.isArray(v) ? v : {};
@@ -31,6 +32,9 @@ export const claude = {
             return { ...base, event: 'start' };
         if (hook === 'UserPromptSubmit')
             return { ...base, event: 'prompt' };
+        // The conversation ended: the server lets go of this session's claim
+        if (hook === 'SessionEnd')
+            return { ...base, event: 'end' };
         if (hook === 'Stop')
             return { ...base, event: 'stop', stopActive: p.stop_hook_active === true };
         const tool = text(p.tool_name);
@@ -67,6 +71,9 @@ export const claude = {
             };
         if (event === 'prompt' && a.title)
             return { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', sessionTitle: a.title } };
+        // The nudge rides back from PostToolUse as context the agent reads before its next step
+        if (event === 'tool' && a.nudge)
+            return { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: a.nudge } };
         if (event === 'closing' && a.ask)
             return {
                 hookSpecificOutput: {
@@ -119,6 +126,8 @@ export const antigravity = {
         // Antigravity has no hook output that names a conversation, so the board label carries the title instead
         if (event === 'start' && a.context)
             return { injectSteps: [{ ephemeralMessage: a.context }] };
+        // GAP: no PostToolUse output was captured for Antigravity, so the nudge is not sent here. Its sessions still hear the
+        // progress line in every board reply and the Stop reminder, which name the steps that are not recorded.
         // A Stop "continue" re-enters the agent loop. The server sends at most one per distinct code change.
         if (event === 'stop' && a.block)
             return { decision: 'continue', reason: a.block };
@@ -167,6 +176,9 @@ export const gemini = {
             return {
                 hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: a.context ?? '' }
             };
+        // Not captured on a real install: AfterTool takes additionalContext in the documented protocol
+        if (event === 'tool' && a.nudge)
+            return { hookSpecificOutput: { hookEventName: 'AfterTool', additionalContext: a.nudge } };
         // Gemini cannot ask before a tool call, so the close question is a message, never a block
         if (event === 'closing' && a.ask)
             return { systemMessage: a.ask };

@@ -1,11 +1,15 @@
 // -- DEP-TYPES -- //
 import type { RequestHandler } from './$types';
+// -- ENVS -- //
+import { AFB_BASE_URL } from '$app/env/private';
 // -- DEP-MODULES -- //
 import { redirect } from '@sveltejs/kit';
 // -- MODULES -- //
 import { getDb } from '#lib/server/db/index.js';
 import { callbackUrl, checkAuthorize } from '#lib/server/oauth/authorize.js';
 import { isOAuthError, issueCode } from '#lib/server/oauth/oauth.js';
+import { canonicalResource, orgSlugFromResource } from '#lib/server/oauth/resource.js';
+import { listMyOrgs } from '#lib/server/orgs/orgs.js';
 
 // -- CONSTANTS -- //
 
@@ -47,9 +51,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				state: checked.request.state
 			})
 		);
-	const orgId = String(data.get('org') ?? '');
+	// A tool started from /mcp/<slug> may only be approved for that org, whatever the form says. Any other resource leaves the choice as before
+	const slug = orgSlugFromResource(raw.get('resource'), AFB_BASE_URL);
+	let orgId = String(data.get('org') ?? '');
+	if (slug) {
+		const mine = (await listMyOrgs(handle, locals.user.id)).find(
+			(o) => o.slug === slug && !o.deletedAt
+		);
+		if (!mine)
+			return back(
+				'The address this tool was given belongs to an organisation you are not in, or one that does not exist.'
+			);
+		orgId = mine.id;
+	}
 	if (!orgId) return back('Choose which organisation to connect.');
 	const code = await issueCode(handle, {
+		resource: slug ? canonicalResource(AFB_BASE_URL, slug) : null,
 		orgId,
 		userId: locals.user.id,
 		clientId: checked.request.clientId,

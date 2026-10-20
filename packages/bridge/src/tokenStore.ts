@@ -24,6 +24,13 @@ const SERVICE = 'agent-flow-board';
 
 // -- FUNCTIONS -- //
 
+/**
+ * The name a sign in is stored under: the server host, plus the organisation when one is chosen, so two organisations on one
+ * board keep separate sign ins. Without an organisation it is the plain host, as before.
+ */
+export const accountKey = (server: string, org?: string) =>
+	org ? `${new URL(server).host}/${org}` : new URL(server).host;
+
 export const configDir = () => process.env.AFB_BRIDGE_HOME ?? join(homedir(), '.agent-flow-board');
 
 function ensureDir(dir: string) {

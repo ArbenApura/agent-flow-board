@@ -6,7 +6,9 @@ import { AFB_BASE_URL } from '$app/env/private';
 // -- DEP-MODULES -- //
 import { fail, redirect } from '@sveltejs/kit';
 // -- MODULES -- //
+import { agentSetupMarkdown } from '#lib/connect/agentSetup.js';
 import { snippets } from '#lib/connect/snippets.js';
+import { orgMcpUrl, toolPrefix } from '#lib/shared/orgConnection.js';
 import { getDb } from '#lib/server/db/index.js';
 import { listConnections, revokeConnection } from '#lib/server/oauth/oauth.js';
 import { capsOf, OpError } from '#lib/server/ops/context.js';
@@ -17,13 +19,15 @@ import { listMyOrgs } from '#lib/server/orgs/orgs.js';
 
 async function personCtx(
 	locals: App.Locals,
-	orgSlug: string | null
+	orgSlug: string | null,
+	strict = false
 ): Promise<{ ctx: Ctx; orgs: Awaited<ReturnType<typeof listMyOrgs>> } | null> {
 	if (!locals.user) return null;
 	const handle = await getDb();
 	// An org scheduled for deletion cannot be connected to
 	const orgs = (await listMyOrgs(handle, locals.user.id)).filter((o) => !o.deletedAt);
-	const org = orgs.find((o) => o.slug === orgSlug) ?? orgs[0];
+	// The page falls back to the first org for a slug it does not know. An action never does: it acts on the org the form names, or on none
+	const org = orgs.find((o) => o.slug === orgSlug) ?? (strict ? undefined : orgs[0]);
 	if (!org) return { ctx: null as never, orgs };
 	return {
 		ctx: {
@@ -42,6 +46,9 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		return {
 			baseUrl: AFB_BASE_URL,
 			snippets: snippets(AFB_BASE_URL),
+			agentSetup: '',
+			ownAddress: '',
+			prefix: '',
 			orgs: [],
 			org: null,
 			connections: [],
@@ -51,7 +58,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const connections = await listConnections(got.ctx);
 	return {
 		baseUrl: AFB_BASE_URL,
-		snippets: snippets(AFB_BASE_URL),
+		// The snippets and the brief use the org that was resolved above, never the raw ?org= value
+		snippets: snippets(AFB_BASE_URL, org.slug),
+		agentSetup: agentSetupMarkdown(AFB_BASE_URL, { slug: org.slug, name: org.name }),
+		ownAddress: orgMcpUrl(AFB_BASE_URL, org.slug),
+		prefix: toolPrefix(org.slug),
 		orgs: got.orgs,
 		org,
 		connections,
@@ -62,7 +73,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 export const actions: Actions = {
 	createToken: async ({ request, locals }) => {
 		const data = await request.formData();
-		const got = await personCtx(locals, String(data.get('org') ?? ''));
+		const got = await personCtx(locals, String(data.get('org') ?? ''), true);
 		if (!got?.ctx) return fail(400, { message: 'Choose an organisation first.' });
 		try {
 			const made = await createToken(got.ctx, {
@@ -87,7 +98,7 @@ export const actions: Actions = {
 	},
 	revoke: async ({ request, locals }) => {
 		const data = await request.formData();
-		const got = await personCtx(locals, String(data.get('org') ?? ''));
+		const got = await personCtx(locals, String(data.get('org') ?? ''), true);
 		if (!got?.ctx) return fail(400, { message: 'Choose an organisation first.' });
 		try {
 			await revokeConnection(got.ctx, String(data.get('id') ?? ''));

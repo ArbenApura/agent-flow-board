@@ -4,9 +4,10 @@
 // -- FUNCTIONS -- //
 
 /** The settings block for one tool, or null for a name that is not known. */
-export function hookSettings(tool: string, server: string): string | null {
+export function hookSettings(tool: string, server: string, org?: string): string | null {
+	// With an organisation the hook reads that organisation's sign in
 	const bin = (adapter: string, event = '') =>
-		`agent-flow-board hook ${adapter}${event ? ` ${event}` : ''} --server ${server}`;
+		`agent-flow-board hook ${adapter}${event ? ` ${event}` : ''} --server ${server}${org ? ` --org ${org}` : ''}`;
 	if (tool === 'claude' || tool === 'claude-code') {
 		const command = (timeout: number) => [{ type: 'command', command: bin('claude'), timeout }];
 		return JSON.stringify(

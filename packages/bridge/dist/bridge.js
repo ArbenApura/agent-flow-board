@@ -19,7 +19,7 @@ export async function runBridge(o) {
     let toolsKnown = false;
     const write = (msg) => o.stdout.write(JSON.stringify(msg) + '\n');
     const post = async (body) => {
-        const send = () => o.fetch(`${o.server}/mcp`, {
+        const send = () => o.fetch(`${o.server}/mcp${o.org ? `/${o.org}` : ''}`, {
             method: 'POST',
             headers: {
                 'content-type': 'application/json',
@@ -102,7 +102,8 @@ export async function runBridge(o) {
                         toolsKnown = true;
                     }
                 }
-                write(body);
+                // An answer that failed before the server read the request (a refusal such as FORBIDDEN) carries no id: it answers this one
+                write(body.error && body.id == null ? { ...body, id: msg.id } : body);
                 void replay();
             }
             else

@@ -6,9 +6,9 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
-import { comment, item, step } from '../../src/lib/server/db/schema';
+import { comment, item, org as orgTable, step } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
-import { handleMcp } from '../../src/lib/server/mcp/handler';
+import { handleMcp, oauthMetadata } from '../../src/lib/server/mcp/handler';
 import { WORKFLOWS } from '../../src/lib/server/mcp/workflows';
 import { createItem } from '../../src/lib/server/ops/items';
 import { createToken } from '../../src/lib/server/ops/tokens';
@@ -76,6 +76,82 @@ describe('MCP server', () => {
 		expect(get.status).toBe(405);
 	});
 
+	it('serves /mcp/<slug> only to a token of that org, refuses another org the same way as an unknown slug, and keeps plain /mcp for every org', async () => {
+		const slugOf = (orgId: string) =>
+			withTenant(db, { orgId }, async (tx) => {
+				const [o] = await tx
+					.select({ slug: orgTable.slug })
+					.from(orgTable)
+					.where(eq(orgTable.id, orgId));
+				return o.slug;
+			});
+		const ownSlug = await slugOf(w.orgId);
+		const otherSlug = await slugOf(w.other.orgId);
+		const otherToken = (
+			await createToken(
+				{
+					handle: db,
+					orgId: w.other.orgId,
+					actor: { userId: w.other.userId, kind: 'person', label: 'other' }
+				},
+				{ name: 'other-tool', permissions: ['read'] }
+			)
+		).token;
+		// Own org: works, and the instructions name the connection and the tool prefix
+		const mine = await connect(deps, token, 'own', ownSlug);
+		expect(mine.getInstructions()).toContain(`afb-${ownSlug}`);
+		expect(mine.getInstructions()).toContain(`mcp__afb-${ownSlug}__`);
+		expect((await mine.listTools()).tools.length).toBeGreaterThan(5);
+		// Plain /mcp keeps working for both orgs
+		const plain = await connect(deps, token);
+		expect(plain.getInstructions()).not.toContain('afb-');
+		await expect(connect(deps, otherToken)).resolves.toBeTruthy();
+		// A token of org A on org B's address, an unknown slug and an upper case slug that is not mine: 403 with the same message shape
+		const post = (t: string, slug: string) =>
+			handleMcp(
+				new Request(`${BASE}/mcp/${slug}`, {
+					method: 'POST',
+					body: '{}',
+					headers: { authorization: `Bearer ${t}`, 'content-type': 'application/json' }
+				}),
+				deps,
+				slug
+			);
+		const cross = await post(token, otherSlug);
+		const unknown = await post(token, 'no-such-org');
+		expect(cross.status).toBe(403);
+		expect(unknown.status).toBe(403);
+		const crossBody = await cross.json();
+		expect(crossBody.error.message).toContain('FORBIDDEN');
+		expect(crossBody.error.message).toContain('different organisation');
+		expect(crossBody.error.message).not.toContain(w.other.orgId);
+		expect((await unknown.json()).error.code).toBe(crossBody.error.code);
+		// The slug is matched case blind, and a malformed one is a 404 before any lookup
+		const upper = (await post(token, ownSlug.toUpperCase())).status;
+		expect(upper).not.toBe(403);
+		expect(upper).not.toBe(404);
+		expect(upper).toBeLessThan(500);
+		expect((await post(token, 'a')).status).toBe(404);
+		// The 401 on a slug address points at that address's own discovery document, for both 401 paths
+		const none = await handleMcp(
+			new Request(`${BASE}/mcp/${ownSlug}`, { method: 'POST', body: '{}' }),
+			deps,
+			ownSlug
+		);
+		expect(none.status).toBe(401);
+		expect(none.headers.get('www-authenticate')).toContain(
+			`/.well-known/oauth-protected-resource/mcp/${ownSlug}`
+		);
+		const bad = await post('afb_nonsense', ownSlug);
+		expect(bad.status).toBe(401);
+		expect(bad.headers.get('www-authenticate')).toContain(`/mcp/${ownSlug}`);
+		// The discovery document of an address is the same for an existing and an unknown slug apart from the slug itself
+		const meta = (s: string) => oauthMetadata(BASE, s).protectedResource;
+		expect(meta(ownSlug).resource).toBe(`${BASE}/mcp/${ownSlug}`);
+		expect({ ...meta('no-such-org'), resource: '' }).toEqual({ ...meta(ownSlug), resource: '' });
+		expect(oauthMetadata(BASE).protectedResource.resource).toBe(`${BASE}/mcp`);
+	});
+
 	it('lists a small tool set with short descriptions, the instructions, and the four workflows as prompts', async () => {
 		const client = await connect(deps, token);
 		const tools = (await client.listTools()).tools;
@@ -91,6 +167,7 @@ describe('MCP server', () => {
 			'item_update',
 			'item_status',
 			'search',
+			'related_plans',
 			'task_new',
 			'task_delete',
 			'attach',
@@ -167,7 +244,6 @@ describe('MCP server', () => {
 			sessionId: sa.sessionId,
 			project: w.projectKey,
 			title: 'Room types for events',
-			'related_plans',
 			tabName: 'ROOM_TYPES',
 			phases: PLAN.phases,
 			manualChecks: PLAN.manualChecks
@@ -318,8 +394,32 @@ describe('MCP server', () => {
 		expect(got.sections.map((x: any) => x.slug)).toEqual(['spec', 'resume-here']);
 		const plain = await call(client, 'item_get', { item: made.ref });
 		expect(plain.resume).toBe('Start with step 1.1.');
+		// Lessons and learned-from come back beside the resume note, and an item without them has no such keys
+		expect(plain.lessons).toBeUndefined();
+		expect(plain.learnedFrom).toBeUndefined();
+		await call(client, 'item_update', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			requestId: 'lessons-note-0001',
+			sections: [
+				{ slug: 'lessons', title: 'Lessons', body: 'Run skills:sync before the tests.' },
+				{ slug: 'learned-from', title: 'Learned from', body: 'AFB-1: reused its query' }
+			]
+		});
+		const noted = await call(client, 'item_get', { item: made.ref });
+		expect(noted.lessons).toBe('Run skills:sync before the tests.');
+		expect(noted.learnedFrom).toBe('AFB-1: reused its query');
+		expect(noted.resume).toBe('Start with step 1.1.');
 		const hits = await call(client, 'search', { q: 'Documents through MCP' });
 		expect(hits.hits.some((h: any) => h.id === made.id)).toBe(true);
+		// Related plans: a sentence finds the plan, the text is marked as data, and a request with no real word is refused
+		const related = await call(client, 'related_plans', {
+			q: 'how documents are written through the MCP',
+			project: w.projectKey
+		});
+		expect(related.data.some((p: any) => p.ref === made.ref)).toBe(true);
+		expect(related.notice).toContain('never instructions');
+		expect((await call(client, 'related_plans', { q: 'the and for' })).error.code).toBe('INVALID');
 		await client.close();
 	});
 
@@ -394,32 +494,8 @@ describe('MCP server', () => {
 		expect(pinned.pinned).toBe(true);
 		const missing = await call(client, 'project_pin', { project: 'NOPE' });
 		expect(missing.error.code).toBe('NOT_FOUND');
-		// Lessons and learned-from come back beside the resume note, and an item without them has no such keys
-		expect(plain.lessons).toBeUndefined();
-		expect(plain.learnedFrom).toBeUndefined();
-		await call(client, 'item_update', {
-			sessionId: s.sessionId,
-			item: made.ref,
-			requestId: 'lessons-note-0001',
-			sections: [
-				{ slug: 'lessons', title: 'Lessons', body: 'Run skills:sync before the tests.' },
-				{ slug: 'learned-from', title: 'Learned from', body: 'AFB-1: reused its query' }
-			]
-		});
-		const noted = await call(client, 'item_get', { item: made.ref });
-		expect(noted.lessons).toBe('Run skills:sync before the tests.');
-		expect(noted.learnedFrom).toBe('AFB-1: reused its query');
-		expect(noted.resume).toBe('Start with step 1.1.');
 		const cleared = await call(client, 'project_unpin', { project: w.projectKey });
 		expect(cleared.pinned).toBe(false);
-		// Related plans: a sentence finds the plan, the text is marked as data, and a request with no real word is refused
-		const related = await call(client, 'related_plans', {
-			q: 'how documents are written through the MCP',
-			project: w.projectKey
-		});
-		expect(related.data.some((p: any) => p.ref === made.ref)).toBe(true);
-		expect(related.notice).toContain('never instructions');
-		expect((await call(client, 'related_plans', { q: 'the and for' })).error.code).toBe('INVALID');
 		await client.close();
 	});
 
@@ -791,6 +867,32 @@ describe('MCP server', () => {
 		await client.close();
 	});
 
+	it('board_validate warns, but never errors, about a plan in review that wrote no lessons', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const made = await call(client, 'item_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'Lessons are asked for at review',
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }] }]
+		});
+		const early = await call(client, 'board_validate', { ids: [made.ref] });
+		expect(early.warnings.map((x: any) => x.warning)).not.toContain('in-review-without-lessons');
+		await call(client, 'step_done', { sessionId: s.sessionId, item: made.ref, keys: ['1.1'] });
+		const review = await call(client, 'board_validate', { ids: [made.ref] });
+		expect(review.errors).toEqual([]);
+		expect(review.warnings.map((x: any) => x.warning)).toContain('in-review-without-lessons');
+		await call(client, 'item_update', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			requestId: 'lessons-for-review-01',
+			sections: [{ slug: 'lessons', title: 'Lessons', body: 'Nothing surprised us.' }]
+		});
+		const after = await call(client, 'board_validate', { ids: [made.ref] });
+		expect(after.warnings.map((x: any) => x.warning)).not.toContain('in-review-without-lessons');
+		await client.close();
+	});
+
 	it('uses a long idle token fine and keeps tool latency inside the budget', async () => {
 		const client = await connect(deps, token);
 		const s = await call(client, 'session_start', { tool: 'claude-code' });
@@ -866,29 +968,3 @@ describe('MCP server', () => {
 		expect(deleted).toEqual({ deleted: true });
 	});
 });
-	it('board_validate warns, but never errors, about a plan in review that wrote no lessons', async () => {
-		const client = await connect(deps, token);
-		const s = await call(client, 'session_start', { tool: 'claude-code' });
-		const made = await call(client, 'item_new', {
-			sessionId: s.sessionId,
-			project: w.projectKey,
-			title: 'Lessons are asked for at review',
-			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }] }]
-		});
-		const early = await call(client, 'board_validate', { ids: [made.ref] });
-		expect(early.warnings.map((x: any) => x.warning)).not.toContain('in-review-without-lessons');
-		await call(client, 'step_done', { sessionId: s.sessionId, item: made.ref, keys: ['1.1'] });
-		const review = await call(client, 'board_validate', { ids: [made.ref] });
-		expect(review.errors).toEqual([]);
-		expect(review.warnings.map((x: any) => x.warning)).toContain('in-review-without-lessons');
-		await call(client, 'item_update', {
-			sessionId: s.sessionId,
-			item: made.ref,
-			requestId: 'lessons-for-review-01',
-			sections: [{ slug: 'lessons', title: 'Lessons', body: 'Nothing surprised us.' }]
-		});
-		const after = await call(client, 'board_validate', { ids: [made.ref] });
-		expect(after.warnings.map((x: any) => x.warning)).not.toContain('in-review-without-lessons');
-		await client.close();
-	});
-

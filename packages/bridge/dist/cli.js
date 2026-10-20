@@ -1,21 +1,25 @@
 #!/usr/bin/env node
-// agent-flow-board mcp --server <url>   forward MCP over stdio to the server
-// agent-flow-board login --server <url> sign in by device code
-// agent-flow-board logout --server <url>
+// agent-flow-board mcp --server <url> [--org <slug>]   forward MCP over stdio to the server (to /mcp/<slug> with --org)
+// agent-flow-board login --server <url> [--org <slug>] sign in by device code
+// agent-flow-board logout --server <url> [--org <slug>]
+// agent-flow-board skills [--dir <repo>] [--project KEY] [--org SLUG] [--check] [--force]   write the board's skills as files
 // agent-flow-board queue list | retry <id> | drop <id>
 // agent-flow-board hook claude|antigravity|gemini [event]   one hook event from stdin, one JSON object to stdout
-// agent-flow-board hooks print claude|antigravity|gemini    the settings to paste into the tool
+// agent-flow-board hooks print claude|antigravity|gemini [--org <slug>]   the settings to paste into the tool
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
 // -- DEP-MODULES -- //
-import { join } from 'node:path';
+import { mkdirSync, readFileSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { runBridge } from './bridge.js';
 import { ADAPTERS, runHook } from './hooks/adapters.js';
 import { callHook } from './hooks/call.js';
 import { checkCommit, installGitHook, lastCommitMessage, uninstallGitHook } from './hooks/gitHook.js';
 import { hookSettings } from './hooks/settings.js';
 import { deviceLogin } from './device.js';
+import { fetchSkills } from './skills/fetch.js';
+import { MANIFEST_PATH, manifestText, parseManifest, planSkills } from './skills/materialize.js';
 import { Queue } from './queue.js';
-import { configDir, pickStore } from './tokenStore.js';
+import { accountKey, configDir, pickStore } from './tokenStore.js';
 // -- FUNCTIONS -- //
 const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
@@ -29,7 +33,29 @@ function serverUrl() {
     }
     return s.replace(/\/$/, '');
 }
+/** An organisation slug as the app writes it. Anything else is ignored by a hook and refused by the other commands. */
+const ORG_SLUG = /^[a-z0-9][a-z0-9-]{1,38}$/;
+/** The organisation this run is for (--org), or undefined for the plain server sign in as before. */
+function orgFlag(strict = true) {
+    const o = flag('--org');
+    if (o === undefined)
+        return undefined;
+    if (ORG_SLUG.test(o))
+        return o;
+    if (strict) {
+        log('--org takes an organisation slug: lowercase letters, digits and dashes.');
+        process.exit(2);
+    }
+    return undefined;
+}
 const store = pickStore();
+/**
+ * The saved sign in for a server and organisation. Only the MCP bridge (legacy true) also tries an older sign in saved under the plain
+ * host, because /mcp/<slug> answers 403 if it is the wrong organisation. Hooks and skills have no such check, so they never borrow it.
+ */
+const tokenFor = (server, org, legacy = false) => process.env.AFB_TOKEN ??
+    store.get(accountKey(server, org)) ??
+    (org && legacy ? store.get(accountKey(server)) : null);
 const queue = new Queue(join(configDir(), 'queue.json'));
 const fetchImpl = (input, init) => fetch(input, init);
 async function readStdin() {
@@ -44,6 +70,26 @@ async function readStdin() {
         return {};
     }
 }
+/** Asks the organisation's own address whether this sign in belongs to it. Only a 403 means another organisation. */
+async function belongsToOrg(server, org, token) {
+    try {
+        const res = await fetchImpl(`${server}/mcp/${org}`, {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                accept: 'application/json, text/event-stream',
+                authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' })
+        });
+        // Only a refusal means another organisation, or no valid sign in
+        return res.status !== 403 && res.status !== 401;
+    }
+    catch {
+        // The board cannot be reached right now: keep the sign in, the first call checks again
+        return true;
+    }
+}
 async function main() {
     if (cmd === 'hook') {
         // A hook prints exactly one JSON object and always exits 0, so it can never break the tool that runs it
@@ -52,7 +98,7 @@ async function main() {
             const adapter = ADAPTERS[args[1] ?? ''];
             const server = (flag('--server') ?? process.env.AFB_SERVER ?? '').replace(/\/$/, '');
             if (adapter && server) {
-                const token = process.env.AFB_TOKEN ?? store.get(new URL(server).host);
+                const token = tokenFor(server, orgFlag(false));
                 out = await runHook(adapter, args[2] ?? '', await readStdin(), (event) => callHook({ server, token, fetch: fetchImpl }, event));
             }
         }
@@ -92,6 +138,74 @@ async function main() {
         }
         return;
     }
+    // The board's skills as files. It reads the same routes a browser does, so a bridge update is not needed for a new skill
+    if (cmd === 'skills') {
+        const server = serverUrl();
+        const token = tokenFor(server, orgFlag());
+        if (!token) {
+            log('Sign in first: agent-flow-board login --server <url>.');
+            process.exit(2);
+        }
+        const dir = flag('--dir') ?? process.cwd();
+        const read = (path) => {
+            try {
+                return readFileSync(join(dir, path), 'utf8');
+            }
+            catch {
+                return null;
+            }
+        };
+        const remote = await fetchSkills({
+            server,
+            token,
+            fetch: fetchImpl,
+            org: flag('--org'),
+            project: flag('--project')
+        });
+        const plan = planSkills(remote, parseManifest(read(MANIFEST_PATH)), read, {
+            force: args.includes('--force')
+        });
+        const changed = plan.files.filter((f) => f.action !== 'unchanged');
+        if (args.includes('--check')) {
+            for (const f of changed)
+                log(`${f.action.padEnd(7)} ${f.path}`);
+            log(changed.length
+                ? `${changed.length} skill files are out of date.`
+                : 'Every skill file is up to date.');
+            process.exit(changed.length ? 1 : 0);
+        }
+        for (const f of plan.files) {
+            if (f.action === 'unchanged' || f.action === 'drift')
+                continue;
+            const path = join(dir, f.path);
+            if (f.action === 'remove') {
+                rmSync(path, { force: true });
+                // The folders it sat in go too, up to the skill's own folder, while nothing else is in them
+                for (let up = dirname(f.path); up.split('/').length >= 3; up = dirname(up)) {
+                    try {
+                        rmdirSync(join(dir, up));
+                    }
+                    catch {
+                        /* Another file is still there */
+                        break;
+                    }
+                }
+                continue;
+            }
+            mkdirSync(dirname(path), { recursive: true });
+            writeFileSync(path, f.text ?? '');
+        }
+        mkdirSync(dirname(join(dir, MANIFEST_PATH)), { recursive: true });
+        writeFileSync(join(dir, MANIFEST_PATH), manifestText(plan.manifest));
+        for (const f of plan.files)
+            log(`${f.action.padEnd(9)} ${f.path}`);
+        const drift = plan.files.filter((f) => f.action === 'drift');
+        if (drift.length)
+            log(`${drift.length} skill file${drift.length === 1 ? ' was' : 's were'} changed by hand and left alone. Run again with --force to replace ${drift.length === 1 ? 'it' : 'them'}.`);
+        // Written down rather than hidden: Codex has no skill file adapter yet
+        log('Codex has no skill file yet: use the skill_get tool over MCP there.');
+        return;
+    }
     if (cmd === 'queue') {
         const sub = args[1];
         if (sub === 'retry' && args[2])
@@ -104,7 +218,12 @@ async function main() {
         return;
     }
     if (cmd === 'logout') {
-        store.delete(new URL(serverUrl()).host);
+        const server = serverUrl();
+        const org = orgFlag();
+        store.delete(accountKey(server, org));
+        // An older sign in under the plain host may be what this organisation was using, so it goes too
+        if (org)
+            store.delete(accountKey(server));
         log('Signed out.');
         return;
     }
@@ -113,9 +232,14 @@ async function main() {
         process.exit(2);
     }
     const server = serverUrl();
-    const account = new URL(server).host;
+    const org = orgFlag();
+    const account = accountKey(server, org);
     const login = async () => {
         const r = await deviceLogin(server, fetchImpl, log);
+        // The device approval lets the person choose the organisation, so it is checked against the one asked for before it is kept
+        if (org && !(await belongsToOrg(server, org, r.token))) {
+            throw new Error(`That sign in is for a different organisation than ${org}. It was not saved. Run the sign in again and choose ${org} when the approval page asks.`);
+        }
         store.set(account, r.token);
         log('Signed in.');
         return r.token;
@@ -126,8 +250,9 @@ async function main() {
     }
     await runBridge({
         server,
+        org,
         fetch: fetchImpl,
-        getToken: () => store.get(account),
+        getToken: () => tokenFor(server, org, true),
         login,
         queue,
         stdin: process.stdin,

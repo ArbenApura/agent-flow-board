@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// agent-flow-board mcp --server <url>   forward MCP over stdio to the server
-// agent-flow-board login --server <url> sign in by device code
-// agent-flow-board logout --server <url>
+// agent-flow-board mcp --server <url> [--org <slug>]   forward MCP over stdio to the server (to /mcp/<slug> with --org)
+// agent-flow-board login --server <url> [--org <slug>] sign in by device code
+// agent-flow-board logout --server <url> [--org <slug>]
 // agent-flow-board skills [--dir <repo>] [--project KEY] [--org SLUG] [--check] [--force]   write the board's skills as files
 // agent-flow-board queue list | retry <id> | drop <id>
 // agent-flow-board hook claude|antigravity|gemini [event]   one hook event from stdin, one JSON object to stdout
-// agent-flow-board hooks print claude|antigravity|gemini    the settings to paste into the tool
+// agent-flow-board hooks print claude|antigravity|gemini [--org <slug>]   the settings to paste into the tool
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
 
 // -- DEP-MODULES -- //
@@ -25,7 +25,7 @@ import { deviceLogin, type Fetch } from './device.js';
 import { fetchSkills } from './skills/fetch.js';
 import { MANIFEST_PATH, manifestText, parseManifest, planSkills } from './skills/materialize.js';
 import { Queue } from './queue.js';
-import { configDir, pickStore } from './tokenStore.js';
+import { accountKey, configDir, pickStore } from './tokenStore.js';
 
 // -- FUNCTIONS -- //
 
@@ -43,7 +43,30 @@ function serverUrl(): string {
 	return s.replace(/\/$/, '');
 }
 
+/** An organisation slug as the app writes it. Anything else is ignored by a hook and refused by the other commands. */
+const ORG_SLUG = /^[a-z0-9][a-z0-9-]{1,38}$/;
+
+/** The organisation this run is for (--org), or undefined for the plain server sign in as before. */
+function orgFlag(strict = true): string | undefined {
+	const o = flag('--org');
+	if (o === undefined) return undefined;
+	if (ORG_SLUG.test(o)) return o;
+	if (strict) {
+		log('--org takes an organisation slug: lowercase letters, digits and dashes.');
+		process.exit(2);
+	}
+	return undefined;
+}
+
 const store = pickStore();
+/**
+ * The saved sign in for a server and organisation. Only the MCP bridge (legacy true) also tries an older sign in saved under the plain
+ * host, because /mcp/<slug> answers 403 if it is the wrong organisation. Hooks and skills have no such check, so they never borrow it.
+ */
+const tokenFor = (server: string, org?: string, legacy = false): string | null =>
+	process.env.AFB_TOKEN ??
+	store.get(accountKey(server, org)) ??
+	(org && legacy ? store.get(accountKey(server)) : null);
 const queue = new Queue(join(configDir(), 'queue.json'));
 const fetchImpl: Fetch = (input, init) => fetch(input, init);
 
@@ -58,6 +81,26 @@ async function readStdin(): Promise<Record<string, unknown>> {
 	}
 }
 
+/** Asks the organisation's own address whether this sign in belongs to it. Only a 403 means another organisation. */
+async function belongsToOrg(server: string, org: string, token: string): Promise<boolean> {
+	try {
+		const res = await fetchImpl(`${server}/mcp/${org}`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				accept: 'application/json, text/event-stream',
+				authorization: `Bearer ${token}`
+			},
+			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' })
+		});
+		// Only a refusal means another organisation, or no valid sign in
+		return res.status !== 403 && res.status !== 401;
+	} catch {
+		// The board cannot be reached right now: keep the sign in, the first call checks again
+		return true;
+	}
+}
+
 async function main() {
 	if (cmd === 'hook') {
 		// A hook prints exactly one JSON object and always exits 0, so it can never break the tool that runs it
@@ -66,7 +109,7 @@ async function main() {
 			const adapter = ADAPTERS[args[1] ?? ''];
 			const server = (flag('--server') ?? process.env.AFB_SERVER ?? '').replace(/\/$/, '');
 			if (adapter && server) {
-				const token = process.env.AFB_TOKEN ?? store.get(new URL(server).host);
+				const token = tokenFor(server, orgFlag(false));
 				out = await runHook(adapter, args[2] ?? '', await readStdin(), (event) =>
 					callHook({ server, token, fetch: fetchImpl }, event)
 				);
@@ -106,7 +149,7 @@ async function main() {
 	// The board's skills as files. It reads the same routes a browser does, so a bridge update is not needed for a new skill
 	if (cmd === 'skills') {
 		const server = serverUrl();
-		const token = process.env.AFB_TOKEN ?? store.get(new URL(server).host);
+		const token = tokenFor(server, orgFlag());
 		if (!token) {
 			log('Sign in first: agent-flow-board login --server <url>.');
 			process.exit(2);
@@ -184,7 +227,11 @@ async function main() {
 		return;
 	}
 	if (cmd === 'logout') {
-		store.delete(new URL(serverUrl()).host);
+		const server = serverUrl();
+		const org = orgFlag();
+		store.delete(accountKey(server, org));
+		// An older sign in under the plain host may be what this organisation was using, so it goes too
+		if (org) store.delete(accountKey(server));
 		log('Signed out.');
 		return;
 	}
@@ -195,9 +242,16 @@ async function main() {
 		process.exit(2);
 	}
 	const server = serverUrl();
-	const account = new URL(server).host;
+	const org = orgFlag();
+	const account = accountKey(server, org);
 	const login = async () => {
 		const r = await deviceLogin(server, fetchImpl, log);
+		// The device approval lets the person choose the organisation, so it is checked against the one asked for before it is kept
+		if (org && !(await belongsToOrg(server, org, r.token))) {
+			throw new Error(
+				`That sign in is for a different organisation than ${org}. It was not saved. Run the sign in again and choose ${org} when the approval page asks.`
+			);
+		}
 		store.set(account, r.token);
 		log('Signed in.');
 		return r.token;
@@ -208,8 +262,9 @@ async function main() {
 	}
 	await runBridge({
 		server,
+		org,
 		fetch: fetchImpl,
-		getToken: () => store.get(account),
+		getToken: () => tokenFor(server, org, true),
 		login,
 		queue,
 		stdin: process.stdin,

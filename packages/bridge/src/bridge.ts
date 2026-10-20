@@ -13,6 +13,8 @@ import { createInterface } from 'node:readline';
 
 export type BridgeOptions = {
 	server: string;
+	/** The organisation slug: the bridge then talks to /mcp/<slug> instead of the plain /mcp. */
+	org?: string;
 	fetch: Fetch;
 	/** The stored token, or null when none is saved. */
 	getToken(): string | null;
@@ -59,7 +61,7 @@ export async function runBridge(o: BridgeOptions): Promise<void> {
 	const write = (msg: Rpc) => o.stdout.write(JSON.stringify(msg) + '\n');
 	const post = async (body: unknown): Promise<Response> => {
 		const send = () =>
-			o.fetch(`${o.server}/mcp`, {
+			o.fetch(`${o.server}/mcp${o.org ? `/${o.org}` : ''}`, {
 				method: 'POST',
 				headers: {
 					'content-type': 'application/json',
@@ -149,7 +151,8 @@ export async function runBridge(o: BridgeOptions): Promise<void> {
 						toolsKnown = true;
 					}
 				}
-				write(body);
+				// An answer that failed before the server read the request (a refusal such as FORBIDDEN) carries no id: it answers this one
+				write(body.error && body.id == null ? { ...body, id: msg.id } : body);
 				void replay();
 			} else
 				write({

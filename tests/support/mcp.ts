@@ -11,13 +11,21 @@ import type { McpDeps } from '../../src/lib/server/mcp/tools';
 // -- FUNCTIONS -- //
 
 /** Connects a client that sends every request straight into handleMcp with the given bearer token. */
-export async function connect(deps: McpDeps, token: string, name = 'test-client') {
+export async function connect(
+	deps: McpDeps,
+	token: string,
+	name = 'test-client',
+	orgSlug?: string
+) {
 	const fetchImpl = (input: RequestInfo | URL, init?: RequestInit) =>
-		handleMcp(new Request(input as string, init), deps);
-	const transport = new StreamableHTTPClientTransport(new URL(`${deps.baseUrl}/mcp`), {
-		requestInit: { headers: { authorization: `Bearer ${token}` } },
-		fetch: fetchImpl as typeof fetch
-	});
+		handleMcp(new Request(input as string, init), deps, orgSlug);
+	const transport = new StreamableHTTPClientTransport(
+		new URL(`${deps.baseUrl}/mcp${orgSlug ? `/${orgSlug}` : ''}`),
+		{
+			requestInit: { headers: { authorization: `Bearer ${token}` } },
+			fetch: fetchImpl as typeof fetch
+		}
+	);
 	const client = new Client({ name, version: '1.0.0' });
 	await client.connect(transport);
 	return client;

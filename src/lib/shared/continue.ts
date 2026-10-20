@@ -162,7 +162,7 @@ export function slashCommand(action: ContinueAction, ref: string): string | null
 /** The same request in plain words, for a tool that has no MCP prompts. It names the workflow, so the tool reads and follows it. */
 function plainPrompt(action: ContinueAction, ref: string): string {
 	const workflow = WORKFLOW[action];
-	const start = `Use the ${SERVER} connection: call session_start, then work_start for ${ref}, read the workflow with workflow_get ${workflow}`;
+	const start = `Use your Agent Flow Board connection, named afb-ORG-SLUG or ${SERVER} if you connected before: call session_start, then work_start for ${ref}, read the workflow with workflow_get ${workflow}`;
 	switch (action) {
 		case 'resume':
 			return `Continue ${ref} in ${SERVER} with its flow workflow. ${start}, take the next open step, build it and record each finished step with step_done.`;

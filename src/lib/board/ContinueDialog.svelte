@@ -162,7 +162,7 @@
 			? shownCreate?.kind === 'task'
 				? 'Your tool writes the task through the /flow-task skill, so its rules stay in one place.'
 				: 'Every change still goes through the /flow skill, so its rules stay in one place.'
-			: 'The tool reads the workflow through your agent-flow-board connection, so its work is tracked here.'
+			: 'The tool reads the workflow through your Agent Flow Board connection (afb-<organisation>), so its work is tracked here.'
 	);
 
 	// -- REACTIVE STATEMENTS -- //

@@ -17,7 +17,7 @@ import { makeWorld, type World } from '../../../tests/support/ops';
 import { runBridge } from './bridge';
 import { deviceLogin, type Fetch } from './device';
 import { Queue } from './queue';
-import { fileStore, windowsStore } from './tokenStore';
+import { accountKey, fileStore, windowsStore } from './tokenStore';
 
 // -- CONSTANTS -- //
 
@@ -40,7 +40,9 @@ describe('bridge', () => {
 		(state: { offline?: boolean; protocol?: string } = {}): Fetch =>
 		async (input, init) => {
 			if (state.offline) throw new TypeError('fetch failed');
-			const res = await handleMcp(new Request(input, init), deps());
+			// The address /mcp/<slug> names the organisation, as the real route does
+			const slug = /\/mcp\/([^/?]+)/.exec(String(input))?.[1];
+			const res = await handleMcp(new Request(input, init), deps(), slug);
 			if (!state.protocol) return res;
 			const h = new Headers(res.headers);
 			h.set('x-afb-protocol', state.protocol);
@@ -69,6 +71,7 @@ describe('bridge', () => {
 		token?: string | null;
 		login?: () => Promise<string>;
 		queue?: Queue;
+		org?: string;
 	}) {
 		const stdin = new PassThrough();
 		const stdout = new PassThrough();
@@ -87,6 +90,7 @@ describe('bridge', () => {
 			options.queue ?? new Queue(join(dir, `queue-${Math.random().toString(36).slice(2)}.json`));
 		const done = runBridge({
 			server: BASE,
+			org: options.org,
 			fetch: options.fetch,
 			getToken: () => (options.token === undefined ? token : options.token),
 			login: options.login ?? (async () => token),
@@ -155,6 +159,50 @@ describe('bridge', () => {
 		expect(made.out.ref).toMatch(/^WRL/);
 		expect(b.logs).toEqual([]);
 		await b.end();
+	});
+
+	it('with an organisation it talks to /mcp/<slug>, and another organisation is refused without a login loop', async () => {
+		const [{ slug }] = await db.admin.query<{ slug: string }>(
+			`select slug from org where id = '${w.orgId}'`
+		);
+		const own = start({ fetch: shim(), org: slug });
+		const hello = await own.rpc('initialize', {
+			protocolVersion: '2025-06-18',
+			capabilities: {},
+			clientInfo: { name: 'bridge-test', version: '1' }
+		});
+		expect(hello.result.instructions).toContain(`afb-${slug}`);
+		await own.end();
+		let logins = 0;
+		const wrong = start({
+			fetch: shim(),
+			org: 'some-other-org',
+			login: async () => (logins++, token)
+		});
+		const refused = await wrong.rpc('initialize', {
+			protocolVersion: '2025-06-18',
+			capabilities: {},
+			clientInfo: { name: 'bridge-test', version: '1' }
+		});
+		expect(refused.error.message).toContain('FORBIDDEN');
+		expect(logins).toBe(0);
+		await wrong.end();
+	});
+
+	it('keeps a sign in per server and organisation, and the plain host key when no organisation is given', () => {
+		expect(accountKey('https://board.example.com')).toBe('board.example.com');
+		expect(accountKey('https://board.example.com', 'arbenger')).toBe('board.example.com/arbenger');
+		expect(accountKey('https://board.example.com', 'arbenger')).not.toBe(
+			accountKey('https://board.example.com', 'mangoman')
+		);
+		const store = fileStore(mkdtempSync(join(dir, 'keys-')));
+		store.set(accountKey('https://board.example.com', 'arbenger'), 'a');
+		store.set(accountKey('https://board.example.com', 'mangoman'), 'b');
+		expect(store.get(accountKey('https://board.example.com', 'arbenger'))).toBe('a');
+		expect(store.get(accountKey('https://board.example.com', 'mangoman'))).toBe('b');
+		store.delete(accountKey('https://board.example.com', 'arbenger'));
+		expect(store.get(accountKey('https://board.example.com', 'arbenger'))).toBeNull();
+		expect(store.get(accountKey('https://board.example.com', 'mangoman'))).toBe('b');
 	});
 
 	it('warns once when the server speaks a newer protocol than the bridge', async () => {

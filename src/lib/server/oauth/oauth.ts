@@ -183,6 +183,8 @@ export async function issueCode(
 		redirectUri: string;
 		challenge: string;
 		scopes: Capability[];
+		/** The canonical MCP address of the org the approval was for, when the tool started from /mcp/<slug>. */
+		resource?: string | null;
 	}
 ): Promise<string | OAuthError> {
 	const client = await getClient(handle, input.clientId);
@@ -210,6 +212,7 @@ export async function issueCode(
 			redirectUri: input.redirectUri,
 			codeChallenge: input.challenge,
 			scopes,
+			resource: input.resource ?? null,
 			expiresAt: new Date(Date.now() + CODE_SECONDS * 1000)
 		})
 	);
@@ -297,7 +300,13 @@ export async function exchangeCode(
 			.where(eq(oauthCode.id, row.id));
 		const [grant] = await tx
 			.insert(oauthGrant)
-			.values({ orgId, userId: row.userId, clientId: row.clientId, scopes: row.scopes })
+			.values({
+				orgId,
+				userId: row.userId,
+				clientId: row.clientId,
+				scopes: row.scopes,
+				resource: row.resource
+			})
 			.returning();
 		return issueTokens(tx, {
 			orgId,
@@ -567,7 +576,11 @@ export async function listConnections(ctx: Ctx) {
 		const grantIds = rows.map((r) => r.grantId).filter((g): g is string => !!g);
 		const grants = grantIds.length
 			? await tx
-					.select({ id: oauthGrant.id, clientId: oauthGrant.clientId })
+					.select({
+						id: oauthGrant.id,
+						clientId: oauthGrant.clientId,
+						resource: oauthGrant.resource
+					})
 					.from(oauthGrant)
 					.where(inArray(oauthGrant.id, grantIds))
 			: [];
@@ -583,7 +596,9 @@ export async function listConnections(ctx: Ctx) {
 			return {
 				...r,
 				verified: c?.verified ?? null,
-				redirectHosts: c?.redirectUris.map(redirectHost) ?? []
+				redirectHosts: c?.redirectUris.map(redirectHost) ?? [],
+				/** The address the tool was approved for. Null for an older sign in (it used the plain /mcp) and for tokens and device sign ins. */
+				resource: g?.resource ?? null
 			};
 		});
 	});

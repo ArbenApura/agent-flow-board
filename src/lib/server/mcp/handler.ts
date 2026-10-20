@@ -5,8 +5,12 @@
 // -- DEP-MODULES -- //
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
+import { connectionName, isOrgSlug, orgMcpUrl, toolPrefix } from '../../shared/orgConnection';
+import { org } from '../db/schema';
+import { withTenant } from '../db/tenant';
 import { authenticateToken } from '../ops/tokens';
 import {
 	REPO_OVERRIDE_NOTE,
@@ -25,37 +29,69 @@ export const MCP_PROTOCOL_VERSION = 1;
 
 // -- FUNCTIONS -- //
 
-const challenge = (baseUrl: string) =>
-	`Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`;
+/** The discovery document a client reads after a 401. An org address has its own, with the slug inserted after the well known part (RFC 9728). */
+const challenge = (baseUrl: string, orgSlug?: string) =>
+	`Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource${orgSlug ? `/mcp/${orgSlug}` : ''}"`;
 
-function unauthorized(baseUrl: string, message: string): Response {
+function unauthorized(baseUrl: string, message: string, orgSlug?: string): Response {
 	return new Response(
 		JSON.stringify({ jsonrpc: '2.0', error: { code: -32001, message }, id: null }),
 		{
 			status: 401,
 			headers: {
 				'content-type': 'application/json',
-				'www-authenticate': challenge(baseUrl),
+				'www-authenticate': challenge(baseUrl, orgSlug),
 				'cache-control': 'no-store'
 			}
 		}
 	);
 }
 
-/** Handles one MCP request. Returns 401 with the OAuth discovery hint when there is no valid token. */
-export async function handleMcp(request: Request, deps: McpDeps): Promise<Response> {
+const jsonError = (status: number, code: number, message: string) =>
+	new Response(JSON.stringify({ jsonrpc: '2.0', error: { code, message }, id: null }), {
+		status,
+		headers: { 'content-type': 'application/json', 'cache-control': 'no-store' }
+	});
+
+/**
+ * Handles one MCP request. Returns 401 with the OAuth discovery hint when there is no valid token. With an org slug (the
+ * /mcp/<slug> address) the token must belong to that org: the address only adds a check, it never widens access.
+ */
+export async function handleMcp(
+	request: Request,
+	deps: McpDeps,
+	orgSlugRaw?: string
+): Promise<Response> {
+	const orgSlug = orgSlugRaw?.toLowerCase();
+	if (orgSlug !== undefined && !isOrgSlug(orgSlug))
+		return jsonError(404, -32004, 'There is no such address.');
 	const bearer = /^Bearer\s+(\S+)$/i.exec(request.headers.get('authorization') ?? '')?.[1];
 	if (!bearer)
 		return unauthorized(
 			deps.baseUrl,
-			'Sign in with OAuth, a device code or a personal access token.'
+			'Sign in with OAuth, a device code or a personal access token.',
+			orgSlug
 		);
 	const auth = await authenticateToken(deps.handle, bearer);
 	if (!auth)
 		return unauthorized(
 			deps.baseUrl,
-			'The token is not valid. It may have expired or been revoked.'
+			'The token is not valid. It may have expired or been revoked.',
+			orgSlug
 		);
+	if (orgSlug) {
+		// The slug of the token's own org is compared, the URL slug is never looked up: a wrong org and an unknown slug answer the same
+		const own = await withTenant(deps.handle, { orgId: auth.orgId }, async (tx) => {
+			const [o] = await tx.select({ slug: org.slug }).from(org).where(eq(org.id, auth.orgId));
+			return o?.slug ?? null;
+		});
+		if (own !== orgSlug)
+			return jsonError(
+				403,
+				-32003,
+				`FORBIDDEN: this sign in belongs to a different organisation than the address ${orgMcpUrl(deps.baseUrl, orgSlug)}. Connect again from Connect a tool, with the organisation you want selected.`
+			);
+	}
 	// A stateless endpoint has no event stream to resume, so only POST is served
 	if (request.method !== 'POST') {
 		return new Response(
@@ -65,7 +101,12 @@ export async function handleMcp(request: Request, deps: McpDeps): Promise<Respon
 	}
 	const server = new McpServer(
 		{ name: 'agent-flow-board', version: String(MCP_PROTOCOL_VERSION) },
-		{ instructions: SERVER_INSTRUCTIONS }
+		{
+			// The server name above stays one technical id; the connection name is what the person registered in their tool
+			instructions: orgSlug
+				? `${SERVER_INSTRUCTIONS}\n\nThis connection is ${connectionName(orgSlug)}, for the organisation ${orgSlug}. Its tools are named ${toolPrefix(orgSlug)}<tool>, so rules and permission lists that name tools must use that prefix.`
+				: SERVER_INSTRUCTIONS
+		}
 	);
 	const builder = registerTools(server, deps, auth);
 	registerCompat(builder);
@@ -139,10 +180,10 @@ export async function handleMcp(request: Request, deps: McpDeps): Promise<Respon
 }
 
 /** The two OAuth discovery documents MCP clients read first (RFC 9728 and RFC 8414). */
-export function oauthMetadata(baseUrl: string) {
+export function oauthMetadata(baseUrl: string, orgSlug?: string) {
 	return {
 		protectedResource: {
-			resource: `${baseUrl}/mcp`,
+			resource: orgSlug ? orgMcpUrl(baseUrl, orgSlug) : `${baseUrl}/mcp`,
 			authorization_servers: [baseUrl],
 			bearer_methods_supported: ['header'],
 			scopes_supported: ['read', 'comment', 'write', 'complete', 'delete', 'manage']

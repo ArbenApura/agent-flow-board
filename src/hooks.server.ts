@@ -16,7 +16,11 @@ import { MODE_COOKIE, SYSTEM_MODE_SCRIPT, parseMode, serverMode } from '#lib/the
 // -- FUNCTIONS -- //
 
 /** Paths called by tools and scripts, which send no Origin header. They authenticate with tokens, never with the cookie, so CSRF does not apply. */
-const NO_ORIGIN_CHECK = [/^\/oauth\/(token|register|device\/code)$/, /^\/api\/v1\//, /^\/mcp$/];
+const NO_ORIGIN_CHECK = [
+	/^\/oauth\/(token|register|device\/code)$/,
+	/^\/api\/v1\//,
+	/^\/mcp(\/[a-z0-9-]+)?$/i
+];
 const FORM_TYPES = ['application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain'];
 
 /**

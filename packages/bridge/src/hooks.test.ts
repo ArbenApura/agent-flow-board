@@ -88,6 +88,20 @@ describe('the Claude Code adapter', () => {
 		expect(close({ item: 'CKT-1', status: 'COMPLETED', dryRun: true })).toBeNull();
 		expect(close({ status: 'COMPLETED' })).toBeNull();
 		expect(close({ item: 'CKT-1', status: 'COMPLETED' }, 'mcp__other__item_status')).toBeNull();
+		// A per organisation connection (afb-<org-slug>) is the board too, or the hooks would fail open
+		expect(
+			close({ item: 'CKT-1', status: 'COMPLETED' }, 'mcp__afb-acme__item_status')
+		).toMatchObject({
+			event: 'closing'
+		});
+		expect(
+			claude.toEvent('', {
+				hook_event_name: 'PostToolUse',
+				session_id: sid,
+				tool_name: 'mcp__afb-acme__step_done'
+			})
+		).toMatchObject({ action: { kind: 'board', name: 'step_done' } });
+		expect(close({ item: 'CKT-1', status: 'COMPLETED' }, 'mcp__nafb-x__item_status')).toBeNull();
 		expect(claude.toEvent('', { hook_event_name: 'PostToolUse' })).toBeNull();
 		// Answers
 		expect(claude.toOutput('start', { context: 'brief', title: 'T: CKT-1' })).toEqual({
@@ -153,6 +167,13 @@ describe('the Antigravity adapter', () => {
 		expect(tool('call_mcp_tool', { ServerName: 'other', ToolName: 'x' })).toMatchObject({
 			action: { kind: 'read' }
 		});
+		// A per organisation connection (afb-<org-slug>) is the board too, and a look-alike is not
+		expect(
+			tool('call_mcp_tool', { ServerName: 'afb-acme', ToolName: 'step_done', Arguments: {} })
+		).toMatchObject({ action: { kind: 'board', name: 'step_done' } });
+		expect(tool('call_mcp_tool', { ServerName: 'nafb-x', ToolName: 'x' })).toMatchObject({
+			action: { kind: 'read' }
+		});
 		expect(tool('view_file', { AbsolutePath: 'src/a.ts' })).toMatchObject({
 			action: { kind: 'read' }
 		});
@@ -216,6 +237,23 @@ describe('the Gemini CLI adapter', () => {
 				tool_input: { item: 'CKT-1', status: 'COMPLETED' }
 			})
 		).toMatchObject({ event: 'closing' });
+		// Under a per organisation connection name the closing guard still sees the board's tool
+		expect(
+			gemini.toEvent('', {
+				hook_event_name: 'BeforeTool',
+				session_id: sid,
+				tool_name: 'mcp_afb-acme_item_status',
+				tool_input: { item: 'CKT-1', status: 'COMPLETED' }
+			})
+		).toMatchObject({ event: 'closing' });
+		expect(
+			gemini.toEvent('', {
+				hook_event_name: 'BeforeTool',
+				session_id: sid,
+				tool_name: 'mcp_nafb-x_item_status',
+				tool_input: { item: 'CKT-1', status: 'COMPLETED' }
+			})
+		).toBeNull();
 		expect(gemini.toOutput('start', { context: 'brief' })).toEqual({
 			hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: 'brief' }
 		});
@@ -404,6 +442,14 @@ describe('the printed settings', () => {
 		const geminiHooks = JSON.parse(hookSettings('gemini', 'https://b.example.com')!).hooks;
 		expect(Object.keys(geminiHooks)).toEqual(expect.arrayContaining(['AfterTool', 'AfterAgent']));
 		expect(hookSettings('nothing', 'https://b.example.com')).toBeNull();
+	});
+	it('carries the organisation into every hook command when one is given, and nothing extra otherwise', () => {
+		for (const tool of ['claude', 'antigravity', 'gemini']) {
+			expect(hookSettings(tool, 'https://b.example.com', 'arbenger')!, tool).toContain(
+				'--server https://b.example.com --org arbenger'
+			);
+			expect(hookSettings(tool, 'https://b.example.com')!, tool).not.toContain('--org');
+		}
 	});
 });
 

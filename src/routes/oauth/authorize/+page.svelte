@@ -108,14 +108,23 @@
 					/>{/each}
 				<input type="hidden" name="org" value={org?.id ?? ''} />
 				<input type="hidden" name="decision" value="approve" />
-				<SelectField
-					label="Organisation"
-					options={data.orgs.map((o) => ({
-						value: o.id,
-						label: `${o.name} (${ROLE_LABEL[o.role]})`
-					}))}
-					bind:value={orgId}
-				/>
+				{#if data.locked && org}
+					<!-- THE ADDRESS NAMES ONE ORGANISATION, SO THERE IS NOTHING TO PICK -->
+					<p class="text-sm" data-testid="oauth-org-locked">
+						<span class="text-muted">Connecting to</span>
+						<span class="font-medium">{org.name}</span>
+						<span class="text-muted">({ROLE_LABEL[org.role]})</span>
+					</p>
+				{:else}
+					<SelectField
+						label="Organisation"
+						options={data.orgs.map((o) => ({
+							value: o.id,
+							label: `${o.name} (${ROLE_LABEL[o.role]})`
+						}))}
+						bind:value={orgId}
+					/>
+				{/if}
 				<!-- WHAT IT MAY DO: LOOKING FIRST, CHANGING SECOND, IN TIGHT ROWS -->
 				<fieldset class="flex flex-col">
 					<legend class="mb-1 text-xs font-medium text-muted">What it may do</legend>

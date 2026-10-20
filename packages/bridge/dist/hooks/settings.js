@@ -2,8 +2,9 @@
 // Hook commands carry no quotes around their paths, so they work where a shell strips them (cmd /c on Windows).
 // -- FUNCTIONS -- //
 /** The settings block for one tool, or null for a name that is not known. */
-export function hookSettings(tool, server) {
-    const bin = (adapter, event = '') => `agent-flow-board hook ${adapter}${event ? ` ${event}` : ''} --server ${server}`;
+export function hookSettings(tool, server, org) {
+    // With an organisation the hook reads that organisation's sign in
+    const bin = (adapter, event = '') => `agent-flow-board hook ${adapter}${event ? ` ${event}` : ''} --server ${server}${org ? ` --org ${org}` : ''}`;
     if (tool === 'claude' || tool === 'claude-code') {
         const command = (timeout) => [{ type: 'command', command: bin('claude'), timeout }];
         return JSON.stringify({
@@ -12,7 +13,9 @@ export function hookSettings(tool, server) {
                 UserPromptSubmit: [{ hooks: command(10) }],
                 PreToolUse: [{ matcher: '^mcp__.*__(item_status|flow_set_status)$', hooks: command(10) }],
                 PostToolUse: [{ matcher: '.*', hooks: command(10) }],
-                Stop: [{ hooks: command(20) }]
+                Stop: [{ hooks: command(20) }],
+                // The conversation ended: the server lets go of this session's claim
+                SessionEnd: [{ hooks: command(10) }]
             }
         }, null, 2);
     }

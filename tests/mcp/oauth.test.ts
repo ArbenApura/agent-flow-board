@@ -19,6 +19,7 @@ import {
 	validRedirectUri,
 	type TokenResponse
 } from '../../src/lib/server/oauth/oauth';
+import { canonicalResource, orgSlugFromResource } from '../../src/lib/server/oauth/resource';
 import { authenticateToken } from '../../src/lib/server/ops/tokens';
 import { deviceCode } from '../../src/lib/server/db/schema';
 import { eq } from 'drizzle-orm';
@@ -409,5 +410,79 @@ describe('OAuth and device flows', () => {
 			`select count(*)::int as n from api_token where id = '${mine.id}' and revoked_at is not null`
 		);
 		expect(stored[0].n).toBe(1);
+	});
+
+	it('keeps the address a tool was approved for, through the exchange and a refresh, and shows it in connected apps', async () => {
+		const id = await client('Claude Code');
+		const p = pkce();
+		const resource = `${BASE}/mcp/some-org`;
+		const code = (await issueCode(db, {
+			orgId: w.orgId,
+			userId: w.people.admin,
+			clientId: id,
+			redirectUri: REDIRECT,
+			challenge: p.challenge,
+			scopes: ['read'],
+			resource
+		})) as string;
+		const tokens = ok(
+			await exchangeCode(db, { code, redirectUri: REDIRECT, verifier: p.verifier, clientId: id })
+		);
+		const fresh = ok(
+			await refreshTokens(db, { refreshToken: tokens.refresh_token!, clientId: id })
+		);
+		// The org binding is the token's own, whatever the address says
+		expect(await authenticateToken(db, fresh.access_token)).toMatchObject({ orgId: w.orgId });
+		const listed = (await listConnections(w.ctx('admin'))).filter((c) => c.name === 'Claude Code');
+		expect(listed.map((c) => c.resource)).toContain(resource);
+		// An older approval has no address and still refreshes
+		const id2 = await client('Older tool');
+		const p2 = pkce();
+		const code2 = (await issueCode(db, {
+			orgId: w.orgId,
+			userId: w.people.admin,
+			clientId: id2,
+			redirectUri: REDIRECT,
+			challenge: p2.challenge,
+			scopes: ['read']
+		})) as string;
+		const t2 = ok(
+			await exchangeCode(db, {
+				code: code2,
+				redirectUri: REDIRECT,
+				verifier: p2.verifier,
+				clientId: id2
+			})
+		);
+		ok(await refreshTokens(db, { refreshToken: t2.refresh_token!, clientId: id2 }));
+		expect(
+			(await listConnections(w.ctx('admin'))).find((c) => c.name === 'Older tool')?.resource
+		).toBeNull();
+	});
+});
+
+describe('the org named by a resource address', () => {
+	const BASE_URL = 'https://board.example.com';
+	it('reads only the exact /mcp/<slug> address of this site', () => {
+		expect(orgSlugFromResource(`${BASE_URL}/mcp/arbenger`, BASE_URL)).toBe('arbenger');
+		expect(orgSlugFromResource(`${BASE_URL}/mcp/arbenger/`, BASE_URL)).toBe('arbenger');
+		expect(orgSlugFromResource(`${BASE_URL}/mcp/Arbenger`, BASE_URL)).toBe('arbenger');
+		for (const bad of [
+			`${BASE_URL}/mcp`,
+			`${BASE_URL}/mcp/`,
+			`${BASE_URL}/mcp/arbenger?x=1`,
+			`${BASE_URL}/mcp/arbenger#x`,
+			`${BASE_URL}/mcp/arbenger/extra`,
+			`${BASE_URL}/mcp/a`,
+			`${BASE_URL}/mcp/arb%2Fenger`,
+			`https://evil.example/mcp/arbenger`,
+			`http://board.example.com/mcp/arbenger`,
+			'not a url',
+			'',
+			null,
+			undefined
+		])
+			expect(orgSlugFromResource(bad, BASE_URL), String(bad)).toBeNull();
+		expect(canonicalResource(BASE_URL, 'arbenger')).toBe(`${BASE_URL}/mcp/arbenger`);
 	});
 });
