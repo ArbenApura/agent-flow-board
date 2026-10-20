@@ -250,6 +250,7 @@ export const routes: Route[] = [
 				q: query.q || undefined,
 				cursor: num(query.cursor),
 				order: (query.order as 'asc' | 'desc' | undefined) ?? 'desc',
+				sort: query.sort === 'activity' ? 'activity' : 'number',
 				limit: num(query.limit) ?? 50,
 				trashed: query.trashed === 'true'
 			})

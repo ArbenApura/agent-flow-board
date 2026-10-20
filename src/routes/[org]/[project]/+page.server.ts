@@ -71,6 +71,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, url, depend
 	const page = await listItems(ctx, {
 		...common,
 		status: wanted.length ? wanted : undefined,
+		sort: 'activity',
 		limit: LIST_FIRST_PAGE
 	});
 	return {

@@ -398,7 +398,7 @@ export const listItemsInput = z.object({
 	/** The item number to continue from (keyset paging, so page 200 costs the same as page 1). */
 	cursor: z.number().int().optional(),
 	order: z.enum(['asc', 'desc']).default('desc'),
-	/** 'activity' puts the most recently touched first and is for a first page only (no keyset paging). */
+	/** 'activity' puts the most recently touched first (newest only, the cursor is still the last item's number). */
 	sort: z.enum(['number', 'activity']).default('number'),
 	limit: z.number().int().min(1).max(200).default(50),
 	trashed: z.boolean().default(false)
@@ -425,11 +425,14 @@ export async function listItems(ctx: Ctx, raw: z.input<typeof listItemsInput>) {
 		);
 		const where = and(
 			filter,
-			input.cursor !== undefined
-				? input.order === 'desc'
-					? lt(item.number, input.cursor)
-					: gt(item.number, input.cursor)
-				: undefined
+			input.cursor === undefined
+				? undefined
+				: input.sort === 'activity'
+					? // Rows after the cursor item in (last activity, number) order, read from the cursor item itself
+						sql`(${item.lastActivityAt}, ${item.number}) < (select c.last_activity_at, c.number from item c where c.project_id = ${proj.id} and c.number = ${input.cursor})`
+					: input.order === 'desc'
+						? lt(item.number, input.cursor)
+						: gt(item.number, input.cursor)
 		);
 		// The first page also says how many items match, so a list can size its scroll bar before the rest is loaded
 		const total =

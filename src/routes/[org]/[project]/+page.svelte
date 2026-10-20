@@ -195,7 +195,8 @@
 				// eslint-disable-next-line svelte/prefer-svelte-reactivity
 				const params: URLSearchParams = new URLSearchParams({
 					limit: String(PAGE),
-					cursor: String(cursor)
+					cursor: String(cursor),
+					sort: 'activity'
 				});
 				if (data.filters.status.length) params.set('status', data.filters.status.join(','));
 				if (data.filters.q) params.set('q', data.filters.q);
@@ -247,8 +248,12 @@
 		// What the list holds now is read without making the effect depend on it, or writing it would run the effect again
 		const held = untrack(() => listItems);
 		if (signature === seenFilter && held.length > fresh.length && fresh.length > 0) {
-			const oldest = fresh[fresh.length - 1].number;
-			listItems = [...fresh, ...held.filter((r) => r.number < oldest)];
+			const oldest = fresh[fresh.length - 1].lastActivityAt;
+			const freshIds = new Set(fresh.map((r) => r.id));
+			listItems = [
+				...fresh,
+				...held.filter((r) => r.lastActivityAt < oldest && !freshIds.has(r.id))
+			];
 			return;
 		}
 		seenFilter = signature;
