@@ -267,7 +267,8 @@ wording does not cover. Paths are repo-relative.
 - [ ] **Generated security SQL** (`db/security.ts`) is not hand-patched around the tenant table
       registry; the registry stays the single source of RLS (ADR-021).
 - [ ] **Technical ids keep their names**: package names (`@agent-flow-board/bridge`), the MCP server
-      name, the snapshot format, the user-agent and `claude mcp add agent-flow-board`. The display
+      name, the snapshot format, the user-agent and the connection name `afb-<org-slug>` (older
+      connections used `agent-flow-board`). The display
       name "Agent Flow Board" is for people (`DESIGN.md` "Name").
 - [ ] **The bridge protocol** (ADR-030): the bridge stays a thin forwarder and the protocol version
       check stays, so existing connections keep working after a server update.

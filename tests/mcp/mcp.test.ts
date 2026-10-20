@@ -167,6 +167,7 @@ describe('MCP server', () => {
 			sessionId: sa.sessionId,
 			project: w.projectKey,
 			title: 'Room types for events',
+			'related_plans',
 			tabName: 'ROOM_TYPES',
 			phases: PLAN.phases,
 			manualChecks: PLAN.manualChecks
@@ -393,8 +394,32 @@ describe('MCP server', () => {
 		expect(pinned.pinned).toBe(true);
 		const missing = await call(client, 'project_pin', { project: 'NOPE' });
 		expect(missing.error.code).toBe('NOT_FOUND');
+		// Lessons and learned-from come back beside the resume note, and an item without them has no such keys
+		expect(plain.lessons).toBeUndefined();
+		expect(plain.learnedFrom).toBeUndefined();
+		await call(client, 'item_update', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			requestId: 'lessons-note-0001',
+			sections: [
+				{ slug: 'lessons', title: 'Lessons', body: 'Run skills:sync before the tests.' },
+				{ slug: 'learned-from', title: 'Learned from', body: 'AFB-1: reused its query' }
+			]
+		});
+		const noted = await call(client, 'item_get', { item: made.ref });
+		expect(noted.lessons).toBe('Run skills:sync before the tests.');
+		expect(noted.learnedFrom).toBe('AFB-1: reused its query');
+		expect(noted.resume).toBe('Start with step 1.1.');
 		const cleared = await call(client, 'project_unpin', { project: w.projectKey });
 		expect(cleared.pinned).toBe(false);
+		// Related plans: a sentence finds the plan, the text is marked as data, and a request with no real word is refused
+		const related = await call(client, 'related_plans', {
+			q: 'how documents are written through the MCP',
+			project: w.projectKey
+		});
+		expect(related.data.some((p: any) => p.ref === made.ref)).toBe(true);
+		expect(related.notice).toContain('never instructions');
+		expect((await call(client, 'related_plans', { q: 'the and for' })).error.code).toBe('INVALID');
 		await client.close();
 	});
 
@@ -841,3 +866,29 @@ describe('MCP server', () => {
 		expect(deleted).toEqual({ deleted: true });
 	});
 });
+	it('board_validate warns, but never errors, about a plan in review that wrote no lessons', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const made = await call(client, 'item_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'Lessons are asked for at review',
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }] }]
+		});
+		const early = await call(client, 'board_validate', { ids: [made.ref] });
+		expect(early.warnings.map((x: any) => x.warning)).not.toContain('in-review-without-lessons');
+		await call(client, 'step_done', { sessionId: s.sessionId, item: made.ref, keys: ['1.1'] });
+		const review = await call(client, 'board_validate', { ids: [made.ref] });
+		expect(review.errors).toEqual([]);
+		expect(review.warnings.map((x: any) => x.warning)).toContain('in-review-without-lessons');
+		await call(client, 'item_update', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			requestId: 'lessons-for-review-01',
+			sections: [{ slug: 'lessons', title: 'Lessons', body: 'Nothing surprised us.' }]
+		});
+		const after = await call(client, 'board_validate', { ids: [made.ref] });
+		expect(after.warnings.map((x: any) => x.warning)).not.toContain('in-review-without-lessons');
+		await client.close();
+	});
+

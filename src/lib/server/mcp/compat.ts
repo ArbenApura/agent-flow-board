@@ -7,7 +7,7 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
-import { event, item, project, session } from '../db/schema';
+import { event, item, project, section, session } from '../db/schema';
 import { projectSummary, searchBoard } from '../ops/board';
 import { mayView } from '../ops/resolve';
 import { addAttachment } from '../ops/attachments';
@@ -124,6 +124,31 @@ export function registerCompat({ tool }: ToolBuilder) {
 						return seen;
 					});
 			for (const i of rows) for (const w of i.health.drift) out.push({ ref: i.ref, warning: w });
+			// A plan going to review should say what it learned, so the next plan can use it (a warning, never an error)
+			const inReview = rows.filter((i) => i.status === 'IN REVIEW');
+			if (inReview.length) {
+				const withLessons = new Set(
+					(
+						await run(ctx, (tx) =>
+							tx
+								.select({ itemId: section.itemId })
+								.from(section)
+								.where(
+									and(
+										eq(section.slug, 'lessons'),
+										inArray(
+											section.itemId,
+											inReview.map((i) => i.id)
+										)
+									)
+								)
+						)
+					).map((r) => r.itemId)
+				);
+				for (const i of inReview)
+					if (!withLessons.has(i.id))
+						out.push({ ref: i.ref, warning: 'in-review-without-lessons' });
+			}
 			return { checked: rows.length, errors: [], warnings: out };
 		}
 	);

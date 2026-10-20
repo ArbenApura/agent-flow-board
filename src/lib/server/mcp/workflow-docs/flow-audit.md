@@ -54,6 +54,7 @@ For each step and each evidence item decide one status:
 Also check the records against each other:
 
 - The percent and status come from the records (never typed). Check instead that the done steps are true, that the user's checks are manual checks (`M1`…) and not counted steps, and that waived steps carry their reason in their log line.
+- The `lessons` section is true and useful: each bullet names a real file or step, says what happened and what to watch for, and is not generic ("went well", "tests pass"). A plan in review with none is a finding (`board_validate` warns the same). The `learned-from` section names plans that exist, and each reuse it claims shows up as a `settled` decision that cites the source item.
 - The `resume-here` note describes where the work really stands and its next step is the real next step. `blockers` lists what really blocks.
 - `board_validate` reports drift (planned with done steps, complete but not in review, in review with open steps); every drift flag is explained or fixed. A status change was made with `item_status` and a note.
 - The `validation` section has results only where a check actually ran, with the date.

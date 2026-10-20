@@ -71,3 +71,200 @@ export async function searchAll(
 		return true;
 	});
 }
+
+// -- RELATED PLANS -- //
+
+/** Words that carry no meaning for finding a similar plan. The simple search config has no stop words of its own. */
+const STOP_WORDS = new Set([
+	'the',
+	'and',
+	'for',
+	'with',
+	'that',
+	'this',
+	'from',
+	'into',
+	'are',
+	'was',
+	'were',
+	'will',
+	'can',
+	'not',
+	'but',
+	'all',
+	'any',
+	'has',
+	'have',
+	'had',
+	'its',
+	'our',
+	'out',
+	'use',
+	'used',
+	'using',
+	'how',
+	'when',
+	'what',
+	'which',
+	'should',
+	'must',
+	'also',
+	'than',
+	'then',
+	'them',
+	'they',
+	'their',
+	'there',
+	'these',
+	'those',
+	'about',
+	'after',
+	'before',
+	'each',
+	'more',
+	'most',
+	'make',
+	'made',
+	'new',
+	'add',
+	'plan',
+	'plans',
+	'item',
+	'items',
+	'tool',
+	'tools'
+]);
+
+const MAX_TOKENS = 12;
+
+/** The words and paths of a request as search tokens: lowercase, no stop words, no short words, no repeats, at most twelve. */
+export function relatedTokens(q: string, files: string[] = []): string[] {
+	const make = (list: string[]) => {
+		const out: string[] = [];
+		for (const t of list) {
+			const word = t.toLowerCase().replace(/^[./-]+|[./-]+$/g, '');
+			if (word.length < 3 || STOP_WORDS.has(word) || out.includes(word)) continue;
+			out.push(word);
+		}
+		return out;
+	};
+	const words: string[] = [];
+	for (const m of q.matchAll(/[\p{L}\p{N}_]+(?:[./-][\p{L}\p{N}_]+)*/gu)) {
+		words.push(m[0]);
+		// A path or a dotted name is also found by its last part
+		const last = m[0].split('/').pop() ?? '';
+		if (last !== m[0]) words.push(last);
+	}
+	const paths: string[] = [];
+	for (const f of files) {
+		const clean = f.trim().replaceAll('\\', '/');
+		paths.push(clean, clean.split('/').pop() ?? '');
+	}
+	// A file named in the request is the strongest signal, so the words never push it out of the twelve
+	const fileTokens = make(paths).slice(0, 6);
+	const room = MAX_TOKENS - fileTokens.length;
+	let wordTokens = make(words).filter((w) => !fileTokens.includes(w));
+	if (wordTokens.length > room) {
+		// Longer words are usually the more specific ones: keep those, in the order they were written
+		const keep = new Set(
+			wordTokens
+				.map((w, i) => ({ w, i }))
+				.sort((a, b) => b.w.length - a.w.length || a.i - b.i)
+				.slice(0, room)
+				.map((x) => x.i)
+		);
+		wordTokens = wordTokens.filter((_, i) => keep.has(i));
+	}
+	return [...wordTokens, ...fileTokens];
+}
+
+export type RelatedRow = {
+	itemId: string;
+	/** How many of the distinct search tokens this plan matched. */
+	matched: number;
+	score: number;
+	/** The sections and decisions that matched, best first. */
+	docs: { kind: 'item' | 'section' | 'decision'; id: string }[];
+};
+
+/**
+ * Items that match any of the tokens, grouped per item in SQL so the limit counts plans and not sections. Each token goes
+ * through `plainto_tsquery` as a bound value, so no input can break the query. Only items the caller may see, in the given
+ * projects and not trashed, are read. Titles weigh more than bodies. A path token also matches inside a section body, so a
+ * file named by its last part is found.
+ */
+export async function searchRelated(
+	tx: Tx,
+	tokens: string[],
+	options: { projectIds: string[]; userId: string; excludeItemId?: string | null; limit: number }
+): Promise<RelatedRow[]> {
+	if (!tokens.length || !options.projectIds.length) return [];
+	const toks = sql.join(
+		tokens.map((t) => sql`${t}`),
+		sql`, `
+	);
+	// The LIKE pattern of each token is made here, so its own % _ and \ are plain characters and not wildcards
+	const pats = sql.join(
+		tokens.map((t) => sql`${'%' + t.replace(/[\\%_]/g, '\\$&') + '%'}`),
+		sql`, `
+	);
+	const projects = sql.join(
+		options.projectIds.map((p) => sql`${p}::uuid`),
+		sql`, `
+	);
+	const exclude = options.excludeItemId ? sql`and i.id <> ${options.excludeItemId}::uuid` : sql``;
+	// Several words must agree: two of three, and a third of a long request, so two common words alone are not a match
+	const minTokens = tokens.length <= 2 ? 1 : Math.max(2, Math.ceil(tokens.length / 3));
+	const res = await tx.execute(sql`
+		with toks as (select x.t as tok, x.p as pat from unnest(array[${toks}]::text[], array[${pats}]::text[]) as x(t, p)),
+		ok as (
+			select i.id from item i
+			where i.deleted_at is null and i.project_id in (${projects})
+				and (i.visibility = 'public' or i.created_by = ${options.userId}) ${exclude}
+		),
+		docs as (
+			select i.id as item_id, 'item'::text as kind, i.id as doc_id, i.search_vector as vec, 3.0::real as w
+				from item i where i.id in (select id from ok)
+			union all
+			select s.item_id, 'section', s.id, s.search_vector,
+				case when s.slug in ('lessons', 'resume-here', 'learned-from') then 1.5 else 1.0 end
+				from section s where s.item_id in (select id from ok)
+			union all
+			select d.item_id, 'decision', d.id, d.search_vector, 2.0 from decision d where d.item_id in (select id from ok)
+		),
+		pairs as (
+			select docs.item_id, docs.kind, docs.doc_id, toks.tok, false as is_path,
+				ts_rank(docs.vec, plainto_tsquery('simple', toks.tok)) * docs.w as r
+			from docs join toks on docs.vec @@ plainto_tsquery('simple', toks.tok)
+			union all
+			-- A FILE OR PATH IS ALSO FOUND INSIDE A SECTION BODY, BECAUSE THE PARSER KEEPS A WHOLE PATH AS ONE WORD
+			select s.item_id, 'section', s.id, toks.tok, true, 0.5::real
+			from toks join section s on s.item_id in (select id from ok)
+				and toks.tok ~ '[./]' and length(toks.tok) >= 4
+				and s.body ilike toks.pat
+		),
+		scored as (
+			select item_id, count(distinct tok)::int as matched, sum(r)::float8 as score
+			from pairs group by item_id
+			-- A FILE NAMED IN THE REQUEST IS STRONG ENOUGH ON ITS OWN, EVEN WHEN THE OTHER WORDS DO NOT MATCH
+			having count(distinct tok) >= ${minTokens} or bool_or(is_path)
+			order by matched desc, score desc
+			limit ${options.limit}
+		)
+		-- THE BEST SIX DISTINCT DOCUMENTS PER PLAN, SO ONE HEAVILY MATCHING SECTION CANNOT TAKE EVERY PLACE
+		select s.item_id, s.matched, s.score,
+			(select coalesce(jsonb_agg(jsonb_build_object('kind', d.kind, 'id', d.doc_id) order by d.best desc), '[]'::jsonb)
+				from (select kind, doc_id, max(r) as best from pairs p where p.item_id = s.item_id group by kind, doc_id order by best desc limit 6) d
+			) as docs
+		from scored s order by s.matched desc, s.score desc
+	`);
+	const rows = (res as unknown as { rows: Record<string, unknown>[] }).rows;
+	return rows.map((r) => ({
+		itemId: r.item_id as string,
+		matched: Number(r.matched),
+		score: Number(r.score),
+		docs: ((r.docs as { kind: RelatedRow['docs'][number]['kind']; id: string }[]) ?? []).filter(
+			(d, i, all) => all.findIndex((x) => x.id === d.id) === i
+		)
+	}));
+}

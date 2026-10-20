@@ -5,7 +5,7 @@
 			"file": "flow.md",
 			"skill": "flow",
 			"source": ".claude/skills/flow/SKILL.md",
-			"hash": "b0b2233deec10ed4551b6027794ff24f19344ad251eb2ecaa24fb21726319ea6"
+			"hash": "0ce6a4e0401c162b12b6464b2492a183e9bcce4566688530bbd17deb954cff67"
 		},
 		{
 			"file": "flow-task.md",
@@ -17,19 +17,19 @@
 			"file": "flow-interview.md",
 			"skill": "flow-interview",
 			"source": ".claude/skills/flow-interview/SKILL.md",
-			"hash": "b7bd0c394a04d324cc1753b13ed85fc7e939cff38a620b3899726267a65fddc4"
+			"hash": "e682010070a6b73043b2480dbe4e376d7842db19b13e2f859e8c18934ff5b8c1"
 		},
 		{
 			"file": "flow-critic.md",
 			"skill": "flow-critic",
 			"source": ".claude/skills/flow-critic/SKILL.md",
-			"hash": "f6748d96b7517eb7ea1238f89467a42a5f456532fb602c112d80bc6508732599"
+			"hash": "3b37f8124b66834bd79f5ee15153f25d6d6434ef26329834f6dcc24e4081f783"
 		},
 		{
 			"file": "flow-audit.md",
 			"skill": "flow-audit",
 			"source": ".claude/skills/flow-audit/SKILL.md",
-			"hash": "b8a38dda1b4b66f6d5253fce2a752397852a937bbfd8af17744b3d6bdf8093ec"
+			"hash": "bfc88bb06ba6649259134f73428a8863167fde3268c983ba703c3baec0ad4722"
 		},
 		{
 			"file": "flow-check.md",
@@ -47,7 +47,7 @@
 			"file": "critic-checklists.md",
 			"skill": "flow-critic",
 			"source": ".claude/skills/flow-critic/checklists.md",
-			"hash": "1b67d59e6012daa4a04b1bc0a3bc11f59f15bd71a95ace4e07dbabd219aa3503"
+			"hash": "8bd840f75e0194529e1f13f7a97e4d16d88834bdcfcff2e08b1853b09a97abea"
 		},
 		{
 			"file": "critic-code-lenses.md",
@@ -65,13 +65,13 @@
 			"file": "critic-plan-lenses.md",
 			"skill": "flow-critic",
 			"source": ".claude/skills/flow-critic/plan-lenses.md",
-			"hash": "0707d74c534c10d9ff3ba2f23ca9d18e1601869d45a042a90ee2b3ba70e3530f"
+			"hash": "52494634c699a76317712a10789548e58728fb9a219583100d6e055797c8de8a"
 		},
 		{
 			"file": "critic-plan-template.md",
 			"skill": "flow-critic",
 			"source": ".claude/skills/flow-critic/plan-template.md",
-			"hash": "8474684c5c8aff87e79f66bfaaa1310e4701607cbea7e2ee3684309faae61ae5"
+			"hash": "8945c00d327d5410cf09f351e92b2858d2161d999cf18fa42660f44887dd1e93"
 		}
 	]
 }

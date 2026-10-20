@@ -4,6 +4,7 @@
 
 // -- TYPES -- //
 import { searchBoard } from '../ops/board';
+import { relatedPlans } from '../ops/related';
 import type { Ctx } from '../ops/context';
 // -- DEP-MODULES -- //
 import { z } from 'zod';
@@ -662,6 +663,35 @@ export const routes: Route[] = [
 		tag: 'Search',
 		query: z.object({ q: z.string().min(1), limit: z.number().optional() }),
 		handler: ({ ctx, query }) => searchBoard(ctx, query.q ?? '', { limit: num(query.limit) })
+	},
+
+	{
+		method: 'GET',
+		path: '/orgs/{org}/related-plans',
+		summary: 'The closest earlier plans to an idea, as short digests',
+		tag: 'Search',
+		query: z.object({
+			q: z.string().min(1).max(500),
+			project: z.string().optional(),
+			files: z.string().max(1000).optional(),
+			stream: z.string().max(40).optional(),
+			scope: z.string().max(40).optional(),
+			limit: z.number().optional()
+		}),
+		handler: ({ ctx, query }) =>
+			relatedPlans(ctx, {
+				q: query.q,
+				project: query.project,
+				// Files come as one comma separated list in a query string
+				files: query.files
+					?.split(',')
+					.map((f) => f.trim())
+					.filter(Boolean)
+					.slice(0, 8),
+				stream: query.stream,
+				scope: query.scope,
+				limit: num(query.limit)
+			})
 	},
 
 	// -- skills (custom text served to agents, per project and per organisation) -- //
