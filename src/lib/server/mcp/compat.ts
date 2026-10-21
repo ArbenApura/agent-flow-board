@@ -17,6 +17,8 @@ import { createItem, getItem, listItems } from '../ops/items';
 import { listProjects } from '../ops/projects';
 import { recordSteps } from '../ops/steps';
 import { setStatus } from '../ops/status';
+import { MANIFEST } from '../system-skills';
+import { skillsNotice } from '../system-skills/plan';
 import { claim, implicitSession } from './sessions';
 import { summarize, type ToolBuilder } from './tools';
 
@@ -91,7 +93,9 @@ export function registerCompat({ tool }: ToolBuilder) {
 				notRecorded,
 				openItems: items.length,
 				tasks: tasks.slice(0, 25),
-				openTasks: tasks.length
+				openTasks: tasks.length,
+				// The first call of most sessions, so the offer to install the skills reaches the agent even when it skipped the instructions
+				skillsNotice: skillsNotice(undefined, MANIFEST.bundle.version)
 			};
 		}
 	);

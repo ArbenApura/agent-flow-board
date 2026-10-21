@@ -210,7 +210,7 @@ export function skillsNotice(passed: string | undefined, served: string): string
 		return `The Agent Flow Board skills (bundle ${served}) are not installed in your tool. Offer the person to install them: call skills_check.`;
 	const order = passed === undefined ? Number.NaN : compareVersions(passed, served);
 	if (passed === undefined || Number.isNaN(order))
-		return 'If no flow skill is in your skill list, call skills_check once to see whether to offer the install.';
+		return 'If no flow skill is in your skill list, tell the person once, before you go on, that the Agent Flow Board skills (the /flow family) are not installed in this tool, and offer to install them: name this connection, its address and the folder skills_check gives, and on one yes call skills_check and install everything it plans. If your skill list has them, ignore this line.';
 	return order < 0
 		? `Your installed Agent Flow Board skills (bundle ${passed}) are older than the served ${served}. Call skills_check and offer the update.`
 		: null;

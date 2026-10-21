@@ -174,7 +174,9 @@ describe('the session notice about the skills', () => {
 		for (const passed of [undefined, 'nightly', '']) {
 			const text = skillsNotice(passed, '1.1.1') ?? '';
 			expect(text).toContain('If no flow skill is in your skill list');
-			expect(text).not.toContain('not installed');
+			// It only asks the agent to look: the server cannot know, so the whole line is a condition
+			expect(text.startsWith('If no flow skill is in your skill list')).toBe(true);
+			expect(text).toContain('ignore this line');
 		}
 	});
 });

@@ -290,7 +290,9 @@ describe('MCP server', () => {
 		const bundle = systemSkillsIndex().bundle.version;
 		const plain = await call(client, 'session_start', { tool: 'tester' });
 		expect(plain.sessionId).toMatch(/^s_/);
-		expect(plain.skillsNotice).toContain('call skills_check once');
+		expect(plain.skillsNotice).toContain('offer to install them');
+		// board_brief is usually the first call, so it carries the same offer
+		expect((await call(client, 'board_brief')).skillsNotice).toContain('offer to install them');
 		const none = await call(client, 'session_start', { tool: 'tester', skillsBundle: 'none' });
 		expect(none.skillsNotice).toContain('not installed');
 		const old = await call(client, 'session_start', { tool: 'tester', skillsBundle: '0.0.1' });
