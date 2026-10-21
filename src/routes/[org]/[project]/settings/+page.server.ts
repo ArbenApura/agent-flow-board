@@ -21,7 +21,6 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends }) 
 			key: project.key,
 			name: project.name,
 			webApp: project.webApp,
-			defaultTarget: project.defaultTarget,
 			streams: project.streams,
 			themes: project.themes,
 			referencePages: project.referencePages,

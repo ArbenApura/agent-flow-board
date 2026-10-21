@@ -16,6 +16,7 @@ import {
 	itemChecks,
 	requestRun,
 	runnerStatus,
+	toolAgentAction,
 	saveCheck,
 	waitForRun,
 	waitersFor
@@ -415,6 +416,13 @@ describe('checks an agent drives alone', () => {
 		const off = await runnerStatus(as('member'));
 		expect(off.projects[0].online).toBe(false);
 		expect(off.projects[0].hint).toMatch(/not running/);
+		// A tool that is connected but not running gets steps for the agent, never an instruction for a person, and an online one gets none
+		expect(on.projects[0].agentAction).toBeNull();
+		expect(off.projects[0].agentAction).toMatchObject({ action: 'repair' });
+		expect(off.projects[0].agentAction?.steps.join('\n')).toContain(
+			'node afb-checks.mjs doctor --fix --json'
+		);
+		expect(off).toHaveProperty('board');
 		// A token limited to another project sees none of this org's projects, and cannot ask for one by name
 		expect((await runnerStatus(limited())).projects).toEqual([]);
 		await expect(runnerStatus(limited(), w.projectKey)).rejects.toMatchObject({
@@ -424,5 +432,25 @@ describe('checks an agent drives alone', () => {
 		const none = await runnerStatus(as('member'), w.projectKey);
 		expect(none.projects[0]).toMatchObject({ online: false, kind: null, lastSeen: null });
 		expect(none.projects[0].hint).toMatch(/connect/);
+		// Nothing is connected: the agent connects the tool itself, with the org slug of the caller, and approves its own code through the board
+		const connect = none.projects[0].agentAction!;
+		expect(connect.action).toBe('connect');
+		const steps = connect.steps.join('\n');
+		expect(steps).toMatch(/connect --server .* --org world-\d+ --json/);
+		expect(steps).toContain('tool_connection_approve');
+		expect(steps).toContain('doctor --fix --json');
+		// The steps never carry a token, a code or a verifier
+		expect(steps).not.toMatch(/afx_|verifier=|userCode=/);
+	});
+
+	it('toolAgentAction names no person: three states, each a list of steps for the agent', () => {
+		for (const state of ['repair', 'connect', 'runner'] as const) {
+			const a = toolAgentAction(state, { board: 'https://afb.example', org: 'acme' });
+			expect(a.action).toBe(state);
+			expect(a.steps.length).toBeGreaterThan(0);
+			expect(JSON.stringify(a)).not.toMatch(/a person|the person|keyboard/i);
+		}
+		// With nothing known it says what to fill in, and does not invent an address
+		expect(toolAgentAction('connect', {}).steps[0]).toContain('<board address>');
 	});
 });

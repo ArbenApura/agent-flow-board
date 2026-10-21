@@ -323,11 +323,7 @@ export async function requestShots(ctx: Ctx, raw: z.input<typeof requestShotsInp
 		const [pref] = await tx.select().from(userPref).where(eq(userPref.userId, ctx.actor.userId));
 		// The default is the build preview. The dev server is chosen by hand only (ADR-017)
 		const asked = (input.target ??
-			(pref?.checkTarget === 'deployed'
-				? 'deployed'
-				: p.defaultTarget === 'dev'
-					? 'preview'
-					: p.defaultTarget)) as Target;
+			(pref?.checkTarget === 'deployed' ? 'deployed' : 'preview')) as Target;
 		const queued = await queueRun(ctx, tx, p, it.id, 'shots', asked);
 		await appendEvent(tx, {
 			orgId: ctx.orgId,

@@ -266,14 +266,7 @@
 				/>
 			</Section>
 
-			<BrowserChecks
-				{org}
-				projectKey={key}
-				webApp={p.webApp}
-				defaultTarget={p.defaultTarget}
-				tools={data.tools}
-				can={can ?? false}
-			/>
+			<BrowserChecks webApp={p.webApp} tools={data.tools} />
 
 			<Section
 				id="trash"

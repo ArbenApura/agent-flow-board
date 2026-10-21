@@ -334,9 +334,17 @@ async function purgeTrashRows(ctx: Ctx, days: number, checkRole: boolean) {
 			.returning({ id: task.id });
 		const ids = files.map((f) => f.id);
 		if (ids.length) await tx.delete(attachment).where(inArray(attachment.id, ids));
-		return { items: delItems.length, tasks: delTasks.length, keys: keys.map((k) => k.key) };
+		return {
+			items: delItems.length,
+			tasks: delTasks.length,
+			keys: keys.map((k) => k.key)
+		};
 	});
 	// Files go after the rows, so a failure leaves a stray file and never a row pointing at nothing
 	for (const key of removed.keys) await ctx.services?.storage?.delete(key).catch(() => undefined);
-	return { items: removed.items, tasks: removed.tasks, files: removed.keys.length };
+	return {
+		items: removed.items,
+		tasks: removed.tasks,
+		files: removed.keys.length
+	};
 }

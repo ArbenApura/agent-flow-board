@@ -130,8 +130,6 @@ export const project = tenantTable(
 			.default(sql`'[]'::jsonb`),
 		rules: text('rules').notNull().default(''),
 		webApp: boolean('web_app').notNull().default(false),
-		/** The target browser checks use when nobody picks one: the build preview, never the dev server (ADR-017). */
-		defaultTarget: text('default_target').notNull().default('preview'),
 		themes: jsonb('themes')
 			.$type<ProjectThemes>()
 			.notNull()

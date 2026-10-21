@@ -116,12 +116,11 @@
 	icon={Server}
 	{group}
 	title="Connected tools"
-	text="The afb-checks tools that answer browser checks and UI shots for this organisation. A tool connects itself from its own folder, with node afb-checks.mjs connect."
+	text="The afb-checks tools that answer browser checks and UI shots for this organisation. Your agents connect the tool and keep it running; nothing to type here."
 >
 	{#if runners.length === 0}
 		<div class="text-sm text-muted">
-			No tool is connected yet. In the afb-checks folder run
-			<span class="font-mono text-xs break-all">node afb-checks.mjs connect</span>.
+			No tool is connected yet. Your agent connects it by itself the next time a check needs to run.
 		</div>
 	{:else}
 		<ul class="rounded-lg border border-line" data-testid="runner-list">

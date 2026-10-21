@@ -266,6 +266,13 @@ export const runner = tenantTable(
 			.default(sql`'{}'::uuid[]`),
 		lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
 		tokenHash: text('token_hash'),
+		/**
+		 * The head of the tool's local audit chain and its length, as the tool last reported them (only the hash and a count, never an action or a path).
+		 * A report that is shorter than the last one, or as long with another head, means the local log was cut or rewritten: audit_regressed_at records when.
+		 */
+		auditHead: text('audit_head'),
+		auditLines: integer('audit_lines'),
+		auditRegressedAt: timestamp('audit_regressed_at', { withTimezone: true }),
 		...stamps()
 	},
 	(t) => [oneOf('runner_kind_chk', t.kind, ['local', 'hosted', 'tool'])]
@@ -423,6 +430,11 @@ export const deviceCode = pgTable('device_code', {
 	userCode: text('user_code').notNull().unique(),
 	client: text('client').notNull(),
 	origin: text('origin'),
+	/**
+	 * The hash (SHA-256, base64url) of a secret verifier the tool keeps and never sends. An agent approves a code only by presenting that verifier, so it can approve
+	 * a code its own tool started and not one it was handed. Null for a sign in that sent none (a person approves those on the page).
+	 */
+	challengeHash: text('challenge_hash'),
 	status: text('status').notNull().default('pending'),
 	approvedBy: text('approved_by').references(() => user.id, { onDelete: 'set null' }),
 	approvedOrgId: uuid('approved_org_id'),

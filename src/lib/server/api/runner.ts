@@ -20,7 +20,9 @@ import {
 	authenticateRunKey,
 	authenticateRunner,
 	makeRunKey,
+	recordToolAudit,
 	RUN_KEY_PREFIX,
+	TOOL_AUDIT_HEADER,
 	TOOL_PROTOCOL_HEADER,
 	TOOL_PROTOCOL_MIN
 } from '../ops/environments';
@@ -58,6 +60,14 @@ export async function handleRunnerApi(req: ApiRequest, deps: ApiDeps): Promise<A
 				'UPGRADE_REQUIRED',
 				'This afb-checks is too old for this board. Run: node afb-checks.mjs upgrade <a folder with a newer template>.'
 			);
+		// The head of the tool's audit chain, kept so a log that was cut or rewritten on the machine shows on the board
+		// This note must never stop a run: a failure to record it is only logged
+		await recordToolAudit(deps.handle, auth, req.headers.get(TOOL_AUDIT_HEADER)).catch((e) =>
+			console.error(
+				'afb-checks audit head not recorded:',
+				e instanceof Error ? e.message : 'unknown error'
+			)
+		);
 		const services: Ctx['services'] = {
 			storage: deps.storage,
 			baseUrl: deps.baseUrl,

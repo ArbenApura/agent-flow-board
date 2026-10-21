@@ -21,6 +21,7 @@ import {
 	environment,
 	item,
 	manualCheck,
+	org,
 	project,
 	runner,
 	secret,
@@ -173,7 +174,7 @@ export async function targetStatuses(
 				environment: null,
 				reason:
 					target === 'preview'
-						? 'This project has no preview environment, and the afb-checks tool is not connected. See the Browser checks tab in the project settings.'
+						? 'This project has no preview environment, and the afb-checks tool is not connected. Call runner_status for the steps that connect it.'
 						: `This project has no ${target} environment yet.`
 			};
 		if (!runners.length)
@@ -429,7 +430,6 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 		return {
 			item: { id: it.id, ref: it.ref },
 			webApp: p.webApp,
-			defaultTarget: p.defaultTarget,
 			preferredTarget: pref?.checkTarget ?? null,
 			canRun: role !== 'viewer' && role !== 'guest',
 			targets: await targetStatuses(tx, ctx.orgId, it.projectId),
@@ -493,12 +493,9 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 				if (!s) throw new OpError('NOT_FOUND', `${it.ref} has no step ${input.step}.`);
 			}
 			await sweepRuns(tx, ctx.orgId, queueMinutes(ctx));
-			const [p] = await tx.select().from(project).where(eq(project.id, it.projectId));
 			const [pref] = await tx.select().from(userPref).where(eq(userPref.userId, ctx.actor.userId));
-			const asked = (input.target ??
-				chk.pinnedTarget ??
-				pref?.checkTarget ??
-				p.defaultTarget) as Target;
+			// A run that names no target, and has no pin or saved choice, is on the build preview: the only target the afb-checks tool runs
+			const asked = (input.target ?? chk.pinnedTarget ?? pref?.checkTarget ?? 'preview') as Target;
 			const statuses = await targetStatuses(tx, ctx.orgId, it.projectId);
 			const status = statuses.find((s) => s.target === asked)!;
 			// One open run per check and target: two agents, or a retry, get the run that is already waiting or running. The check
@@ -591,12 +588,44 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 				after: { key: input.key, target: asked, available: status.available } as never,
 				undoable: false
 			});
+			// A target that cannot run because no tool is online comes with what the agent does about it, not a note for a person
+			// Only the preview is run by the afb-checks tool, so a deployed or dev target that has no runner gets no tool steps
+			const toolOffline =
+				!status.available &&
+				asked === 'preview' &&
+				/afb-checks|No runner that serves/i.test(status.reason ?? '');
+			const [o] = toolOffline
+				? await tx.select({ slug: org.slug }).from(org).where(eq(org.id, ctx.orgId))
+				: [];
+			const hasTool = toolOffline
+				? (
+						await tx
+							.select({ id: runner.id })
+							.from(runner)
+							.where(
+								and(
+									eq(runner.orgId, ctx.orgId),
+									eq(runner.kind, 'tool'),
+									sql`${it.projectId}::uuid = any(${runner.projectIds})`
+								)
+							)
+							.limit(1)
+					).length > 0
+				: false;
 			return {
 				run: runView(row),
 				unavailable: !status.available,
 				offer,
 				target: asked,
-				reused: false
+				reused: false,
+				...(toolOffline
+					? {
+							agentAction: toolAgentAction(hasTool ? 'repair' : 'connect', {
+								board: ctx.services?.baseUrl,
+								org: o?.slug
+							})
+						}
+					: {})
 			};
 		})
 	);
@@ -717,6 +746,60 @@ export async function waitForRun(
 	return { run: view, finished: !OPEN_RESULTS.has(view.result) };
 }
 
+/** The audit chain of the newest tool runner that has reported one: its length, and when the report last went backwards. Never an action or a path. */
+function toolAudit(
+	runners: {
+		kind: string;
+		lastSeenAt: Date | null;
+		auditLines: number | null;
+		auditRegressedAt: Date | null;
+	}[]
+) {
+	const t = runners
+		.filter((r) => r.kind === 'tool' && r.auditLines !== null)
+		.sort((a, b) => (b.lastSeenAt?.getTime() ?? 0) - (a.lastSeenAt?.getTime() ?? 0))[0];
+	return t ? { lines: t.auditLines, regressedAt: t.auditRegressedAt } : null;
+}
+
+/**
+ * What an agent does, on the machine that runs the afb-checks tool, when no tool is online. The board never starts anything on that machine (it only
+ * answers the tool's calls), so this is a list of steps for the agent: the tool repairs itself with `doctor --fix`, and a tool that was never connected is
+ * connected by the agent through the approve tool, with nobody typing a code.
+ */
+export function toolAgentAction(
+	state: 'repair' | 'connect' | 'runner',
+	where: { board?: string; org?: string }
+) {
+	const server = where.board ?? '<board address>';
+	const org = where.org ?? '<org slug>';
+	if (state === 'connect')
+		return {
+			action: 'connect',
+			why: 'No afb-checks tool is connected to this project.',
+			steps: [
+				`On the machine that runs the tool, start in the background: node afb-checks.mjs connect --server ${server} --org ${org} --json`,
+				'Read its first output line. It holds userCode and verifier.',
+				'Call tool_connection_approve with both. Only a code that tool started is accepted.',
+				'When the tool prints its connected line, run: node afb-checks.mjs doctor --fix --json (it starts the worker), then call runner_status again.'
+			]
+		};
+	if (state === 'repair')
+		return {
+			action: 'repair',
+			why: 'The tool is connected but is not running or cannot reach this board.',
+			steps: [
+				'On the machine that runs the tool, run: node afb-checks.mjs doctor --fix --json',
+				'If it lists a problem with a next step, do that step (for a stale board address it names the connect command).',
+				'Call runner_status again.'
+			]
+		};
+	return {
+		action: 'runner',
+		why: 'A runner serves this project but is offline.',
+		steps: ['Start that runner, then call runner_status again.']
+	};
+}
+
 /**
  * Whether a tool is online to take runs, per project the caller can reach. Built on the same online window as targetStatuses.
  * Shows a fixed shape and never a token, an owner or a device name.
@@ -724,6 +807,8 @@ export async function waitForRun(
 export async function runnerStatus(ctx: Ctx, keyOrId?: string) {
 	return run(ctx, async (tx) => {
 		await requireCap(tx, ctx, 'read');
+		const [o] = await tx.select({ slug: org.slug }).from(org).where(eq(org.id, ctx.orgId));
+		const orgSlug = o?.slug;
 		const projects: { id: string; key: string }[] = [];
 		if (keyOrId) {
 			const p = await findProject(tx, ctx, keyOrId);
@@ -748,7 +833,13 @@ export async function runnerStatus(ctx: Ctx, keyOrId?: string) {
 		const out = [];
 		for (const p of projects) {
 			const runners = await tx
-				.select({ id: runner.id, kind: runner.kind, lastSeenAt: runner.lastSeenAt })
+				.select({
+					id: runner.id,
+					kind: runner.kind,
+					lastSeenAt: runner.lastSeenAt,
+					auditLines: runner.auditLines,
+					auditRegressedAt: runner.auditRegressedAt
+				})
 				.from(runner)
 				.where(and(eq(runner.orgId, ctx.orgId), sql`${p.id}::uuid = any(${runner.projectIds})`));
 			const onlineNow = runners.filter(
@@ -782,16 +873,25 @@ export async function runnerStatus(ctx: Ctx, keyOrId?: string) {
 				kind,
 				minProtocol: TOOL_PROTOCOL_MIN,
 				heldRuns: held?.n ?? 0,
+				// The tool's local audit chain as it last reported it: only a length, and when it last got shorter or changed under the same length
+				audit: toolAudit(runners),
 				hint: onlineNow.length
 					? 'A runner is online and will take the next run.'
 					: hasTool
-						? 'The afb-checks tool is connected but not running. Start it with: node afb-checks.mjs work (or the service, once installed).'
+						? 'The afb-checks tool is connected but not running. Follow agentAction on the machine that runs the tool, then ask again.'
 						: runners.length
 							? 'A runner serves this project but is offline. Start it and ask again.'
-							: 'No afb-checks tool is connected to this project. Run once: node afb-checks.mjs connect --server <board address> --org <org slug>.'
+							: 'No afb-checks tool is connected to this project. Follow agentAction to connect it; nobody needs to type a command.',
+				agentAction: onlineNow.length
+					? null
+					: toolAgentAction(hasTool ? 'repair' : runners.length ? 'runner' : 'connect', {
+							board: ctx.services?.baseUrl,
+							org: orgSlug
+						})
 			});
 		}
-		return { projects: out };
+		// The board's own address, so a tool that was connected to an older host is seen at once: compare it with `status --json` of the tool
+		return { board: ctx.services?.baseUrl ?? null, projects: out };
 	});
 }
 

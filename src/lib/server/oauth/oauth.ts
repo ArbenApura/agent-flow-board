@@ -404,12 +404,31 @@ const attempts = new Map<string, { n: number; since: number }>();
 export async function startDevice(
 	handle: DbHandle,
 	baseUrl: string,
-	input: { client_name?: unknown; origin?: string }
+	input: {
+		client_name?: unknown;
+		origin?: string;
+		code_challenge?: unknown;
+		code_challenge_method?: unknown;
+	}
 ) {
 	const client =
 		typeof input.client_name === 'string' && input.client_name.trim()
 			? input.client_name.trim().slice(0, 80)
 			: 'A command line tool';
+	// A tool that keeps a verifier sends its SHA-256 (base64url, 43 characters). Anything else is refused, never stored as if it were one
+	let challengeHash: string | null = null;
+	if (input.code_challenge !== undefined) {
+		if (
+			input.code_challenge_method !== 'S256' ||
+			typeof input.code_challenge !== 'string' ||
+			!/^[A-Za-z0-9_-]{43}$/.test(input.code_challenge)
+		)
+			return err(
+				'invalid_request',
+				'code_challenge must be the SHA-256 of a verifier, base64url, with code_challenge_method S256.'
+			);
+		challengeHash = input.code_challenge;
+	}
 	const deviceCodeValue = randomBytes(32).toString('base64url');
 	for (let i = 0; i < 5; i++) {
 		const userCode = Array.from(
@@ -422,6 +441,7 @@ export async function startDevice(
 				userCode,
 				client,
 				origin: (input.origin ?? '').slice(0, 80) || null,
+				challengeHash,
 				expiresAt: new Date(Date.now() + DEVICE_SECONDS * 1000)
 			});
 			return {

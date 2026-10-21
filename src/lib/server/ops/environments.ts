@@ -7,12 +7,13 @@ import type { Ctx } from './context';
 import type { DbHandle } from '../db/client';
 // -- DEP-MODULES -- //
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { appendEvent } from '../db/events';
 import {
 	checkRun,
+	deviceCode,
 	environment,
 	member,
 	org,
@@ -22,7 +23,7 @@ import {
 	uiShotRun
 } from '../db/schema';
 import { withTenant } from '../db/tenant';
-import { OpError, capsOf, projectAllowed, requireCap, run } from './context';
+import { OpError, capsOf, idempotent, projectAllowed, requireCap, run } from './context';
 import { actorFields } from './items';
 import { findProject } from './resolve';
 import { openSecret, sealSecret } from '../secrets/vault';
@@ -416,6 +417,112 @@ export async function registerToolRunner(ctx: Ctx, raw: z.input<typeof toolRunne
 	});
 }
 
+/**
+ * An agent approves the sign in code its own afb-checks tool printed, in place of a person typing it on the /device page. Two checks keep it from becoming
+ * a way to attach someone else's machine: the code must belong to a client named afb-checks, and the caller must present the verifier whose hash that tool
+ * sent when it asked for the code (so the code was started by the tool whose output the agent read, not handed to it). The permission given is only
+ * `manage`, which the tool uses once to register itself, and only when the caller holds it today. Nothing secret comes back: the tool receives its token
+ * by polling, as in the person's flow.
+ */
+export const toolApprovalInput = z.object({
+	userCode: z.string().min(8).max(12),
+	verifier: z
+		.string()
+		.regex(/^[A-Za-z0-9_-]{43,128}$/, 'The verifier is the one the tool printed with its code.')
+});
+
+const APPROVAL_CLIENT = 'afb-checks';
+const APPROVAL_FAILURES_MAX = 10;
+const APPROVAL_FAILURES_WINDOW_MS = 600_000;
+/** Wrong or foreign codes counted per caller token (or session), so an agent in a loop never spends the person's own budget at /device. */
+const approvalFailures = new Map<string, { n: number; since: number }>();
+
+export async function approveToolConnection(ctx: Ctx, raw: z.input<typeof toolApprovalInput>) {
+	const input = toolApprovalInput.parse(raw);
+	const who = ctx.actor.tokenId ?? ctx.actor.sessionId ?? ctx.actor.userId;
+	// Entries older than the window are forgotten, so the map cannot grow without end
+	for (const [k, v] of approvalFailures)
+		if (Date.now() - v.since >= APPROVAL_FAILURES_WINDOW_MS) approvalFailures.delete(k);
+	const failed = approvalFailures.get(who);
+	if (
+		failed &&
+		Date.now() - failed.since < APPROVAL_FAILURES_WINDOW_MS &&
+		failed.n >= APPROVAL_FAILURES_MAX
+	)
+		throw new OpError(
+			'RATE_LIMITED',
+			'Too many codes were refused. Wait ten minutes, then start the tool again.'
+		);
+	return run(ctx, (tx) =>
+		idempotent(ctx, tx, async () => {
+			await requireCap(tx, ctx, 'manage');
+			// The token the tool receives has no project limit, so a token that is limited to some projects may not approve one: it would hand out more than it holds
+			if (ctx.actor.tokenProjects?.length)
+				throw new OpError(
+					'FORBIDDEN',
+					'This token is limited to some projects, so it cannot approve a tool: the tool would reach every project of the organisation. Use a token without a project limit.'
+				);
+			const code = input.userCode.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+			const challenge = createHash('sha256').update(input.verifier).digest('base64url');
+			// One conditional update decides everything at once: still pending, not expired, an afb-checks client, and this caller holds the verifier
+			const approved = await tx
+				.update(deviceCode)
+				.set({
+					status: 'approved',
+					approvedBy: ctx.actor.userId,
+					approvedOrgId: ctx.orgId,
+					scopes: ['manage']
+				})
+				.where(
+					and(
+						eq(deviceCode.userCode, code),
+						eq(deviceCode.status, 'pending'),
+						eq(deviceCode.client, APPROVAL_CLIENT),
+						eq(deviceCode.challengeHash, challenge),
+						gt(deviceCode.expiresAt, sql`now()`)
+					)
+				)
+				.returning({ id: deviceCode.id });
+			if (approved.length === 0) {
+				// A retry of an approval that already went through (a timeout on the way back, no request id) is the same answer, not a refusal and not a failure to count
+				const [again] = await tx
+					.select({ id: deviceCode.id })
+					.from(deviceCode)
+					.where(
+						and(
+							eq(deviceCode.userCode, code),
+							eq(deviceCode.client, APPROVAL_CLIENT),
+							eq(deviceCode.challengeHash, challenge),
+							inArray(deviceCode.status, ['approved', 'issued']),
+							eq(deviceCode.approvedBy, ctx.actor.userId),
+							eq(deviceCode.approvedOrgId, ctx.orgId)
+						)
+					);
+				if (again) return { ok: true as const, client: APPROVAL_CLIENT };
+				const now = Date.now();
+				approvalFailures.set(
+					who,
+					failed && now - failed.since < APPROVAL_FAILURES_WINDOW_MS
+						? { n: failed.n + 1, since: failed.since }
+						: { n: 1, since: now }
+				);
+				throw new OpError(
+					'INVALID',
+					'That code is not valid, has expired, was already used, or was not started by the tool that printed this verifier.'
+				);
+			}
+			await appendOrgEvent(
+				tx,
+				ctx,
+				'runner.approve',
+				{},
+				{ client: APPROVAL_CLIENT, by: ctx.actor.kind }
+			);
+			return { ok: true as const, client: APPROVAL_CLIENT };
+		})
+	);
+}
+
 export async function listRunners(ctx: Ctx) {
 	return run(ctx, async (tx) => {
 		await requireCap(tx, ctx, 'read');
@@ -535,6 +642,47 @@ export async function authenticateRunner(
 			projectIds: r.projectIds,
 			name: r.name
 		};
+	});
+}
+
+// -- THE TOOL'S AUDIT CHAIN HEAD -- //
+
+/** The header the afb-checks tool sends with every call: how many lines its audit chain has and the head of it, `<lines>:<64 hex>` (`0:` for none yet). */
+export const TOOL_AUDIT_HEADER = 'x-afb-tool-audit';
+const AUDIT_REPORT = /^(\d{1,9}):([0-9a-f]{64})?$/;
+
+/**
+ * Keeps the last head the tool reported, so a local audit log that was cut or rewritten shows: a report shorter than the last one, or as long with another
+ * head, sets audit_regressed_at. Only a count and a hash are stored, never an action, a path or a command. A header that is not in the form is ignored.
+ */
+export async function recordToolAudit(
+	handle: DbHandle,
+	auth: RunnerAuth,
+	header: string | null
+): Promise<void> {
+	if (auth.kind !== 'tool' || !header) return;
+	const m = AUDIT_REPORT.exec(header);
+	if (!m || (m[2] === undefined) !== (m[1] === '0')) return;
+	const lines = Number(m[1]);
+	const head = m[2] ?? '';
+	await withTenant(handle, { orgId: auth.orgId }, async (tx) => {
+		const [r] = await tx
+			.select({ head: runner.auditHead, lines: runner.auditLines })
+			.from(runner)
+			.where(eq(runner.id, auth.runnerId))
+			// Two calls at once (the worker and a doctor) take turns, so the older report never overwrites a newer one or raises a false alarm
+			.for('update');
+		if (!r) return;
+		const regressed =
+			r.lines !== null && (lines < r.lines || (lines === r.lines && head !== (r.head ?? '')));
+		await tx
+			.update(runner)
+			.set({
+				auditHead: head,
+				auditLines: lines,
+				...(regressed ? { auditRegressedAt: sql`now()` } : {})
+			})
+			.where(eq(runner.id, auth.runnerId));
 	});
 }
 

@@ -30,13 +30,13 @@ export const RUN_FIXES: Record<RunErrorCode, string> = {
 	DB_NOT_THROWAWAY:
 		'The tool refused this database because it may hold real data. Use the throwaway database the tool creates itself.',
 	TOOL_OFFLINE:
-		'No afb-checks tool is online for this project. Check runner_status, start the tool (node afb-checks.mjs work, or the service) and ask again.',
+		'No afb-checks tool is online for this project. Call runner_status and follow its agentAction on the machine that runs the tool (node afb-checks.mjs doctor --fix --json repairs it), then ask again.',
 	TOOL_OUTDATED:
-		'The afb-checks tool is too old for this board. Upgrade it from a folder with a newer template, then run again.',
+		'The afb-checks tool is too old for this board. Upgrade it from a folder with a newer template (node afb-checks.mjs upgrade <that folder>), then run again.',
 	TARGET_UNAVAILABLE:
 		'That target cannot run now. Pick one of the targets named in the reason, or set the target up first.',
 	RUN_TIMED_OUT:
-		'The tool took the run and stopped reporting. Check runner_status, restart the tool and ask again.'
+		'The tool took the run and stopped reporting. Call runner_status, run node afb-checks.mjs doctor --fix --json on the machine that runs the tool, and ask again.'
 };
 
 /** The first matching line wins, so the most specific pattern comes first. */

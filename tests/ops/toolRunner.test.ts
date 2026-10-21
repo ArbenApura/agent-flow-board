@@ -11,9 +11,11 @@ import {
 	finishCheckRun,
 	itemChecks,
 	requestRun,
+	runnerStatus,
 	saveCheck
 } from '../../src/lib/server/ops/checks';
 import {
+	TOOL_AUDIT_HEADER,
 	TOOL_PROTOCOL_HEADER,
 	authenticateRunner,
 	createRunner,
@@ -147,6 +149,39 @@ describe('the afb-checks tool as a runner', () => {
 		expect(done.result).toBe('pass');
 	});
 
+	it("there is no default target setting: a run that names no target is on the preview, the old field is ignored, and a pin or a person's saved choice still wins", async () => {
+		await db.admin.exec(`delete from runner where org_id = '${w.orgId}'`);
+		const tool = await registerToolRunner(as('admin'), { name: 'Target afb-checks' });
+		// A tool counts as online once it has called the board
+		await authenticateRunner(db, tool.token);
+		const item = await createItem(as('member'), {
+			project: w.projectKey,
+			title: 'No default target',
+			phases: [{ key: '1', title: 'B', steps: [{ text: 'x' }] }],
+			manualChecks: [
+				{ key: 'M1', text: 'a', auto: true },
+				{ key: 'M2', text: 'b', auto: true }
+			]
+		});
+		await saveCheck(as('member'), { item: item.ref, key: 'M1', script: 's' });
+		await saveCheck(as('member'), { item: item.ref, key: 'M2', script: 's', pinnedTarget: 'dev' });
+		// The old field is no longer part of a project update: sent by an older client, it changes nothing and breaks nothing
+		await updateProject(as('admin'), { project: w.projectKey, defaultTarget: 'deployed' } as never);
+		const view = await itemChecks(as('member'), item.ref);
+		expect(view).not.toHaveProperty('defaultTarget');
+		const plain = await requestRun(as('member'), { item: item.ref, key: 'M1' });
+		expect(plain.target).toBe('preview');
+		expect(plain.unavailable).toBe(false);
+		// A pin on the check still wins over the preview
+		expect((await requestRun(as('member'), { item: item.ref, key: 'M2' })).target).toBe('dev');
+		// A person's own saved choice still wins too
+		await db.admin.exec(
+			`insert into user_pref (user_id, check_target) values ('${w.people.member}', 'deployed') on conflict (user_id) do update set check_target = 'deployed'`
+		);
+		expect((await requestRun(as('member'), { item: item.ref, key: 'M1' })).target).toBe('deployed');
+		await db.admin.exec(`delete from user_pref where user_id = '${w.people.member}'`);
+	});
+
 	it('a hosted runner never takes the tool-only preview, and a tool that serves no project is not used for one', async () => {
 		await db.admin.exec(`delete from runner where org_id = '${w.orgId}'`);
 		const item = await createItem(as('member'), {
@@ -211,6 +246,57 @@ describe('the afb-checks tool as a runner', () => {
 		expect(await authenticateRunner(db, renewed.token)).toMatchObject({
 			projectIds: expect.any(Array)
 		});
+	});
+
+	it("the head of the tool's audit chain is kept, and a log that got shorter or changed under the same length shows on runner_status as a regression", async () => {
+		await db.admin.exec(`delete from runner where org_id = '${w.orgId}'`);
+		const tool = await registerToolRunner(as('admin'), { name: 'Audit afb-checks' });
+		const hex = (c: string) => c.repeat(64);
+		const report = (h: string) => call(tool.token, 'POST', '/peek', { [TOOL_AUDIT_HEADER]: h });
+		const audit = async () => (await runnerStatus(as('admin'), w.projectKey)).projects[0].audit;
+		expect(await audit()).toBeNull();
+		expect((await report(`2:${hex('a')}`)).status).toBe(200);
+		expect(await audit()).toEqual({ lines: 2, regressedAt: null });
+		// The chain grows: no regression
+		await report(`3:${hex('b')}`);
+		expect(await audit()).toEqual({ lines: 3, regressedAt: null });
+		// The same report again is not a regression
+		await report(`3:${hex('b')}`);
+		expect((await audit())?.regressedAt).toBeNull();
+		// A header that is not in the form is ignored and changes nothing, and never breaks the call
+		for (const bad of [
+			'3',
+			'x:y',
+			`3:${hex('g')}`,
+			`0:${hex('a')}`,
+			`4:`,
+			'-1:' + hex('a'),
+			`99999999999:${hex('a')}`
+		])
+			expect((await report(bad)).status).toBe(200);
+		expect(await audit()).toEqual({ lines: 3, regressedAt: null });
+		// A shorter chain: the log was cut
+		await report(`2:${hex('a')}`);
+		const cut = await audit();
+		expect(cut?.lines).toBe(2);
+		expect(cut?.regressedAt).toBeInstanceOf(Date);
+		// The same length with another head: the log was rewritten
+		await db.admin.exec(`update runner set audit_regressed_at = null where org_id = '${w.orgId}'`);
+		await report(`2:${hex('c')}`);
+		expect((await audit())?.regressedAt).toBeInstanceOf(Date);
+		// Only a count and a hash are kept: runner_status shows no head, and nothing else of the log
+		expect(JSON.stringify(await audit())).not.toContain(hex('c'));
+		// A runner that is not the tool is never recorded
+		const hosted = await createRunner(as('admin'), {
+			name: 'Hosted audit',
+			kind: 'hosted',
+			projects: [w.projectKey]
+		});
+		await call(hosted.token, 'POST', '/peek', { [TOOL_AUDIT_HEADER]: `7:${hex('d')}` });
+		const rows = await db.admin.query<{ audit_lines: number | null }>(
+			`select audit_lines from runner where id = '${hosted.id}'`
+		);
+		expect(rows[0].audit_lines).toBeNull();
 	});
 
 	it('a tool older than the board expects is told to upgrade, and a runner program that names no version is unchanged', async () => {

@@ -173,7 +173,7 @@ export async function claim(
 			.returning();
 		// An older session of the same person and tool on the same item lets go only after it has been quiet for a while, so a
 		// parallel conversation that is still working keeps its claim (one token serves every conversation of a person)
-		if (itemId)
+		if (itemId) {
 			await tx
 				.update(session)
 				.set({ claimedItemId: null, claimedPhase: null, updatedAt: sql`now()` })
@@ -188,6 +188,7 @@ export async function claim(
 						ne(session.id, sessionId)
 					)
 				);
+		}
 		for (const p of new Set([projectId, before?.projectId].filter((v): v is string => !!v)))
 			await notifyChange(tx, { o: ctx.orgId, p, k: 'claim', i: itemId });
 		return { ...(await describe(tx, row)), nextOpen };
