@@ -41,28 +41,17 @@
 		queued: { label: 'Waiting for a runner', tone: 'info' },
 		running: { label: 'Running', tone: 'running' }
 	};
-	const TARGET_OPTIONS = [
-		{ value: '', label: 'Choose for me', hint: 'The check, your preference, then the project' },
-		{ value: 'preview', label: 'Build preview' },
-		{ value: 'dev', label: 'Dev server' },
-		{ value: 'deployed', label: 'Deployed site' }
-	];
-	const REQUIRED_OPTIONS = TARGET_OPTIONS.slice(1);
-	const PIN_OPTIONS = [{ value: '', label: 'No pin' }, ...REQUIRED_OPTIONS];
 
 	// -- STATES -- //
 
 	let view = $state<View | null>(null);
 	let failed = $state(false);
-	let target = $state<Record<string, string>>({});
 	let stepFor = $state<Record<string, string>>({});
 	let editing = $state<string | null>(null);
 	let script = $state('');
 	let paths = $state('');
-	let required = $state('preview');
-	let pinned = $state('');
 	let busy = $state('');
-	let notice = $state<Record<string, { text: string; offer: string[] }>>({});
+	let notice = $state<Record<string, string>>({});
 
 	// -- REACTIVE STATES -- //
 
@@ -74,6 +63,7 @@
 		{ value: '', label: 'None' },
 		...openSteps.map((s) => ({ value: s.key, label: `${s.key} ${s.text.slice(0, 48)}` }))
 	]);
+	const runner = $derived(view?.targets.find((t) => t.target === 'preview'));
 	const waiting = $derived(
 		view?.checks.some((c) => c.runs.some((r) => r.result === 'queued' || r.result === 'running')) ??
 			false
@@ -109,8 +99,6 @@
 		editing = key;
 		script = c ? '' : 'await page.goto("/");\nawait expect(page.locator("h1")).toBeVisible();\n';
 		paths = c?.coveredPaths.join('\n') ?? '';
-		required = c?.requiredTarget ?? 'preview';
-		pinned = c?.pinnedTarget ?? '';
 		if (c) script = c.script ?? '';
 	}
 
@@ -123,8 +111,9 @@
 					body: {
 						key,
 						script,
-						requiredTarget: required,
-						pinnedTarget: pinned || null,
+						// Checks run on the build preview only; an older check keeps the target it was saved with
+						requiredTarget: checkOf(key)?.requiredTarget ?? 'preview',
+						pinnedTarget: checkOf(key)?.pinnedTarget ?? null,
 						coveredPaths: paths
 							.split('\n')
 							.map((p) => p.trim())
@@ -173,30 +162,23 @@
 		}
 	}
 
-	async function run(key: string, chosen?: string) {
+	async function run(key: string) {
 		busy = `run-${key}`;
 		try {
 			const asked = await toast.promise(
 				api<{
 					unavailable: boolean;
-					offer: string[];
 					run: { reason: string | null };
 				}>(env.org, `/items/${detail.item.ref}/browser-checks/runs`, {
-					body: {
-						key,
-						target: (chosen ?? target[key]) || undefined,
-						step: stepFor[key] || undefined
-					}
+					body: { key, step: stepFor[key] || undefined }
 				}),
 				{
 					loading: 'Asking for a run...',
-					success: (r) => (r.unavailable ? 'That target is not available.' : 'Run requested.'),
+					success: (r) => (r.unavailable ? 'The check cannot run yet.' : 'Run requested.'),
 					error: (e) => (e instanceof ApiError ? e.message : 'The run was not asked for.')
 				}
 			);
-			notice[key] = asked.unavailable
-				? { text: asked.run.reason ?? 'That target is not available.', offer: asked.offer }
-				: { text: '', offer: [] };
+			notice[key] = asked.unavailable ? (asked.run.reason ?? 'The check cannot run yet.') : '';
 			await load();
 		} catch {
 			// The promise toast already shows the failure
@@ -223,40 +205,19 @@
 	{:else if !view}
 		<Skeleton lines={4} />
 	{:else}
-		<!-- WHERE CHECKS CAN RUN -->
-		<TabCard
-			collapsible
-			storageKey={`afb:collapse:${env.org}:${detail.item.id}:check-targets`}
-			role="region"
-			aria-label="Where checks can run"
-		>
-			{#snippet heading()}Where checks can run{/snippet}
+		<!-- CHECK RUNNER STATUS -->
+		<TabCard role="region" aria-label="Check runner" data-testid="runner-status">
+			{#snippet heading()}Check runner{/snippet}
 			{#snippet meta()}
-				<span class="text-sm text-muted tabular-nums"
-					>{view?.targets.filter((t) => t.available).length ?? 0} of {view?.targets.length ?? 0} ready</span
-				>
+				<Badge tone={runner?.available ? 'success' : 'warning'} dot>
+					{runner?.available ? 'Ready' : 'Not connected'}
+				</Badge>
 			{/snippet}
-			<p class="border-b border-line px-4 py-2 text-xs text-muted max-sm:px-3.5">
-				The build preview is the usual choice. A target is ready when the project has an environment
-				for it and a runner that can reach it is online.
+			<p class="px-4 py-2 text-sm text-muted max-sm:px-3.5">
+				{runner?.available
+					? 'Checks run on a build preview of the project, on this computer.'
+					: 'Your agent connects the check runner by itself the next time a check needs to run. Nothing to do here.'}
 			</p>
-			<ul data-testid="targets">
-				{#each view.targets as t (t.target)}
-					<li
-						class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-2 last:border-b-0 max-sm:px-3.5"
-						data-item
-						data-testid={`target-${t.target}`}
-					>
-						<span class="w-32 shrink-0 text-sm font-medium">{TARGET_LABEL[t.target]}</span>
-						<Badge tone={t.available ? 'success' : 'warning'} dot>
-							{t.available ? 'Ready' : 'Not ready'}
-						</Badge>
-						{#if t.reason}<span class="min-w-0 flex-1 text-xs break-words text-muted"
-								>{t.reason}</span
-							>{/if}
-					</li>
-				{/each}
-			</ul>
 		</TabCard>
 
 		{#if autoChecks.length === 0}
@@ -290,8 +251,7 @@
 				<div class="flex flex-col gap-4 p-4 max-sm:p-3.5">
 					<p class="text-sm text-muted">
 						{#if c}
-							Counts when it passes on the {TARGET_LABEL[c.requiredTarget]}{#if c.pinnedTarget},
-								always run on the {TARGET_LABEL[c.pinnedTarget]}{/if}.
+							Counts when it passes on a build preview.
 						{:else}
 							No browser check is saved for this yet.
 						{/if}
@@ -299,13 +259,6 @@
 
 					{#if c && env.canWrite && view.canRun}
 						<div class="flex flex-wrap items-end gap-2" data-testid={`run-controls-${mc.key}`}>
-							<Select
-								label="Target"
-								options={TARGET_OPTIONS}
-								value={target[mc.key] ?? ''}
-								onchange={(v) => (target[mc.key] = v)}
-								class="w-48"
-							/>
 							<Select
 								label="Step to close when it passes"
 								options={stepOptions}
@@ -321,20 +274,13 @@
 								Run check
 							</Button>
 						</div>
-						{#if notice[mc.key]?.text}
+						{#if notice[mc.key]}
 							<div
 								class="flex flex-col gap-2 rounded-lg bg-warning-soft p-3 text-sm text-warning"
 								role="status"
 								data-testid={`unavailable-${mc.key}`}
 							>
-								<span>{notice[mc.key].text}</span>
-								<span class="flex flex-wrap gap-2">
-									{#each notice[mc.key].offer as t (t)}
-										<Button size="sm" onclick={() => run(mc.key, t)}>
-											Run on the {TARGET_LABEL[t]}
-										</Button>
-									{/each}
-								</span>
+								<span>{notice[mc.key]}</span>
 							</div>
 						{/if}
 					{/if}
@@ -406,20 +352,6 @@
 									spellcheck="false"
 									hint="Runs in a signed-in browser. You have page, context, expect, baseUrl and log. You never see a password."
 								/>
-								<div class="flex flex-wrap gap-2">
-									<Select
-										label="Counts on"
-										options={REQUIRED_OPTIONS}
-										bind:value={required}
-										class="w-48"
-									/>
-									<Select
-										label="Always run on"
-										options={PIN_OPTIONS}
-										bind:value={pinned}
-										class="w-48"
-									/>
-								</div>
 								<TextArea
 									label="Code this check covers (one path per line)"
 									bind:value={paths}

@@ -174,7 +174,7 @@ export async function targetStatuses(
 				environment: null,
 				reason:
 					target === 'preview'
-						? 'This project has no preview environment, and the afb-checks tool is not connected. Call runner_status for the steps that connect it.'
+						? 'This project has no preview environment and no check runner is connected. Your agent connects the afb-checks tool by itself; runner_status lists the steps.'
 						: `This project has no ${target} environment yet.`
 			};
 		if (!runners.length)

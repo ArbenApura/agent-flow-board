@@ -39,7 +39,6 @@
 	import GoogleLogo from '#lib/ui/GoogleLogo.svelte';
 	import PasswordStrength from '#lib/ui/PasswordStrength.svelte';
 	import PictureUpload from '#lib/ui/PictureUpload.svelte';
-	import Select from '#lib/ui/Select.svelte';
 	import SelectField from '#lib/ui/SelectField.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
@@ -53,7 +52,6 @@
 	import MonitorSmartphone from '@lucide/svelte/icons/monitor-smartphone';
 	import Plug from '@lucide/svelte/icons/plug';
 	import Palette from '@lucide/svelte/icons/palette';
-	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import Bell from '@lucide/svelte/icons/bell';
 	import Check from '@lucide/svelte/icons/check';
 	import Monitor from '@lucide/svelte/icons/monitor';
@@ -71,13 +69,6 @@
 		credential: 'Email and password',
 		google: 'Google'
 	};
-	const TARGETS = [
-		{ value: '', label: 'No preference' },
-		{ value: 'dev', label: 'Dev server' },
-		{ value: 'preview', label: 'Build preview' },
-		{ value: 'deployed', label: 'Deployed site' }
-	];
-
 	const MODES: { value: ResolvedMode; label: string }[] = [
 		{ value: 'light', label: 'Light' },
 		{ value: 'dark', label: 'Dark' }
@@ -90,7 +81,6 @@
 	let name = $state('');
 	let current = $state('');
 	let next = $state('');
-	let target = $state('');
 	let continueTool = $state<ContinueToolId>('claude-code');
 	let continueMode = $state<ContinueMode>('vscode');
 	let backupAlerts = $state(true);
@@ -118,7 +108,6 @@
 	const dirty = $derived({
 		profile: name.trim() !== data.me.name,
 		password: current !== '' && next !== '',
-		checks: target !== prefs.checkTarget,
 		continue: continueTool !== data.continueTool || continueMode !== data.continueMode,
 		notifications: backupAlerts !== prefs.notifications.backupAlerts
 	});
@@ -130,7 +119,6 @@
 	const follow = createFollower();
 	$effect(() => {
 		follow('name', data.me.name, (v) => (name = v));
-		follow('target', prefs.checkTarget, (v) => (target = v));
 		follow('continueTool', parseTool(data.continueTool), (v) => (continueTool = v));
 		follow('continueMode', parseMode(data.continueMode), (v) => (continueMode = v));
 		follow('backupAlerts', prefs.notifications.backupAlerts, (v) => (backupAlerts = v));
@@ -572,28 +560,6 @@
 				/>
 			</div>
 			<div class="text-xs text-muted" data-testid="continue-example">{continueExample}</div>
-		</Section>
-
-		<Section
-			id="checks"
-			icon={ShieldCheck}
-			group="Preferences"
-			title="Browser checks"
-			text="Where you want checks to run by default."
-			dirty={dirty.checks}
-			saving={st('checks').saving}
-			saved={st('checks').saved}
-			error={st('checks').error}
-			onsave={() =>
-				run('checks', 'prefs', prefsFields({ checkTarget: target }), 'Check setting saved.')}
-		>
-			<Select
-				label="Run checks on"
-				value={target}
-				options={TARGETS}
-				onchange={(v) => (target = v)}
-				class="w-56"
-			/>
 		</Section>
 
 		<Section

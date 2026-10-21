@@ -275,24 +275,17 @@ test('M8 your own settings: name, theme, accent, notifications, password, sessio
 	// There is no personal accent: the colour comes from the organisation
 	await tab(page, 'appearance');
 	await expect(page.getByRole('radio', { name: 'Violet' })).toHaveCount(0);
-	// Notifications and the check target
+	// Notifications
 	await tab(page, 'notifications');
 	await page.getByRole('switch', { name: 'Backup problems' }).click();
 	await page.getByTestId('save-notifications').click();
 	await expect(page.getByTestId('saved-notifications')).toBeVisible();
-	await tab(page, 'checks');
-	await page.getByRole('button', { name: 'Run checks on' }).click();
-	await page.getByRole('option', { name: 'Build preview' }).click();
-	await page.getByTestId('save-checks').click();
-	await expect(page.getByTestId('saved-checks')).toBeVisible();
 	await page.reload();
 	await tab(page, 'notifications');
 	await expect(page.getByRole('switch', { name: 'Backup problems' })).toHaveAttribute(
 		'aria-checked',
 		'false'
 	);
-	await tab(page, 'checks');
-	await expect(page.getByRole('button', { name: 'Run checks on' })).toContainText('Build preview');
 	// Sessions: sign in from a second browser, see both, end the other one
 	const other = await browser.newContext({ baseURL });
 	const op = await other.newPage();

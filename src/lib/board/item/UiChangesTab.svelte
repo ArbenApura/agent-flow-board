@@ -11,7 +11,6 @@
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import ErrorState from '#lib/ui/ErrorState.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
-	import Select from '#lib/ui/Select.svelte';
 	import Skeleton from '#lib/ui/Skeleton.svelte';
 	import TextArea from '#lib/ui/TextArea.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
@@ -35,17 +34,10 @@
 		timeout: { label: 'Stuck', tone: 'warning' },
 		unavailable: { label: 'Not available', tone: 'warning' }
 	};
-	const TARGETS = [
-		{ value: 'preview', label: 'Build preview' },
-		{ value: 'dev', label: 'Dev server' },
-		{ value: 'deployed', label: 'Deployed site' }
-	];
-
 	// -- STATES -- //
 
 	let view = $state<View | null>(null);
 	let failed = $state(false);
-	let target = $state('preview');
 	let viewport = $state('1440');
 	let theme = $state('light');
 	let editing = $state(false);
@@ -159,7 +151,7 @@
 				api<{ unavailable: boolean; reason: string | null }>(
 					env.org,
 					`/items/${detail.item.ref}/ui-shots`,
-					{ body: { target } }
+					{ body: { target: 'preview' } }
 				),
 				{
 					id: 'ui-shots-run',
@@ -298,7 +290,6 @@
 					</p>
 					{#if env.canWrite && view.canRun}
 						<div class="flex flex-wrap items-end gap-2">
-							<Select label="Target" options={TARGETS} bind:value={target} class="w-48" />
 							<Button loading={busy === 'run'} onclick={runShots} data-testid="run-ui-shots"
 								>Run UI shots</Button
 							>

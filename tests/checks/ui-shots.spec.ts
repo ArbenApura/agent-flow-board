@@ -285,7 +285,7 @@ test('M18 the checks and UI changes tabs and the settings sections are usable on
 		expect(wide, path).toBe(false);
 	}
 	await page.goto(`/acme/${p.key}/${made.ref}?tab=checks`);
-	await expect(page.getByTestId('target-preview')).toContainText('Ready');
+	await expect(page.getByTestId('runner-status')).toContainText('Ready');
 	await expect(page.getByTestId('check-M1')).toContainText('No browser check is saved');
 	await ctx.close();
 });
