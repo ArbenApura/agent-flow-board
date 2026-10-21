@@ -2,6 +2,7 @@
 // 6.4 TO 6.11 AND 6.13: THE MCP SERVER THROUGH A REAL CLIENT, WITH TOKENS, SESSIONS, WORKFLOWS AND THE COMPATIBILITY VERBS
 
 // -- DEP-MODULES -- //
+import { createHash } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
@@ -9,7 +10,7 @@ import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { comment, item, org as orgTable, step } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { handleMcp, oauthMetadata } from '../../src/lib/server/mcp/handler';
-import { WORKFLOWS } from '../../src/lib/server/mcp/workflows';
+import { systemSkillsIndex } from '../../src/lib/server/system-skills';
 import { createItem } from '../../src/lib/server/ops/items';
 import { createToken } from '../../src/lib/server/ops/tokens';
 import { makePostgres, type TestDb } from '../support/db';
@@ -152,7 +153,7 @@ describe('MCP server', () => {
 		expect(oauthMetadata(BASE).protectedResource.resource).toBe(`${BASE}/mcp`);
 	});
 
-	it('lists a small tool set with short descriptions, the instructions, and the four workflows as prompts', async () => {
+	it('lists a small tool set with short descriptions, the instructions, and no prompts', async () => {
 		const client = await connect(deps, token);
 		const tools = (await client.listTools()).tools;
 		const names = tools.map((t) => t.name);
@@ -174,6 +175,8 @@ describe('MCP server', () => {
 			'undo',
 			'project_rules',
 			'workflow_get',
+			'skills_check',
+			'skills_file',
 			'plan_add_phase',
 			'plan_add_steps',
 			'plan_add_checks',
@@ -188,21 +191,19 @@ describe('MCP server', () => {
 			'check_delete',
 			'check_run',
 			'check_wait',
-			'runner_status'
+			'runner_status',
+			'tool_connection_approve'
 		])
 			expect(names).toContain(n);
 		expect(
 			tools.every((t) => (t.description ?? '').length > 10 && (t.description ?? '').length < 330)
 		).toBe(true);
 		expect(client.getInstructions()).toContain('session_start');
-		const prompts = (await client.listPrompts()).prompts.map((p) => p.name);
-		expect(prompts).toEqual(WORKFLOWS.map((x) => x.name));
-		const flow = await client.getPrompt({ name: 'flow', arguments: { item: 'CKT-12' } });
-		const text = (flow.messages[0].content as { text: string }).text;
-		expect(text).toContain('Claim the named item at once');
-		expect(text).toContain('Closing another item asks first');
-		expect(text).toContain('Checked');
-		expect(text).toContain('CKT-12');
+		// The flow workflows are read with workflow_get and installed from the bundle, never listed as prompts
+		expect(client.getServerCapabilities()?.prompts).toBeUndefined();
+		const flow = await call(client, 'workflow_get', { name: 'flow' });
+		expect(String(flow.text)).toContain('step_done');
+		expect(names).not.toContain('skill_get');
 		const wf = await call(client, 'workflow_get', { name: 'flow-critic' });
 		expect(String(wf.text).toLowerCase()).toContain('design fit');
 		// A supporting file of the critic is readable, and a file on another workflow is refused
@@ -211,12 +212,104 @@ describe('MCP server', () => {
 		expect(String(lenses.text).length).toBeGreaterThan(500);
 		const wrongFile = await call(client, 'workflow_get', { name: 'flow', file: 'plan-lenses' });
 		expect(wrongFile.error ?? wrongFile.code).toBeTruthy();
-		// The task workflow is listed, readable, and never tells the agent to claim an item
-		expect(prompts).toContain('flow-task');
+		// The task workflow is readable, and never tells the agent to claim an item
 		const taskWf = await call(client, 'workflow_get', { name: 'flow-task' });
 		expect(taskWf.text).toContain('task_new');
 		expect(taskWf.text).toContain('Do not call work_start');
 		expect(taskWf.text).not.toContain('Claim the named item at once');
+		await client.close();
+	});
+
+	it('plans the skills install with skills_check and serves every file whole with skills_file (AFB-20261021-0803)', async () => {
+		const client = await connect(deps, token);
+		const index = systemSkillsIndex();
+		const fresh = await call(client, 'skills_check', { harness: 'claude-code', checked: true });
+		expect(fresh.folder).toBe('~/.claude/skills');
+		expect(fresh.bundle.version).toBe(index.bundle.version);
+		expect(fresh.skills.map((s: { action: string }) => s.action)).toEqual(
+			index.skills.map(() => 'install')
+		);
+		expect(fresh.rules.join(' ')).toContain('Never run');
+		// An unknown tool has no folder, and a name that is not a skill name is refused before anything runs
+		expect((await call(client, 'skills_check', { harness: 'codex' })).folder).toBeNull();
+		// A hash printed in upper case by a Windows tool is accepted
+		const upper = await call(client, 'skills_check', {
+			harness: 'claude-code',
+			installed: [{ name: 'flow', stampVersion: '9.9.9', stampSha256: 'A'.repeat(64) }]
+		});
+		expect(upper.skills[0].action).toBe('ask');
+		const bad = await client.callTool({
+			name: 'skills_check',
+			arguments: { harness: 'claude-code', installed: [{ name: '../../etc' }] }
+		});
+		expect(bad.isError).toBe(true);
+		expect(JSON.stringify(bad.content)).toContain('skill name');
+		// Every file of every skill comes back in parts that join to the indexed hash
+		for (const skill of index.skills)
+			for (const f of skill.files) {
+				let text = '';
+				let off: number | null = 0;
+				while (off !== null) {
+					const part: Record<string, any> = await call(client, 'skills_file', {
+						skill: skill.name,
+						file: f.path,
+						offset: off
+					});
+					expect(part.sha256).toBe(f.sha256);
+					expect(String(part.text).length).toBeLessThanOrEqual(12_000);
+					text += part.text;
+					off = part.next;
+				}
+				expect(
+					createHash('sha256').update(text, 'utf8').digest('hex'),
+					`${skill.name}/${f.path}`
+				).toBe(f.sha256);
+			}
+		const nope = await call(client, 'skills_file', { skill: 'flow', file: '../../.env' });
+		expect(nope.error.code).toBe('NOT_FOUND');
+		const total = (await call(client, 'skills_file', { skill: 'flow', file: 'SKILL.md' })).total;
+		const atEnd = await call(client, 'skills_file', {
+			skill: 'flow',
+			file: 'SKILL.md',
+			offset: total
+		});
+		expect(atEnd.error.code).toBe('INVALID');
+		const unchecked = await call(client, 'skills_check', { harness: 'claude-code' });
+		expect(unchecked.skills.every((s: { action: string }) => s.action === 'ask')).toBe(true);
+		const past = await call(client, 'skills_file', {
+			skill: 'flow',
+			file: 'SKILL.md',
+			offset: 9_999_999
+		});
+		expect(past.error.code).toBe('INVALID');
+		await client.close();
+	});
+
+	it('adds a skills notice to session_start only when the skills are missing, older or not reported (AFB-20261021-0803)', async () => {
+		const client = await connect(deps, token);
+		const bundle = systemSkillsIndex().bundle.version;
+		const plain = await call(client, 'session_start', { tool: 'tester' });
+		expect(plain.sessionId).toMatch(/^s_/);
+		expect(plain.skillsNotice).toContain('call skills_check once');
+		const none = await call(client, 'session_start', { tool: 'tester', skillsBundle: 'none' });
+		expect(none.skillsNotice).toContain('not installed');
+		const old = await call(client, 'session_start', { tool: 'tester', skillsBundle: '0.0.1' });
+		expect(old.skillsNotice).toContain('older');
+		const current = await call(client, 'session_start', { tool: 'tester', skillsBundle: bundle });
+		expect(current.skillsNotice).toBeUndefined();
+		// The path with an item carries it too
+		const made = await call(client, 'item_new', {
+			sessionId: plain.sessionId,
+			project: w.projectKey,
+			title: 'Skills notice with an item',
+			phases: PLAN.phases
+		});
+		const withItem = await call(client, 'session_start', {
+			tool: 'tester',
+			skillsBundle: 'none',
+			item: made.ref
+		});
+		expect(withItem.skillsNotice).toContain('not installed');
 		await client.close();
 	});
 

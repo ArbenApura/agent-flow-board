@@ -17,6 +17,8 @@ describe('the agent setup brief', () => {
 			expect(md, tool).toContain(`### ${tool}`);
 		expect(md).toContain('claude mcp add --transport http afb-arbenger');
 		expect(md).toContain('board_brief');
+		expect(md).toContain('skills_check');
+		expect(md).toContain('skillsBundle');
 	});
 	it('never carries a token or a session id', () => {
 		expect(md).not.toMatch(/afb_[A-Za-z0-9]{10,}/);

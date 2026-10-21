@@ -76,6 +76,18 @@ An imported plan takes the date and time of its HAPR Board id (the Board wrote i
 | Your coding tools connected                       | [docs/connect-tools.md](docs/connect-tools.md) |
 | Browser checks and UI shots                       | [docs/runners.md](docs/runners.md)             |
 
+## System skills
+
+The `/flow` skills are shipped by the product as one versioned bundle, installed by people from **Connect a tool**, the **Skills** tab. There are no custom skills and no MCP prompts. See [docs/skills.md](docs/skills.md).
+
+To release a change to a skill:
+
+1. Edit it only in `src/lib/server/system-skills/skills/<name>/`. `.claude/skills/` is regenerated from there and is never edited by hand.
+2. Bump that skill's `version` in `src/lib/server/system-skills/manifest.json`, bump `bundle.version` and `releasedAt`, and add a `changelog` entry at the top (its `skills` map lists every skill's version).
+3. Run `yarn skills:sync`. It records the new hash under the new version and rewrites `.claude/skills`. It also removes a file there that the source no longer has (`.agents/skills` is a link to the same folder). It refuses a changed text whose version was not bumped (`--amend` replaces the hash of a version not yet released; never use it for a version that was already deployed).
+
+`yarn vitest run tests/unit/systemSkills.test.ts` fails when a text changed without a version bump or a changelog entry.
+
 ## How it is built
 
 - SvelteKit 3 with Svelte 5 runes and Tailwind 4, on `adapter-node`.

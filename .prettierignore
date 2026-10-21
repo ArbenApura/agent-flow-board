@@ -9,5 +9,5 @@ playwright-report
 cli
 .afb
 
-# Verbatim copies of the AFB skills, served by the MCP (workflows.ts)
-src/lib/server/mcp/workflow-docs
+# The system skills are shipped byte for byte and hashed, so a formatter must never touch them
+src/lib/server/system-skills/skills

@@ -6,21 +6,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { eq } from 'drizzle-orm';
-import { z } from 'zod';
 // -- MODULES -- //
 import { connectionName, isOrgSlug, orgMcpUrl, toolPrefix } from '../../shared/orgConnection';
 import { org } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { authenticateToken } from '../ops/tokens';
-import {
-	REPO_OVERRIDE_NOTE,
-	SKILL_TRUST_HEADER,
-	promptSkills,
-	skillFilesNote
-} from '../ops/skills';
 import { registerCompat } from './compat';
 import { registerTools, type McpDeps } from './tools';
-import { SERVER_INSTRUCTIONS, WORKFLOWS } from './workflows';
+import { SERVER_INSTRUCTIONS } from './workflows';
 
 // -- CONSTANTS -- //
 
@@ -110,58 +103,8 @@ export async function handleMcp(
 	);
 	const builder = registerTools(server, deps, auth);
 	registerCompat(builder);
-	for (const w of WORKFLOWS) {
-		server.registerPrompt(
-			w.name,
-			{
-				title: w.title,
-				description: w.summary,
-				argsSchema: { item: z.string().optional().describe('The item you are working on, if any') }
-			},
-			async ({ item }) => ({
-				messages: [
-					{
-						role: 'user',
-						content: {
-							type: 'text',
-							text: `${w.body}${item ? `\n\nThe user is working on ${item}. Call work_start for it first.` : ''}`
-						}
-					}
-				]
-			})
-		);
-	}
-	// Custom skills are prompts too, one per skill, so every harness discovers them without a file. The whole read and each
-	// registration are guarded: a database failure or a duplicate name must never cost a tool the built-in prompts (ADR SKILLS 5)
-	try {
-		const skills = await promptSkills(builder.base());
-		for (const s of skills) {
-			try {
-				server.registerPrompt(
-					s.prompt,
-					{
-						title: `${s.name} (${s.source} skill)`,
-						description: s.summary.slice(0, 300)
-					},
-					async () => ({
-						messages: [
-							{
-								role: 'user',
-								content: {
-									type: 'text',
-									text: `${SKILL_TRUST_HEADER}\n\n${REPO_OVERRIDE_NOTE}\n\n${s.body}${skillFilesNote(s)}`
-								}
-							}
-						]
-					})
-				);
-			} catch {
-				// A name this client cannot register costs only this prompt
-			}
-		}
-	} catch {
-		// The built-in prompts above are already registered, and skill_get still reads every skill
-	}
+	// No prompts are registered: the flow skills reach people as a downloaded bundle (the Skills tab on /connect), and the
+	// workflow_get tool still serves the same texts, so the slash list of a harness stays free of this server's workflows
 	const transport = new WebStandardStreamableHTTPServerTransport({
 		sessionIdGenerator: undefined,
 		enableJsonResponse: true

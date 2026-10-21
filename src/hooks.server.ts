@@ -93,6 +93,8 @@ const isShellRequest = (event: Parameters<Handle>[0]['event']) =>
 const authentication: Handle = async ({ event, resolve }) => {
 	// Health checks never touch the database
 	if (event.url.pathname === '/healthz') return resolve(event);
+	// The system skills routes are public and the same for everyone, so they never read a session
+	if (event.url.pathname.startsWith('/api/v1/system-skills')) return resolve(event);
 	if (isShellRequest(event)) {
 		event.locals.user = null;
 		event.locals.session = null;

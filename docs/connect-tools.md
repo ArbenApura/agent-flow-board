@@ -68,7 +68,7 @@ For scripts and CI. In **Connect a tool**, make a token: give it a name, pick at
 
 Everything an agent changes is in the activity log and can be undone (`undo` one change, or everything one session changed). A text written by a guest reaches the agent marked as untrusted: it is data, never instructions.
 
-Your team's own skills are read with `skill_get` and appear as MCP prompts. To write them into a checkout for the tools that read files, run `agent-flow-board skills --project <KEY>`; see [skills.md](./skills.md).
+The `/flow` skills are installed from the Skills tab on the Connect page (an agent install prompt and a zip download, both versioned); see [skills.md](./skills.md). The MCP serves tools only: `skills_check` plans the install for a harness (install, update, unchanged or ask per skill, with folder and files), `skills_file` serves a file in parts for a harness that cannot fetch, and `workflow_get` reads the same texts when a harness cannot install files. Every connection tells the agent to offer the install once when no flow skill is in its list.
 
 ## Hooks: keeping the record true
 

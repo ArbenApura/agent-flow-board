@@ -15,6 +15,7 @@
 	import Card from '#lib/ui/Card.svelte';
 	import Checkbox from '#lib/ui/Checkbox.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
+	import ErrorState from '#lib/ui/ErrorState.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
@@ -26,7 +27,9 @@
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import MonitorSmartphone from '@lucide/svelte/icons/monitor-smartphone';
+	import Package from '@lucide/svelte/icons/package';
 	import Plug from '@lucide/svelte/icons/plug';
+	import Sparkles from '@lucide/svelte/icons/sparkles';
 
 	// -- REQUIRED PROPS -- //
 
@@ -40,6 +43,7 @@
 
 	let picking = $state(false);
 	let previewOpen = $state(false);
+	let skillsPreviewOpen = $state(false);
 
 	let active = $state('claude-code');
 	let name = $state('');
@@ -50,6 +54,19 @@
 
 	const snippet = $derived(data.snippets.find((s) => s.id === active) ?? data.snippets[0]);
 	const created = $derived(form && 'created' in form ? form.created : null);
+	// The tab is part of the address, and the organisation stays in it, so a link opens the same tab for the same organisation
+	const tabs = $derived([
+		{
+			key: 'tools',
+			label: 'Tools and tokens',
+			href: data.org ? `/connect?org=${data.org.slug}` : '/connect'
+		},
+		{
+			key: 'skills',
+			label: 'Skills',
+			href: data.org ? `/connect?org=${data.org.slug}&tab=skills` : '/connect?tab=skills'
+		}
+	]);
 
 	// -- FUNCTIONS -- //
 
@@ -98,6 +115,49 @@
 
 <svelte:head><title>Connect a tool</title></svelte:head>
 
+{#snippet agentPreview(
+	key: string,
+	text: string,
+	open: boolean,
+	toggle: () => void,
+	testid: string
+)}
+	<!-- WHAT THE AGENT READS: A FULL WIDTH ROW THAT OPENS THE TEXT, THE SAME WAY THE ITEM CARDS COLLAPSE -->
+	<div class="mt-3 border-t border-line pt-1" data-testid={testid}>
+		<button
+			type="button"
+			aria-expanded={open}
+			aria-controls="{uid}-{key}"
+			onclick={toggle}
+			class="flex min-h-11 w-full cursor-pointer items-center gap-2 text-left text-sm text-ink"
+		>
+			<ChevronDown
+				size={16}
+				class={cn(
+					'shrink-0 text-muted transition-transform motion-reduce:transition-none',
+					!open && '-rotate-90'
+				)}
+				aria-hidden="true"
+			/>
+			What the agent reads
+		</button>
+		<!-- THE TEXT OPENS AND CLOSES BY ANIMATING ITS GRID ROW BETWEEN 0 AND 1 FRACTION, LIKE THE ITEM CARDS. CLOSED, IT IS INVISIBLE AND INERT -->
+		<div
+			id="{uid}-{key}"
+			inert={!open}
+			class={cn(
+				'grid transition-[grid-template-rows,visibility] duration-200 ease-out motion-reduce:transition-none',
+				open ? 'grid-rows-[1fr]' : 'invisible grid-rows-[0fr]'
+			)}
+		>
+			<div class="min-h-0 overflow-hidden">
+				<pre
+					class="mt-1 max-h-80 overflow-auto rounded-lg border border-line bg-raised p-3 font-mono text-xs leading-5 text-ink">{text}</pre>
+			</div>
+		</div>
+	</div>
+{/snippet}
+
 <PageFrame class="flex flex-col gap-6 pb-12">
 	<PageHeader
 		title="Connect a tool"
@@ -105,7 +165,7 @@
 		class="mb-0!"
 	>
 		{#snippet actions()}
-			{#if data.org && data.orgs.length > 1}
+			{#if data.tab === 'tools' && data.org && data.orgs.length > 1}
 				<!-- A TOOL CONNECTS TO ONE ORGANISATION, SO WHICH ONE IS ALWAYS SAID, WITH A MENU TO PICK ANOTHER -->
 				<div class="flex items-center gap-2" data-testid="connect-org">
 					<span class="text-sm text-muted max-sm:hidden">Connecting to</span>
@@ -149,7 +209,105 @@
 		{/snippet}
 	</PageHeader>
 
-	{#if !data.org}
+	<!-- SECTIONS OF THIS PAGE: THE TOOLS AND THE SKILLS, KEPT IN THE ADDRESS -->
+	<nav
+		class="flex gap-0.5 border-b border-line"
+		aria-label="Connect sections"
+		data-testid="connect-tabs"
+	>
+		{#each tabs as t (t.key)}
+			<a
+				href={t.href}
+				aria-current={data.tab === t.key ? 'page' : undefined}
+				class={cn(
+					'-mb-px inline-flex min-h-11 cursor-pointer items-center border-b-2 px-3 text-sm font-medium whitespace-nowrap',
+					data.tab === t.key
+						? 'border-accent text-accent-text'
+						: 'border-transparent text-muted hover:text-ink'
+				)}>{t.label}</a
+			>
+		{/each}
+	</nav>
+
+	{#if data.tab === 'skills'}
+		<!-- SYSTEM SKILLS: THE FLOW SKILLS THE PRODUCT SHIPS, ONE VERSIONED BUNDLE -->
+		{#if !data.skills}
+			<Card padded={false} data-testid="skills-error"
+				><ErrorState
+					title="The skills did not load"
+					message="The skills bundle could not be read on the server. Try again in a minute, or tell an administrator."
+				/></Card
+			>
+		{:else}
+			<Card
+				data-testid="skills-install"
+				icon={Sparkles}
+				title="Let your agent install the skills"
+				description="Copy this, paste it into your agent. It checks what you have and asks before it changes anything you edited. An agent already connected to the board offers this by itself."
+			>
+				<!-- BOTH BUTTONS ARE THE SAME SIZE AND SIT ON ONE ROW, TWO ACROSS ON A PHONE -->
+				<div class="grid grid-cols-2 gap-2 sm:flex" data-testid="skills-actions">
+					<Button onclick={() => copy(data.skills!.brief)} data-testid="skills-copy">
+						Copy install prompt
+					</Button>
+					<!-- THE ZIP IS A FILE, NOT A PAGE, SO THE ROUTER MUST LEAVE THE LINK ALONE -->
+					<Button href={data.skills.bundleUrl} data-sveltekit-reload data-testid="skills-download"
+						>Download bundle</Button
+					>
+				</div>
+				{@render agentPreview(
+					'skills-preview',
+					data.skills.brief,
+					skillsPreviewOpen,
+					() => (skillsPreviewOpen = !skillsPreviewOpen),
+					'skills-preview'
+				)}
+			</Card>
+
+			<Card
+				data-testid="skills-release"
+				icon={Package}
+				title={`Release ${data.skills.bundle.version}`}
+				description={`Released ${data.skills.bundle.releasedAt}. Every skill has its own version too.`}
+			>
+				<ul class="flex flex-col" data-testid="skills-list">
+					{#each data.skills.skills as s (s.name)}
+						<li
+							class="flex flex-col gap-0.5 border-b border-line py-3 first:pt-0 last:border-b-0 last:pb-0"
+						>
+							<span class="flex flex-wrap items-center gap-2 text-sm font-medium">
+								<span class="font-mono">{s.name}</span>
+								<Badge>{s.version}</Badge>
+								{#if s.files > 1}<span class="text-xs font-normal text-muted">{s.files} files</span
+									>{/if}
+							</span>
+							<span class="line-clamp-2 text-xs text-muted">{s.description}</span>
+						</li>
+					{/each}
+				</ul>
+				<!-- WHAT CHANGED: THE NEWEST RELEASES FIRST -->
+				<div
+					class="mt-4 flex flex-col gap-3 border-t border-line pt-4"
+					data-testid="skills-changelog"
+				>
+					{#each data.skills.changelog as c (c.version)}
+						<div>
+							<p class="text-sm font-medium text-ink">
+								{c.version} <span class="font-normal text-muted">{c.date}</span>
+							</p>
+							<ul class="mt-1 list-disc pl-5 text-sm text-muted">
+								{#each c.notes as n, i (i)}<li>{n}</li>{/each}
+							</ul>
+						</div>
+					{/each}
+				</div>
+				<p class="mt-4 text-xs text-muted">
+					To see whether your agent is current, ask it to check what it has installed against this
+					release.
+				</p>
+			</Card>
+		{/if}
+	{:else if !data.org}
 		<Card padded={false}
 			><EmptyState
 				kind="org"
@@ -175,40 +333,13 @@
 				</Button>
 				<Button onclick={downloadSetup}>Download .md</Button>
 			</div>
-			<!-- WHAT THE AGENT READS: A FULL WIDTH ROW THAT OPENS THE TEXT, THE SAME WAY THE ITEM CARDS COLLAPSE -->
-			<div class="mt-3 border-t border-line pt-1" data-testid="agent-setup-preview">
-				<button
-					type="button"
-					aria-expanded={previewOpen}
-					aria-controls="{uid}-preview"
-					onclick={() => (previewOpen = !previewOpen)}
-					class="flex min-h-11 w-full cursor-pointer items-center gap-2 text-left text-sm text-ink"
-				>
-					<ChevronDown
-						size={16}
-						class={cn(
-							'shrink-0 text-muted transition-transform motion-reduce:transition-none',
-							!previewOpen && '-rotate-90'
-						)}
-						aria-hidden="true"
-					/>
-					What the agent reads
-				</button>
-				<!-- THE TEXT OPENS AND CLOSES BY ANIMATING ITS GRID ROW BETWEEN 0 AND 1 FRACTION, LIKE THE ITEM CARDS. CLOSED, IT IS INVISIBLE AND INERT -->
-				<div
-					id="{uid}-preview"
-					inert={!previewOpen}
-					class={cn(
-						'grid transition-[grid-template-rows,visibility] duration-200 ease-out motion-reduce:transition-none',
-						previewOpen ? 'grid-rows-[1fr]' : 'invisible grid-rows-[0fr]'
-					)}
-				>
-					<div class="min-h-0 overflow-hidden">
-						<pre
-							class="mt-1 max-h-80 overflow-auto rounded-lg border border-line bg-raised p-3 font-mono text-xs leading-5 text-ink">{data.agentSetup}</pre>
-					</div>
-				</div>
-			</div>
+			{@render agentPreview(
+				'preview',
+				data.agentSetup,
+				previewOpen,
+				() => (previewOpen = !previewOpen),
+				'agent-setup-preview'
+			)}
 		</Card>
 
 		<Card

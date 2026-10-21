@@ -49,10 +49,10 @@ One connection belongs to one organisation, so the name carries the organisation
 2. Read the tool's existing MCP configuration first. If a server named \`${name}\` already exists, or one points at ${baseUrl}/mcp, tell the person what you found and ask before changing it.
 3. Add the connection with the block for your tool. Use the tool's user level configuration unless the person asks for project level. Tell the person which file you changed.
 4. Stop and tell the person to approve the sign in in their browser. You cannot do that part.
-5. After they approve, check the connection: call \`session_start\`, then \`board_brief\`. Confirm the organisation is \`${org.slug}\`. If it is another organisation, say so and stop.
+5. After they approve, check the connection: call \`session_start\` (pass \`skillsBundle: "none"\` when you have no flow skill), then \`board_brief\`. Confirm the organisation is \`${org.slug}\`. If it is another organisation, say so and stop.
 6. Tell the person the tool names now start with \`${prefix}\`. Search this project's rule files, CLAUDE.md and permission allow lists for \`mcp__agent-flow-board__\` and show the renames you would make to \`${prefix}\`. Edit only after the person says yes.
 7. Offer the hooks that keep the plan record true: \`npx -y @agent-flow-board/bridge hooks print <claude|antigravity|gemini> --server ${baseUrl} --org ${org.slug}\`. Install them only after a yes.
-8. Before planning anything, read the workflow with \`workflow_get\` (name \`flow\`).
+8. If no flow skill is in your skill list, offer the person to install the skills now: call \`skills_check\` and follow its plan on their yes. Before planning anything, read the workflow with \`workflow_get\` (name \`flow\`) if you have no installed flow skill.
 
 ## Never
 

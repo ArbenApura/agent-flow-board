@@ -1,66 +1,34 @@
-# Skills: your own instructions, served to every agent
+# System skills: the flow skills every agent installs
 
-A skill is text your team writes once and every agent connected to the board obeys. It is served over MCP, so nothing has to be copied into a checkout, and it is kept under revision so a change is never lost.
+The board ships one set of skills, the `/flow` family. They are not written on the board any more: there are no organisation or project skills, no skill upload, and no MCP prompts. The MCP serves tools only, among them `skills_check` and `skills_file` (below).
 
-Built by `AFB-20261018-0622`.
+Replaces the custom skills of `AFB-20261018-0622` and `AFB-20261019-0341`. Built under `AFB-20261021-0401`.
 
-## The four places a skill can come from
+## What is in the bundle
 
-An agent that reads a name sees exactly one skill. The order is:
+`flow`, `flow-task`, `flow-interview`, `flow-critic` (with its supporting files `checklists`, `code-lenses`, `code-template`, `plan-lenses` and `plan-template`), `flow-audit`, `flow-check`, `flow-skills` (installs and updates the bundle through `skills_check` and `skills_file`, and updates itself last) and `flow-verify`.
 
-1. **Built-in.** The seven workflows the board ships (`flow`, `flow-task`, `flow-interview`, `flow-critic`, `flow-audit`, `flow-check`, `flow-verify`). They cannot be renamed, removed or shadowed; a custom skill may not take their names.
-2. **Organisation.** Written by an owner or an admin, read by every project in the organisation.
-3. **Project.** Written by a member of that project and read by it.
-4. **A file in the checkout**, at `.claude/skills/<name>/SKILL.md`. When it exists it wins, and every read says so.
+The bundle has one semver release number and a changelog. Every skill has its own version and a SHA-256 hash.
 
-Where the same name exists at the organisation and the project level, the organisation one is the one an agent reads. Both are listed, so nobody wonders where their text went.
+## Getting them
 
-## Reading them as an agent
+Open **Connect a tool**, the **Skills** tab (`/connect?tab=skills`):
 
-- **`skill_get`** reads one skill by name: any level, with its level, author, revision, content hash and a trust header. Pass the project key so the project's skills and its organisation's are reachable. A long skill comes in pages: pass the returned `next` as `offset` **and the same `revision`**. If the skill changed in between, the call answers `stale-revision` instead of handing you a second half from another version.
-- **Supporting files.** A read of a skill lists its files in the header, above the text, and `skill_get` takes `file` (the path, for example `design-fit.md`) to read one. A file is paged and pinned to the revision like the body. A path the skill does not have answers an error and never the body, and a built-in has no files. The prompt of a skill and `project_rules` name the files by path and never carry their text.
-- **Prompts.** Every skill is registered as an MCP prompt, so it appears in a tool's prompt list: `<projectkey>-<name>` for a project skill and `org-<name>` for an organisation one. The prefix means a custom prompt can never collide with a built-in or with another project.
-- **`project_rules`** lists the name, the summary and the prompt name of every skill a project reads, capped at 50, with a pointer to `skill_get` when there are more. The text itself is never in that reply.
+- **Copy install prompt** gives your agent everything it needs: where each tool keeps skills, how to check what is installed, and what to do when a skill was edited by hand. It asks before it overwrites anything.
+- **Download bundle** gives a zip with every skill folder.
 
-Access: reading needs the read right on the project and no claim on an item. A guest never sees a skill. A token limited to some projects sees only those projects' skills (the organisation's are still readable).
+The agent reads `GET /api/v1/system-skills` (no sign in, no data of yours) for the release number, the per-skill versions and hashes and the changelog.
 
-## Writing them
+## Where the source lives
 
-- **Project skills:** the project's **Skills** page, under More in the sidebar.
-- **Organisation skills:** Organisation settings, the **Skills** section. Owners and admins write; everyone else reads.
-- **A SKILL.md:** the editor takes a file or pasted text. Only flat `name` and `description` keys in the front matter are read; other flat keys (such as `disable-model-invocation`) are skipped, a block description (`>` or `|`) is folded into one line, and an anchor, an alias or a nested line is refused rather than guessed at. The description becomes the summary.
-- **Supporting files:** a skill folder can hold more than its SKILL.md (for example `design-fit.md` or `refs/forms.md`). The New skill dialog takes the SKILL.md and its other Markdown files together: the SKILL.md fills the form and the rest become the skill's supporting files. The editor lists them with a rename, a text field and a remove, and one counter shows the files and the characters left. Only `.md` files, at a path inside the skill folder (relative, forward slashes, no `..`, not `SKILL.md`). Relative links in the body are not rewritten: an agent sees the file names listed with the skill and reads each one by its path.
-- **Limits:** a name is a lowercase slug (letters, digits, single dashes), the summary is at most 4000 characters, the body at most 100,000. A skill holds at most 20 supporting files of 100,000 characters each, and at most 300,000 characters with its body. A project holds at most 50 skills, the most a prompt list can carry.
-- **Revisions:** every save keeps the text it replaced, with its author, its hash and its number. Deleting a skill keeps them and frees the name.
-- **No secrets.** A skill is an instruction every agent follows, so a password, API key or token put there is given away. Both editors say so.
+`src/lib/server/system-skills/` is the only place a skill is edited. `.claude/skills/` in this repository is regenerated from it and is never edited by hand. To release a change: edit there, bump the skill version and the bundle version, add a changelog line. A test fails when a skill changed without a version bump, and another fails when a skill names a path, port, project key or gate command of one repo outside a line marked `(example)`: the skills are generic, and a repo's own rules go in its CLAUDE.md or AGENTS.md.
 
-Every skill read returns a SHA-256 hash over its name, summary and body, followed by each supporting file's path and text in path order (a skill without files hashes exactly as before); a built-in hashes the text the board serves. The same hash is used by the bridge below.
+## Installing through the MCP
 
-## Files in a checkout (the bridge)
+A tool that has the board's MCP connected needs no copy and paste. The connection instructions tell its agent to offer the install once, when no flow skill is in its list, and `session_start` adds a `skillsNotice`: a plain hint to call `skills_check` once when the agent passes no `skillsBundle`, and an offer or an update notice when it passes `skillsBundle` (the `afb-bundle` line of an installed skill, or `none`) and the skills are missing or older.
 
-An agent that prefers files, and a person reading the repository, can get the board's skills written down:
+- `skills_check` takes the harness, the scope (user or project) and what the agent found installed (per skill: the stamp version and hash, the hash it worked out for the file without its stamp lines, and whether a supporting file was edited). It answers with one action per skill: `install`, `update`, `unchanged`, or `ask` (edited by hand, not from this bundle, newer, or not checked). Whatever the agent did not report counts as `ask`, never as `update`. Codex and unknown tools get no folder.
+- `skills_file` serves one file as installed, in parts of 12000 characters, each with the sha256 of the whole file. Use it only when the harness cannot fetch the public files or the zip.
+- On one yes the agent installs everything the plan marks `install` or `update`, backs up any file before overwriting, checks every sha256 and asks only about a skill marked `ask`. The sha256 shows a file arrived whole; it does not prove who sent it, so the yes is the trust step.
 
-```
-agent-flow-board skills --server https://board.example.com --project AFB [--dir <repo>] [--check] [--force]
-```
-
-It reads the same REST routes the browser does and writes three files per skill:
-
-| Tool        | Path                             |
-| ----------- | -------------------------------- |
-| Claude Code | `.claude/skills/<name>/SKILL.md` |
-| Antigravity | `.agents/skills/<name>/SKILL.md` |
-| Gemini CLI  | `.gemini/skills/<name>/SKILL.md` |
-
-`.afb/skills.json` records, for each skill, the board's hash and the hash of every file written. On the next run:
-
-- a file that still matches its recorded hash is replaced when the board's text changed;
-- a file somebody edited by hand is reported as **drift** and left alone, until `--force` replaces it;
-- the files of a skill the board no longer has are removed, unless they were edited by hand;
-- a supporting file is written next to the SKILL.md of each tool (`.claude/skills/<name>/refs/forms.md`), a file renamed or removed on the board is removed from the checkout while it is still unedited, and a hand edit of one is drift like any other.
-
-The bridge writes onto your disk, so it re-checks every file path itself (relative, no `..`, no drive letter, only `.md`) and stops the whole run on a bad one, and it checks the files against the board's hash before writing any of them.
-
-`--check` writes nothing and exits 1 when a file is out of date, so a CI step can ask whether the checkout is current.
-
-**Codex gap.** Codex has no skill file adapter yet: it reads no `.codex/` skill directory and the bridge writes nothing for it. On Codex, an agent uses the `skill_get` tool and the registered prompts instead, which every harness gets. When a Codex skill format exists, it becomes a fourth target in `packages/bridge/src/skills/materialize.ts`.
+`workflow_get` still serves the same texts, with the front matter removed, for a harness that cannot install files.

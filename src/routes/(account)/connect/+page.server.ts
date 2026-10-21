@@ -7,6 +7,7 @@ import { AFB_BASE_URL } from '$app/env/private';
 import { fail, redirect } from '@sveltejs/kit';
 // -- MODULES -- //
 import { agentSetupMarkdown } from '#lib/connect/agentSetup.js';
+import { skillsBriefMarkdown } from '#lib/connect/skillsBrief.js';
 import { snippets } from '#lib/connect/snippets.js';
 import { orgMcpUrl, toolPrefix } from '#lib/shared/orgConnection.js';
 import { getDb } from '#lib/server/db/index.js';
@@ -14,8 +15,32 @@ import { listConnections, revokeConnection } from '#lib/server/oauth/oauth.js';
 import { capsOf, OpError } from '#lib/server/ops/context.js';
 import { createToken } from '#lib/server/ops/tokens.js';
 import { listMyOrgs } from '#lib/server/orgs/orgs.js';
+import { systemSkillsIndex } from '#lib/server/system-skills/index.js';
 
 // -- FUNCTIONS -- //
+
+/** The Skills tab: the release, its skills, the newest changelog entries and the brief. The same for everyone; null when the bundle cannot be read. */
+function skillsTab() {
+	try {
+		const index = systemSkillsIndex();
+		return {
+			bundle: index.bundle,
+			skills: index.skills.map((s) => ({
+				name: s.name,
+				version: s.version,
+				description: s.description,
+				files: s.files.length
+			})),
+			changelog: index.changelog.slice(0, 3),
+			brief: skillsBriefMarkdown(AFB_BASE_URL, index),
+			bundleUrl: '/api/v1/system-skills/bundle.zip'
+		};
+	} catch (e) {
+		// A missing or broken bundle is a build problem: say so in the log, and show the page an error rather than an empty list
+		console.error('The system skills bundle cannot be read.', e);
+		return null;
+	}
+}
 
 async function personCtx(
 	locals: App.Locals,
@@ -41,9 +66,14 @@ async function personCtx(
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) redirect(303, `/sign-in?next=${encodeURIComponent('/connect')}`);
+	// The tab is in the address, so a link opens the Skills tab; anything else is the tools tab
+	const tab = url.searchParams.get('tab') === 'skills' ? 'skills' : 'tools';
+	const skills = skillsTab();
 	const got = await personCtx(locals, url.searchParams.get('org'));
 	if (!got || got.orgs.length === 0)
 		return {
+			tab,
+			skills,
 			baseUrl: AFB_BASE_URL,
 			snippets: snippets(AFB_BASE_URL),
 			agentSetup: '',
@@ -57,6 +87,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const org = got.orgs.find((o) => o.id === got.ctx.orgId)!;
 	const connections = await listConnections(got.ctx);
 	return {
+		tab,
+		skills,
 		baseUrl: AFB_BASE_URL,
 		// The snippets and the brief use the org that was resolved above, never the raw ?org= value
 		snippets: snippets(AFB_BASE_URL, org.slug),

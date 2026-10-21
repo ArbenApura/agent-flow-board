@@ -74,7 +74,7 @@ export const ACTION_TITLE: Record<ContinueAction, string> = {
 	critic: 'Review',
 	interview: 'Interview about'
 };
-/** The workflow each action runs. AFB serves these four as MCP prompts and through the workflow_get tool. */
+/** The workflow each action runs. AFB serves these through the workflow_get tool, and the installed /flow skills carry the same texts. */
 const WORKFLOW: Record<ContinueAction, string> = {
 	resume: 'flow',
 	ask: 'flow',
@@ -82,7 +82,7 @@ const WORKFLOW: Record<ContinueAction, string> = {
 	critic: 'flow-critic',
 	interview: 'flow-interview'
 };
-/** The name a tool is connected under, from the Connect a tool page. Claude Code shows its MCP prompts as /mcp__<name>__<prompt>. */
+/** The name a tool is connected under, from the Connect a tool page. The connection name is afb-<org slug>. */
 const SERVER = 'agent-flow-board';
 export const DEFAULT_TOOL: ContinueToolId = 'claude-code';
 export const DEFAULT_MODE: ContinueMode = 'vscode';
@@ -159,7 +159,7 @@ export function slashCommand(action: ContinueAction, ref: string): string | null
 	}
 }
 
-/** The same request in plain words, for a tool that has no MCP prompts. It names the workflow, so the tool reads and follows it. */
+/** The same request in plain words, for a tool that has no /flow skills installed. It names the workflow, so the tool reads and follows it. */
 function plainPrompt(action: ContinueAction, ref: string): string {
 	const workflow = WORKFLOW[action];
 	const start = `Use your Agent Flow Board connection, named afb-ORG-SLUG or ${SERVER} if you connected before: call session_start, then work_start for ${ref}, read the workflow with workflow_get ${workflow}`;

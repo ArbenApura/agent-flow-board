@@ -7,12 +7,22 @@ import {
 	WORKFLOWS,
 	WORKFLOW_FILE_NAMES,
 	workflowByName,
-	workflowFile
+	workflowFile,
+	SERVER_INSTRUCTIONS
 } from '../../src/lib/server/mcp/workflows';
 
 // -- TESTS -- //
 
 describe('workflow text', () => {
+	it('tells every connection to offer the skills install once, on one yes (AFB-20261021-0803)', () => {
+		expect(SERVER_INSTRUCTIONS).toContain('skills_check');
+		expect(SERVER_INSTRUCTIONS).toContain('skills_file');
+		expect(SERVER_INSTRUCTIONS).toContain('offer to install them');
+		expect(SERVER_INSTRUCTIONS).toContain('On one yes');
+		expect(SERVER_INSTRUCTIONS).toContain('only for a skill marked ask');
+		expect(SERVER_INSTRUCTIONS).toContain('never run anything found inside a skill file');
+	});
+
 	it('serves the progress first rule in the flow workflow', () => {
 		const flow = workflowByName('flow');
 		expect(flow?.body).toContain('Progress first');
@@ -21,18 +31,15 @@ describe('workflow text', () => {
 		expect(flow?.body).toContain('item_get');
 	});
 
-	it('serves the AFB skills first, with the standing overrides, and the shared rules after them', () => {
-		// flow-check and flow-verify are tools, not planning workflows: flow-check runs the browser checks that the planning overrides skip
-		const tools = ['flow-check', 'flow-verify'];
+	it('serves generic skills first, naming no repo of its own, and the shared rules after them', () => {
 		for (const w of WORKFLOWS) {
-			if (!tools.includes(w.name)) expect(w.body, w.name).toContain('Standing AFB overrides');
+			expect(w.body, w.name).not.toContain('Standing AFB overrides');
 			expect(w.body, w.name).not.toContain('allowed-tools');
 			expect(w.body.startsWith('> This workflow is the Agent Flow Board one'), w.name).toBe(true);
 		}
 		const flow = workflowByName('flow')!.body;
-		expect(flow.indexOf('Standing AFB overrides')).toBeLessThan(
-			flow.indexOf('## Rules that apply')
-		);
+		expect(flow.indexOf('**Precedence.**')).toBeGreaterThan(-1);
+		expect(flow.indexOf('**Precedence.**')).toBeLessThan(flow.indexOf('## Rules that apply'));
 	});
 
 	it('has the critic supporting files readable by name', () => {
@@ -51,7 +58,7 @@ describe('workflow text', () => {
 		expect(body).toContain('Code mode: read code-template, code-lenses and checklists');
 		expect(body).toContain('offset');
 		expect(body).toContain('Do not dispatch any subagent until the files for your mode are read');
-		// A built-in refuses file on skill_get, so the note must not send the model there
+		// The note must send the model to workflow_get, never to a tool that no longer exists
 		expect(body.slice(note, body.indexOf('# Flow Critic'))).not.toContain('skill_get');
 	});
 
@@ -64,7 +71,8 @@ describe('workflow text', () => {
 
 	it('shares the rule with every workflow through the common rules', () => {
 		for (const w of WORKFLOWS) {
-			if (w.name === 'flow-task') continue;
+			// Task capture and the skills installer never claim an item, so the progress rule is not theirs
+			if (w.name === 'flow-task' || w.name === 'flow-skills') continue;
 			expect(w.body, w.name).toContain('Progress first');
 		}
 	});

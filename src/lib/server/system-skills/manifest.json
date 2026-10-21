@@ -1,0 +1,280 @@
+{
+	"bundle": {
+		"version": "1.1.2",
+		"releasedAt": "2026-10-21"
+	},
+	"skills": {
+		"flow": {
+			"version": "1.1.2",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "e40ed544aca5dad5cc4234c00c948de1a55236982448df7fb68abd6a487a7bfb"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "706af1d8dcff53184b05142a2446eae8cf134a17d291ec93bfbc263ddfd765e8"
+				},
+				{
+					"version": "1.0.2",
+					"hash": "9b3d66247acd6c3c94bc6944c9508a22b9da53c58a8d2e481fd90330c1cbf5df"
+				},
+				{
+					"version": "1.0.3",
+					"hash": "9158ffb6215e50fbc5fb6a7ac4d063824658ffc1209335d4c19611da11ea09ec"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "fe26e0428858e02a86d21f706fb819b5807ec337b8f106bd25947cdc56fdd784"
+				},
+				{
+					"version": "1.1.1",
+					"hash": "462ee48057679297111d1abfb32e16598d31ebf676815e280eeeb606d00cb8a6"
+				},
+				{
+					"version": "1.1.2",
+					"hash": "1436930abe5c79d7a8c377046bd830e9cc9049462a0bd0abf36c435332416f94"
+				}
+			]
+		},
+		"flow-audit": {
+			"version": "1.1.1",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "8dcaf58b0b7f791af0e9c4687d02a5d1b0c2bc5dc8f2d9735eee4c839ab861e9"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "07236eb612b0e175cc356673929a69ab600a17ab9560dfbe69524a959387b1fd"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "07236eb612b0e175cc356673929a69ab600a17ab9560dfbe69524a959387b1fd"
+				},
+				{
+					"version": "1.1.1",
+					"hash": "b61441fda32cb92f038c8552432483bf57c72ae44f93bb979ccf02ac1144b8be"
+				}
+			]
+		},
+		"flow-check": {
+			"version": "1.1.1",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "1c153f2dbb240233be890f0efa2d61b3816a48a361b12868efbed37d3bac6395"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "0ab6ecbd7c5dc3cebdbe39af68d78984967969ade1a2d37c04d7a7665afad535"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "0ab6ecbd7c5dc3cebdbe39af68d78984967969ade1a2d37c04d7a7665afad535"
+				},
+				{
+					"version": "1.1.1",
+					"hash": "d774fe10568a9cb6c5939ea4e947ec5f57f39fad062ff8e65a28aecf39be1399"
+				}
+			]
+		},
+		"flow-critic": {
+			"version": "1.1.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "8848aaf3607efeced4c09e34cec097477d56cb595fd94aff93ec555a92235cfa"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "c9e0b138676bfa81241a0268d312329753af7272a46ea304966eecdc6bd672b2"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "fbc6a7da77757e3368ee307659e25617e8dbb8ce07c8c5e0c996d8529dbf3274"
+				}
+			]
+		},
+		"flow-interview": {
+			"version": "1.1.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "470a7b3a444d910e8c9bbe715518f4cd7185e9cf9b2b04a47e3329555464bc46"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "1fd410526848d4676824177c27c9f5244d4b577369ef0484ada13d14ac495ad6"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "1fd410526848d4676824177c27c9f5244d4b577369ef0484ada13d14ac495ad6"
+				}
+			]
+		},
+		"flow-skills": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "75adab0fa9888493a40c8f9720fc0ddaf6c9d0d5ea049def2f09be8d83d8395f"
+				}
+			]
+		},
+		"flow-task": {
+			"version": "1.1.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "48f9edc26277566f8e5d34dbd7bc5aa5fc4765a01053f95f98fd515af5cc676e"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "1be365a29794ac9ab13299cb48eb345f570276f4ddcf3c1f23d38e174ad3ba51"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "1be365a29794ac9ab13299cb48eb345f570276f4ddcf3c1f23d38e174ad3ba51"
+				}
+			]
+		},
+		"flow-verify": {
+			"version": "1.1.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "a06f8da83d904e52197c6c0ccf98d0b7c0961ec45ed7352bb972a560b3304417"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "463fa7d76c6591ab5d6266fe7e66cb372b81c34eae04c99b34fc10ae4ff6d2a9"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "463fa7d76c6591ab5d6266fe7e66cb372b81c34eae04c99b34fc10ae4ff6d2a9"
+				}
+			]
+		}
+	},
+	"changelog": [
+		{
+			"version": "1.1.2",
+			"date": "2026-10-21",
+			"notes": [
+				"flow: a skillsNotice from session_start is told to the user once, with an offer to install or update the skills through the new skills_check and skills_file tools of the MCP, on one yes without more questions (new item 7 of section 0).",
+				"flow-skills: new skill that installs, updates and repairs the skills through the skills_check and skills_file tools (or the public files and zip), one skill at a time, with a backup before any overwrite, asking only about a skill the person edited; it updates itself last."
+			],
+			"skills": {
+				"flow": "1.1.2",
+				"flow-audit": "1.1.1",
+				"flow-check": "1.1.1",
+				"flow-critic": "1.1.0",
+				"flow-interview": "1.1.0",
+				"flow-skills": "1.0.0",
+				"flow-task": "1.1.0",
+				"flow-verify": "1.1.0"
+			}
+		},
+		{
+			"version": "1.1.1",
+			"date": "2026-10-21",
+			"notes": [
+				"flow: a step with a requiredTarget, or an automatic check, is handed to /flow-check with the item, the check key and the step (new step 5a); it is never ticked by hand without run evidence; a repo rulebook that forbids browser checks, or a user who did not ask for one, leaves it as a manual check.",
+				"flow-check: new \"Called from /flow\" section. flow-audit: an automatic check or requiredTarget step with no passing run is reopened."
+			],
+			"skills": {
+				"flow": "1.1.1",
+				"flow-audit": "1.1.1",
+				"flow-check": "1.1.1",
+				"flow-critic": "1.1.0",
+				"flow-interview": "1.1.0",
+				"flow-task": "1.1.0",
+				"flow-verify": "1.1.0"
+			}
+		},
+		{
+			"version": "1.1.0",
+			"date": "2026-10-21",
+			"notes": [
+				"All skills: now generic. They name no repo, path, branch, port, project key or gate command of their own. The project key is found from what the user names, the repo rulebook or board_brief; the gates come from the repo rulebook or package scripts, and when none are found the skill says so and asks.",
+				"All skills: the repo rulebook (CLAUDE.md, AGENTS.md, README, project rules) overrides project facts and optional steps, never the safety rules: no commit or push without the user's word, no branch changes, nothing live or non-local without confirmation, no database reset, no tokens or .env values, no AI attribution.",
+				"flow-critic: every lens and lane is kept; stack-specific items now say when they apply and carry a labelled example. The subagent prompt takes a {PROJECT_DESCRIPTION} placeholder.",
+				"If your repo relied on the old built-in overrides (no UI changes table, no browser checks in plans, branch main), put them in your CLAUDE.md or AGENTS.md."
+			],
+			"skills": {
+				"flow": "1.1.0",
+				"flow-audit": "1.1.0",
+				"flow-check": "1.1.0",
+				"flow-critic": "1.1.0",
+				"flow-interview": "1.1.0",
+				"flow-task": "1.1.0",
+				"flow-verify": "1.1.0"
+			}
+		},
+		{
+			"version": "1.0.3",
+			"date": "2026-10-21",
+			"notes": [
+				"flow: no usage tools any more. usage_report and the usage field of item_get are gone from the board; remove coding tool exporter env vars and the OpenCode plugin file that sent usage to the board (they now get a 404).",
+				"flow-audit, flow-check, flow-critic, flow-interview, flow-task, flow-verify: wording updates made in the same working tree, not part of the usage removal."
+			],
+			"skills": {
+				"flow": "1.0.3",
+				"flow-audit": "1.0.1",
+				"flow-check": "1.0.1",
+				"flow-critic": "1.0.1",
+				"flow-interview": "1.0.1",
+				"flow-task": "1.0.1",
+				"flow-verify": "1.0.1"
+			}
+		},
+		{
+			"version": "1.0.2",
+			"date": "2026-10-21",
+			"notes": [
+				"flow: usage_report stores a cost only when the agent passes costUsd; the board keeps no price table."
+			],
+			"skills": {
+				"flow": "1.0.2",
+				"flow-audit": "1.0.0",
+				"flow-check": "1.0.0",
+				"flow-critic": "1.0.0",
+				"flow-interview": "1.0.0",
+				"flow-task": "1.0.0",
+				"flow-verify": "1.0.0"
+			}
+		},
+		{
+			"version": "1.0.1",
+			"date": "2026-10-21",
+			"notes": [
+				"flow: names the MCP tool usage_report and item_get fields [usage], for agents whose tool exports no usage.",
+				"flow-check: rewritten for the hands-off afb-checks tool (an agent connects, repairs and upgrades it; it stops only for 5433, 5180, 5190 or a live site). Bundle 1.0.0 was never published, so its flow-check text was amended in place and keeps version 1.0.0."
+			],
+			"skills": {
+				"flow": "1.0.1",
+				"flow-audit": "1.0.0",
+				"flow-check": "1.0.0",
+				"flow-critic": "1.0.0",
+				"flow-interview": "1.0.0",
+				"flow-task": "1.0.0",
+				"flow-verify": "1.0.0"
+			}
+		},
+		{
+			"version": "1.0.0",
+			"date": "2026-10-21",
+			"notes": ["First release of the system skills bundle."],
+			"skills": {
+				"flow": "1.0.0",
+				"flow-audit": "1.0.0",
+				"flow-check": "1.0.0",
+				"flow-critic": "1.0.0",
+				"flow-interview": "1.0.0",
+				"flow-task": "1.0.0",
+				"flow-verify": "1.0.0"
+			}
+		}
+	]
+}

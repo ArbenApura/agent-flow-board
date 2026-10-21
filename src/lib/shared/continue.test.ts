@@ -92,7 +92,7 @@ describe('Claude Code runs the workflow as a slash command', () => {
 	});
 });
 
-describe('plain words for a tool without MCP prompts', () => {
+describe('plain words for a tool without the /flow skills', () => {
 	it('names the workflow, the connection and the tools for every action', () => {
 		const flows: Record<ContinueAction, string> = {
 			resume: 'workflow_get flow',

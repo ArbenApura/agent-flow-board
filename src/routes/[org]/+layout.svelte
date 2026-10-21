@@ -56,7 +56,6 @@
 	const secondary = $derived(
 		current
 			? [
-					{ href: `${base}/${current.key}/skills`, label: 'Skills' },
 					{ href: `${base}/${current.key}/trash`, label: 'Trash' },
 					{ href: `${base}/${current.key}/settings`, label: 'Project settings' }
 				]

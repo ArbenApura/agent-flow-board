@@ -2,22 +2,18 @@
 // agent-flow-board mcp --server <url> [--org <slug>]   forward MCP over stdio to the server (to /mcp/<slug> with --org)
 // agent-flow-board login --server <url> [--org <slug>] sign in by device code
 // agent-flow-board logout --server <url> [--org <slug>]
-// agent-flow-board skills [--dir <repo>] [--project KEY] [--org SLUG] [--check] [--force]   write the board's skills as files
 // agent-flow-board queue list | retry <id> | drop <id>
 // agent-flow-board hook claude|antigravity|gemini [event]   one hook event from stdin, one JSON object to stdout
 // agent-flow-board hooks print claude|antigravity|gemini [--org <slug>]   the settings to paste into the tool
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
 // -- DEP-MODULES -- //
-import { mkdirSync, readFileSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { runBridge } from './bridge.js';
 import { ADAPTERS, runHook } from './hooks/adapters.js';
 import { callHook } from './hooks/call.js';
 import { checkCommit, installGitHook, lastCommitMessage, uninstallGitHook } from './hooks/gitHook.js';
 import { hookSettings } from './hooks/settings.js';
 import { deviceLogin } from './device.js';
-import { fetchSkills } from './skills/fetch.js';
-import { MANIFEST_PATH, manifestText, parseManifest, planSkills } from './skills/materialize.js';
 import { Queue } from './queue.js';
 import { accountKey, configDir, pickStore } from './tokenStore.js';
 // -- FUNCTIONS -- //
@@ -51,7 +47,7 @@ function orgFlag(strict = true) {
 const store = pickStore();
 /**
  * The saved sign in for a server and organisation. Only the MCP bridge (legacy true) also tries an older sign in saved under the plain
- * host, because /mcp/<slug> answers 403 if it is the wrong organisation. Hooks and skills have no such check, so they never borrow it.
+ * host, because /mcp/<slug> answers 403 if it is the wrong organisation. Hooks have no such check, so they never borrow it.
  */
 const tokenFor = (server, org, legacy = false) => process.env.AFB_TOKEN ??
     store.get(accountKey(server, org)) ??
@@ -136,74 +132,6 @@ async function main() {
             log('Usage: agent-flow-board git-hook install|uninstall|check [--dir <repo>]');
             process.exit(2);
         }
-        return;
-    }
-    // The board's skills as files. It reads the same routes a browser does, so a bridge update is not needed for a new skill
-    if (cmd === 'skills') {
-        const server = serverUrl();
-        const token = tokenFor(server, orgFlag());
-        if (!token) {
-            log('Sign in first: agent-flow-board login --server <url>.');
-            process.exit(2);
-        }
-        const dir = flag('--dir') ?? process.cwd();
-        const read = (path) => {
-            try {
-                return readFileSync(join(dir, path), 'utf8');
-            }
-            catch {
-                return null;
-            }
-        };
-        const remote = await fetchSkills({
-            server,
-            token,
-            fetch: fetchImpl,
-            org: flag('--org'),
-            project: flag('--project')
-        });
-        const plan = planSkills(remote, parseManifest(read(MANIFEST_PATH)), read, {
-            force: args.includes('--force')
-        });
-        const changed = plan.files.filter((f) => f.action !== 'unchanged');
-        if (args.includes('--check')) {
-            for (const f of changed)
-                log(`${f.action.padEnd(7)} ${f.path}`);
-            log(changed.length
-                ? `${changed.length} skill files are out of date.`
-                : 'Every skill file is up to date.');
-            process.exit(changed.length ? 1 : 0);
-        }
-        for (const f of plan.files) {
-            if (f.action === 'unchanged' || f.action === 'drift')
-                continue;
-            const path = join(dir, f.path);
-            if (f.action === 'remove') {
-                rmSync(path, { force: true });
-                // The folders it sat in go too, up to the skill's own folder, while nothing else is in them
-                for (let up = dirname(f.path); up.split('/').length >= 3; up = dirname(up)) {
-                    try {
-                        rmdirSync(join(dir, up));
-                    }
-                    catch {
-                        /* Another file is still there */
-                        break;
-                    }
-                }
-                continue;
-            }
-            mkdirSync(dirname(path), { recursive: true });
-            writeFileSync(path, f.text ?? '');
-        }
-        mkdirSync(dirname(join(dir, MANIFEST_PATH)), { recursive: true });
-        writeFileSync(join(dir, MANIFEST_PATH), manifestText(plan.manifest));
-        for (const f of plan.files)
-            log(`${f.action.padEnd(9)} ${f.path}`);
-        const drift = plan.files.filter((f) => f.action === 'drift');
-        if (drift.length)
-            log(`${drift.length} skill file${drift.length === 1 ? ' was' : 's were'} changed by hand and left alone. Run again with --force to replace ${drift.length === 1 ? 'it' : 'them'}.`);
-        // Written down rather than hidden: Codex has no skill file adapter yet
-        log('Codex has no skill file yet: use the skill_get tool over MCP there.');
         return;
     }
     if (cmd === 'queue') {
