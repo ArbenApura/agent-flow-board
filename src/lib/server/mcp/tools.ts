@@ -141,7 +141,7 @@ const SKILLS_RULES = [
 	'For install, if the skill folder already exists on disk, treat it as ask. Before overwriting any existing file, copy it to <name>.<timestamp>.bak next to it.',
 	'Use https only (a board running on the same machine may be http://localhost), and send no token anywhere. Write to the user folder unless the person says project.',
 	'Write one skill at a time and compare the sha256 of every file you wrote with the plan; if one differs, delete what you wrote for that skill and say so.',
-	'When you can run a shell or fetch a URL, prefer the public files and the zip under /api/v1/system-skills on this board. Use skills_file only when you cannot.',
+	'When you can run a shell or fetch a URL, prefer the public files or the zip at the urls in this reply, and never guess another host. Use skills_file only when you cannot.',
 	"Where folder is null, do not guess one: read the tool's own documentation or ask the person.",
 	'Some tools only load new skills in a new session. Tell the person.'
 ];
@@ -662,6 +662,12 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			return {
 				bundle: MANIFEST.bundle,
 				...plan,
+				// The board's own address, so an agent that can fetch never has to guess a host
+				urls: {
+					index: `${deps.baseUrl}/api/v1/system-skills`,
+					file: `${deps.baseUrl}/api/v1/system-skills/files/<skill>/<file>`,
+					zip: `${deps.baseUrl}/api/v1/system-skills/bundle.zip`
+				},
 				changelog: changelogCrossed(MANIFEST.changelog, plan, served),
 				rules: SKILLS_RULES
 			};

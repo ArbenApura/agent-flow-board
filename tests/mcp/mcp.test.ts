@@ -230,6 +230,13 @@ describe('MCP server', () => {
 			index.skills.map(() => 'install')
 		);
 		expect(fresh.rules.join(' ')).toContain('Never run');
+		// The public addresses are the board's own, so an agent never guesses a host
+		expect(fresh.urls).toEqual({
+			index: `${BASE}/api/v1/system-skills`,
+			file: `${BASE}/api/v1/system-skills/files/<skill>/<file>`,
+			zip: `${BASE}/api/v1/system-skills/bundle.zip`
+		});
+		expect(fresh.rules.join(' ')).toContain('never guess another host');
 		// An unknown tool has no folder, and a name that is not a skill name is refused before anything runs
 		expect((await call(client, 'skills_check', { harness: 'codex' })).folder).toBeNull();
 		// A hash printed in upper case by a Windows tool is accepted
