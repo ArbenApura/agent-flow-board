@@ -141,6 +141,76 @@
       "when": 1792452869418,
       "tag": "0019_living_flatman",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792554948779,
+      "tag": "0020_marvelous_the_stranger",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792555968293,
+      "tag": "0021_workable_dust",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792560490361,
+      "tag": "0022_chubby_expediter",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792561172177,
+      "tag": "0023_loving_ulik",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792564288074,
+      "tag": "0024_needy_luminals",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792564618077,
+      "tag": "0025_lush_starfox",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792565961634,
+      "tag": "0026_numerous_xavin",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792566686895,
+      "tag": "0027_clear_table_costs",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792567332333,
+      "tag": "0028_drop_model_price",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792569467444,
+      "tag": "0029_drop_usage_tables",
+      "breakpoints": true
     }
   ]
 }

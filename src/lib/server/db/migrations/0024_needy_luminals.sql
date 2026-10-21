@@ -1,0 +1,1 @@
+CREATE INDEX "usage_event_unattributed_idx" ON "usage_event" USING btree ("org_id","occurred_at" DESC NULLS LAST) WHERE "usage_event"."item_id" is null;

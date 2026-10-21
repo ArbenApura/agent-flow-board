@@ -1,0 +1,1 @@
+CREATE INDEX "claim_interval_item_idx" ON "claim_interval" USING btree ("org_id","item_id");

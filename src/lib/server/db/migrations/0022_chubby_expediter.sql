@@ -1,0 +1,1 @@
+ALTER TABLE "device_code" ADD COLUMN "challenge_hash" text;
