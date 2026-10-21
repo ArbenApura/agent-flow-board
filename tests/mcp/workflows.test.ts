@@ -15,6 +15,10 @@ import {
 
 describe('workflow text', () => {
 	it('tells every connection to offer the skills install once, on one yes (AFB-20261021-0803)', () => {
+		// The offer comes first, so a long reply never leaves it out
+		expect(SERVER_INSTRUCTIONS.indexOf('Before anything else in your first reply')).toBeLessThan(
+			SERVER_INSTRUCTIONS.indexOf('Start with session_start')
+		);
 		expect(SERVER_INSTRUCTIONS).toContain('skills_check');
 		expect(SERVER_INSTRUCTIONS).toContain('skills_file');
 		expect(SERVER_INSTRUCTIONS).toContain('offer to install them');
