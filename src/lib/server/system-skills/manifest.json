@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.1.2",
+		"version": "1.1.3",
 		"releasedAt": "2026-10-21"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.2",
+			"version": "1.1.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -34,6 +34,10 @@
 				{
 					"version": "1.1.2",
 					"hash": "1436930abe5c79d7a8c377046bd830e9cc9049462a0bd0abf36c435332416f94"
+				},
+				{
+					"version": "1.1.3",
+					"hash": "43fb31c33b8972fc5cc4e8835ff8f4ed71edcc01f2fe28846ae723d3b636b0f8"
 				}
 			]
 		},
@@ -113,15 +117,6 @@
 				}
 			]
 		},
-		"flow-skills": {
-			"version": "1.0.0",
-			"history": [
-				{
-					"version": "1.0.0",
-					"hash": "75adab0fa9888493a40c8f9720fc0ddaf6c9d0d5ea049def2f09be8d83d8395f"
-				}
-			]
-		},
 		"flow-task": {
 			"version": "1.1.0",
 			"history": [
@@ -159,11 +154,26 @@
 	},
 	"changelog": [
 		{
+			"version": "1.1.3",
+			"date": "2026-10-21",
+			"notes": [
+				"flow: the skills notice points at the flow_skills tool of the connection, whose reply carries the steps; the separate flow-skills skill is gone because a skill must be installed before anyone can find it, so the installer is now an MCP tool."
+			],
+			"skills": {
+				"flow": "1.1.3",
+				"flow-audit": "1.1.1",
+				"flow-check": "1.1.1",
+				"flow-critic": "1.1.0",
+				"flow-interview": "1.1.0",
+				"flow-task": "1.1.0",
+				"flow-verify": "1.1.0"
+			}
+		},
+		{
 			"version": "1.1.2",
 			"date": "2026-10-21",
 			"notes": [
-				"flow: a skillsNotice from session_start is told to the user once, with an offer to install or update the skills through the new skills_check and skills_file tools of the MCP, on one yes without more questions (new item 7 of section 0).",
-				"flow-skills: new skill that installs, updates and repairs the skills through the skills_check and skills_file tools (or the public files and zip), one skill at a time, with a backup before any overwrite, asking only about a skill the person edited; it updates itself last."
+				"flow: a skillsNotice from session_start is told to the user once, with an offer to install or update the skills through the new flow_skills and skills_file tools of the MCP, on one yes without more questions (new item 7 of section 0)."
 			],
 			"skills": {
 				"flow": "1.1.2",
@@ -171,7 +181,6 @@
 				"flow-check": "1.1.1",
 				"flow-critic": "1.1.0",
 				"flow-interview": "1.1.0",
-				"flow-skills": "1.0.0",
 				"flow-task": "1.1.0",
 				"flow-verify": "1.1.0"
 			}
@@ -265,7 +274,9 @@
 		{
 			"version": "1.0.0",
 			"date": "2026-10-21",
-			"notes": ["First release of the system skills bundle."],
+			"notes": [
+				"First release of the system skills bundle."
+			],
 			"skills": {
 				"flow": "1.0.0",
 				"flow-audit": "1.0.0",

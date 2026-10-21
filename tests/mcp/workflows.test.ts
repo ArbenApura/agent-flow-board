@@ -19,7 +19,7 @@ describe('workflow text', () => {
 		expect(SERVER_INSTRUCTIONS.indexOf('Before anything else in your first reply')).toBeLessThan(
 			SERVER_INSTRUCTIONS.indexOf('Start with session_start')
 		);
-		expect(SERVER_INSTRUCTIONS).toContain('skills_check');
+		expect(SERVER_INSTRUCTIONS).toContain('flow_skills');
 		expect(SERVER_INSTRUCTIONS).toContain('skills_file');
 		expect(SERVER_INSTRUCTIONS).toContain('offer to install them');
 		expect(SERVER_INSTRUCTIONS).toContain('On one yes');
@@ -75,8 +75,7 @@ describe('workflow text', () => {
 
 	it('shares the rule with every workflow through the common rules', () => {
 		for (const w of WORKFLOWS) {
-			// Task capture and the skills installer never claim an item, so the progress rule is not theirs
-			if (w.name === 'flow-task' || w.name === 'flow-skills') continue;
+			if (w.name === 'flow-task') continue;
 			expect(w.body, w.name).toContain('Progress first');
 		}
 	});

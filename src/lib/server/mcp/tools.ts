@@ -58,6 +58,7 @@ import { claim, requireSession, startSession } from './sessions';
 import { MANIFEST, servedSkillFile, systemSkills } from '../system-skills';
 import {
 	HARNESSES,
+	INSTALL_STEPS,
 	changelogCrossed,
 	pageText,
 	planSkills,
@@ -586,7 +587,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'workflow_get',
-		'Read a workflow: flow (plan and build), flow-task, flow-interview, flow-critic, flow-audit, flow-check (browser checks), flow-skills (install the skills) or flow-verify (the gates). flow-critic also has supporting files (file). Long texts come in parts: pass the reply next as offset.',
+		'Read a workflow: flow (plan and build), flow-task, flow-interview, flow-critic, flow-audit, flow-check (browser checks) or flow-verify (the gates). flow-critic also has supporting files (file). Long texts come in parts: pass the reply next as offset.',
 		{
 			name: z.enum([
 				'flow',
@@ -595,7 +596,6 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				'flow-critic',
 				'flow-audit',
 				'flow-check',
-				'flow-skills',
 				'flow-verify'
 			]),
 			file: z.enum(WORKFLOW_FILE_NAMES).optional(),
@@ -621,8 +621,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 	// -- installing the skills -- //
 
 	tool(
-		'skills_check',
-		'Plan the install of the Agent Flow Board skills in this tool: per skill install, update, unchanged or ask, with its folder and files. Pass what you found installed. No sign in data is used.',
+		'flow_skills',
+		'Install or update the Agent Flow Board skills in this tool. Returns per skill install, update, unchanged or ask, the folder, files, the board urls and the steps to follow. Pass what you found installed.',
 		{
 			harness: z
 				.enum(HARNESSES)
@@ -669,6 +669,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 					zip: `${deps.baseUrl}/api/v1/system-skills/bundle.zip`
 				},
 				changelog: changelogCrossed(MANIFEST.changelog, plan, served),
+				steps: INSTALL_STEPS,
 				rules: SKILLS_RULES
 			};
 		}
@@ -679,7 +680,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		'Read one file of an Agent Flow Board skill exactly as it is installed, in parts of 12000 characters: pass the reply next as offset. Every part carries the sha256 of the whole file.',
 		{
 			skill: skillName,
-			file: z.string().min(1).max(200).describe('A file path from skills_check, e.g. SKILL.md'),
+			file: z.string().min(1).max(200).describe('A file path from flow_skills, e.g. SKILL.md'),
 			offset: z.number().int().min(0).optional()
 		},
 		{ readOnly: true },

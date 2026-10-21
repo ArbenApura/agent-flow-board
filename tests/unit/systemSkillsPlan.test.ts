@@ -167,7 +167,7 @@ describe('the session notice about the skills', () => {
 	it('announces an update for an older bundle, and the install for none', () => {
 		expect(skillsNotice('1.0.0', '1.1.1')).toContain('older than the served 1.1.1');
 		expect(skillsNotice('none', '1.1.1')).toContain('not installed');
-		expect(skillsNotice('none', '1.1.1')).toContain('skills_check');
+		expect(skillsNotice('none', '1.1.1')).toContain('flow_skills');
 	});
 
 	it('only hints when the field is missing or unreadable, never claiming the skills are absent', () => {

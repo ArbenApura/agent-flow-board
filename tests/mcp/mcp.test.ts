@@ -175,7 +175,7 @@ describe('MCP server', () => {
 			'undo',
 			'project_rules',
 			'workflow_get',
-			'skills_check',
+			'flow_skills',
 			'skills_file',
 			'plan_add_phase',
 			'plan_add_steps',
@@ -220,16 +220,20 @@ describe('MCP server', () => {
 		await client.close();
 	});
 
-	it('plans the skills install with skills_check and serves every file whole with skills_file (AFB-20261021-0803)', async () => {
+	it('plans the skills install with flow_skills and serves every file whole with skills_file (AFB-20261021-0803)', async () => {
 		const client = await connect(deps, token);
 		const index = systemSkillsIndex();
-		const fresh = await call(client, 'skills_check', { harness: 'claude-code', checked: true });
+		const fresh = await call(client, 'flow_skills', { harness: 'claude-code', checked: true });
 		expect(fresh.folder).toBe('~/.claude/skills');
 		expect(fresh.bundle.version).toBe(index.bundle.version);
 		expect(fresh.skills.map((s: { action: string }) => s.action)).toEqual(
 			index.skills.map(() => 'install')
 		);
 		expect(fresh.rules.join(' ')).toContain('Never run');
+		// One call carries the procedure, so an agent with no skill installed still knows what to do
+		expect(fresh.steps).toHaveLength(7);
+		expect(fresh.steps.join(' ')).toContain('wait for a yes');
+		expect((await client.listTools()).tools.map((t) => t.name)).not.toContain('skills_check');
 		// The public addresses are the board's own, so an agent never guesses a host
 		expect(fresh.urls).toEqual({
 			index: `${BASE}/api/v1/system-skills`,
@@ -238,15 +242,15 @@ describe('MCP server', () => {
 		});
 		expect(fresh.rules.join(' ')).toContain('never guess another host');
 		// An unknown tool has no folder, and a name that is not a skill name is refused before anything runs
-		expect((await call(client, 'skills_check', { harness: 'codex' })).folder).toBeNull();
+		expect((await call(client, 'flow_skills', { harness: 'codex' })).folder).toBeNull();
 		// A hash printed in upper case by a Windows tool is accepted
-		const upper = await call(client, 'skills_check', {
+		const upper = await call(client, 'flow_skills', {
 			harness: 'claude-code',
 			installed: [{ name: 'flow', stampVersion: '9.9.9', stampSha256: 'A'.repeat(64) }]
 		});
 		expect(upper.skills[0].action).toBe('ask');
 		const bad = await client.callTool({
-			name: 'skills_check',
+			name: 'flow_skills',
 			arguments: { harness: 'claude-code', installed: [{ name: '../../etc' }] }
 		});
 		expect(bad.isError).toBe(true);
@@ -281,7 +285,7 @@ describe('MCP server', () => {
 			offset: total
 		});
 		expect(atEnd.error.code).toBe('INVALID');
-		const unchecked = await call(client, 'skills_check', { harness: 'claude-code' });
+		const unchecked = await call(client, 'flow_skills', { harness: 'claude-code' });
 		expect(unchecked.skills.every((s: { action: string }) => s.action === 'ask')).toBe(true);
 		const past = await call(client, 'skills_file', {
 			skill: 'flow',

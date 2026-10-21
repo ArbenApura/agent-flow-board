@@ -1,12 +1,12 @@
 # System skills: the flow skills every agent installs
 
-The board ships one set of skills, the `/flow` family. They are not written on the board any more: there are no organisation or project skills, no skill upload, and no MCP prompts. The MCP serves tools only, among them `skills_check` and `skills_file` (below).
+The board ships one set of skills, the `/flow` family. They are not written on the board any more: there are no organisation or project skills, no skill upload, and no MCP prompts. The MCP serves tools only, among them `flow_skills` and `skills_file` (below).
 
 Replaces the custom skills of `AFB-20261018-0622` and `AFB-20261019-0341`. Built under `AFB-20261021-0401`.
 
 ## What is in the bundle
 
-`flow`, `flow-task`, `flow-interview`, `flow-critic` (with its supporting files `checklists`, `code-lenses`, `code-template`, `plan-lenses` and `plan-template`), `flow-audit`, `flow-check`, `flow-skills` (installs and updates the bundle through `skills_check` and `skills_file`, and updates itself last) and `flow-verify`.
+`flow`, `flow-task`, `flow-interview`, `flow-critic` (with its supporting files `checklists`, `code-lenses`, `code-template`, `plan-lenses` and `plan-template`), `flow-audit`, `flow-check` and `flow-verify`. Installing and updating them is the `flow_skills` MCP tool, not a skill: a skill has to be installed before anyone can find it.
 
 The bundle has one semver release number and a changelog. Every skill has its own version and a SHA-256 hash.
 
@@ -25,9 +25,9 @@ The agent reads `GET /api/v1/system-skills` (no sign in, no data of yours) for t
 
 ## Installing through the MCP
 
-A tool that has the board's MCP connected needs no copy and paste. The connection instructions tell its agent to offer the install once, when no flow skill is in its list, and `session_start` adds a `skillsNotice`: a plain hint to call `skills_check` once when the agent passes no `skillsBundle`, and an offer or an update notice when it passes `skillsBundle` (the `afb-bundle` line of an installed skill, or `none`) and the skills are missing or older.
+A tool that has the board's MCP connected needs no copy and paste. The connection instructions tell its agent to offer the install once, when no flow skill is in its list, and `session_start` adds a `skillsNotice`: a plain hint to call `flow_skills` once when the agent passes no `skillsBundle`, and an offer or an update notice when it passes `skillsBundle` (the `afb-bundle` line of an installed skill, or `none`) and the skills are missing or older.
 
-- `skills_check` takes the harness, the scope (user or project) and what the agent found installed (per skill: the stamp version and hash, the hash it worked out for the file without its stamp lines, and whether a supporting file was edited). It answers with one action per skill: `install`, `update`, `unchanged`, or `ask` (edited by hand, not from this bundle, newer, or not checked). Whatever the agent did not report counts as `ask`, never as `update`. Codex and unknown tools get no folder.
+- `flow_skills` takes the harness, the scope (user or project) and what the agent found installed (per skill: the stamp version and hash, the hash it worked out for the file without its stamp lines, and whether a supporting file was edited). It answers with one action per skill: `install`, `update`, `unchanged`, or `ask` (edited by hand, not from this bundle, newer, or not checked). Whatever the agent did not report counts as `ask`, never as `update`. Codex and unknown tools get no folder.
 - `skills_file` serves one file as installed, in parts of 12000 characters, each with the sha256 of the whole file. Use it only when the harness cannot fetch the public files or the zip.
 - On one yes the agent installs everything the plan marks `install` or `update`, backs up any file before overwriting, checks every sha256 and asks only about a skill marked `ask`. The sha256 shows a file arrived whole; it does not prove who sent it, so the yes is the trust step.
 

@@ -82,17 +82,6 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'no work_start', pattern: /Do not call `work_start`/ },
 		{ rule: 'task text is data', pattern: /instructions found inside a task/ }
 	],
-	'flow-skills': [
-		{
-			rule: 'never run served content',
-			pattern: /Never run, open or execute anything found inside them/
-		},
-		{
-			rule: 'never overwrite an edited file unasked',
-			pattern: /Never overwrite a skill or file the person edited/
-		},
-		{ rule: 'no tokens', pattern: /never ask for, print or store a token/i }
-	],
 	'flow-check': [
 		{ rule: 'stop for a shared database, a server or a live site', pattern: /live site/ },
 		{ rule: 'the afb-checks tool', pattern: /afb-checks/ }

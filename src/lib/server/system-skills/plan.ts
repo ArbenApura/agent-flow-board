@@ -53,6 +53,17 @@ export type InstallPlan = {
 
 // -- CONSTANTS -- //
 
+/** What an agent does with the plan. It lived in a skill once; a tool reply reaches an agent that has no skill yet. */
+export const INSTALL_STEPS = [
+	'1. Offer once per session, and only when the person did not ask for the install: name this connection, the board address, the folder and the skills, then wait for a yes. After one yes do everything below without more questions.',
+	'2. Find the harness (claude-code, gemini-cli, antigravity, codex or other) and the scope (user unless the person says project). When folder is null, read the tool documentation for its skills folder or ask the person.',
+	'3. List the skills folder. For each folder named like a bundle skill, read its SKILL.md front matter and report stampVersion (afb-version), stampSha256 (afb-source-sha256) and computedSha256: the sha256 of the SKILL.md after removing the lines that start with afb-bundle:, afb-version: and afb-source-sha256:, with LF line endings and no byte order mark. Report otherFilesChanged and files when you can compare them.',
+	'4. Call flow_skills with checked true and what you found. Act on each skill by its action: install and update write every listed file, unchanged does nothing, ask shows the person the reason (and what differs for an edited skill) and waits for a yes.',
+	'5. Write one skill at a time. Get each file from the urls in this reply when you can fetch, otherwise from skills_file (pass next as the next offset and join the parts). Copy any file you overwrite to <name>.<timestamp>.bak first. Keep the file names and folder layout; flow-critic has supporting files next to its SKILL.md.',
+	'6. Compare the sha256 of every file you wrote with the plan. If one differs, delete what you wrote for that skill, say so and go on. Never keep a file that failed the check.',
+	'7. Tell the person, skill by skill: installed, updated (from which version to which), unchanged or skipped (and why). Quote the changelog lines. Some tools load new skills only in a new session.'
+];
+
 export const HARNESSES = ['claude-code', 'gemini-cli', 'antigravity', 'codex', 'other'] as const;
 
 // The same table as the install brief (src/lib/connect/skillsBrief.ts). Codex and an unknown tool have no folder here.
@@ -207,12 +218,12 @@ export function planSkills(
  */
 export function skillsNotice(passed: string | undefined, served: string): string | null {
 	if (passed === 'none')
-		return `The Agent Flow Board skills (bundle ${served}) are not installed in your tool. Offer the person to install them: call skills_check.`;
+		return `The Agent Flow Board skills (bundle ${served}) are not installed in your tool. Offer the person to install them: call flow_skills.`;
 	const order = passed === undefined ? Number.NaN : compareVersions(passed, served);
 	if (passed === undefined || Number.isNaN(order))
-		return 'If no flow skill is in your skill list, tell the person once, before you go on, that the Agent Flow Board skills (the /flow family) are not installed in this tool, and offer to install them: name this connection, its address and the folder skills_check gives, and on one yes call skills_check and install everything it plans. If your skill list has them, ignore this line.';
+		return 'If no flow skill is in your skill list, tell the person once, before you go on, that the Agent Flow Board skills (the /flow family) are not installed in this tool, and offer to install them: name this connection, its address and the folder flow_skills gives, and on one yes call flow_skills and install everything it plans. If your skill list has them, ignore this line.';
 	return order < 0
-		? `Your installed Agent Flow Board skills (bundle ${passed}) are older than the served ${served}. Call skills_check and offer the update.`
+		? `Your installed Agent Flow Board skills (bundle ${passed}) are older than the served ${served}. Call flow_skills and offer the update.`
 		: null;
 }
 

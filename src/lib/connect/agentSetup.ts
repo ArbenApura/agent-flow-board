@@ -52,7 +52,7 @@ One connection belongs to one organisation, so the name carries the organisation
 5. After they approve, check the connection: call \`session_start\` (pass \`skillsBundle: "none"\` when you have no flow skill), then \`board_brief\`. Confirm the organisation is \`${org.slug}\`. If it is another organisation, say so and stop.
 6. Tell the person the tool names now start with \`${prefix}\`. Search this project's rule files, CLAUDE.md and permission allow lists for \`mcp__agent-flow-board__\` and show the renames you would make to \`${prefix}\`. Edit only after the person says yes.
 7. Offer the hooks that keep the plan record true: \`npx -y @agent-flow-board/bridge hooks print <claude|antigravity|gemini> --server ${baseUrl} --org ${org.slug}\`. Install them only after a yes.
-8. If no flow skill is in your skill list, offer the person to install the skills now: call \`skills_check\` and follow its plan on their yes. Before planning anything, read the workflow with \`workflow_get\` (name \`flow\`) if you have no installed flow skill.
+8. If no flow skill is in your skill list, offer the person to install the skills now: call \`flow_skills\` and follow its plan on their yes. Before planning anything, read the workflow with \`workflow_get\` (name \`flow\`) if you have no installed flow skill.
 
 ## Never
 

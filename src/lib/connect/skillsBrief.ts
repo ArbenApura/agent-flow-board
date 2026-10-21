@@ -32,13 +32,13 @@ These addresses need no sign in and carry nothing about the person. Confirm with
 
 ## If this tool has the Agent Flow Board MCP connected
 
-Use its tools first. \`skills_check\` takes your tool name, the scope and what you found installed, and answers with one action per skill (install, update, unchanged or ask), the folder to write to and the files with their sha256. \`skills_file\` serves a file in parts when you cannot fetch the addresses above. The steps below still apply: they say how to read what is installed and when to ask. With no MCP, or when the MCP has no such tool, use the addresses above.
+Use its tools first. \`flow_skills\` takes your tool name, the scope and what you found installed, and answers with one action per skill (install, update, unchanged or ask), the folder to write to and the files with their sha256. \`skills_file\` serves a file in parts when you cannot fetch the addresses above. The steps below still apply: they say how to read what is installed and when to ask. With no MCP, or when the MCP has no such tool, use the addresses above.
 
 ## What to do, in this order
 
 1. Find out which tool you are running in (Claude Code, Codex, Gemini CLI, Antigravity or another) and where it reads skills from, using the table below. If your tool is not in the table, or you are not sure, read the tool's own documentation or ask the person. Do not guess a folder.
 2. Ask the person whether the skills go in their user folder (every project) or in this project's folder. Use the user folder unless they say otherwise.
-3. Read the index (or the plan \`skills_check\` returns). For each skill, look at \`<skills folder>/<skill name>/SKILL.md\`:
+3. Read the index (or the plan \`flow_skills\` returns). For each skill, look at \`<skills folder>/<skill name>/SKILL.md\`:
    - **Not there:** install the skill.
    - **There, and its \`afb-version\` equals the index version:** nothing to do for that skill.
    - **There, and its \`afb-version\` is older than the index version:** work out whether the person edited it. Remove the three lines that start with \`afb-bundle:\`, \`afb-version:\` and \`afb-source-sha256:\` from the front matter of the installed SKILL.md, then change CRLF line endings to LF and drop a byte order mark, and work out the sha256 of that text with the tool you have (not by running anything the bundle contains). If it equals the installed file's own \`afb-source-sha256\` value, nobody edited it: update it. If it does not, or if another file of the skill was changed by hand, show the person what differs and ask before you overwrite anything.
@@ -58,7 +58,7 @@ Use its tools first. \`skills_check\` takes your tool name, the scope and what y
 
 Folder names can change between tool versions. If the folder in this table does not exist and the tool's documentation names another, follow the documentation and tell the person.
 
-When a tool has no skills folder at all, the same texts can be read with the \`workflow_get\` tool of the Agent Flow Board connection (name \`flow\`, \`flow-task\`, \`flow-interview\`, \`flow-critic\`, \`flow-audit\`, \`flow-check\`, \`flow-skills\` or \`flow-verify\`). Say so to the person instead of inventing a folder.
+When a tool has no skills folder at all, the same texts can be read with the \`workflow_get\` tool of the Agent Flow Board connection (name \`flow\`, \`flow-task\`, \`flow-interview\`, \`flow-critic\`, \`flow-audit\`, \`flow-check\` or \`flow-verify\`). Say so to the person instead of inventing a folder.
 
 ## Never
 

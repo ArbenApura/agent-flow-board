@@ -62,14 +62,14 @@ describe('the system skills brief', () => {
 
 	it('names the two MCP tools first and keeps the file steps for a tool without them (AFB-20261021-0803)', () => {
 		expect(brief).toContain('## If this tool has the Agent Flow Board MCP connected');
-		expect(brief.indexOf('skills_check')).toBeLessThan(
+		expect(brief.indexOf('flow_skills')).toBeLessThan(
 			brief.indexOf('## What to do, in this order')
 		);
 		expect(brief).toContain('skills_file');
 		expect(brief).toContain('use the addresses above');
 	});
 
-	it('gives every harness folder the same path as skills_check does', () => {
+	it('gives every harness folder the same path as flow_skills does', () => {
 		for (const h of ['claude-code', 'gemini-cli', 'antigravity'] as const)
 			for (const scope of ['user', 'project'] as const)
 				expect(brief, `${h} ${scope}`).toContain(`${skillsFolder(h, scope)}/<name>/`);
