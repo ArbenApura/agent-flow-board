@@ -17,3 +17,22 @@
 		Strict-Transport-Security "max-age=31536000"
 	}
 }
+
+# BOTLER (A SEPARATE PROJECT ON THIS SERVER): ITS APP JOINS THIS NETWORK ONLY SO THIS CADDY CAN REACH IT. KEEP IN SYNC WITH botler/deploy/vps/botler.caddy
+botler.arbenger.com {
+	encode zstd gzip
+
+	reverse_proxy botler-app:3000 {
+		# Chat replies stream, so nothing may hold the response back
+		flush_interval -1
+		health_uri /healthz
+		health_interval 15s
+	}
+
+	header {
+		-Server
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Content-Type-Options nosniff
+		Strict-Transport-Security "max-age=31536000"
+	}
+}
