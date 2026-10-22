@@ -140,14 +140,16 @@ export async function authenticateToken(
 	const orgId = presented.slice(TOKEN_PREFIX.length).split('.')[0];
 	if (!UUID.test(orgId) || presented.length < 70) return null;
 	const found = await withTenant(handle, { orgId }, async (tx) => {
-		const [t] = await tx
-			.select()
+		// The token and its org's deletion mark come in one query; a token whose org row is gone finds nothing
+		const [row] = await tx
+			.select({ t: apiToken, orgDeletedAt: org.deletedAt })
 			.from(apiToken)
+			.innerJoin(org, eq(org.id, apiToken.orgId))
 			.where(eq(apiToken.hash, hashOf(presented)));
+		const t = row?.t;
 		if (!t || t.revokedAt || t.expiresAt <= new Date()) return null;
 		// A token of an org scheduled for deletion stops working until the org is restored
-		const [o] = await tx.select({ deletedAt: org.deletedAt }).from(org).where(eq(org.id, orgId));
-		if (!o || o.deletedAt) return null;
+		if (row.orgDeletedAt) return null;
 		// Written at most once a minute, so reading with a token does not turn into a write on every call
 		if (!t.lastUsedAt || Date.now() - t.lastUsedAt.getTime() > 60_000)
 			await tx

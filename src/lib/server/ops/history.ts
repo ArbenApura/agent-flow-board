@@ -41,7 +41,12 @@ function shortBody<T>(data: T): T {
 }
 
 /** The activity log of a project, newest first, each event labelled with whether it can still be undone. */
-export async function listEvents(ctx: Ctx, raw: z.input<typeof eventsInput>) {
+export async function listEvents(
+	ctx: Ctx,
+	raw: z.input<typeof eventsInput>,
+	// A light read leaves the before and after patches in the database: the MCP feed shows who did what, not the data
+	options: { light?: boolean } = {}
+) {
 	const input = eventsInput.parse(raw);
 	return run(ctx, async (tx) => {
 		const proj = await findProject(tx, ctx, input.project);
@@ -61,8 +66,8 @@ export async function listEvents(ctx: Ctx, raw: z.input<typeof eventsInput>) {
 				actorUserId: event.actorUserId,
 				tool: event.tool,
 				sessionId: event.sessionId,
-				before: event.before,
-				after: event.after,
+				before: options.light ? sql<typeof event.$inferSelect.before>`null` : event.before,
+				after: options.light ? sql<typeof event.$inferSelect.after>`null` : event.after,
 				undoable: event.undoable,
 				external: event.external,
 				createdAt: event.createdAt,

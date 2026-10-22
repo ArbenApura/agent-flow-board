@@ -26,6 +26,7 @@ import {
 import { tabNameSchema } from '../db/zod';
 import { tabNameFromTitle } from '../../shared/uiChange';
 import { OpError, idempotent, rateLimit, requireCap, requireOrgMember, run } from './context';
+import { enforcePlanRules } from './planRules';
 import { canSeeItem, findItem, findProject, visibleItemSql } from './resolve';
 import { releaseOthersClaimsOn, requireCloseConfirmation } from './tracking';
 
@@ -198,6 +199,17 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 			await rateLimit(tx, ctx, 'write');
 			await rateLimit(tx, ctx, 'create');
 			await requireOrgMember(tx, ctx, input.assigneeId);
+			// The project's own plan rules (forbidden wording, no browser steps) refuse the plan before anything is written
+			await enforcePlanRules(tx, proj.id, {
+				texts: [
+					input.title,
+					...input.phases.flatMap((p) => [p.title, ...p.steps.map((x) => x.text)]),
+					...input.manualChecks.map((c) => c.text)
+				],
+				browser:
+					input.phases.some((p) => p.steps.some((x) => !!x.requiredTarget)) ||
+					input.manualChecks.some((c) => !!c.auto)
+			});
 			// The window is measured on the real clock because created_at comes from the database, not from options.now.
 			// An agent that creates the same title again soon after is almost always retrying a write that failed, so it is refused.
 			// A person in the web app may name two items alike on purpose, so only calls that come from a tool are checked

@@ -12,6 +12,7 @@ import { canonicalTool } from '../../src/lib/shared/tool';
 import { handleHook } from '../../src/lib/server/ops/hooks';
 import { projectSummary } from '../../src/lib/server/ops/board';
 import { projectHealth } from '../../src/lib/server/ops/health';
+import { listSessionEvents } from '../../src/lib/server/ops/sessionEvents';
 import { createItem, updateItem } from '../../src/lib/server/ops/items';
 import { recordSteps } from '../../src/lib/server/ops/steps';
 import { setStatus } from '../../src/lib/server/ops/status';
@@ -84,6 +85,13 @@ describe('tracking', () => {
 	const person = (who: 'member' | 'admin' | 'owner' | 'viewer' = 'member') => w.ctx(who);
 	const newItem = (title: string, extra = {}) =>
 		createItem(person(), { project: w.projectKey, title: `${title} ${++n}`, ...PLAN, ...extra });
+	// An item on a fixed minute of its own, so a test that needs several does not use up the suffixes of the current minute
+	const newItemAt = (title: string, minute: number) =>
+		createItem(
+			person(),
+			{ project: w.projectKey, title: `${title} ${++n}`, ...PLAN },
+			{ now: new Date(Date.UTC(2026, 0, 1, 3, minute)) }
+		);
 	const newSession = async (tool = 'claude-code') =>
 		(await startSession(w.ctx('member', { kind: 'agent', tool }), { tool })).sessionId;
 	const sessionRow = (id: string) =>
@@ -461,18 +469,22 @@ describe('tracking', () => {
 		expect(await handleHook(ctx(), input('prompt'))).toEqual({});
 		// A stop with no code change says nothing
 		expect(await handleHook(ctx(), input('stop'))).toEqual({});
-		// Docs, subagent and failed calls do not count; code does, and so does a commit from the shell
+		// Docs and failed calls do not count; code does, and so does a commit from the shell
 		await handleHook(ctx(), input('tool', { action: { kind: 'edit', file: 'docs/readme.ts' } }));
-		await handleHook(
-			ctx(),
-			input('tool', { subagent: true, action: { kind: 'edit', file: 'src/a.ts' } })
-		);
 		await handleHook(
 			ctx(),
 			input('tool', { failed: true, action: { kind: 'edit', file: 'src/a.ts' } })
 		);
 		expect((await sessionRow(rows[0].id)).codeTouchedAt).toBeNull();
-		await handleHook(ctx(), input('tool', { action: { kind: 'edit', file: 'src/a.ts' } }));
+		// A subagent's edit counts for the session but never sends a nudge
+		for (let i = 0; i < 7; i++)
+			expect(
+				await handleHook(
+					ctx(),
+					input('tool', { subagent: true, action: { kind: 'edit', file: 'src/a.ts' } })
+				)
+			).toEqual({});
+		expect(await sessionRow(rows[0].id)).toMatchObject({ codeEditsSinceRecord: 7 });
 		expect((await sessionRow(rows[0].id)).codeTouchedAt).not.toBeNull();
 		// The Stop reminder comes once for this change, never when the tool says it is already continuing
 		expect(await handleHook(ctx(), input('stop', { stopActive: true }))).toEqual({});
@@ -491,6 +503,8 @@ describe('tracking', () => {
 			item: it.ref,
 			marks: [{ key: '1.1', mark: 'done' }]
 		});
+		// A step was recorded after the code, so there is no unrecorded work; the open steps get their one reminder instead
+		expect((await handleHook(ctx(), input('stop'))).block).toContain('still has open steps');
 		expect(await handleHook(ctx(), input('stop'))).toEqual({});
 		// An unbound session that changed code is asked once to bind
 		const loose = input('tool', { action: { kind: 'edit', file: 'lib/x.py' } });
@@ -531,6 +545,93 @@ describe('tracking', () => {
 			externalId: 'agy-conversation-1'
 		});
 		await expect(handleHook(ctx(), { ...input('start'), externalId: 'x' })).rejects.toThrow();
+	});
+
+	it('stop guard: a release answers the item question, and open steps get one reminder per record', async () => {
+		const hookCtx = () => w.ctx('member', { kind: 'agent', tool: 'claude-code' });
+		const stopOf = (externalId: string) =>
+			handleHook(hookCtx(), { tool: 'claude-code', externalId, event: 'stop' });
+		const start = async (externalId: string) => {
+			await handleHook(hookCtx(), { tool: 'claude-code', externalId, event: 'start' });
+			const [row] = await withTenant(db, { orgId: w.orgId }, (tx) =>
+				tx.select().from(session).where(eq(session.externalId, externalId))
+			);
+			return row.id;
+		};
+		const edit = (externalId: string) =>
+			handleHook(hookCtx(), {
+				tool: 'claude-code',
+				externalId,
+				event: 'tool',
+				action: { kind: 'edit', file: 'src/z.ts' }
+			});
+
+		// Work_stop after edits: the Stop hook has nothing to ask
+		const done = await newItemAt('Released', 1);
+		const idA = await start('stop-guard-conversation-a');
+		await claim(agent('member', idA), idA, done.ref, '1');
+		await edit('stop-guard-conversation-a');
+		await claim(agent('member', idA), idA, null);
+		expect(await stopOf('stop-guard-conversation-a')).toEqual({});
+
+		// A session that recorded one step and holds an item with open steps is reminded once, and again only after the next record
+		const busy = await newItemAt('Open steps', 2);
+		const idB = await start('stop-guard-conversation-b');
+		await claim(agent('member', idB), idB, busy.ref, '1');
+		expect(await stopOf('stop-guard-conversation-b')).toEqual({});
+		await recordSteps(agent('member', idB), {
+			item: busy.ref,
+			marks: [{ key: '1.1', mark: 'done' }]
+		});
+		const reminder = await stopOf('stop-guard-conversation-b');
+		expect(reminder.block).toContain(busy.ref);
+		expect(reminder.block).toContain('1.2');
+		expect(await stopOf('stop-guard-conversation-b')).toEqual({});
+		await new Promise((r) => setTimeout(r, 15));
+		await recordSteps(agent('member', idB), {
+			item: busy.ref,
+			marks: [{ key: '1.2', mark: 'done' }]
+		});
+		expect((await stopOf('stop-guard-conversation-b')).block).toContain('2.1');
+
+		// A session made by the hooks is the same session for the MCP calls of the same person, even with another token
+		const idC = await start('stop-guard-conversation-c');
+		await expect(
+			claim(
+				w.ctx('member', {
+					kind: 'agent',
+					tool: 'claude-code',
+					tokenId: '00000000-0000-4000-8000-0000000000c1'
+				}),
+				idC,
+				busy.ref,
+				'2'
+			)
+		).resolves.toBeDefined();
+	});
+
+	it('claims, releases, reminders and session ends are logged, and the history gives the claim minutes', async () => {
+		const it = await newItemAt('Logged claim', 3);
+		const id = await newSession();
+		await claim(agent('member', id), id, it.ref, '1');
+		// Pretend the claim began 25 minutes ago so the duration is visible
+		await db.admin.query(
+			`update session_event set created_at = now() - interval '25 minutes' where session_id = $1`,
+			[id]
+		);
+		await claim(agent('member', id), id, null);
+		const history = await listSessionEvents(person(), { item: it.ref });
+		expect(history.events.map((e) => e.kind)).toEqual(['claim', 'release']);
+		expect(history.events[0]).toMatchObject({ sessionId: id, detail: 'phase 1', minutes: null });
+		expect(history.events[1]).toMatchObject({ detail: 'work_stop' });
+		expect(history.events[1].minutes).toBeGreaterThanOrEqual(24);
+		// The same item claimed again by the same session is one more claim, and a move off it is a release
+		const other = await newItemAt('Moved to', 4);
+		await claim(agent('member', id), id, it.ref, '1');
+		await claim(agent('member', id), id, other.ref, '1');
+		const again = await listSessionEvents(person(), { item: it.ref });
+		expect(again.events.map((e) => e.kind)).toEqual(['claim', 'release', 'claim', 'release']);
+		expect(again.events[3].detail).toBe('moved to another item');
 	});
 
 	it('progress first: a nudge at 6 edits, once per level, from the time rule too, and reset by a recorded step of any session', async () => {

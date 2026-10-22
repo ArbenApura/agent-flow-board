@@ -11,6 +11,7 @@ import { appendEvent } from '../db/events';
 import { comment, manualCheck, phase, step } from '../db/schema';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields, checkVersion } from './items';
+import { enforcePlanRules } from './planRules';
 import { findItem } from './resolve';
 
 // -- CONSTANTS -- //
@@ -81,6 +82,10 @@ export async function addPhase(ctx: Ctx, raw: z.input<typeof addPhaseInput>) {
 			await requireCap(tx, ctx, 'write', it.projectId);
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
+			await enforcePlanRules(tx, it.projectId, {
+				texts: [input.title, ...input.steps.map((x) => x.text)],
+				browser: input.steps.some((x) => !!x.requiredTarget)
+			});
 			const [dupe] = await tx
 				.select({ id: phase.id })
 				.from(phase)
@@ -138,6 +143,10 @@ export async function addSteps(ctx: Ctx, raw: z.input<typeof addStepsInput>) {
 			await requireCap(tx, ctx, 'write', it.projectId);
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
+			await enforcePlanRules(tx, it.projectId, {
+				texts: input.steps.map((x) => x.text),
+				browser: input.steps.some((x) => !!x.requiredTarget)
+			});
 			const [ph] = await tx
 				.select()
 				.from(phase)
@@ -200,6 +209,10 @@ export async function addManualChecks(ctx: Ctx, raw: z.input<typeof addChecksInp
 			await requireCap(tx, ctx, 'write', it.projectId);
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
+			await enforcePlanRules(tx, it.projectId, {
+				texts: input.checks.map((x) => x.text),
+				browser: input.checks.some((x) => x.auto)
+			});
 			const existing = await tx
 				.select({ key: manualCheck.key, position: manualCheck.position })
 				.from(manualCheck)
@@ -247,6 +260,8 @@ export async function updateStep(ctx: Ctx, raw: z.input<typeof updateStepInput>)
 			await requireCap(tx, ctx, 'write', it.projectId);
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
+			if (input.text !== undefined)
+				await enforcePlanRules(tx, it.projectId, { texts: [input.text], browser: false });
 			const [st] = await tx
 				.select()
 				.from(step)

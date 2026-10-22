@@ -26,7 +26,7 @@ import {
 	upsertSection
 } from '../ops/docs';
 import { addAttachment } from '../ops/attachments';
-import { OpError, fingerprintOf, run, subRequest } from '../ops/context';
+import { OpError, fingerprintOf, run, runCall, subRequest } from '../ops/context';
 import { listEvents, undoChange, undoSession } from '../ops/history';
 import { pinProject, unpinProject } from '../ops/pins';
 import { addManualChecks, addPhase, addSteps, updateStep } from '../ops/plan';
@@ -51,6 +51,7 @@ import {
 } from '../ops/checks';
 import { approveToolConnection } from '../ops/environments';
 import { itemShots, requestShots, saveUiChanges, waitForShotsRun } from '../ops/uiShots';
+import { readItemDoc } from '../ops/itemDocs';
 import { recordSteps } from '../ops/steps';
 import { setStatus } from '../ops/status';
 import { trackingNotes } from '../ops/tracking';
@@ -83,6 +84,9 @@ type Reply = {
 // -- CONSTANTS -- //
 
 const DOC_PAGE = 6000;
+/** The short view of an item cuts a note to this many characters, and a next step to STEP_CHARS. */
+const NOTE_CHARS = 300;
+const STEP_CHARS = 200;
 const marks = z
 	.array(
 		z.object({
@@ -118,6 +122,10 @@ const requestId = z
 		'Repeating a write with the same requestId returns the first result and writes nothing twice.'
 	);
 /** The named item, or the claimed one, or a plain refusal that says what to do. */
+/** The line a not finished wait ends with, so an agent knows how to continue without polling for ever. */
+const WAIT_AGAIN =
+	'Not finished yet. Call check_wait with the same run id again, at most 3 times in total. If it is still not finished, call runner_status to see whether a runner is online, and stop polling.';
+
 const need = (named: string | undefined, claimed: string | null): string => {
 	const name = named ?? claimed;
 	if (!name) throw new OpError('INVALID', 'Name an item, or claim one with work_start.');
@@ -180,6 +188,9 @@ export function errorReply(e: unknown): Reply {
 	);
 }
 
+/** A text cut at a length, with an ellipsis when something was cut. */
+const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}...` : text);
+
 /** The short view of an item. Everything else is one `fields` option or one item_doc call away. */
 export function summarize(d: ItemDetail, fields: string[] = []) {
 	const steps = d.phases.flatMap((p) => p.steps.map((s) => ({ ...s, phase: p.key })));
@@ -202,7 +213,8 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 			done: p.steps.filter((s) => s.state === 'done').length,
 			total: p.steps.filter((s) => s.state === 'open' || s.state === 'done').length
 		})),
-		nextOpen: open.slice(0, 5).map((s) => ({ key: s.key, text: s.text })),
+		// A long step text is cut: item_doc phase:<key> reads the whole step list
+		nextOpen: open.slice(0, 5).map((s) => ({ key: s.key, text: clip(s.text, STEP_CHARS) })),
 		openChecks: d.manualChecks
 			.filter((c) => c.state === 'open')
 			.map((c) => ({ key: c.key, text: c.text, auto: c.auto }))
@@ -238,9 +250,15 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 		lessons: 'lessons',
 		'learned-from': 'learnedFrom'
 	};
+	// The first words only, with the way to the rest. The fields option `notes` brings back the longer text (up to 1200 characters).
+	const limit = fields.includes('notes') ? 1200 : NOTE_CHARS;
 	for (const [slug, key] of Object.entries(NOTES)) {
 		const s = d.sections.find((x) => x.slug === slug);
-		if (s && !fields.includes('sections')) out[key] = s.body.slice(0, 1200);
+		if (s && !fields.includes('sections'))
+			out[key] =
+				s.body.length > limit
+					? `${s.body.slice(0, limit)}... (${s.body.length} characters, read all of it with item_doc section:${slug})`
+					: s.body;
 	}
 	return out;
 }
@@ -293,31 +311,37 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			},
 			(async (args: Record<string, unknown>) => {
 				try {
-					let sessionRow:
-						| { id: string; tool: string; label: string | null; claimedItemId?: string | null }
-						| undefined;
-					// Reads need no session. When one is given it supplies the claimed item and keeps the session alive
-					if (options.session && !options.readOnly)
-						sessionRow = await requireSession(
-							base(undefined, undefined),
-							args.sessionId as string | undefined
-						);
-					else if (args.sessionId)
-						sessionRow = await requireSession(base(), args.sessionId as string).catch(
-							() => undefined
-						);
-					const ctx = base(sessionRow, args.requestId as string | undefined);
-					if (ctx.requestId) {
-						const { requestId: _rid, ...rest } = args;
-						ctx.fingerprint = fingerprintOf(name, rest);
-					}
-					const out = await fn(args as never, { ctx, claimed: sessionRow?.claimedItemId ?? null });
-					// Reminders ride inside the reply: a quiet claim, a claim released by a close (SPEC 9.4)
-					if (sessionRow) {
-						const notes = await run(ctx, (tx) => trackingNotes(tx, sessionRow!.id));
-						if (notes.length) return reply({ ...out, notes });
-					}
-					return reply(out);
+					// Waiting tools look again and again with a sleep between, each look its own short transaction, so they never share one
+					const joined = !/^(check_|ui_shots_)/.test(name);
+					const once = async (call: Ctx) => {
+						let sessionRow:
+							| { id: string; tool: string; label: string | null; claimedItemId?: string | null }
+							| undefined;
+						// Reads need no session. When one is given it supplies the claimed item and keeps the session alive
+						if (options.session && !options.readOnly)
+							sessionRow = await requireSession(call, args.sessionId as string | undefined);
+						else if (args.sessionId)
+							sessionRow = await requireSession(call, args.sessionId as string).catch(
+								() => undefined
+							);
+						const ctx = { ...base(sessionRow, args.requestId as string | undefined), tx: call.tx };
+						if (ctx.requestId) {
+							const { requestId: _rid, ...rest } = args;
+							ctx.fingerprint = fingerprintOf(name, rest);
+						}
+						const out = await fn(args as never, {
+							ctx,
+							claimed: sessionRow?.claimedItemId ?? null
+						});
+						// Reminders ride inside the reply: a quiet claim, a claim released by a close (SPEC 9.4)
+						if (sessionRow) {
+							const notes = await run(ctx, (tx) => trackingNotes(tx, sessionRow!.id));
+							if (notes.length) return reply({ ...out, notes });
+						}
+						return reply(out);
+					};
+					// One tenant transaction for the whole call: the session check, the verb and the reminders share it
+					return joined ? await runCall(base(), once) : await once(base());
 				} catch (e) {
 					return errorReply(e);
 				}
@@ -405,9 +429,11 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
 			fields: z
-				.array(z.enum(['steps', 'checks', 'decisions', 'sections']))
+				.array(z.enum(['steps', 'checks', 'decisions', 'sections', 'notes']))
 				.optional()
-				.describe('steps, checks, decisions or sections to add to the short reply')
+				.describe(
+					'steps, checks, decisions or sections to add to the short reply; notes gives the resume, blockers and lessons notes at a longer length'
+				)
 		},
 		{ session: true, readOnly: true },
 		async (a, { ctx, claimed }) => {
@@ -424,32 +450,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		{ item: itemName, doc: z.string(), offset: z.number().int().min(0).optional() },
 		{ readOnly: true },
 		async (a, { ctx }) => {
-			const d = await getItem(ctx, a.item);
-			const [kind, key] = a.doc.split(':');
-			let text: string | null = null;
-			if (kind === 'section') text = d.sections.find((s) => s.slug === key)?.body ?? null;
-			else if (kind === 'phase') {
-				const p = d.phases.find((x) => x.key === key);
-				text = p
-					? `${p.title}\n${p.steps.map((s) => `${s.state === 'done' ? '[x]' : s.state === 'open' ? '[ ]' : '[-]'} ${s.key} ${s.text}`).join('\n')}`
-					: null;
-			} else if (kind === 'decision') {
-				const [k, n] = (key ?? '').split('-');
-				const x = d.decisions.find((y) => y.kind === k && String(y.number) === n);
-				text = x
-					? [
-							`${x.title}`,
-							x.context && `Context: ${x.context}`,
-							x.decision && `Decision: ${x.decision}`,
-							x.alternatives && `Alternatives: ${x.alternatives}`,
-							x.consequences && `Consequences: ${x.consequences}`,
-							x.answer && `Answer: ${x.answer} (${x.source ?? 'no source'})`
-						]
-							.filter(Boolean)
-							.join('\n')
-					: null;
-			}
-			if (text === null) throw new OpError('NOT_FOUND', `No document "${a.doc}" on ${d.item.ref}.`);
+			// Only the requested section, phase or decision is read, not the whole item
+			const { text } = await readItemDoc(ctx, a.item, a.doc);
 			const off = a.offset ?? 0;
 			return {
 				doc: a.doc,
@@ -1055,12 +1057,16 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		},
 		{ readOnly: true },
 		async (a, { ctx }) => {
-			const rows = await listEvents(ctx, {
-				project: a.project,
-				item: a.item,
-				limit: a.limit ?? 30,
-				afterId: a.afterId
-			});
+			const rows = await listEvents(
+				ctx,
+				{
+					project: a.project,
+					item: a.item,
+					limit: a.limit ?? 30,
+					afterId: a.afterId
+				},
+				{ light: true }
+			);
 			return {
 				events: rows.map((e) => ({
 					id: e.id,
@@ -1288,7 +1294,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'check_run',
-		'Ask for a browser check run. A pass on the required target closes the check and the step you name. An open run for the same check, target and registration is returned, not a second. Pass wait (at most 90 seconds) for the finished run. A failed run carries a code and a fix line.',
+		'Ask for a browser check run. A pass on the required target closes the check and the step you name. An open run for the same check, target and registration is returned, not a second. Pass wait (at most 50 seconds) for the finished run; if unfinished, follow its next line. A failed run carries a code and a fix line.',
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
 			check: z.string().describe('The manual check key, for example M8'),
@@ -1308,9 +1314,9 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				.number()
 				.int()
 				.min(0)
-				.max(90)
+				.max(50)
 				.optional()
-				.describe('Seconds to wait for the run to finish, at most 90')
+				.describe('Seconds to wait for the run to finish, at most 50')
 		},
 		{ session: true },
 		async (a, { ctx, claimed }) => {
@@ -1324,19 +1330,27 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			// An unavailable run is already finished, so there is nothing to wait for
 			if (!a.wait || out.unavailable) return out as never;
 			const waited = await waitForRun(ctx, { run: out.run.id, seconds: a.wait });
-			return { ...out, run: waited.run, finished: waited.finished } as never;
+			return {
+				...out,
+				run: waited.run,
+				finished: waited.finished,
+				...(waited.finished ? {} : { next: WAIT_AGAIN })
+			} as never;
 		}
 	);
 
 	tool(
 		'check_wait',
-		'Wait for a run to finish and return it. Waits up to the seconds given (at most 90, default 30); finished false means ask again. A failed run carries a code and a fix line.',
+		'Wait for a run to finish and return it. Waits up to the seconds given (at most 50, default 30); finished false means ask again, at most 3 times, then call runner_status. A failed run carries a code and a fix line.',
 		{
 			run: z.string().describe('The run id from check_run or check_status'),
-			seconds: z.number().int().min(0).max(90).optional().describe('Seconds to wait, default 30')
+			seconds: z.number().int().min(0).max(50).optional().describe('Seconds to wait, default 30')
 		},
 		{ readOnly: true },
-		async (a, { ctx }) => (await waitForRun(ctx, { run: a.run, seconds: a.seconds })) as never
+		async (a, { ctx }) => {
+			const waited = await waitForRun(ctx, { run: a.run, seconds: a.seconds });
+			return (waited.finished ? waited : { ...waited, next: WAIT_AGAIN }) as never;
+		}
 	);
 
 	tool(
@@ -1400,7 +1414,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'ui_shots_run',
-		'Capture the screens an item changed, before (last commit) and after (working tree). No pages or table needed. Run it once after you finish a screen change. An unchanged tree is not rebuilt; a waiting capture is returned. wait (max 90) returns the result, else read it with ui_shots_get.',
+		'Capture the screens an item changed, before (last commit) and after (working tree). No pages or table needed. Run it once after you finish a screen change. An unchanged tree is not rebuilt; a waiting capture is returned. wait (max 50) returns the result, else read it with ui_shots_get.',
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
 			target: z.enum(['dev', 'preview', 'deployed']).optional(),
@@ -1412,9 +1426,9 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				.number()
 				.int()
 				.min(0)
-				.max(90)
+				.max(50)
 				.optional()
-				.describe('Seconds to wait for the capture to finish, at most 90')
+				.describe('Seconds to wait for the capture to finish, at most 50')
 		},
 		{ session: true },
 		async (a, { ctx, claimed }) => {
@@ -1436,7 +1450,11 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				state: waited.run.state,
 				run: waited.run,
 				finished: waited.finished,
-				...(waited.finished ? {} : { next: 'Not finished yet: read it later with ui_shots_get.' })
+				...(waited.finished
+					? {}
+					: {
+							next: 'Not finished yet: call ui_shots_get for this capture after about a minute, at most 3 times in total, then call runner_status and stop polling.'
+						})
 			} as never;
 		}
 	);

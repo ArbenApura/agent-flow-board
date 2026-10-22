@@ -145,7 +145,11 @@ export const project = tenantTable(
 		...stamps(),
 		version: version()
 	},
-	(t) => [unique('project_org_key_uq').on(t.orgId, t.key)]
+	(t) => [
+		unique('project_org_key_uq').on(t.orgId, t.key),
+		// Projects are found by upper(key)
+		index('project_org_upper_key_idx').on(t.orgId, sql`upper(${t.key})`)
+	]
 );
 
 /** Every project column except the picture, for reads that answer to a page, the API or a tool. */

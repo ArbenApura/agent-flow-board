@@ -103,6 +103,50 @@ export async function appendEvent(tx: Tx, e: NewEvent): Promise<number> {
 }
 
 /**
+ * Appends several events of one item in one insert and sends one change notice for all of them, which carries the newest
+ * event id (a page that refreshes on it sees every one). Returns the ids in the order given.
+ */
+export async function appendEvents(tx: Tx, events: NewEvent[]): Promise<number[]> {
+	if (events.length === 0) return [];
+	if (events.length === 1) return [await appendEvent(tx, events[0])];
+	const rows = await tx
+		.insert(event)
+		.values(
+			events.map((e) => ({
+				orgId: e.orgId,
+				projectId: e.projectId,
+				itemId: e.itemId ?? null,
+				actorUserId: e.actorUserId ?? null,
+				actorLabel: e.actorLabel ?? null,
+				tool: e.tool ?? null,
+				tokenId: e.tokenId ?? null,
+				sessionId: e.sessionId ?? null,
+				verb: e.verb,
+				targetType: e.targetType,
+				targetId: e.targetId ?? null,
+				before: e.before ?? null,
+				after: e.after ?? null,
+				undoable: e.undoable ?? true,
+				external: e.external ?? false,
+				requestId: e.requestId ?? null,
+				undoOf: e.undoOf ?? null
+			}))
+		)
+		.returning({ id: event.id });
+	const ids = rows.map((r) => r.id);
+	const last = events[events.length - 1];
+	await notifyChange(tx, {
+		o: last.orgId,
+		p: last.projectId,
+		k: 'event',
+		e: Math.max(...ids),
+		i: last.itemId ?? null,
+		v: last.verb
+	});
+	return ids;
+}
+
+/**
  * Events after `eventId` that touched the same target and still stand, and touched the same fields. An event does not
  * count when it was itself undone, when it is an undo of something that came after `eventId` (the two cancel out), or
  * when it changed other fields of the target (a status move does not block undoing a rename).

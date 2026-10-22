@@ -88,6 +88,8 @@ export const item = tenantTable(
 		index('item_project_status_idx').on(t.projectId, t.status),
 		index('item_project_activity_idx').on(t.projectId, t.lastActivityAt),
 		index('item_search_idx').using('gin', t.searchVector),
+		// Items are found by upper(ref), which the plain unique index on ref cannot serve
+		index('item_org_upper_ref_idx').on(t.orgId, sql`upper(${t.ref})`),
 		oneOf('item_status_chk', t.status, STATUSES),
 		oneOf('item_visibility_chk', t.visibility, VISIBILITIES)
 	]
@@ -109,6 +111,8 @@ export const itemAlias = tenantTable(
 	},
 	(t) => [
 		unique('item_alias_org_alias_uq').on(t.orgId, t.alias),
+		// Aliases are found by upper(alias), which the plain unique index cannot serve
+		index('item_alias_org_upper_alias_idx').on(t.orgId, sql`upper(${t.alias})`),
 		index('item_alias_item_idx').on(t.itemId)
 	]
 );

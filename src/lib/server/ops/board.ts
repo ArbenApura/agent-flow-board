@@ -7,7 +7,7 @@ import type { Running } from '../../board/rows';
 import type { Ctx } from './context';
 import type { Role } from '../orgs/roles';
 // -- DEP-MODULES -- //
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 // -- MODULES -- //
 import {
 	event,
@@ -25,7 +25,7 @@ import { canonicalTool } from '../../shared/tool';
 import { searchAll } from '../db/search';
 import { listMembers } from '../orgs/orgs';
 import { effectiveProjectRole } from '../orgs/roles';
-import { OpError, requireCap, run } from './context';
+import { OpError, effectiveCaps, projectAllowed, requireCap, run } from './context';
 import { listAttachments } from './attachments';
 import { listComments } from './docs';
 import { listEvents } from './history';
@@ -40,11 +40,12 @@ import { NUDGE_MINUTES, QUIET_RELEASE_MINUTES, RUNNING_WINDOW_MINUTES } from './
 
 async function runningIn(
 	tx: Parameters<Parameters<typeof run>[1]>[0],
-	projectId: string,
+	projectId: string | string[],
 	userId: string
-): Promise<Running[]> {
+): Promise<(Running & { projectId: string })[]> {
 	const rows = await tx
 		.select({
+			projectId: item.projectId,
 			itemId: item.id,
 			itemRef: item.ref,
 			tabName: item.tabName,
@@ -64,7 +65,9 @@ async function runningIn(
 		.innerJoin(item, eq(item.id, session.claimedItemId))
 		.where(
 			and(
-				eq(item.projectId, projectId),
+				Array.isArray(projectId)
+					? inArray(item.projectId, projectId)
+					: eq(item.projectId, projectId),
 				isNull(item.deletedAt),
 				sql`${session.lastSeenAt} > now() - make_interval(mins => ${RUNNING_WINDOW_MINUTES})`,
 				visibleItemSql(userId)
@@ -82,6 +85,7 @@ async function runningIn(
 			chosen.set(key, { ...held, staleMinutes: r.staleMinutes });
 	}
 	return [...chosen.values()].map((r) => ({
+		projectId: r.projectId,
 		itemId: r.itemId,
 		itemRef: r.itemRef,
 		phase: r.phase,
@@ -93,6 +97,91 @@ async function runningIn(
 		startedAt: r.startedAt,
 		lastSeenAt: r.lastSeenAt
 	}));
+}
+
+/**
+ * What the board brief shows, in one pass over every project the caller can see: the open items (at most 25 per project),
+ * the open tasks, and the sessions that left finished work unrecorded. Three queries for all projects together, where one
+ * call per project would cost a transaction and about ten queries each.
+ */
+export async function boardBrief(ctx: Ctx, options: { openStatuses: readonly string[] }) {
+	return run(ctx, async (tx) => {
+		const [m] = await tx
+			.select({ role: member.role })
+			.from(member)
+			.where(and(eq(member.orgId, ctx.orgId), eq(member.userId, ctx.actor.userId)));
+		if (!m) throw new OpError('FORBIDDEN', 'You are not a member of this organisation.');
+		const all = await tx
+			.select({ id: project.id, key: project.key })
+			.from(project)
+			.where(eq(project.orgId, ctx.orgId))
+			.orderBy(asc(project.key));
+		const overrides = await tx
+			.select()
+			.from(projectMember)
+			.where(eq(projectMember.userId, ctx.actor.userId));
+		// The same rule as a read of each project on its own: the token's projects, then the person's role on each
+		const visible = all.filter((p) => {
+			if (!projectAllowed(ctx.actor, p.id)) return false;
+			const role = effectiveProjectRole(
+				m.role,
+				overrides.find((o) => o.projectId === p.id)?.role ?? null
+			);
+			return role !== null && effectiveCaps(role, ctx.actor).includes('read');
+		});
+		if (!visible.length) return { items: [], tasks: [], notRecorded: [] };
+		const ids = visible.map((p) => p.id);
+		const keyOf = new Map(visible.map((p) => [p.id, p.key]));
+		const statuses = sql.join(
+			options.openStatuses.map((x) => sql`${x}`),
+			sql`, `
+		);
+		// Newest 25 open items of each project (a window over the project), only the ones the caller may see
+		const itemRows = (
+			(await tx.execute(sql`
+				select ref, title, status, percent, project_id as "projectId" from (
+					select ${item.ref} as ref, ${item.title} as title, ${item.status} as status, ${item.percent} as percent,
+						${item.projectId} as project_id,
+						row_number() over (partition by ${item.projectId} order by ${item.number} desc) as rn
+					from ${item}
+					where ${inArray(item.projectId, ids)} and ${isNull(item.deletedAt)}
+						and ${item.status} in (${statuses}) and ${visibleItemSql(ctx.actor.userId)}
+				) x where rn <= 25`)) as unknown as {
+				rows: { ref: string; title: string; status: string; percent: number; projectId: string }[];
+			}
+		).rows;
+		const rank = (id: string) => ids.indexOf(id);
+		const items = itemRows
+			.sort((a, b) => rank(a.projectId) - rank(b.projectId))
+			.map(({ projectId, ...rest }) => ({ ...rest, project: keyOf.get(projectId) ?? '' }));
+		const taskRows = await tx
+			.select({
+				projectId: task.projectId,
+				number: task.number,
+				title: task.title,
+				status: task.status
+			})
+			.from(task)
+			.where(
+				and(
+					inArray(task.projectId, ids),
+					isNull(task.deletedAt),
+					sql`${task.status} not in ('DONE', 'DROPPED')`
+				)
+			)
+			.orderBy(task.number);
+		const tasks = taskRows
+			.sort((a, b) => rank(a.projectId) - rank(b.projectId))
+			.map(({ projectId: _projectId, ...rest }) => rest);
+		const notRecorded = (await runningIn(tx, ids, ctx.actor.userId))
+			.filter((r) => r.staleMinutes !== null)
+			.map((r) => ({
+				ref: r.itemRef,
+				project: keyOf.get(r.projectId) ?? '',
+				minutes: r.staleMinutes as number
+			}));
+		return { items, tasks, notRecorded };
+	});
 }
 
 /** Counts by status and by area for a project, and who is running now. One transaction, a few index scans. */

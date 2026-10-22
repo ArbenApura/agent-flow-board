@@ -37,6 +37,12 @@ export type Actor = {
 
 export type Ctx = {
 	handle: DbHandle;
+	/**
+	 * The one open tenant transaction of a whole call (an MCP tool call). When set, `run` joins it instead of opening
+	 * another, so the token check, the session check, the verb and the reminders share one round of setup. Each verb still
+	 * reads the caller's live role itself, inside this transaction.
+	 */
+	tx?: Tx;
 	actor: Actor;
 	orgId: string;
 	/** Set by verbs that work inside one project. */
@@ -115,10 +121,63 @@ export function effectiveCaps(role: Role | null, actor: Actor): Capability[] {
 export const ORG_LOCKED_MESSAGE =
 	'This organisation is scheduled for deletion. Its owner can restore it until it is erased.';
 
+// -- PER TRANSACTION MEMO -- //
+// A verb and the helpers it calls ask the same live questions (is the org live, what is this person's role) several times
+// inside one transaction. The answers are kept for the life of that transaction only, so they are always as fresh as the
+// transaction itself and a role change still takes effect on the next call.
+
+const liveOrgs = new WeakMap<Tx, Set<string>>();
+const memberRoles = new WeakMap<Tx, Map<string, Role | null>>();
+const projectRoles = new WeakMap<Tx, Map<string, Role | null>>();
+
+const memoOf = <V>(store: WeakMap<Tx, Map<string, V>>, tx: Tx): Map<string, V> => {
+	let m = store.get(tx);
+	if (!m) store.set(tx, (m = new Map()));
+	return m;
+};
+
 /** Refuses any work in an org that an owner has deleted. Only the restore and summary verbs read such an org. */
 export async function assertOrgLive(tx: Tx, orgId: string): Promise<void> {
+	let seen = liveOrgs.get(tx);
+	if (seen?.has(orgId)) return;
 	const [o] = await tx.select({ deletedAt: org.deletedAt }).from(org).where(eq(org.id, orgId));
 	if (o?.deletedAt) throw new OpError('ORG_LOCKED', ORG_LOCKED_MESSAGE);
+	if (!seen) liveOrgs.set(tx, (seen = new Set()));
+	seen.add(orgId);
+}
+
+/** A person's role in the org, read once per transaction. Null when they are not a member. */
+export async function orgRoleOf(tx: Tx, orgId: string, userId: string): Promise<Role | null> {
+	const memo = memoOf(memberRoles, tx);
+	const key = `${orgId}:${userId}`;
+	if (memo.has(key)) return memo.get(key)!;
+	const [m] = await tx
+		.select({ role: member.role })
+		.from(member)
+		.where(and(eq(member.orgId, orgId), eq(member.userId, userId)));
+	const role = m?.role ?? null;
+	// Only a found role is kept, so a membership added in this transaction is still seen
+	if (role) memo.set(key, role);
+	return role;
+}
+
+/** A person's own role on one project (null when they have none there), read once per transaction. */
+export async function projectRoleOf(
+	tx: Tx,
+	projectId: string,
+	userId: string
+): Promise<Role | null> {
+	const memo = memoOf(projectRoles, tx);
+	const key = `${projectId}:${userId}`;
+	if (memo.has(key)) return memo.get(key)!;
+	const [o] = await tx
+		.select({ role: projectMember.role })
+		.from(projectMember)
+		.where(and(eq(projectMember.projectId, projectId), eq(projectMember.userId, userId)));
+	const role = o?.role ?? null;
+	// No override is an answer too: most people have none, and it would be asked again for every item
+	memo.set(key, role);
+	return role;
 }
 
 /**
@@ -132,22 +191,13 @@ export async function requireCap(
 	projectId?: string
 ): Promise<{ role: Role; caps: Capability[] }> {
 	await assertOrgLive(tx, ctx.orgId);
-	const [m] = await tx
-		.select({ role: member.role })
-		.from(member)
-		.where(and(eq(member.orgId, ctx.orgId), eq(member.userId, ctx.actor.userId)));
-	if (!m) throw new OpError('FORBIDDEN', 'You are not a member of this organisation.');
-	let role: Role | null = m.role;
+	const orgRole = await orgRoleOf(tx, ctx.orgId, ctx.actor.userId);
+	if (!orgRole) throw new OpError('FORBIDDEN', 'You are not a member of this organisation.');
+	let role: Role | null = orgRole;
 	if (projectId) {
 		if (!projectAllowed(ctx.actor, projectId))
 			throw new OpError('NOT_FOUND', 'That project does not exist.');
-		const [o] = await tx
-			.select({ role: projectMember.role })
-			.from(projectMember)
-			.where(
-				and(eq(projectMember.projectId, projectId), eq(projectMember.userId, ctx.actor.userId))
-			);
-		role = effectiveProjectRole(m.role, o?.role ?? null);
+		role = effectiveProjectRole(orgRole, await projectRoleOf(tx, projectId, ctx.actor.userId));
 		if (!role) throw new OpError('NOT_FOUND', 'That project does not exist.');
 	}
 	const caps = effectiveCaps(role, ctx.actor);
@@ -187,8 +237,39 @@ export const tenantOf = (ctx: Ctx, projectId?: string) => ({
 	userId: ctx.actor.userId
 });
 
-/** Runs a verb in one transaction inside the caller's tenant. */
+/** What each open call transaction was set up for, so a verb only joins it when it is the same org, person and project. */
+const ambient = new WeakMap<Tx, { orgId: string; userId: string; projectId: string }>();
+
+/**
+ * Runs a whole call (an MCP tool call) in one tenant transaction. Every verb that runs with the returned context joins
+ * it, so a call pays for one transaction setup, one org check and one role lookup instead of one per step. An error
+ * anywhere rolls the whole call back.
+ */
+export function runCall<T>(ctx: Ctx, fn: (callCtx: Ctx) => Promise<T>): Promise<T> {
+	return withTenant(ctx.handle, tenantOf(ctx), async (tx) => {
+		ambient.set(tx, {
+			orgId: ctx.orgId,
+			userId: ctx.actor.userId,
+			projectId: ctx.projectId ?? ''
+		});
+		await assertOrgLive(tx, ctx.orgId);
+		return fn({ ...ctx, tx });
+	});
+}
+
+/** Runs a verb in one transaction inside the caller's tenant, or in the open call transaction when the context carries one. */
 export function run<T>(ctx: Ctx, fn: (tx: Tx) => Promise<T>, projectId?: string): Promise<T> {
+	const joined = ctx.tx && ambient.get(ctx.tx);
+	if (
+		ctx.tx &&
+		joined &&
+		joined.orgId === ctx.orgId &&
+		joined.userId === ctx.actor.userId &&
+		joined.projectId === (projectId ?? ctx.projectId ?? '')
+	) {
+		const tx = ctx.tx;
+		return assertOrgLive(tx, ctx.orgId).then(() => fn(tx));
+	}
 	return withTenant(ctx.handle, tenantOf(ctx, projectId), async (tx) => {
 		await assertOrgLive(tx, ctx.orgId);
 		return fn(tx);
@@ -313,6 +394,11 @@ export async function maybeDry<T>(
 		await run(
 			ctx,
 			async (tx) => {
+				// Inside a call transaction a savepoint rolls back only this dry run, not the whole call
+				if (ctx.tx === tx)
+					return tx.transaction(async (sp) => {
+						throw new DryRun(await fn(sp as unknown as Tx));
+					});
 				throw new DryRun(await fn(tx));
 			},
 			projectId

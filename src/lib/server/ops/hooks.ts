@@ -15,6 +15,7 @@ import { notifyChange } from '../realtime/notify';
 import { SESSION_PREFIX, displayTitle } from '../mcp/sessions';
 import { requireCap, run } from './context';
 import { findItem, mayView } from './resolve';
+import { logSessionEvent } from './sessionEvents';
 import { CLOSING_STATUSES, nudgeLevel, renewSession, staleProgressNote } from './tracking';
 
 // -- TYPES -- //
@@ -112,6 +113,47 @@ async function claimedItem(ctx: Ctx, s: typeof session.$inferSelect) {
 		// An item turned private after the claim is no longer shown to a session that may not see it
 		return it && (await mayView(tx, ctx, it)) ? it : null;
 	});
+}
+
+/** The keys of the steps still open on an item, in plan order, limited to the claimed phase when there is one. */
+async function openStepKeys(
+	ctx: Ctx,
+	itemId: string,
+	phaseKey: string | null,
+	limit: number
+): Promise<string[]> {
+	const rows = await run(ctx, (tx) =>
+		tx
+			.select({ key: step.key })
+			.from(step)
+			.innerJoin(phase, eq(phase.id, step.phaseId))
+			.where(
+				and(
+					eq(step.itemId, itemId),
+					eq(step.state, 'open'),
+					phaseKey ? eq(phase.key, phaseKey) : undefined
+				)
+			)
+			.orderBy(phase.position, step.position)
+			.limit(limit)
+	);
+	return rows.map((r) => r.key);
+}
+
+/**
+ * Said at Stop to a session that records steps and still holds an item with open steps, once per record.
+ * It never fires for a session that has recorded nothing (a plan waiting for approval), so a legitimate pause stays quiet.
+ */
+async function openStepsReminder(
+	ctx: Ctx,
+	s: typeof session.$inferSelect,
+	mine: typeof item.$inferSelect | null
+): Promise<string | null> {
+	if (!mine || (CLOSING_STATUSES as string[]).includes(mine.status) || !s.lastRecordAt) return null;
+	if (s.remindedAt && s.remindedAt.getTime() >= s.lastRecordAt.getTime()) return null;
+	const open = await openStepKeys(ctx, mine.id, null, 3);
+	if (!open.length) return null;
+	return `${mine.ref} still has open steps (next: ${open.join(', ')}). Carry on with the next one, unless you are waiting for the user's answer. When the work is finished, call work_stop so the Running badge clears.`;
 }
 
 /** The board brief: what is open, and the three rules that matter at the start of work. */
@@ -216,6 +258,13 @@ async function endSession(ctx: Ctx, input: HookInput): Promise<HookOutput> {
 				updatedAt: sql`now()`
 			})
 			.where(eq(session.id, found.id));
+		await logSessionEvent(tx, {
+			orgId: ctx.orgId,
+			sessionId: found.id,
+			itemId: found.itemId,
+			tool: input.tool,
+			kind: 'end'
+		});
 		if (held)
 			await notifyChange(tx, { o: ctx.orgId, p: held.projectId, k: 'claim', i: found.itemId });
 	});
@@ -237,9 +286,10 @@ export async function handleHook(ctx: Ctx, raw: z.input<typeof hookInput>): Prom
 		return title ? { title } : {};
 	}
 	if (input.event === 'tool') {
-		// A subagent, a failed call and a read are heartbeats and nothing more
+		// A failed call and a read are heartbeats and nothing more. A subagent's edit counts for the session (its work is the
+		// session's work) but never sends a nudge, because the subagent cannot record a step.
 		const a = input.action;
-		if (input.subagent || input.failed || !a) return {};
+		if (input.failed || !a) return {};
 		const codeChange =
 			(a.kind === 'edit' && isCodeFile(a.file)) || (a.kind === 'shell' && commits(a.command));
 		if (!codeChange) return {};
@@ -259,7 +309,7 @@ export async function handleHook(ctx: Ctx, raw: z.input<typeof hookInput>): Prom
 					level: session.nudgedLevel
 				})
 		);
-		if (!counted) return {};
+		if (!counted || input.subagent) return {};
 		const level = nudgeLevel(counted.edits, counted.firstAt);
 		if (level < 1 || level <= counted.level) return {};
 		const mine = await claimedItem(ctx, s);
@@ -280,7 +330,18 @@ export async function handleHook(ctx: Ctx, raw: z.input<typeof hookInput>): Prom
 				.where(and(eq(session.id, s.id), sql`${session.nudgedLevel} < ${level}`))
 				.returning({ id: session.id })
 		);
-		return taken.length ? { nudge: staleProgressNote(mine.ref, counted.edits) } : {};
+		if (!taken.length) return {};
+		await run(ctx, (tx) =>
+			logSessionEvent(tx, {
+				orgId: ctx.orgId,
+				sessionId: s.id,
+				itemId: mine.id,
+				tool: s.tool,
+				kind: 'nudge',
+				detail: `${counted.edits} edits, level ${level}`
+			})
+		);
+		return { nudge: staleProgressNote(mine.ref, counted.edits) };
 	}
 	if (input.event === 'closing') {
 		const targets = (input.closing ?? []).filter((c) =>
@@ -300,46 +361,44 @@ export async function handleHook(ctx: Ctx, raw: z.input<typeof hookInput>): Prom
 	}
 	// stop: one reminder per code change, never twice for the same one
 	if (input.stopActive) return {};
-	if (!s.codeTouchedAt) return {};
-	if (s.remindedAt && s.codeTouchedAt.getTime() <= s.remindedAt.getTime()) return {};
 	const mine = await claimedItem(ctx, s);
+	const changed =
+		!!s.codeTouchedAt && !(s.remindedAt && s.codeTouchedAt.getTime() <= s.remindedAt.getTime());
 	let block: string | null = null;
-	// A session that was told to work on no item (a close released it, or "none" was said) is not asked again
-	if (!mine && s.askedAt) return {};
-	if (!mine) {
-		block =
-			'Code changed in this session, but it works on no item. If the work belongs to an item, call work_start with it and record the finished steps with step_done. If it belongs to none, say so and carry on.';
-	} else if (!(CLOSING_STATUSES as string[]).includes(mine.status)) {
-		const recorded = s.lastRecordAt && s.lastRecordAt.getTime() >= s.codeTouchedAt.getTime();
-		if (!recorded) {
-			// Name the steps still open in the claimed phase (or the item), so the agent sees which ones to record
-			const open = await run(ctx, (tx) =>
-				tx
-					.select({ key: step.key })
-					.from(step)
-					.innerJoin(phase, eq(phase.id, step.phaseId))
-					.where(
-						and(
-							eq(step.itemId, mine.id),
-							eq(step.state, 'open'),
-							s.claimedPhase ? eq(phase.key, s.claimedPhase) : undefined
-						)
-					)
-					.orderBy(phase.position, step.position)
-					.limit(8)
-			);
-			const named = open.length
-				? ` Steps still open: ${open.map((o) => o.key).join(', ')}.`
-				: ' No step is open in this phase: call work_stop when the work is finished, so the Running badge clears.';
-			block = `Code changed after the last record on ${mine.ref}. Record progress with step_done for the steps you finished before you end the turn, or add one log line saying what changed.${named}`;
+	if (changed && s.codeTouchedAt) {
+		// A session that was told to work on no item (a close released it, or "none" was said) is not asked again
+		if (!mine && s.askedAt) return {};
+		if (!mine) {
+			block =
+				'Code changed in this session, but it works on no item. If the work belongs to an item, call work_start with it and record the finished steps with step_done. If it belongs to none, say so and carry on.';
+		} else if (!(CLOSING_STATUSES as string[]).includes(mine.status)) {
+			const recorded = s.lastRecordAt && s.lastRecordAt.getTime() >= s.codeTouchedAt.getTime();
+			if (!recorded) {
+				// Name the steps still open in the claimed phase (or the item), so the agent sees which ones to record
+				const open = await openStepKeys(ctx, mine.id, s.claimedPhase, 8);
+				const named = open.length
+					? ` Steps still open: ${open.join(', ')}.`
+					: ' No step is open in this phase: call work_stop when the work is finished, so the Running badge clears.';
+				block = `Code changed after the last record on ${mine.ref}. Record progress with step_done for the steps you finished before you end the turn, or add one log line saying what changed.${named}`;
+			}
 		}
 	}
+	// Mid build with steps still open: one reminder per record, so an agent does not end its turn early (it may still wait for the user)
+	if (!block) block = await openStepsReminder(ctx, s, mine);
 	if (!block) return {};
-	await run(ctx, (tx) =>
-		tx
+	await run(ctx, async (tx) => {
+		await tx
 			.update(session)
 			.set({ remindedAt: sql`now()` })
-			.where(eq(session.id, s.id))
-	);
+			.where(eq(session.id, s.id));
+		await logSessionEvent(tx, {
+			orgId: ctx.orgId,
+			sessionId: s.id,
+			itemId: mine?.id ?? null,
+			tool: s.tool,
+			kind: 'stop_reminder',
+			detail: mine ? undefined : 'no item'
+		});
+	});
 	return { block };
 }

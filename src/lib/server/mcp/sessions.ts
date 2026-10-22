@@ -12,6 +12,7 @@ import { item, phase, session, step } from '../db/schema';
 import { OpError, run } from '../ops/context';
 import { canSeeItem, findItem } from '../ops/resolve';
 import { notifyChange } from '../realtime/notify';
+import { logSessionEvent } from '../ops/sessionEvents';
 import { QUIET_RELEASE_MINUTES, renewSession } from '../ops/tracking';
 
 // -- CONSTANTS -- //
@@ -110,7 +111,12 @@ export async function requireSession(
 					eq(session.userId, ctx.actor.userId)
 				)
 			);
-		if (!row || (ctx.actor.tokenId && row.tokenId && row.tokenId !== ctx.actor.tokenId)) {
+		// A session the hooks made (it has the tool's own conversation id) is made with the bridge's device token, while the MCP
+		// calls of the same conversation come with the connector's token. It is still this person's, so it must not be refused
+		// (a refusal made the agent start a second session, and the claim and the reminders then lived on different rows).
+		const foreignToken =
+			!!ctx.actor.tokenId && !!row?.tokenId && row.tokenId !== ctx.actor.tokenId && !row.externalId;
+		if (!row || foreignToken) {
 			throw new OpError('INVALID', 'Unknown session. Call session_start again.', {
 				needsSession: true
 			});
@@ -153,7 +159,7 @@ export async function claim(
 		}
 		// The project of the item this session held before, so its Running badge clears on the open pages
 		const [before] = await tx
-			.select({ projectId: item.projectId })
+			.select({ projectId: item.projectId, itemId: session.claimedItemId })
 			.from(session)
 			.leftJoin(item, eq(item.id, session.claimedItemId))
 			.where(eq(session.id, sessionId));
@@ -162,6 +168,8 @@ export async function claim(
 			.set({
 				claimedItemId: itemId,
 				claimedPhase: phaseOut,
+				// A release (work_stop) answers the item question, so the Stop hook does not ask this session to bind again
+				...(itemId ? {} : { askedAt: sql`now()` }),
 				// Edits made for the item held before are not charged to the new one
 				codeEditsSinceRecord: sql`case when ${session.claimedItemId} is distinct from ${itemId}::uuid then 0 else ${session.codeEditsSinceRecord} end`,
 				firstUnrecordedEditAt: sql`case when ${session.claimedItemId} is distinct from ${itemId}::uuid then null else ${session.firstUnrecordedEditAt} end`,
@@ -189,6 +197,25 @@ export async function claim(
 					)
 				);
 		}
+		// The history of the claim: the item let go of (or moved off), then the item taken
+		if (before?.itemId && before.itemId !== itemId)
+			await logSessionEvent(tx, {
+				orgId: ctx.orgId,
+				sessionId,
+				itemId: before.itemId,
+				tool: row.tool,
+				kind: 'release',
+				detail: itemId ? 'moved to another item' : 'work_stop'
+			});
+		if (itemId && before?.itemId !== itemId)
+			await logSessionEvent(tx, {
+				orgId: ctx.orgId,
+				sessionId,
+				itemId,
+				tool: row.tool,
+				kind: 'claim',
+				detail: phaseOut ? `phase ${phaseOut}` : undefined
+			});
 		for (const p of new Set([projectId, before?.projectId].filter((v): v is string => !!v)))
 			await notifyChange(tx, { o: ctx.orgId, p, k: 'claim', i: itemId });
 		return { ...(await describe(tx, row)), nextOpen };

@@ -3,7 +3,7 @@
 
 // -- DEP-MODULES -- //
 import { createHash } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
@@ -998,6 +998,54 @@ describe('MCP server', () => {
 		});
 		const after = await call(client, 'board_validate', { ids: [made.ref] });
 		expect(after.warnings.map((x: any) => x.warning)).not.toContain('in-review-without-lessons');
+		await client.close();
+	});
+
+	it('board_validate warns when a claim has been quiet for half an hour', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const made = await call(client, 'item_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'A claim that nobody released',
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }, { text: 'b' }] }]
+		});
+		await call(client, 'work_start', { sessionId: s.sessionId, item: made.ref });
+		const fresh = await call(client, 'board_validate', { ids: [made.ref] });
+		expect(fresh.warnings.map((x: any) => x.warning)).not.toContain('claim-not-released');
+		await withTenant(db, { orgId: w.orgId }, (tx) =>
+			tx.execute(
+				sql`update session set last_seen_at = now() - interval '45 minutes' where id = ${s.sessionId}`
+			)
+		);
+		const stale = await call(client, 'board_validate', { ids: [made.ref] });
+		expect(stale.warnings).toContainEqual({ ref: made.ref, warning: 'claim-not-released' });
+		await call(client, 'work_stop', { sessionId: s.sessionId });
+		await client.close();
+	});
+
+	it('board_validate warns about open steps that break the project plan rules', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const made = await call(client, 'item_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'A step the rules later forbid',
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'Do the zzforbidden thing' }] }]
+		});
+		await db.admin.query('UPDATE project SET rules = $1 WHERE id = $2', [
+			'forbid-plan: zzforbidden :: no zzforbidden work here',
+			w.projectId
+		]);
+		try {
+			const out = await call(client, 'board_validate', { ids: [made.ref] });
+			expect(out.warnings).toContainEqual({
+				ref: made.ref,
+				warning: 'plan-rule: no zzforbidden work here'
+			});
+		} finally {
+			await db.admin.query('UPDATE project SET rules = $1 WHERE id = $2', ['', w.projectId]);
+		}
 		await client.close();
 	});
 

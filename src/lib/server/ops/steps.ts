@@ -8,7 +8,7 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { recalcItem } from '../db/calc';
-import { appendEvent } from '../db/events';
+import { appendEvents, type NewEvent } from '../db/events';
 import { item, manualCheck, phase, step } from '../db/schema';
 import { OpError, idempotent, maybeDry, rateLimit, requireCap } from './context';
 import { actorFields, checkVersion } from './items';
@@ -77,6 +77,17 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 						.where(and(eq(manualCheck.itemId, it.id), inArray(manualCheck.key, checkKeys)))
 				: [];
 			const changed: { key: string; from: string; to: string }[] = [];
+			const writes = new Map<
+				string,
+				{
+					isCheck: boolean;
+					mark: Mark['mark'];
+					reason: string | null;
+					evidence: Mark['evidence'] | null;
+					ids: string[];
+				}
+			>();
+			const events: NewEvent[] = [];
 			const already: string[] = [];
 			let changedCounted = false;
 			let anyDone = false;
@@ -113,24 +124,18 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 						: m.mark === 'superseded'
 							? `Replaced by ${m.supersededBy}`
 							: null;
-				const table = isCheck ? manualCheck : step;
-				await tx
-					.update(table)
-					.set({
-						state: m.mark,
-						reason,
-						...(isCheck
-							? {}
-							: {
-									evidence: m.evidence ?? null,
-									doneAt: m.mark === 'done' ? sql`now()` : null,
-									doneBy: m.mark === 'done' ? ctx.actor.userId : null
-								}),
-						updatedAt: sql`now()`,
-						version: sql`${table.version} + 1`
-					} as never)
-					.where(eq(table.id, row.id));
-				await appendEvent(tx, {
+				// Rows with the same new state, reason and evidence are written by one update after the loop
+				const groupKey = JSON.stringify([isCheck, m.mark, reason, m.evidence ?? null]);
+				const group = writes.get(groupKey) ?? {
+					isCheck,
+					mark: m.mark,
+					reason,
+					evidence: m.evidence ?? null,
+					ids: []
+				};
+				if (!group.ids.includes(row.id)) group.ids.push(row.id);
+				writes.set(groupKey, group);
+				events.push({
 					orgId: ctx.orgId,
 					projectId: it.projectId,
 					itemId: it.id,
@@ -152,8 +157,28 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 					if (m.mark === 'done') anyDone = true;
 				}
 			}
+			// One update per group of identical changes, then one insert for all the events and one change notice
+			for (const g of writes.values()) {
+				const table = g.isCheck ? manualCheck : step;
+				await tx
+					.update(table)
+					.set({
+						state: g.mark,
+						reason: g.reason,
+						...(g.isCheck
+							? {}
+							: {
+									evidence: g.evidence,
+									doneAt: g.mark === 'done' ? sql`now()` : null,
+									doneBy: g.mark === 'done' ? ctx.actor.userId : null
+								}),
+						updatedAt: sql`now()`,
+						version: sql`${table.version} + 1`
+					} as never)
+					.where(inArray(table.id, g.ids));
+			}
 			if (input.log) {
-				await appendEvent(tx, {
+				events.push({
 					orgId: ctx.orgId,
 					projectId: it.projectId,
 					itemId: it.id,
@@ -165,6 +190,7 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 					undoable: false
 				});
 			}
+			await appendEvents(tx, events);
 			const calc =
 				changed.length || input.log
 					? await recalcItem(tx, it.id)

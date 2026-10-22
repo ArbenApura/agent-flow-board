@@ -7,17 +7,9 @@ import type { Role } from '../orgs/roles';
 // -- DEP-MODULES -- //
 import { and, eq, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import {
-	item,
-	itemAlias,
-	member,
-	project,
-	projectCols,
-	projectLogoV,
-	projectMember
-} from '../db/schema';
+import { item, itemAlias, project, projectCols, projectLogoV } from '../db/schema';
 import { effectiveProjectRole } from '../orgs/roles';
-import { OpError, projectAllowed } from './context';
+import { OpError, orgRoleOf, projectAllowed, projectRoleOf } from './context';
 
 // -- CONSTANTS -- //
 
@@ -111,16 +103,10 @@ async function requireVisible(tx: Tx, ctx: Ctx, row: typeof item.$inferSelect) {
 	if (!actor?.userId) return;
 	const notFound = () => new OpError('NOT_FOUND', 'No item with that name.');
 	if (!projectAllowed(actor, row.projectId)) throw notFound();
-	const [m] = await tx
-		.select({ role: member.role })
-		.from(member)
-		.where(and(eq(member.orgId, ctx.orgId), eq(member.userId, actor.userId)));
-	if (!m) throw notFound();
-	const [o] = await tx
-		.select({ role: projectMember.role })
-		.from(projectMember)
-		.where(and(eq(projectMember.projectId, row.projectId), eq(projectMember.userId, actor.userId)));
-	const role = effectiveProjectRole(m.role, o?.role ?? null);
+	// Both roles are read once per transaction, however many items are checked
+	const orgRole = await orgRoleOf(tx, ctx.orgId, actor.userId);
+	if (!orgRole) throw notFound();
+	const role = effectiveProjectRole(orgRole, await projectRoleOf(tx, row.projectId, actor.userId));
 	if (!role || !canSeeItem(role, row, actor.userId)) throw notFound();
 }
 

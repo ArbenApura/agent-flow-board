@@ -57,7 +57,11 @@ export const event = tenantTable(
 	(t) => [
 		index('event_project_idx').on(t.projectId, t.id),
 		index('event_item_idx').on(t.itemId, t.id),
-		index('event_session_idx').on(t.sessionId, t.id)
+		index('event_session_idx').on(t.sessionId, t.id),
+		// Finds the event that undid another one (history rows, undo conflict checks) without scanning the whole log
+		index('event_undo_of_idx')
+			.on(t.undoOf)
+			.where(sql`${t.undoOf} is not null`)
 	],
 	{ appendOnly: true }
 );
@@ -109,6 +113,30 @@ export const session = tenantTable(
 			.on(t.orgId, t.userId, t.tool, t.externalId)
 			.where(sql`${t.externalId} is not null`)
 	]
+);
+
+// -- SESSION EVENT (APPEND ONLY: WHEN A SESSION CLAIMED, RELEASED, WAS REMINDED, NUDGED OR ENDED) -- //
+
+export const sessionEvent = tenantTable(
+	'session_event',
+	'org',
+	{
+		id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+		orgId: orgId(),
+		// No foreign keys: the history outlives the session row and the item
+		sessionId: text('session_id').notNull(),
+		itemId: uuid('item_id'),
+		tool: text('tool'),
+		/** claim, release, stop_reminder, nudge or end. */
+		kind: text('kind').notNull(),
+		detail: text('detail'),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [
+		index('session_event_item_idx').on(t.itemId, t.id),
+		index('session_event_session_idx').on(t.sessionId, t.id)
+	],
+	{ appendOnly: true }
 );
 
 // -- REQUEST LOG (IDEMPOTENCY, ADR OF PHASE 5) -- //

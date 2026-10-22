@@ -7,13 +7,14 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
-import { event, item, project, section, session } from '../db/schema';
-import { projectSummary, searchBoard } from '../ops/board';
+import { event, item, project, section, session, step } from '../db/schema';
+import { boardBrief, searchBoard } from '../ops/board';
+import { parsePlanRules, planViolations } from '../ops/planRules';
 import { mayView } from '../ops/resolve';
 import { addAttachment } from '../ops/attachments';
 import { OpError, run } from '../ops/context';
 import { createTask, listTasks, updateTask } from '../ops/docs';
-import { createItem, getItem, listItems } from '../ops/items';
+import { createItem, getItem } from '../ops/items';
 import { listProjects } from '../ops/projects';
 import { recordSteps } from '../ops/steps';
 import { setStatus } from '../ops/status';
@@ -26,6 +27,8 @@ import { summarize, type ToolBuilder } from './tools';
 
 const TOOL = 'hapr-board-compat';
 const OPEN = ['PLANNED', 'IN PROGRESS', 'IN REVIEW', 'ON HOLD'] as const;
+// A claim quiet for this long is reported by board_validate as not released
+const STALE_CLAIM_MINUTES = 30;
 const stepMark = z.object({
 	key: z.string(),
 	mark: z.enum(['done', 'open', 'waived', 'superseded']),
@@ -52,42 +55,21 @@ export function registerCompat({ tool }: ToolBuilder) {
 		{},
 		ro,
 		async (_a, { ctx }) => {
-			const projects = await listProjects(ctx);
-			const items: {
-				ref: string;
-				title: string;
-				status: string;
-				percent: number;
-				project: string;
-			}[] = [];
-			for (const p of projects) {
-				const page = await listItems(ctx, {
-					project: p.key,
-					status: [...OPEN],
-					limit: 25,
-					order: 'desc',
-					trashed: false
-				});
-				for (const i of page.items)
-					items.push({
-						ref: i.ref,
-						title: i.title.slice(0, 70),
-						status: i.status,
-						percent: i.percent,
-						project: p.key
-					});
-			}
-			const tasks: { ref: string; title: string; status: string }[] = [];
-			for (const p of projects)
-				for (const t of await listTasks(ctx, p.key))
-					if (t.status !== 'DONE' && t.status !== 'DROPPED')
-						tasks.push({ ref: `T-${t.number}`, title: t.title.slice(0, 70), status: t.status });
-			// Sessions that left finished work unrecorded, so progress is not hidden behind a clean list
-			const notRecorded: { ref: string; project: string; minutes: number }[] = [];
-			for (const p of projects)
-				for (const r of (await projectSummary(ctx, p.key)).running)
-					if (r.staleMinutes !== null)
-						notRecorded.push({ ref: r.itemRef, project: p.key, minutes: r.staleMinutes });
+			// One pass over every project the caller can see, in one transaction
+			const brief = await boardBrief(ctx, { openStatuses: OPEN });
+			const items = brief.items.map((i) => ({
+				ref: i.ref,
+				title: i.title.slice(0, 70),
+				status: i.status,
+				percent: i.percent,
+				project: i.project
+			}));
+			const tasks = brief.tasks.map((t) => ({
+				ref: `T-${t.number}`,
+				title: t.title.slice(0, 70),
+				status: t.status
+			}));
+			const notRecorded = brief.notRecorded;
 			return {
 				items: items.slice(0, 25),
 				notRecorded,
@@ -152,6 +134,65 @@ export function registerCompat({ tool }: ToolBuilder) {
 				for (const i of inReview)
 					if (!withLessons.has(i.id))
 						out.push({ ref: i.ref, warning: 'in-review-without-lessons' });
+			}
+			// A claim nobody has touched for a while keeps a Running badge on the item: say so, so the session can be released
+			if (rows.length) {
+				const idle = await run(ctx, (tx) =>
+					tx
+						.select({ itemId: session.claimedItemId })
+						.from(session)
+						.where(
+							and(
+								inArray(
+									session.claimedItemId,
+									rows.map((i) => i.id)
+								),
+								sql`${session.lastSeenAt} < now() - make_interval(mins => ${STALE_CLAIM_MINUTES})`
+							)
+						)
+				);
+				const idleIds = new Set(idle.map((r) => r.itemId));
+				for (const i of rows)
+					if (idleIds.has(i.id)) out.push({ ref: i.ref, warning: 'claim-not-released' });
+			}
+			// Open steps that break the project's own plan rules (written before the rule existed, or by a person)
+			if (rows.length) {
+				const open = await run(ctx, (tx) =>
+					tx
+						.select({
+							itemId: step.itemId,
+							text: step.text,
+							requiredTarget: step.requiredTarget,
+							rules: project.rules
+						})
+						.from(step)
+						.innerJoin(project, eq(project.id, step.projectId))
+						.where(
+							and(
+								inArray(
+									step.itemId,
+									rows.map((i) => i.id)
+								),
+								eq(step.state, 'open')
+							)
+						)
+				);
+				const parsed = new Map<string, ReturnType<typeof parsePlanRules>>();
+				const refOf = new Map(rows.map((i) => [i.id, i.ref]));
+				const seen = new Set<string>();
+				for (const o of open) {
+					const rules = parsed.get(o.rules) ?? parsePlanRules(o.rules);
+					parsed.set(o.rules, rules);
+					for (const reason of planViolations(rules, {
+						texts: [o.text],
+						browser: !!o.requiredTarget
+					})) {
+						const key = `${o.itemId}|${reason}`;
+						if (seen.has(key)) continue;
+						seen.add(key);
+						out.push({ ref: refOf.get(o.itemId) ?? '', warning: `plan-rule: ${reason}` });
+					}
+				}
 			}
 			return { checked: rows.length, errors: [], warnings: out };
 		}
