@@ -13,7 +13,12 @@ export type RunErrorCode =
 	| 'TOOL_OFFLINE'
 	| 'TOOL_OUTDATED'
 	| 'TARGET_UNAVAILABLE'
-	| 'RUN_TIMED_OUT';
+	| 'RUN_TIMED_OUT'
+	| 'SANDBOX_FAILED'
+	| 'DOCKER_DOWN'
+	| 'REGISTRATION_REQUIRED'
+	| 'REGISTRATION_MISMATCH'
+	| 'REGISTRATION_UNKNOWN';
 
 // -- CONSTANTS -- //
 
@@ -36,12 +41,28 @@ export const RUN_FIXES: Record<RunErrorCode, string> = {
 	TARGET_UNAVAILABLE:
 		'That target cannot run now. Pick one of the targets named in the reason, or set the target up first.',
 	RUN_TIMED_OUT:
-		'The tool took the run and stopped reporting. Call runner_status, run node afb-checks.mjs doctor --fix --json on the machine that runs the tool, and ask again.'
+		'The tool took the run and stopped reporting, or the run went on for longer than its limit (40 minutes) and the tool stopped it. Call runner_status, run node afb-checks.mjs doctor --fix --json on the machine that runs the tool, and ask again.',
+	SANDBOX_FAILED:
+		'The tool could not make the private copy of the repo for this run (the folder is not a git repo, is too big to copy, or the disk is full). Fix what the reason names, free disk with node afb-checks.mjs clear runs, then run again.',
+	DOCKER_DOWN:
+		'Docker does not answer on the machine that runs the tool, so the run could not make its throwaway database. Start Docker Desktop, then run again.',
+	REGISTRATION_REQUIRED:
+		'This project has more than one afb-checks registration (repo folder) and the run named none. Call runner_status for the list, name one with registration on check_run or check_save, then run again.',
+	REGISTRATION_MISMATCH:
+		'The registration named serves a different board project. Call runner_status for the registrations of this project, name one of those, then run again.',
+	REGISTRATION_UNKNOWN:
+		'No afb-checks tool holds the registration named. Call runner_status for the registrations a tool holds, or register the folder (node afb-checks.mjs project <org>/<NAME> --board-project <KEY> --repo <folder> --recipe), then run again.'
 };
 
 /** The first matching line wins, so the most specific pattern comes first. */
 const RULES: { code: RunErrorCode; test: RegExp }[] = [
 	{ code: 'TOOL_OUTDATED', test: /too old for this board|upgrade_required|upgrade the tool/i },
+	{ code: 'REGISTRATION_REQUIRED', test: /REGISTRATION_REQUIRED/ },
+	{ code: 'REGISTRATION_MISMATCH', test: /REGISTRATION_MISMATCH/ },
+	{
+		code: 'REGISTRATION_UNKNOWN',
+		test: /REGISTRATION_UNKNOWN|holds the registration|too old to run a named registration/
+	},
 	{
 		code: 'PREVIEW_ENV_MISSING',
 		test: /env_invalid|invalid environment variables|AFB_BASE_URL is required/i
@@ -59,10 +80,18 @@ const RULES: { code: RunErrorCode; test: RegExp }[] = [
 		code: 'PREVIEW_HOST_UNREACHABLE',
 		test: /did not answer within|ECONNREFUSED|connection refused/i
 	},
-	{ code: 'RUN_TIMED_OUT', test: /did not report back within|stopped reporting for/i },
+	{
+		code: 'RUN_TIMED_OUT',
+		test: /did not report back within|stopped reporting for|took longer than \d+ minutes and was stopped/i
+	},
+	{ code: 'DOCKER_DOWN', test: /Docker does not answer/i },
+	{
+		code: 'SANDBOX_FAILED',
+		test: /private copy of the repo|git clone failed|too much to copy|no space left/i
+	},
 	{
 		code: 'TOOL_OFFLINE',
-		test: /no runner (that serves|took)|tool is not connected|runner .*offline|no afb-checks tool/i
+		test: /no runner (that serves|took)|tool is not connected|no check runner is connected|runner .*offline|no afb-checks tool/i
 	}
 ];
 

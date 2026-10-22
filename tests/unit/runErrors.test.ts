@@ -38,6 +38,29 @@ const CORPUS: { result: string; reason: string; code: string }[] = [
 		reason: 'No runner that serves this project is online. You can run it on deployed instead.',
 		code: 'TOOL_OFFLINE'
 	},
+	// Reasons the tool of 1.3.0 gives when a run it took cannot be prepared or outlives its limit
+	{
+		result: 'error',
+		reason: 'The run took longer than 40 minutes and was stopped.',
+		code: 'RUN_TIMED_OUT'
+	},
+	{
+		result: 'error',
+		reason:
+			'Docker does not answer, so the preview database could not be checked. Start Docker and run again.',
+		code: 'DOCKER_DOWN'
+	},
+	{
+		result: 'error',
+		reason: 'git clone failed: fatal: could not create work tree dir: No space left on device',
+		code: 'SANDBOX_FAILED'
+	},
+	{
+		result: 'error',
+		reason:
+			'C:/x is not a git repo and holds more than 20000 files or 400 MB, which is too much to copy for a run.',
+		code: 'SANDBOX_FAILED'
+	},
 	{
 		result: 'unavailable',
 		reason:
@@ -83,6 +106,26 @@ describe('the run error classifier', () => {
 			expect(out.code).toBe(row.code);
 			expect(out.fix).toBe(RUN_FIXES[row.code as keyof typeof RUN_FIXES]);
 		});
+
+	it('names the registration problems, whichever side found them', () => {
+		const code = (reason: string) => classifyRun('error', reason).code;
+		expect(
+			code('REGISTRATION_REQUIRED: HAPR has 2 registrations (HAPR, HAPRM) and none was named.')
+		).toBe('REGISTRATION_REQUIRED');
+		expect(
+			code('REGISTRATION_MISMATCH: The registration OTHER serves the board project X, not HAPR.')
+		).toBe('REGISTRATION_MISMATCH');
+		expect(code('REGISTRATION_UNKNOWN: This tool has no registration NOPE in acme.')).toBe(
+			'REGISTRATION_UNKNOWN'
+		);
+		expect(
+			classifyRun('unavailable', 'No online afb-checks tool holds the registration NOPE for HAPR.')
+				.code
+		).toBe('REGISTRATION_UNKNOWN');
+		expect(
+			classifyRun('unavailable', 'The tool is too old to run a named registration (HAPRM).').code
+		).toBe('REGISTRATION_UNKNOWN');
+	});
 
 	it('says nothing for a pass, a fail of the page, a run still going, or a reason that matches nothing', () => {
 		expect(classifyRun('pass', null)).toEqual({ code: null, fix: null });

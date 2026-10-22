@@ -19,7 +19,7 @@ A standalone multi-project team board for agent-driven flow plans. SvelteKit (Sv
 
 ## Local development
 
-- Two fixed ports. **5180 is the dev server.** **5190 is the build preview (`yarn build && yarn preview`) for local checks only (the live board is the VPS at https://afb.arbenger.com, deployed with `yarn deploy:vps`)**, and it uses the same local Docker PostgreSQL as dev. Never start either on another port. If a port is busy, find out what holds it and stop that process first; never move to 5173 or any other port. Browser checks, when the user asks for one, run against a preview (ADR-017), never the dev server.
+- Two fixed ports. **5180 is the dev server.** **5190 is the build preview (`yarn build && yarn preview`) for local checks only (the live board is the VPS at https://afb.arbenger.com, deployed with `yarn deploy:vps`)**, and it uses the same local Docker PostgreSQL as dev. Never start either on another port. If a port is busy, find out what holds it and stop that process first; never move to 5173 or any other port. Browser checks and UI shots run against a build preview that the afb-checks tool starts on its own free port (ADR-017), never the dev server and never the person's 5180 or 5190.
 - Day to day work uses the local Docker PostgreSQL (`yarn db:up`, `yarn db:local:migrate`, `yarn dev:local`; see README). Never point a dev server or a seed at a database that holds data you want to keep, and never put a `DATABASE_URL` with a real password in a command line or a log.
 
 ## The gates
@@ -57,7 +57,7 @@ The scale, the colour tokens and the layout rules are in `DESIGN.md` at the root
 8. Phones. Same type scale. Every tap target is at least 44 by 44 px, and nothing scrolls sideways.
 9. Look at the screen in both modes, at 1440 and 390 wide. A screen that only passed the type check has not been checked.
 
-A plan with a new or changed screen carries no "UI changes" table, no mockup and no UI shots step: see "Flow overrides for this repo" below. The person looks at every screen on localhost 5180.
+A plan with a new or changed screen carries no "UI changes" table, no mockup, no UI shots step and no browser check step: see "Flow overrides for this repo" below. After a screen change the agent captures UI shots by itself, and the person looks at the pictures in the UI shots tab and at the screen on localhost 5180.
 
 ## Svelte and TypeScript style
 
@@ -96,11 +96,11 @@ A plan with a new or changed screen carries no "UI changes" table, no mockup and
 
 The `/flow` skills shipped by the board are generic. These are the owner's rules for this repo only, and they win over the Design fit and Gates lines above and over any workflow text served by the board. `AGENTS.md` is a link to this file, so Codex, Gemini CLI and Antigravity read the same section.
 
-1. **No UI changes table, no UI shots steps, no clickable mockup** (no `design/*.html`) in any plan. Go from the spec to code and follow `DESIGN.md` and the design-fit rules. The person looks at every screen on localhost 5180.
-2. **No Playwright or browser checks in plans**: no "write check" or "run browser checks" steps, no `yarn ui-shots` or `yarn test:checks` runs. Manual checks stay plain and are the person's. A browser check runs only when asked for (`/flow-check`).
+1. **No UI changes table, no UI shots steps, no clickable mockup** (no `design/*.html`) in any plan. The agent finds the changed screens itself, so no page list is ever typed. Go from the spec to code and follow `DESIGN.md` and the design-fit rules. The person looks at the result in the UI shots tab and on localhost 5180.
+2. **UI shots and browser checks run by themselves, and are never plan steps.** After the agent changes a screen it captures UI shots (`ui_shots_run` with `wait`, once per finished change) and it runs a plan's automatic browser checks (`/flow-check`), without asking. Neither is a counted step, and nothing is typed for them: no page list, no script by hand. `yarn ui-shots` and `yarn test:checks` are the repo's own scripts and run only when asked. Manual checks stay plain and are the person's. The tool builds on its own free port: the agent never starts, stops or uses the person's 5180 or 5190.
 3. **Visibility is the person's choice per item.** Create items with the board default and never make one public or private on your own.
 4. **The branch is `main`** and the base commit comes from this repo. No `feat/demo`, no `app.thehapr.com` or `demo.thehapr.com`, no step that waits on a push or runs on a demo host.
 5. **Be fast and accurate.** Decide with a recommended default, record it, move on; ask only what blocks and is the person's. Load `/coding-guidelines` before any Svelte, TypeScript or CSS change.
-6. **Never stop or take over a process the person started** (their dev server on 5180, the preview on 5190) without asking. Never run checks against a database URL from `.env`: it may point at a database to keep.
+6. **Never stop or take over a process the person started** (their dev server on 5180, the preview on 5190) without asking. Never run checks against a database URL from `.env`: it may point at a database to keep. The one exception is a Supabase test project whose keys the owner imported with `afb-checks secrets import --test-ref`: that import and its recorded ref are the approval for checks against that one test database. Writes to it, another ref and any other database still stop for the owner.
 7. **Session names.** The local hook `.claude/hooks/afb-tab-title.mjs` (registered in `.claude/settings.json`) names the Claude Code tab from `displayTitle` until the bridge is signed in for this repo.
 8. **The project key is `AFB`** (`https://afb.arbenger.com/arbenger/AFB`), tool prefix `mcp__afb-arbenger__`.

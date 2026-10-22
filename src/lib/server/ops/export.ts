@@ -241,7 +241,7 @@ function uiMarkdown(i: PublishItem): string | null {
 	if (!i.uiChanges.length) return null;
 	return (
 		[
-			`# UI changes of ${i.item.ref}`,
+			`# Pages pinned to the UI shots of ${i.item.ref}`,
 			'',
 			'| Page | State | Themes | Accounts | Siblings | Levels | Viewports |',
 			'|---|---|---|---|---|---|---|',

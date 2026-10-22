@@ -484,6 +484,31 @@ describe('browser checks', () => {
 		expect(all.length).toBeGreaterThanOrEqual(4);
 	});
 
+	it('a run asked for from the page names no step: a pass closes only the check’s own manual check, never a step that shares its target', async () => {
+		const it5 = await newItem();
+		await saveCheck(as('member'), {
+			item: it5.ref,
+			key: 'M1',
+			script: 's',
+			requiredTarget: 'preview'
+		});
+		const asked = await requestRun(as('member'), { item: it5.ref, key: 'M1', target: 'preview' });
+		const job = await claimCheckJob(db, auth, services);
+		expect(job?.id).toBe(asked.run.id);
+		const done = await finishCheckRun(
+			db,
+			auth,
+			job!.id,
+			{ result: 'pass', commit: 'c1', diffHash: 'd9' },
+			services
+		);
+		expect(done.ticked).toEqual(['M1']);
+		expect((await manualState(it5.id)).state).toBe('waived');
+		// Two open steps need the same target, and neither was named: both stay open
+		expect((await stepState(it5.id, '1.2')).state).toBe('open');
+		expect((await stepState(it5.id, '1.3')).state).toBe('open');
+	});
+
 	it('a run nobody takes is reported stuck, and a runner only sees runs of the projects it serves and holds', async () => {
 		const it4 = await newItem();
 		await saveCheck(as('member'), { item: it4.ref, key: 'M1', script: 's' });

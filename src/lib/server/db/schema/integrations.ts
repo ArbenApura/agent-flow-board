@@ -54,6 +54,9 @@ export type Levels = Record<string, Record<string, number | number[]>>;
 
 // -- BROWSER CHECKS -- //
 
+/** One registration the afb-checks tool holds, as it reports it: the board project key it serves, its name, and the folder name and branch of its repo. */
+export type ToolRegistration = { project: string; name: string; repo?: string; branch?: string };
+
 export const check = tenantTable(
 	'check',
 	'project',
@@ -73,6 +76,8 @@ export const check = tenantTable(
 		requiredTarget: text('required_target', { enum: TARGETS }).notNull().default('preview'),
 		/** When set, the check always runs on this target unless a run names another (SPEC 10 target choice order). */
 		pinnedTarget: text('pinned_target', { enum: TARGETS }),
+		/** The afb-checks registration this check runs in (a name the tool holds for the project). Null means the project's only registration; a run may name another. */
+		registration: text('registration'),
 		...stamps(),
 		version: version()
 	},
@@ -108,6 +113,12 @@ export const checkRun = tenantTable(
 		requestedTarget: text('requested_target'),
 		/** The plan step this run was started for. A pass on its required target ticks it. */
 		stepKey: text('step_key'),
+		/** The registration this run was asked to use (null: any the tool can choose, which is its only one). */
+		registration: text('registration'),
+		/** What the tool reports it used: the registration, the folder name of its repo and its branch. A pass from another registration than the one asked for is an error. */
+		ranRegistration: text('ran_registration'),
+		ranRepo: text('ran_repo'),
+		ranBranch: text('ran_branch'),
 		runnerId: uuid('runner_id'),
 		startedAt: timestamp('started_at', { withTimezone: true }),
 		/** The last time the runner holding this run said it is alive. A tool run with no beat for ten minutes is reported stuck. */
@@ -188,6 +199,8 @@ export const uiShotRun = tenantTable(
 		requestedBy: text('requested_by'),
 		runnerId: uuid('runner_id'),
 		target: text('target'),
+		/** The Capture screens button asks for fresh pictures even when nothing changed; an agent's own request does not, so an unchanged tree is not built twice. */
+		force: boolean('force').notNull().default(false),
 		beforeTarget: text('before_target'),
 		beforeCommit: text('before_commit'),
 		afterCommit: text('after_commit'),
@@ -273,6 +286,17 @@ export const runner = tenantTable(
 		auditHead: text('audit_head'),
 		auditLines: integer('audit_lines'),
 		auditRegressedAt: timestamp('audit_regressed_at', { withTimezone: true }),
+		/**
+		 * How many runs the tool takes at once and how many it holds, as it last reported them in a header (two small numbers, display only, never used to schedule).
+		 * Null for a runner that reports none.
+		 */
+		capacitySlots: integer('capacity_slots'),
+		capacityBusy: integer('capacity_busy'),
+		/**
+		 * The registrations the tool holds, as it last reported them in a header: [{ project, name, repo, branch }] with only plain names (a board project key, a registration name, the folder name of its repo and its branch).
+		 * A run that names a registration is taken only by a tool that lists it. Null for a runner that reports none (an older tool), which then takes only runs that name none.
+		 */
+		registrations: jsonb('registrations').$type<ToolRegistration[] | null>(),
 		...stamps()
 	},
 	(t) => [oneOf('runner_kind_chk', t.kind, ['local', 'hosted', 'tool'])]

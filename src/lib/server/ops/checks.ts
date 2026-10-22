@@ -9,7 +9,7 @@ import type { DbHandle } from '../db/client';
 import type { Ctx } from './context';
 import type { RunnerAuth } from './environments';
 // -- DEP-MODULES -- //
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { classifyRun } from '../../shared/runErrors';
@@ -43,6 +43,7 @@ import {
 import { actorFields, canSeeItem } from './items';
 import { findItem, findProject } from './resolve';
 import { recordSteps } from './steps';
+import { registrationFit, runnerRegistrationPairs } from './registrations';
 import { addAttachment } from './attachments';
 
 // -- TYPES -- //
@@ -71,6 +72,14 @@ const WAIT_POLL_MS = 2000;
 /** How many runs per org may be waited for at once in one server process. */
 const WAITERS_PER_ORG = 5;
 
+/** A registration name of the afb-checks tool: plain letters, digits, dashes and underscores, as the tool allows. */
+export const REGISTRATION_NAME = z
+	.string()
+	.regex(
+		/^[A-Za-z0-9_-]{1,32}$/,
+		'A registration name is 1 to 32 letters, digits, dashes or underscores'
+	);
+
 export const checkInput = z.object({
 	item: z.string().min(1),
 	/** The manual check this closes, such as M8. */
@@ -78,7 +87,9 @@ export const checkInput = z.object({
 	script: z.string().min(1).max(100_000),
 	coveredPaths: z.array(z.string().min(1).max(200)).max(50).default([]),
 	requiredTarget: z.enum(TARGETS).default('preview'),
-	pinnedTarget: z.enum(TARGETS).nullish()
+	pinnedTarget: z.enum(TARGETS).nullish(),
+	/** The registration this check runs in. Leave it out to keep the one already saved; null clears it. */
+	registration: REGISTRATION_NAME.nullish()
 });
 
 export const requestRunInput = z.object({
@@ -89,7 +100,9 @@ export const requestRunInput = z.object({
 	/** Names one environment of that target when the project has more than one. */
 	environment: z.string().max(40).optional(),
 	/** The plan step to close when the run passes on its required target. */
-	step: z.string().max(20).optional()
+	step: z.string().max(20).optional(),
+	/** Names the registration for this run only; the check's own registration is used when it is left out. */
+	registration: REGISTRATION_NAME.optional()
 });
 
 export const runReport = z.object({
@@ -109,6 +122,13 @@ export const runReport = z.object({
 	retried: z.boolean().optional(),
 	/** Nothing proved the code under test was this tree (a server that was already running, a site that names no version). */
 	unverified: z.boolean().optional(),
+	/** The registration the tool used, and the folder name and branch of its repo. Tool-reported text: plain names only. */
+	registration: REGISTRATION_NAME.optional(),
+	repoName: z.string().max(100).optional(),
+	branch: z
+		.string()
+		.regex(/^[A-Za-z0-9._/-]{1,100}$/)
+		.optional(),
 	evidence: z.array(z.string().uuid()).max(30).default([])
 });
 
@@ -278,7 +298,9 @@ export async function saveCheck(ctx: Ctx, raw: z.input<typeof checkInput>) {
 				script: input.script,
 				coveredPaths: input.coveredPaths,
 				requiredTarget: input.requiredTarget,
-				pinnedTarget: input.pinnedTarget ?? null
+				pinnedTarget: input.pinnedTarget ?? null,
+				// Left out keeps the registration already saved; null clears it
+				...(input.registration === undefined ? {} : { registration: input.registration })
 			};
 			const [existing] = await tx
 				.select({ id: check.id })
@@ -328,6 +350,7 @@ export async function saveCheck(ctx: Ctx, raw: z.input<typeof checkInput>) {
 					key: input.key,
 					requiredTarget: input.requiredTarget,
 					pinnedTarget: values.pinnedTarget,
+					registration: input.registration,
 					auto
 				} as never,
 				undoable: false
@@ -388,6 +411,11 @@ const runView = (r: typeof checkRun.$inferSelect) => ({
 	flaky: r.flaky,
 	reason: r.reason,
 	stepKey: r.stepKey,
+	// The registration the run was asked for, and what the tool says it used (tool-reported plain names)
+	registration: r.registration,
+	ran: r.ranRegistration
+		? { registration: r.ranRegistration, repo: r.ranRepo, branch: r.ranBranch }
+		: null,
 	evidence: r.evidence,
 	requestedBy: r.requestedBy,
 	createdAt: r.createdAt,
@@ -451,6 +479,7 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 					script: c.script,
 					requiredTarget: c.requiredTarget,
 					pinnedTarget: c.pinnedTarget,
+					registration: c.registration,
 					coveredPaths: c.coveredPaths,
 					runs: runs
 						.filter((r) => r.checkId === c.id)
@@ -497,7 +526,33 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 			// A run that names no target, and has no pin or saved choice, is on the build preview: the only target the afb-checks tool runs
 			const asked = (input.target ?? chk.pinnedTarget ?? pref?.checkTarget ?? 'preview') as Target;
 			const statuses = await targetStatuses(tx, ctx.orgId, it.projectId);
-			const status = statuses.find((s) => s.target === asked)!;
+			let status = statuses.find((s) => s.target === asked)!;
+			// The registration this run uses: the one named now, else the check's own, else none (the project's only registration)
+			// Only the preview runs in the afb-checks tool, and only the tool has registrations: a dev or deployed run carries none
+			if (input.registration && asked !== 'preview')
+				throw new OpError(
+					'INVALID',
+					`A registration applies to the preview target only (this run is on ${asked}).`
+				);
+			const registration =
+				asked === 'preview' ? (input.registration ?? chk.registration ?? null) : null;
+			if (asked === 'preview') {
+				const [proj] = await tx
+					.select({ key: project.key })
+					.from(project)
+					.where(eq(project.id, it.projectId));
+				const fit = await registrationFit(tx, ctx.orgId, it.projectId, proj.key, registration);
+				// Never a guess: a project with several registrations needs one named, and the answer lists them
+				if (!registration && fit.choices)
+					throw new OpError(
+						'INVALID',
+						`REGISTRATION_REQUIRED: ${proj.key} has ${fit.choices.length} registrations (${fit.choices.join(', ')}) and none was named. Name one with registration on check_run or check_save.`,
+						{ code: 'REGISTRATION_REQUIRED', registrations: fit.choices }
+					);
+				// A registration no online tool holds is reported at once, with what the tools do hold
+				if (status.available && !fit.ok)
+					status = { ...status, available: false, reason: fit.reason };
+			}
 			// One open run per check and target: two agents, or a retry, get the run that is already waiting or running. The check
 			// row is locked so two calls at the same moment cannot both insert
 			await tx.select({ id: check.id }).from(check).where(eq(check.id, chk.id)).for('update');
@@ -510,6 +565,10 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 							and(
 								eq(checkRun.checkId, chk.id),
 								eq(checkRun.target, asked),
+								// A run for another registration is a different run: its pass says nothing about this one
+								registration === null
+									? sql`${checkRun.registration} is null`
+									: sql`lower(${checkRun.registration}) = ${registration.toLowerCase()}`,
 								inArray(checkRun.result, ['queued', 'running'])
 							)
 						)
@@ -567,6 +626,7 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 					requestedTarget: asked,
 					requestedBy: ctx.actor.userId,
 					stepKey: input.step ?? null,
+					registration,
 					result: status.available ? 'queued' : 'unavailable',
 					url: null,
 					reason: status.available
@@ -585,7 +645,12 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 				verb: 'check_run.request',
 				targetType: 'check_run',
 				targetId: row.id,
-				after: { key: input.key, target: asked, available: status.available } as never,
+				after: {
+					key: input.key,
+					target: asked,
+					available: status.available,
+					registration
+				} as never,
 				undoable: false
 			});
 			// A target that cannot run because no tool is online comes with what the agent does about it, not a note for a person
@@ -761,6 +826,17 @@ function toolAudit(
 	return t ? { lines: t.auditLines, regressedAt: t.auditRegressedAt } : null;
 }
 
+/** The slots of the tools that are online and how many of them are busy, or null when none has reported. */
+function toolCapacity(
+	online: { kind: string; capacitySlots: number | null; capacityBusy: number | null }[]
+) {
+	const t = online.filter((r) => r.kind === 'tool' && r.capacitySlots !== null);
+	if (!t.length) return null;
+	const slots = t.reduce((n, r) => n + (r.capacitySlots ?? 0), 0);
+	const busy = t.reduce((n, r) => n + (r.capacityBusy ?? 0), 0);
+	return { slots, busy, free: Math.max(0, slots - busy) };
+}
+
 /**
  * What an agent does, on the machine that runs the afb-checks tool, when no tool is online. The board never starts anything on that machine (it only
  * answers the tool's calls), so this is a list of steps for the agent: the tool repairs itself with `doctor --fix`, and a tool that was never connected is
@@ -777,7 +853,7 @@ export function toolAgentAction(
 			action: 'connect',
 			why: 'No afb-checks tool is connected to this project.',
 			steps: [
-				`On the machine that runs the tool, start in the background: node afb-checks.mjs connect --server ${server} --org ${org} --json`,
+				`On the machine that runs the tool, start in the background: node afb-checks.mjs connect --server ${server} --org ${org} --json (one tool serves every organisation: this adds ${org} next to the others and never replaces one, so never add --force for it)`,
 				'Read its first output line. It holds userCode and verifier.',
 				'Call tool_connection_approve with both. Only a code that tool started is accepted.',
 				'When the tool prints its connected line, run: node afb-checks.mjs doctor --fix --json (it starts the worker), then call runner_status again.'
@@ -838,10 +914,15 @@ export async function runnerStatus(ctx: Ctx, keyOrId?: string) {
 					kind: runner.kind,
 					lastSeenAt: runner.lastSeenAt,
 					auditLines: runner.auditLines,
-					auditRegressedAt: runner.auditRegressedAt
+					auditRegressedAt: runner.auditRegressedAt,
+					capacitySlots: runner.capacitySlots,
+					capacityBusy: runner.capacityBusy,
+					registrations: runner.registrations
 				})
 				.from(runner)
 				.where(and(eq(runner.orgId, ctx.orgId), sql`${p.id}::uuid = any(${runner.projectIds})`));
+			// The registrations the online tools hold for this project. The folder name and branch are tool-reported text, so a guest sees the names only
+			const { role: seeing } = await requireCap(tx, ctx, 'read', p.id);
 			const onlineNow = runners.filter(
 				(r) => r.lastSeenAt && Date.now() - r.lastSeenAt.getTime() < RUNNER_ONLINE_SECONDS * 1000
 			);
@@ -866,6 +947,19 @@ export async function runnerStatus(ctx: Ctx, keyOrId?: string) {
 				: [{ n: 0 }];
 			const kind = (onlineNow[0] ?? runners[0])?.kind ?? null;
 			const hasTool = runners.some((r) => r.kind === 'tool');
+			const registrations = [
+				...new Map(
+					onlineNow
+						.flatMap((r) => r.registrations ?? [])
+						.filter((r) => r.project === p.key)
+						.map((r) => [
+							r.name.toLowerCase(),
+							seeing === 'guest'
+								? { name: r.name }
+								: { name: r.name, repo: r.repo ?? null, branch: r.branch ?? null }
+						])
+				).values()
+			];
 			out.push({
 				project: p.key,
 				online: onlineNow.length > 0,
@@ -875,6 +969,11 @@ export async function runnerStatus(ctx: Ctx, keyOrId?: string) {
 				heldRuns: held?.n ?? 0,
 				// The tool's local audit chain as it last reported it: only a length, and when it last got shorter or changed under the same length
 				audit: toolAudit(runners),
+				// How many runs the online tools take at once and hold. Display only: the board never uses it to decide where a run goes
+				capacity: toolCapacity(onlineNow),
+				// The registrations an online tool holds for this project (tool-reported). With more than one, a run must name one: registration on check_run or check_save
+				registrations,
+				registrationRequired: registrations.length > 1,
 				hint: onlineNow.length
 					? 'A runner is online and will take the next run.'
 					: hasTool
@@ -936,7 +1035,21 @@ export type CheckJob = {
 	readOnly: boolean;
 	accounts: string[];
 	stepKey: string | null;
+	/** The registration of the tool this run must use, or null when the project's only registration serves it. */
+	registration: string | null;
 };
+
+/** Runs a tool may take: those that name no registration, and those that name one the tool reports (compared without regard to case). */
+const registrationClaimable = (held: string[]) =>
+	held.length
+		? or(
+				isNull(checkRun.registration),
+				sql`exists (select 1 from project where project.id = ${checkRun.projectId} and lower(project.key || ':' || ${checkRun.registration}) in (${sql.join(
+					held.map((h) => sql`${h}`),
+					sql`, `
+				)}))`
+			)
+		: isNull(checkRun.registration);
 
 /** Hands the oldest queued check run to a runner that serves its project, or nothing. */
 export async function claimCheckJob(
@@ -947,6 +1060,9 @@ export async function claimCheckJob(
 	if (!auth.projectIds.length) return null;
 	return withTenant(handle, { orgId: auth.orgId }, async (tx) => {
 		await sweepRuns(tx, auth.orgId, services?.runnerQueueMinutes ?? DEFAULT_QUEUE_MINUTES);
+		// A run that names a registration is taken only by a tool that reports it (an older tool reports none, so it takes only runs that name none).
+		// The filter is part of the query, before the limit, so a long line of runs for one registration never hides the runs of another
+		const held = await runnerRegistrationPairs(tx, auth);
 		// The oldest runs first. A runner takes only a run whose environment it can reach, so a hosted runner never
 		// uses up a run that sits on a private address
 		const waiting = await tx
@@ -956,7 +1072,8 @@ export async function claimCheckJob(
 				and(
 					eq(checkRun.orgId, auth.orgId),
 					eq(checkRun.result, 'queued'),
-					inArray(checkRun.projectId, auth.projectIds)
+					inArray(checkRun.projectId, auth.projectIds),
+					registrationClaimable(held)
 				)
 			)
 			.orderBy(asc(checkRun.createdAt))
@@ -1029,7 +1146,8 @@ export async function claimCheckJob(
 			},
 			readOnly: env.production && !env.writeAllowed,
 			accounts: accounts.map((a) => a.name),
-			stepKey: r.stepKey
+			stepKey: r.stepKey,
+			registration: r.registration
 		};
 	});
 }
@@ -1188,12 +1306,18 @@ export async function finishCheckRun(
 	const needles = await scanNeedles(handle, auth, held.projectId, held.requestedBy, services);
 	const leaked = report.log ? findSecret(report.log, needles) : null;
 	const log = report.log && !leaked ? maskSecrets(report.log, needles).slice(-LOG_KEEP) : null;
-	const result = leaked ? 'error' : report.result;
+	// A run that was asked for a registration is accepted only from that registration: a tool that ran another one (or did not say) cannot close a step
+	const wrongRegistration =
+		held.registration !== null &&
+		report.registration?.toLowerCase() !== held.registration.toLowerCase();
+	const result = leaked || wrongRegistration ? 'error' : report.result;
 	const reason = leaked
 		? `The run log held ${leaked} and was not kept.`
-		: report.reason
-			? maskSecrets(report.reason, needles)
-			: null;
+		: wrongRegistration
+			? `This run was asked for the registration ${held.registration}, but the tool reported ${report.registration ?? 'none'}, so the result was not used.`
+			: report.reason
+				? maskSecrets(report.reason, needles)
+				: null;
 
 	const stored = await withTenant(handle, { orgId: auth.orgId }, async (tx) => {
 		// The commit and the diff hash say what code was tested. The same code passing and failing is flaky.
@@ -1243,6 +1367,9 @@ export async function finishCheckRun(
 				reason,
 				log,
 				evidence: report.evidence,
+				ranRegistration: report.registration ?? null,
+				ranRepo: report.repoName ?? null,
+				ranBranch: report.branch ?? null,
 				finishedAt: sql`now()`
 			})
 			.where(eq(checkRun.id, runId))
@@ -1356,7 +1483,15 @@ async function reopenOnFail(
 			.select({ id: checkRun.id })
 			.from(checkRun)
 			.where(
-				and(eq(checkRun.checkId, chk.id), eq(checkRun.target, target), eq(checkRun.result, 'pass'))
+				and(
+					eq(checkRun.checkId, chk.id),
+					eq(checkRun.target, target),
+					eq(checkRun.result, 'pass'),
+					// A fail in one registration does not reopen what a pass in another one closed
+					r.registration === null
+						? isNull(checkRun.registration)
+						: sql`lower(${checkRun.registration}) = ${r.registration.toLowerCase()}`
+				)
 			);
 		const ids = earlier.map((e) => e.id);
 		const steps = ids.length
@@ -1401,6 +1536,8 @@ async function reopenOnFail(
 export async function peekQueue(handle: DbHandle, auth: RunnerAuth): Promise<number> {
 	if (!auth.projectIds.length) return 0;
 	return withTenant(handle, { orgId: auth.orgId }, async (tx) => {
+		// Only the runs this tool could claim are counted, so a tool is never woken for a run it cannot take
+		const held = await runnerRegistrationPairs(tx, auth);
 		const [a] = await tx
 			.select({ n: sql<number>`count(*)::int` })
 			.from(checkRun)
@@ -1408,7 +1545,8 @@ export async function peekQueue(handle: DbHandle, auth: RunnerAuth): Promise<num
 				and(
 					eq(checkRun.orgId, auth.orgId),
 					eq(checkRun.result, 'queued'),
-					inArray(checkRun.projectId, auth.projectIds)
+					inArray(checkRun.projectId, auth.projectIds),
+					registrationClaimable(held)
 				)
 			);
 		const [b] = await tx

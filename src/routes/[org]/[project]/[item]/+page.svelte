@@ -85,7 +85,7 @@
 		decisions: 'Decisions',
 		docs: 'Documents',
 		checks: 'Checks',
-		ui: 'UI changes',
+		ui: 'UI shots',
 		activity: 'Activity',
 		files: 'Files',
 		discussion: 'Discussion'
@@ -654,7 +654,7 @@
 					{env}
 				/>{/await}
 		{:else if tab === 'ui' && d.project.webApp}
-			{#await import('#lib/board/item/UiChangesTab.svelte') then m}<m.default
+			{#await import('#lib/board/item/UiShotsTab.svelte') then m}<m.default
 					detail={d}
 					{env}
 				/>{/await}

@@ -49,7 +49,7 @@ const TEXT: Record<string, string> = {
 	'check_run.request': 'asked for a browser check run',
 	'check_run.finish': 'finished a browser check run',
 	'check_run.reopen': 'reopened work after a browser check failed',
-	'ui_change.save': 'saved the UI changes table',
+	'ui_change.save': 'pinned pages to the UI shots',
 	'ui_shots.request': 'asked for a UI shots run',
 	'ui_shots.finish': 'finished a UI shots run',
 	'ui_scale.measure': 'measured the design scale'

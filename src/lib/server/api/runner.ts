@@ -21,11 +21,14 @@ import {
 	authenticateRunner,
 	makeRunKey,
 	recordToolAudit,
+	recordToolCapacity,
 	RUN_KEY_PREFIX,
 	TOOL_AUDIT_HEADER,
+	TOOL_SLOTS_HEADER,
 	TOOL_PROTOCOL_HEADER,
 	TOOL_PROTOCOL_MIN
 } from '../ops/environments';
+import { TOOL_REGISTRATIONS_HEADER, recordToolRegistrations } from '../ops/registrations';
 import { claimShotsJob, finishShotsRun, shotsAccounts, storeShotImage } from '../ops/uiShots';
 import { MAX_ATTACHMENT_BYTES } from '../ops/attachments';
 import { NO_STORE, errorResponse, fail } from './respond';
@@ -65,6 +68,24 @@ export async function handleRunnerApi(req: ApiRequest, deps: ApiDeps): Promise<A
 		await recordToolAudit(deps.handle, auth, req.headers.get(TOOL_AUDIT_HEADER)).catch((e) =>
 			console.error(
 				'afb-checks audit head not recorded:',
+				e instanceof Error ? e.message : 'unknown error'
+			)
+		);
+		// How many runs the tool takes at once and holds, for display only. A failure to record it must never stop a run either
+		await recordToolCapacity(deps.handle, auth, req.headers.get(TOOL_SLOTS_HEADER)).catch((e) =>
+			console.error(
+				'afb-checks capacity not recorded:',
+				e instanceof Error ? e.message : 'unknown error'
+			)
+		);
+		// The registrations the tool holds, so a run that names one is sent to a tool that has it. Like the notes above, a failure here must never stop a run
+		await recordToolRegistrations(
+			deps.handle,
+			auth,
+			req.headers.get(TOOL_REGISTRATIONS_HEADER)
+		).catch((e) =>
+			console.error(
+				'afb-checks registrations not recorded:',
 				e instanceof Error ? e.message : 'unknown error'
 			)
 		);

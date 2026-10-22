@@ -10,7 +10,7 @@ import type { Ctx } from './context';
 import type { RunnerAuth } from './environments';
 import type { Target } from './checks';
 // -- DEP-MODULES -- //
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import {
@@ -25,6 +25,7 @@ import {
 } from '../../shared/uiShots';
 import { appendEvent } from '../db/events';
 import {
+	attachment,
 	check,
 	designScale,
 	environment,
@@ -33,8 +34,7 @@ import {
 	runner,
 	secret,
 	uiChange,
-	uiShotRun,
-	userPref
+	uiShotRun
 } from '../db/schema';
 import type { ShotResult, UiFlag } from '../db/schema/integrations';
 import { TARGETS } from '../db/schema/helpers';
@@ -57,6 +57,13 @@ import { DEFAULT_QUEUE_MINUTES, isPrivateUrl, runnerCtx } from './checks';
 export const MIN_REFERENCE_PAGES = 3;
 export const MAX_REFERENCE_PAGES = 15;
 const RUNNING_TIMEOUT_MINUTES = 40;
+/** A capture nobody claims for this long while no tool is online says so, instead of looking like it is taking pictures. */
+const STALE_QUEUE_SECONDS = 120;
+/** The newest captures (runs with pictures) kept for an item. */
+export const KEEP_CAPTURES = 3;
+const MAX_SHOT_WAITERS = 4;
+export const TOOL_OFFLINE_TEXT =
+	'The capture tool is not connected. Your agent connects it by itself the next time it captures, so there is nothing to do here.';
 
 export const saveRowsInput = z
 	.object({
@@ -83,7 +90,9 @@ export const saveRowsInput = z
 
 export const requestShotsInput = z.object({
 	item: z.string().min(1),
-	target: z.enum(TARGETS).optional()
+	target: z.enum(TARGETS).optional(),
+	/** Take fresh pictures even when nothing changed since the last capture. The Capture screens button asks for this; an agent's own request does not. */
+	force: z.boolean().optional()
 });
 
 const resultIn = z.object({
@@ -105,6 +114,10 @@ export const shotsReport = z.object({
 	afterCommit: z.string().max(80).nullish(),
 	diffHash: z.string().max(80).nullish(),
 	changedPaths: z.array(z.string().max(300)).max(2000).default([]),
+	/** Plain sentences about the capture (a screen that was skipped, no Before, nothing changed). Stored as text, rendered as text. */
+	notes: z.array(z.string().max(300)).max(20).default([]),
+	/** The earlier capture this one repeats: the tool found the tree unchanged and built nothing. */
+	reusedFrom: z.string().uuid().optional(),
 	outsideCalls: z.number().int().min(0).default(0),
 	abortedWrites: z.number().int().min(0).default(0),
 	results: z.array(resultIn).max(2000).default([])
@@ -132,7 +145,7 @@ export async function saveUiChanges(ctx: Ctx, raw: z.input<typeof saveRowsInput>
 		if (!p.webApp)
 			throw new OpError(
 				'INVALID',
-				'UI changes are for web app projects. Turn on the web app switch in the project settings.'
+				'UI shots are for web app projects. Turn on the web app switch in the project settings.'
 			);
 		rows.forEach((r, i) => {
 			try {
@@ -236,6 +249,19 @@ async function onlineRunners(tx: Tx, orgId: string, projectId: string) {
 
 /** Marks shots runs that waited too long or were taken and never finished. */
 export async function sweepShotRuns(tx: Tx, orgId: string, minutes: number) {
+	// A capture nobody took for two minutes while no capture tool is online serving its project is not "taking pictures"
+	await tx
+		.update(uiShotRun)
+		.set({ state: 'unavailable', finishedAt: sql`now()`, reason: TOOL_OFFLINE_TEXT })
+		.where(
+			and(
+				eq(uiShotRun.orgId, orgId),
+				eq(uiShotRun.state, 'queued'),
+				eq(uiShotRun.kind, 'shots'),
+				sql`${uiShotRun.createdAt} < now() - make_interval(secs => ${STALE_QUEUE_SECONDS})`,
+				sql`not exists (select 1 from ${runner} where ${runner.orgId} = ${uiShotRun.orgId} and ${runner.kind} = 'tool' and ${uiShotRun.projectId} = any(${runner.projectIds}) and ${runner.lastSeenAt} > now() - make_interval(secs => ${RUNNER_ONLINE_SECONDS}))`
+			)
+		);
 	await tx
 		.update(uiShotRun)
 		.set({
@@ -272,23 +298,32 @@ async function queueRun(
 	p: Omit<typeof project.$inferSelect, 'logo'>,
 	itemId: string | null,
 	kind: 'shots' | 'measure',
-	asked: Target
+	asked: Target,
+	force = false
 ) {
-	const envs = await tx.select().from(environment).where(eq(environment.projectId, p.id));
 	const runners = await onlineRunners(tx, ctx.orgId, p.id);
-	const env = shotEnv(envs, asked, runners);
+	let ready: boolean;
 	let reason: string | null = null;
-	if (!env) {
-		const anyEnv = envs.find((e) => e.kind === asked);
-		reason = !anyEnv
-			? `This project has no ${asked} environment yet.`
-			: anyEnv.production
-				? `The ${asked} environment is production, and a UI shots run never opens production.`
-				: !runners.length
-					? 'No runner that serves this project is online.'
-					: 'Only a hosted runner is online, and this environment is on a private address. Start a local runner.';
-		const offer = TARGETS.filter((t) => t !== asked && shotEnv(envs, t, runners));
-		if (offer.length) reason += ` You can run it on ${offer.join(' or ')} instead.`;
+	if (kind === 'shots') {
+		// A capture is made by the afb-checks tool alone: it finds the screens, builds both versions and takes the pictures. It brings its own preview, so no environment is needed
+		ready = runners.some((r) => r.kind === 'tool');
+		if (!ready) reason = TOOL_OFFLINE_TEXT;
+	} else {
+		const envs = await tx.select().from(environment).where(eq(environment.projectId, p.id));
+		const env = shotEnv(envs, asked, runners);
+		ready = Boolean(env);
+		if (!env) {
+			const anyEnv = envs.find((e) => e.kind === asked);
+			reason = !anyEnv
+				? `This project has no ${asked} environment yet.`
+				: anyEnv.production
+					? `The ${asked} environment is production, and a UI shots run never opens production.`
+					: !runners.length
+						? 'No runner that serves this project is online.'
+						: 'Only a hosted runner is online, and this environment is on a private address. Start a local runner.';
+			const offer = TARGETS.filter((t) => t !== asked && shotEnv(envs, t, runners));
+			if (offer.length) reason += ` You can run it on ${offer.join(' or ')} instead.`;
+		}
 	}
 	const [row] = await tx
 		.insert(uiShotRun)
@@ -297,17 +332,21 @@ async function queueRun(
 			projectId: p.id,
 			itemId,
 			kind,
-			state: env ? 'queued' : 'unavailable',
+			state: ready ? 'queued' : 'unavailable',
 			requestedBy: ctx.actor.userId,
 			target: asked,
+			force,
 			reason,
-			finishedAt: env ? null : sql`now()`
+			finishedAt: ready ? null : sql`now()`
 		})
 		.returning();
 	return { id: row.id, state: row.state, target: asked, reason };
 }
 
-/** Asks for a UI shots run of an item: the table's pages, before on the deployed site (when it can) and after on the target. */
+/**
+ * Asks for a capture of an item's screens. No pages are named: the tool works them out from the changed files. A capture that is already waiting or running for the item is
+ * returned instead of a second one, so an agent that asks again never builds twice. Without `force` an unchanged tree is not built again (the tool says which capture it repeats).
+ */
 export async function requestShots(ctx: Ctx, raw: z.input<typeof requestShotsInput>) {
 	const input = requestShotsInput.parse(raw);
 	return run(ctx, async (tx) => {
@@ -315,16 +354,36 @@ export async function requestShots(ctx: Ctx, raw: z.input<typeof requestShotsInp
 		const { role } = await requireCap(tx, ctx, 'write', it.projectId);
 		if (!canSeeItem(role, it, ctx.actor.userId))
 			throw new OpError('NOT_FOUND', `No item named "${input.item}".`);
-		const rows = await rowsOf(tx, it.id);
-		if (!rows.length)
-			throw new OpError('INVALID', `${it.ref} has no UI changes table yet. Save one first.`);
 		await sweepShotRuns(tx, ctx.orgId, ctx.services?.runnerQueueMinutes ?? DEFAULT_QUEUE_MINUTES);
+		const [open] = await tx
+			.select()
+			.from(uiShotRun)
+			.where(
+				and(
+					eq(uiShotRun.itemId, it.id),
+					eq(uiShotRun.kind, 'shots'),
+					inArray(uiShotRun.state, ['queued', 'running'])
+				)
+			)
+			.orderBy(desc(uiShotRun.createdAt))
+			.limit(1);
+		if (open) {
+			// Fresh pictures asked for while a plain capture is still waiting: the waiting one is upgraded, so the button keeps its promise
+			if (input.force && !open.force && open.state === 'queued')
+				await tx.update(uiShotRun).set({ force: true }).where(eq(uiShotRun.id, open.id));
+			return {
+				id: open.id,
+				state: open.state,
+				target: (open.target ?? 'preview') as Target,
+				reason: null as string | null,
+				unavailable: false,
+				existing: true
+			};
+		}
 		const [p] = await tx.select().from(project).where(eq(project.id, it.projectId));
-		const [pref] = await tx.select().from(userPref).where(eq(userPref.userId, ctx.actor.userId));
-		// The default is the build preview. The dev server is chosen by hand only (ADR-017)
-		const asked = (input.target ??
-			(pref?.checkTarget === 'deployed' ? 'deployed' : 'preview')) as Target;
-		const queued = await queueRun(ctx, tx, p, it.id, 'shots', asked);
+		// The build preview is the only target (ADR-017): a saved personal target is not read here
+		const asked = (input.target ?? 'preview') as Target;
+		const queued = await queueRun(ctx, tx, p, it.id, 'shots', asked, input.force ?? false);
 		await appendEvent(tx, {
 			orgId: ctx.orgId,
 			projectId: it.projectId,
@@ -336,7 +395,7 @@ export async function requestShots(ctx: Ctx, raw: z.input<typeof requestShotsInp
 			after: { target: asked, state: queued.state } as never,
 			undoable: false
 		});
-		return { ...queued, unavailable: queued.state === 'unavailable' };
+		return { ...queued, unavailable: queued.state === 'unavailable', existing: false };
 	});
 }
 
@@ -399,8 +458,13 @@ export type ShotsJob = {
 	item: { id: string; ref: string } | null;
 	afterTarget: Target;
 	afterUrl: string;
-	beforeTarget: Target | null;
-	beforeUrl: string | null;
+	/** Always null: the old version is the last commit, built by the tool itself. Kept for runners that still read it. */
+	beforeTarget: null;
+	beforeUrl: null;
+	/** `auto` for a capture: the tool finds the screens itself, and `rows` holds only the pages someone pinned. A tool older than protocol 2 ignores it. */
+	mode: 'auto';
+	/** The last capture of the item with pictures, when the tool may skip an unchanged tree. Null when fresh pictures were asked for. */
+	last: { hash: string; runId: string } | null;
 	rows: (Omit<UiChangeRow, 'accounts'> & { id: string; accounts: string })[];
 	/** theme, then width, then the scale of each level. Empty until a measure job has run. */
 	scale: Record<string, Record<string, ScaleLevels>>;
@@ -411,7 +475,28 @@ export type ShotsJob = {
 	ownPaths: string[];
 };
 
-/** Hands the oldest queued shots or measure run to a runner that serves its project and can reach its address. */
+/** The newest capture of an item that has pictures and a hash, so the tool can tell an unchanged tree from a changed one. */
+async function lastCapture(tx: Tx, itemId: string) {
+	const [last] = await tx
+		.select({ id: uiShotRun.id, hash: uiShotRun.diffHash })
+		.from(uiShotRun)
+		.where(
+			and(
+				eq(uiShotRun.itemId, itemId),
+				eq(uiShotRun.kind, 'shots'),
+				eq(uiShotRun.state, 'done'),
+				sql`jsonb_array_length(${uiShotRun.imageAttachmentIds}) > 0`,
+				sql`${uiShotRun.diffHash} is not null`,
+				// A capture whose old version could not be built is not repeated: the next ask tries the Before again
+				sql`${uiShotRun.beforeCommit} is not null`
+			)
+		)
+		.orderBy(desc(uiShotRun.createdAt))
+		.limit(1);
+	return last?.hash ? { hash: last.hash, runId: last.id } : null;
+}
+
+/** Hands the oldest queued shots or measure run to a runner that serves its project. A capture goes to the afb-checks tool only. */
 export async function claimShotsJob(
 	handle: DbHandle,
 	auth: RunnerAuth,
@@ -435,23 +520,25 @@ export async function claimShotsJob(
 			.for('update', { skipLocked: true });
 		for (const w of waiting) {
 			const [r] = await tx.select().from(uiShotRun).where(eq(uiShotRun.id, w.id));
+			// A capture finds its screens from the changed files and builds two versions: only the tool does that
+			if (r.kind === 'shots' && auth.kind !== 'tool') continue;
 			const envs = await tx
 				.select()
 				.from(environment)
 				.where(eq(environment.projectId, r.projectId));
 			const me = [{ kind: auth.kind }];
-			const after = shotEnv(envs, (r.target ?? 'preview') as Target, me);
+			const after =
+				r.kind === 'shots'
+					? toolEnvironment('preview')
+					: shotEnv(envs, (r.target ?? 'preview') as Target, me);
 			if (!after) continue;
-			// Before: the deployed site, when it is not production and not the same environment as after
-			const before = after.kind === 'deployed' ? null : shotEnv(envs, 'deployed', me);
 			const [p] = await tx.select().from(project).where(eq(project.id, r.projectId));
 			await tx
 				.update(uiShotRun)
 				.set({
 					state: 'running',
 					runnerId: auth.runnerId,
-					startedAt: sql`now()`,
-					beforeTarget: before ? 'deployed' : null
+					startedAt: sql`now()`
 				})
 				.where(eq(uiShotRun.id, r.id));
 			const rows = r.itemId ? await rowsOf(tx, r.itemId) : [];
@@ -471,6 +558,8 @@ export async function claimShotsJob(
 				ownPaths = [...new Set(checks.flatMap((c) => c.paths))];
 			}
 			const accounts = await openAccountNames(tx, r.projectId);
+			const last =
+				r.kind === 'shots' && r.itemId && !r.force ? await lastCapture(tx, r.itemId) : null;
 			return {
 				kind: r.kind as 'shots' | 'measure',
 				id: r.id,
@@ -478,8 +567,10 @@ export async function claimShotsJob(
 				item: it ? { id: it.id, ref: it.ref } : null,
 				afterTarget: after.kind as Target,
 				afterUrl: after.url,
-				beforeTarget: before ? 'deployed' : null,
-				beforeUrl: before?.url ?? null,
+				beforeTarget: null,
+				beforeUrl: null,
+				mode: 'auto' as const,
+				last,
 				rows,
 				scale,
 				accounts,
@@ -560,6 +651,56 @@ export async function storeShotImage(
 	return { attachmentId: attachment.id };
 }
 
+/**
+ * Keeps the newest KEEP_CAPTURES captures of an item (runs that are done and have pictures) and drops the rest. Runs that are not captures (failed, stuck, unavailable, a repeat of an
+ * unchanged tree) never push a capture out; they are kept only as the single newest one after the newest capture, so the tab can say what happened last. A picture is
+ * deleted only when it is this item's own ui-shot attachment whose runs are all dropped: the ids a tool reported are never used for this.
+ */
+async function pruneCaptures(tx: Tx, itemId: string) {
+	const runs = await tx
+		.select({
+			id: uiShotRun.id,
+			state: uiShotRun.state,
+			images: uiShotRun.imageAttachmentIds,
+			createdAt: uiShotRun.createdAt
+		})
+		.from(uiShotRun)
+		.where(and(eq(uiShotRun.itemId, itemId), eq(uiShotRun.kind, 'shots')))
+		.orderBy(desc(uiShotRun.createdAt));
+	const isCapture = (x: (typeof runs)[number]) => x.state === 'done' && x.images.length > 0;
+	const captures = runs.filter(isCapture);
+	const others = runs.filter((x) => !isCapture(x) && x.state !== 'queued' && x.state !== 'running');
+	const newest = captures[0];
+	const keepOther = newest ? others.find((x) => x.createdAt > newest.createdAt) : others[0];
+	const gone = new Set([
+		...captures.slice(KEEP_CAPTURES).map((x) => x.id),
+		...others.filter((x) => x !== keepOther).map((x) => x.id)
+	]);
+	if (!gone.size) return;
+	const pictures = await tx
+		.select({ id: attachment.id, refs: attachment.refs })
+		.from(attachment)
+		.where(
+			and(
+				eq(attachment.itemId, itemId),
+				eq(attachment.kind, 'ui-shot'),
+				isNull(attachment.deletedAt)
+			)
+		);
+	const dead = pictures.filter((a) => a.refs.length > 0 && a.refs.every((ref) => gone.has(ref)));
+	if (dead.length)
+		await tx
+			.update(attachment)
+			.set({ deletedAt: sql`now()` })
+			.where(
+				inArray(
+					attachment.id,
+					dead.map((a) => a.id)
+				)
+			);
+	await tx.delete(uiShotRun).where(inArray(uiShotRun.id, [...gone]));
+}
+
 const underPath = (changed: string, own: string) =>
 	changed === own ||
 	changed.startsWith(own.endsWith('/') ? own : `${own}/`) ||
@@ -588,9 +729,94 @@ export async function finishShotsRun(
 					abortedWrites: report.abortedWrites
 				})
 				.where(eq(uiShotRun.id, runId));
+			// Only the newest failure is kept, so a run of failures never crowds the tab
+			if (r.kind === 'shots' && r.itemId) await pruneCaptures(tx, r.itemId);
 			return { id: runId, state: 'failed' as const, flags: [] as UiFlag[], scaleSaved: false };
 		}
-		const results = report.results as ShotResult[];
+		const noteText = report.notes.join('\n');
+		// A report the board will not believe fails the run with the reason, so the person is told and can ask again, instead of a run that stays "running" for 40 minutes
+		const reject = async (message: string) => {
+			await tx
+				.update(uiShotRun)
+				.set({ state: 'failed', reason: message, finishedAt: sql`now()` })
+				.where(eq(uiShotRun.id, runId));
+			if (r.itemId) await pruneCaptures(tx, r.itemId);
+			return { id: runId, state: 'failed' as const, flags: [] as UiFlag[], scaleSaved: false };
+		};
+		if (r.kind === 'shots') {
+			// A capture that reports nothing at all comes from a tool that does not know how to capture: it is told to update, never shown as a green empty run
+			if (!report.results.length && !report.notes.length && !report.reusedFrom)
+				return reject(
+					'The capture tool sent an empty report. Ask your agent to update the tool (the /flow-check skill has the steps).'
+				);
+			if (report.reusedFrom) {
+				// A repeat is believed only when the capture it names is this item's own and has the very hash the tool reports
+				const [src] = r.itemId
+					? await tx
+							.select()
+							.from(uiShotRun)
+							.where(
+								and(
+									eq(uiShotRun.id, report.reusedFrom),
+									eq(uiShotRun.itemId, r.itemId),
+									eq(uiShotRun.state, 'done')
+								)
+							)
+					: [];
+				// Fresh pictures that were asked for are never a repeat
+				if (
+					r.force ||
+					!src ||
+					!src.imageAttachmentIds.length ||
+					!src.diffHash ||
+					src.diffHash !== report.diffHash
+				)
+					return reject(
+						'The tool said nothing changed, but the capture it named is not a capture of this tree. Ask for a fresh capture.'
+					);
+				// The repeat holds no pictures of its own, so nothing is shared between two runs and pruning one never breaks the other
+				await tx
+					.update(uiShotRun)
+					.set({
+						state: 'done',
+						reason: noteText || 'Nothing changed since the last capture.',
+						beforeTarget: src.beforeTarget,
+						beforeCommit: src.beforeCommit,
+						afterCommit: report.afterCommit ?? src.afterCommit,
+						diffHash: report.diffHash ?? null,
+						changedPaths: src.changedPaths,
+						results: [],
+						flags: [],
+						imageAttachmentIds: [],
+						finishedAt: sql`now()`
+					})
+					.where(eq(uiShotRun.id, runId));
+				await pruneCaptures(tx, r.itemId!);
+				return { id: runId, state: 'done' as const, flags: [] as UiFlag[], scaleSaved: false };
+			}
+		}
+		// A picture counts only when it is this run's own upload to this item: an id the tool names that is anything else is dropped, never trusted
+		const named = [
+			...new Set(report.results.map((x) => x.image).filter((x): x is string => Boolean(x)))
+		];
+		const ownPictures = new Set<string>();
+		if (named.length && r.itemId) {
+			const found = await tx
+				.select({ id: attachment.id, refs: attachment.refs })
+				.from(attachment)
+				.where(
+					and(
+						inArray(attachment.id, named),
+						eq(attachment.kind, 'ui-shot'),
+						eq(attachment.itemId, r.itemId),
+						isNull(attachment.deletedAt)
+					)
+				);
+			for (const a of found) if (a.refs.includes(runId)) ownPictures.add(a.id);
+		}
+		const results = report.results.map((x) =>
+			x.image && !ownPictures.has(x.image) ? { ...x, image: undefined } : x
+		) as ShotResult[];
 		const flags: UiFlag[] = [];
 		let scaleSaved = false;
 		if (r.kind === 'measure') {
@@ -679,7 +905,8 @@ export async function finishShotsRun(
 			.update(uiShotRun)
 			.set({
 				state: 'done',
-				reason: report.reason ?? null,
+				// A finished capture keeps its notes where a failed run keeps its reason
+				reason: noteText || (report.reason ?? null),
 				beforeTarget: report.beforeTarget ?? r.beforeTarget,
 				beforeCommit: report.beforeCommit ?? null,
 				afterCommit: report.afterCommit ?? null,
@@ -694,6 +921,7 @@ export async function finishShotsRun(
 				finishedAt: sql`now()`
 			})
 			.where(eq(uiShotRun.id, runId));
+		if (r.kind === 'shots' && r.itemId) await pruneCaptures(tx, r.itemId);
 		await appendEvent(tx, {
 			orgId: auth.orgId,
 			projectId: r.projectId,
@@ -728,18 +956,40 @@ const runView = (r: RunRow) => ({
 	foreignPaths: r.foreignPaths,
 	results: r.results,
 	flags: r.flags,
-	reason: r.reason,
+	// The screens that were shot (after pictures), counted before anything is stripped for a reader who may not see them
+	screens: new Set(r.results.filter((x) => x.side === 'after').map((x) => `${x.page}|${x.state}`))
+		.size,
+	// A finished capture keeps its notes in the same column a failed run keeps its reason
+	notes: r.state === 'done' ? (r.reason ?? '').split('\n').filter(Boolean) : [],
+	reason: r.state === 'done' ? null : r.reason,
 	outsideCalls: r.outsideCalls,
 	abortedWrites: r.abortedWrites,
 	createdAt: r.createdAt,
 	finishedAt: r.finishedAt
 });
 
-/** Private pictures are for members, admins and owners. A viewer sees the measurements only. */
+/** Private pictures are for members, admins and owners. A viewer sees a summary only: how many screens, when, and in what state. */
 const mayPictures = (role: string | null) =>
 	role === 'owner' || role === 'admin' || role === 'member';
 
-/** The item's UI CHANGES tab: its table and its newest runs. */
+/** What a reader who may not see pictures gets of a run: the counts and nothing that names a page, a path, a note or a call. */
+const summaryOnly = (v: ReturnType<typeof runView>) => ({
+	...v,
+	results: [] as ShotResult[],
+	flags: [] as UiFlag[],
+	notes: [] as string[],
+	changedPaths: [] as string[],
+	foreignPaths: [] as string[],
+	outsideCalls: 0,
+	abortedWrites: 0,
+	// No commit, hash or tool text for a reader who may not see the pictures
+	beforeCommit: null,
+	afterCommit: null,
+	diffHash: null,
+	reason: null
+});
+
+/** The item's UI shots tab: its newest captures (with the one run that came after them, if it was not a capture) and whether a capture can be asked for now. */
 export async function itemShots(ctx: Ctx, itemName: string) {
 	return run(ctx, async (tx) => {
 		const it = await findItem(tx, ctx, itemName);
@@ -751,21 +1001,93 @@ export async function itemShots(ctx: Ctx, itemName: string) {
 		const runs = await tx
 			.select()
 			.from(uiShotRun)
-			.where(eq(uiShotRun.itemId, it.id))
+			.where(and(eq(uiShotRun.itemId, it.id), eq(uiShotRun.kind, 'shots')))
 			.orderBy(desc(uiShotRun.createdAt))
-			.limit(6);
+			.limit(KEEP_CAPTURES + 3);
 		const [p] = await tx.select().from(project).where(eq(project.id, it.projectId));
+		const toolOnline = (await onlineRunners(tx, ctx.orgId, it.projectId)).some(
+			(r) => r.kind === 'tool'
+		);
+		// A checksum for each picture, so the tab can tell a screen that looks the same before and after from one that changed
+		const shown = pictures
+			? [...new Set(runs.flatMap((r) => r.imageAttachmentIds))]
+			: ([] as string[]);
+		const sums: Record<string, string> = {};
+		if (shown.length)
+			for (const a of await tx
+				.select({ id: attachment.id, checksum: attachment.checksum })
+				.from(attachment)
+				.where(inArray(attachment.id, shown)))
+				sums[a.id] = a.checksum;
 		return {
 			item: { id: it.id, ref: it.ref },
 			webApp: p.webApp,
 			themes: themesOf(p),
-			canRun: role !== 'viewer' && role !== 'guest',
+			toolOnline,
+			// A capture can be asked for when the role may write and a tool that serves the project is online
+			canRun: role !== 'viewer' && role !== 'guest' && toolOnline,
 			canSeePictures: pictures,
-			rows: await rowsOf(tx, it.id),
+			sums,
+			// Pages someone pinned by hand (optional: captures find their own screens)
+			rows: pictures ? await rowsOf(tx, it.id) : [],
 			runs: runs.map((r) => {
 				const v = runView(r);
-				return pictures ? v : { ...v, results: v.results.map((x) => ({ ...x, image: undefined })) };
+				return pictures ? v : summaryOnly(v);
 			})
 		};
 	});
+}
+
+const SHOT_OPEN = new Set(['queued', 'running']);
+const shotWaiters = new Map<string, number>();
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** One capture run of an item the reader may see, as the page and the agent read it. */
+export async function getShotsRun(ctx: Ctx, runId: string) {
+	return run(ctx, async (tx) => {
+		const [r] = await tx.select().from(uiShotRun).where(eq(uiShotRun.id, runId));
+		if (!r || !r.itemId) throw new OpError('NOT_FOUND', 'No such capture.');
+		const it = await findItem(tx, ctx, r.itemId);
+		const { role } = await requireCap(tx, ctx, 'read', it.projectId);
+		if (!canSeeItem(role, it, ctx.actor.userId)) throw new OpError('NOT_FOUND', 'No such capture.');
+		const v = runView(r);
+		return { ...(mayPictures(role) ? v : summaryOnly(v)), item: it.ref };
+	});
+}
+
+/**
+ * Waits for a capture to finish: each look is its own short transaction with a sleep between, and at most a few waiters per organisation run at once. Returns the run and whether
+ * it finished; unfinished means look again with ui_shots_get.
+ */
+export async function waitForShotsRun(
+	ctx: Ctx,
+	input: { run: string; seconds: number },
+	opts: { pollMs?: number } = {}
+) {
+	let view = await getShotsRun(ctx, input.run);
+	if (!SHOT_OPEN.has(view.state) || input.seconds <= 0)
+		return { run: view, finished: !SHOT_OPEN.has(view.state) };
+	const now = shotWaiters.get(ctx.orgId) ?? 0;
+	if (now >= MAX_SHOT_WAITERS)
+		throw new OpError(
+			'RATE_LIMITED',
+			'Too many captures are being waited for at once. Try again in a moment.',
+			{
+				limit: MAX_SHOT_WAITERS
+			}
+		);
+	shotWaiters.set(ctx.orgId, now + 1);
+	try {
+		const until = Date.now() + Math.min(input.seconds, 90) * 1000;
+		const poll = opts.pollMs ?? 1500;
+		while (SHOT_OPEN.has(view.state) && Date.now() < until) {
+			await sleep(Math.min(poll, Math.max(0, until - Date.now())));
+			view = await getShotsRun(ctx, input.run);
+		}
+	} finally {
+		const left = (shotWaiters.get(ctx.orgId) ?? 1) - 1;
+		if (left <= 0) shotWaiters.delete(ctx.orgId);
+		else shotWaiters.set(ctx.orgId, left);
+	}
+	return { run: view, finished: !SHOT_OPEN.has(view.state) };
 }

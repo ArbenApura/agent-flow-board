@@ -1,0 +1,1 @@
+ALTER TABLE "ui_shot_run" ADD COLUMN "force" boolean DEFAULT false NOT NULL;

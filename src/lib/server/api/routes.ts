@@ -957,14 +957,15 @@ export const routes: Route[] = [
 	{
 		method: 'GET',
 		path: '/orgs/{org}/items/{item}/ui-changes',
-		summary: 'The "UI changes" table of an item',
+		summary: 'The pages pinned to the UI shots of an item (optional)',
 		tag: 'UI shots',
 		handler: ({ ctx, params }) => listUiChanges(ctx, params.item)
 	},
 	{
 		method: 'PUT',
 		path: '/orgs/{org}/items/{item}/ui-changes',
-		summary: 'Replace the "UI changes" table, as Markdown or as rows. Every row is checked first.',
+		summary:
+			'Optional: pin extra pages to the UI shots of an item, as Markdown or as rows. Every row is checked first.',
 		tag: 'UI shots',
 		body: z.object({
 			markdown: z.string().max(200000).optional(),

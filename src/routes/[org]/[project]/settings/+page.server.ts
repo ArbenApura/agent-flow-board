@@ -37,6 +37,8 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends }) 
 				id: r.id,
 				name: r.name,
 				online: r.online,
+				slots: r.slots,
+				busy: r.busy,
 				lastSeenAt: r.lastSeenAt?.toISOString() ?? null
 			})),
 		canManage: summary.caps.includes('manage')

@@ -304,7 +304,11 @@ describe('the afb-checks tool as a runner', () => {
 		const old = await call(tool.token, 'POST', '/peek', { [TOOL_PROTOCOL_HEADER]: '0' });
 		expect(old.status).toBe(426);
 		expect(JSON.stringify(old.body)).toMatch(/upgrade/);
+		// Protocol 1 sent pages from a table; a capture now names none, so an older tool is told to upgrade
 		expect((await call(tool.token, 'POST', '/peek', { [TOOL_PROTOCOL_HEADER]: '1' })).status).toBe(
+			426
+		);
+		expect((await call(tool.token, 'POST', '/peek', { [TOOL_PROTOCOL_HEADER]: '2' })).status).toBe(
 			200
 		);
 		expect((await call(tool.token, 'POST', '/peek')).status).toBe(200);

@@ -22,6 +22,7 @@ import {
 	waitersFor
 } from '../../src/lib/server/ops/checks';
 import {
+	TOOL_PROTOCOL_MIN,
 	authenticateRunner,
 	registerToolRunner,
 	type RunnerAuth
@@ -406,7 +407,7 @@ describe('checks an agent drives alone', () => {
 			project: w.projectKey,
 			online: true,
 			kind: 'tool',
-			minProtocol: 1
+			minProtocol: TOOL_PROTOCOL_MIN
 		});
 		expect(on.projects[0].heldRuns).toBeGreaterThanOrEqual(0);
 		const text = JSON.stringify(on);

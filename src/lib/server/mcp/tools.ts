@@ -50,7 +50,7 @@ import {
 	waitForRun
 } from '../ops/checks';
 import { approveToolConnection } from '../ops/environments';
-import { itemShots, requestShots, saveUiChanges } from '../ops/uiShots';
+import { itemShots, requestShots, saveUiChanges, waitForShotsRun } from '../ops/uiShots';
 import { recordSteps } from '../ops/steps';
 import { setStatus } from '../ops/status';
 import { trackingNotes } from '../ops/tracking';
@@ -1248,6 +1248,14 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				.enum(['dev', 'preview', 'deployed'])
 				.optional()
 				.describe('Always run on this target unless a run names another'),
+			registration: z
+				.string()
+				.regex(/^[A-Za-z0-9_-]{1,32}$/)
+				.nullable()
+				.optional()
+				.describe(
+					'The afb-checks registration (repo folder) this check runs in, when the project has several. Leave it out to keep the saved one; null clears it'
+				),
 			coveredPaths: z
 				.array(z.string().min(1).max(200))
 				.max(50)
@@ -1262,6 +1270,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				script: a.script,
 				requiredTarget: a.target,
 				pinnedTarget: a.pinnedTarget,
+				registration: a.registration,
 				coveredPaths: a.coveredPaths
 			})) as never
 	);
@@ -1279,7 +1288,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'check_run',
-		'Ask for a browser check run. A pass on the required target closes the check and the step you name. An open run for the same check and target is returned, not a second. Pass wait (at most 90 seconds) for the finished run. A failed run carries a code and a fix line.',
+		'Ask for a browser check run. A pass on the required target closes the check and the step you name. An open run for the same check, target and registration is returned, not a second. Pass wait (at most 90 seconds) for the finished run. A failed run carries a code and a fix line.',
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
 			check: z.string().describe('The manual check key, for example M8'),
@@ -1288,6 +1297,13 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				.string()
 				.optional()
 				.describe('The plan step to close when the run passes, for example 7.3'),
+			registration: z
+				.string()
+				.regex(/^[A-Za-z0-9_-]{1,32}$/)
+				.optional()
+				.describe(
+					'The afb-checks registration (repo folder) for this run. Needed when the project has several and the check names none; runner_status lists them'
+				),
 			wait: z
 				.number()
 				.int()
@@ -1302,7 +1318,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				item: need(a.item, claimed),
 				key: a.check,
 				target: a.target,
-				step: a.step
+				step: a.step,
+				registration: a.registration
 			});
 			// An unavailable run is already finished, so there is nothing to wait for
 			if (!a.wait || out.unavailable) return out as never;
@@ -1362,6 +1379,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 					state: c.state,
 					requiredTarget: c.requiredTarget,
 					pinnedTarget: c.pinnedTarget,
+					registration: c.registration,
 					runs: c.runs.slice(0, 3)
 				}))
 			} as never;
@@ -1370,7 +1388,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'ui_changes_save',
-		'Replace the "UI changes" table of an item with a Markdown table (columns Page, State, Themes, Accounts, Siblings, Levels, Viewports). Every row is checked first.',
+		'Optional: pin extra pages to the UI shots of an item with a Markdown table (columns Page, State, Themes, Accounts, Siblings, Levels, Viewports). Never needed: a capture finds the changed screens itself. Every row is checked first.',
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
 			markdown: z.string().max(200000)
@@ -1382,34 +1400,66 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'ui_shots_run',
-		'Ask for a UI shots run of an item: its pages measured against the project scale and their sibling pages. It only reads. Read the outcome with ui_shots_get.',
+		'Capture the screens an item changed, before (last commit) and after (working tree). No pages or table needed. Run it once after you finish a screen change. An unchanged tree is not rebuilt; a waiting capture is returned. wait (max 90) returns the result, else read it with ui_shots_get.',
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
-			target: z.enum(['dev', 'preview', 'deployed']).optional()
+			target: z.enum(['dev', 'preview', 'deployed']).optional(),
+			force: z
+				.boolean()
+				.optional()
+				.describe('Take fresh pictures even when nothing changed. Leave it out unless asked'),
+			wait: z
+				.number()
+				.int()
+				.min(0)
+				.max(90)
+				.optional()
+				.describe('Seconds to wait for the capture to finish, at most 90')
 		},
 		{ session: true },
-		async (a, { ctx, claimed }) =>
-			(await requestShots(ctx, { item: need(a.item, claimed), target: a.target })) as never
+		async (a, { ctx, claimed }) => {
+			const out = await requestShots(ctx, {
+				item: need(a.item, claimed),
+				target: a.target,
+				force: a.force
+			});
+			// A capture the board could not queue is already finished: say what to do, in one line
+			if (out.unavailable)
+				return {
+					...out,
+					next: 'The capture tool is not connected. Call runner_status for this project and follow its agentAction (it connects or repairs the tool), then ask again.'
+				} as never;
+			if (!a.wait) return out as never;
+			const waited = await waitForShotsRun(ctx, { run: out.id, seconds: a.wait });
+			return {
+				...out,
+				state: waited.run.state,
+				run: waited.run,
+				finished: waited.finished,
+				...(waited.finished ? {} : { next: 'Not finished yet: read it later with ui_shots_get.' })
+			} as never;
+		}
 	);
 
 	tool(
 		'ui_shots_get',
-		'The newest UI shots runs of an item: state, target, commits and the flags to fix, without the pictures.',
+		'The newest captures of an item: state, screens, commits, plain notes, and whether a capture can be asked for now. No pictures.',
 		{ item: itemName.optional().describe('Defaults to your claimed item') },
 		{ readOnly: true },
 		async (a, { ctx, claimed }) => {
 			const v = await itemShots(ctx, need(a.item, claimed));
 			return {
 				item: v.item.ref,
-				rows: v.rows.length,
+				toolOnline: v.toolOnline,
+				canRun: v.canRun,
 				runs: v.runs.map((r) => ({
 					id: r.id,
 					state: r.state,
-					target: r.target,
+					screens: r.screens,
 					beforeTarget: r.beforeTarget,
+					beforeCommit: r.beforeCommit,
 					afterCommit: r.afterCommit,
-					foreignPaths: r.foreignPaths,
-					flags: r.flags,
+					notes: r.notes,
 					reason: r.reason,
 					createdAt: r.createdAt
 				}))

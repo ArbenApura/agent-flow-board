@@ -84,8 +84,11 @@ export const toolRunnerInput = z.object({
 	projects: z.array(z.string().min(1)).max(50).optional()
 });
 
-/** The version of the conversation between the board and the afb-checks tool. A tool older than the minimum is told to upgrade. */
-export const TOOL_PROTOCOL_MIN = 1;
+/**
+ * The version of the conversation between the board and the afb-checks tool. A tool older than the minimum is told to upgrade.
+ * 2: a UI shots capture names no pages (`mode: 'auto'`): the tool finds the screens, builds the last commit as the Before, and reports notes and `reusedFrom`.
+ */
+export const TOOL_PROTOCOL_MIN = 2;
 export const TOOL_PROTOCOL_HEADER = 'x-afb-tool-protocol';
 
 /** Only a runner that is not hosted reaches an address on this machine's network (a local runner and the tool). */
@@ -542,6 +545,9 @@ export async function listRunners(ctx: Ctx) {
 			ownerId: r.ownerId,
 			projects: r.projectIds.map((id) => projects.find((p) => p.id === id)?.key ?? id),
 			lastSeenAt: r.lastSeenAt,
+			// How many runs a tool takes at once and holds, as it last reported them (display only)
+			slots: r.capacitySlots,
+			busy: r.capacityBusy,
 			online: Boolean(
 				r.lastSeenAt && Date.now() - r.lastSeenAt.getTime() < RUNNER_ONLINE_SECONDS * 1000
 			)
@@ -682,6 +688,40 @@ export async function recordToolAudit(
 				auditLines: lines,
 				...(regressed ? { auditRegressedAt: sql`now()` } : {})
 			})
+			.where(eq(runner.id, auth.runnerId));
+	});
+}
+
+// -- THE TOOL'S CAPACITY -- //
+
+/** The header the afb-checks tool sends: how many runs it takes at once and how many it holds, `<slots>:<busy>`. A person's eyes only: it is never used to schedule. */
+export const TOOL_SLOTS_HEADER = 'x-afb-tool-slots';
+const SLOTS_REPORT = /^(\d{1,2}):(\d{1,2})$/;
+const MAX_SLOTS = 64;
+
+/** Reads the capacity header. Anything that is not two small numbers with busy not above slots is ignored (the value comes from whoever holds the token). */
+export function parseToolSlots(header: string | null): { slots: number; busy: number } | null {
+	const m = header ? SLOTS_REPORT.exec(header) : null;
+	if (!m) return null;
+	const slots = Number(m[1]);
+	const busy = Number(m[2]);
+	if (slots < 1 || slots > MAX_SLOTS || busy > slots) return null;
+	return { slots, busy };
+}
+
+/** Keeps the last capacity the tool reported so `runner_status` and the Browser checks tab can show how many runs it holds. A header that is not in the form is ignored. */
+export async function recordToolCapacity(
+	handle: DbHandle,
+	auth: RunnerAuth,
+	header: string | null
+): Promise<void> {
+	if (auth.kind !== 'tool') return;
+	const cap = parseToolSlots(header);
+	if (!cap) return;
+	await withTenant(handle, { orgId: auth.orgId }, async (tx) => {
+		await tx
+			.update(runner)
+			.set({ capacitySlots: cap.slots, capacityBusy: cap.busy })
 			.where(eq(runner.id, auth.runnerId));
 	});
 }

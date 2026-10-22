@@ -120,7 +120,7 @@ describe('a tool from before the heartbeat', () => {
 			'POST',
 			`/runs/${job.id}/finish`,
 			JSON.stringify({ result: 'pass', durationMs: 1200 }),
-			{ [TOOL_PROTOCOL_HEADER]: '1' }
+			{ [TOOL_PROTOCOL_HEADER]: String(TOOL_PROTOCOL_MIN) }
 		);
 		expect(done.status).toBe(200);
 		expect((await itemChecks(as('member'), made.ref)).checks[0].runs[0].result).toBe('pass');

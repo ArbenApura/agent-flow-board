@@ -13,7 +13,14 @@
 	}: {
 		webApp: boolean;
 		/** The afb-checks tools that serve this project, with whether each answered lately. */
-		tools: { id: string; name: string; online: boolean; lastSeenAt: string | null }[];
+		tools: {
+			id: string;
+			name: string;
+			online: boolean;
+			slots: number | null;
+			busy: number | null;
+			lastSeenAt: string | null;
+		}[];
 	} = $props();
 
 	// -- REACTIVE STATES -- //
@@ -44,7 +51,11 @@
 				<span class="text-sm font-medium">afb-checks tool</span>
 				{#if online}
 					<Badge tone="success">Connected</Badge>
-					<span class="text-xs text-muted">{online.name} answered lately.</span>
+					<span class="text-xs text-muted"
+						>{online.name} answered lately.{online.slots !== null
+							? ` It takes up to ${online.slots} ${online.slots === 1 ? 'run' : 'runs'} at once and holds ${online.busy ?? 0}.`
+							: ''}</span
+					>
 				{:else if lastTool}
 					<Badge tone="warning">Not running</Badge>
 					<span class="text-xs text-muted"

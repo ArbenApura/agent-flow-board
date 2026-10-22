@@ -11,7 +11,9 @@ import { comment, item, org as orgTable, step } from '../../src/lib/server/db/sc
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { handleMcp, oauthMetadata } from '../../src/lib/server/mcp/handler';
 import { systemSkillsIndex } from '../../src/lib/server/system-skills';
+import { authenticateRunner, registerToolRunner } from '../../src/lib/server/ops/environments';
 import { createItem } from '../../src/lib/server/ops/items';
+import { claimShotsJob, finishShotsRun } from '../../src/lib/server/ops/uiShots';
 import { createToken } from '../../src/lib/server/ops/tokens';
 import { makePostgres, type TestDb } from '../support/db';
 import { call, connect } from '../support/mcp';
@@ -1072,5 +1074,56 @@ describe('MCP server', () => {
 		).toBeDefined();
 		const deleted = await call(client, 'check_delete', { sessionId, item: made.ref, check: 'M1' });
 		expect(deleted).toEqual({ deleted: true });
+	});
+
+	it('captures screens through the tools: no pages named, a plain next step when no tool is online, and the result in the same call when it finishes', async () => {
+		await db.admin.exec(`update project set web_app = true where id = '${w.projectId}'`);
+		const made = await createItem(w.ctx('member'), {
+			project: w.projectKey,
+			title: 'Capture through MCP',
+			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Change a screen' }] }]
+		});
+		const client = await connect(deps, token);
+		const { sessionId } = await call(client, 'session_start', { tool: 'claude-code' });
+		// No tool online: finished at once, with the one thing to do
+		const offline = await call(client, 'ui_shots_run', { sessionId, item: made.ref, wait: 3 });
+		expect(offline.unavailable).toBe(true);
+		expect(offline.reason).toMatch(/capture tool is not connected/);
+		expect(offline.next).toMatch(/runner_status/);
+		// A tool online: the capture is queued, and an agent that asks again is given the same run
+		const tool = await registerToolRunner(w.ctx('admin'), {
+			name: 'MCP afb-checks',
+			projects: [w.projectKey]
+		});
+		const auth = (await authenticateRunner(db, tool.token))!;
+		await db.admin.exec(`update runner set last_seen_at = now() where id = '${tool.id}'`);
+		const queued = await call(client, 'ui_shots_run', { sessionId, item: made.ref });
+		expect(queued).toMatchObject({ state: 'queued', unavailable: false, existing: false });
+		const waiting = await call(client, 'ui_shots_run', { sessionId, item: made.ref, wait: 1 });
+		expect(waiting.id).toBe(queued.id);
+		expect(waiting.finished).toBe(false);
+		expect(waiting.next).toMatch(/ui_shots_get/);
+		// The tool finishes while the agent waits: the same call returns the finished capture
+		const [done, got] = await Promise.all([
+			call(client, 'ui_shots_run', { sessionId, item: made.ref, wait: 20 }),
+			(async () => {
+				await new Promise((r) => setTimeout(r, 800));
+				const job = (await claimShotsJob(db, auth))!;
+				await finishShotsRun(db, auth, job.id, {
+					state: 'done',
+					notes: ['No screen changed in this item.']
+				});
+				return job.id;
+			})()
+		]);
+		expect(done.finished).toBe(true);
+		expect(done.state).toBe('done');
+		expect(done.run.notes).toEqual(['No screen changed in this item.']);
+		expect(got).toBe(queued.id);
+		const read = await call(client, 'ui_shots_get', { item: made.ref });
+		expect(read).toMatchObject({ item: made.ref, toolOnline: true, canRun: true });
+		expect(read.runs[0]).toMatchObject({ state: 'done', screens: 0 });
+		expect(read.runs[0].notes).toEqual(['No screen changed in this item.']);
+		await client.close();
 	});
 });

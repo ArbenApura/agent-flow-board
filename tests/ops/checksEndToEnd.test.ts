@@ -164,8 +164,8 @@ describe.skipIf(!HAVE_TOOL)('a check from start to end through the MCP', () => {
 		const { sessionId } = await call(client, 'session_start', { tool: 'claude-code' });
 
 		// The agent writes the check where the tool runs it, and saves the same text on the board (no copy and paste by a person)
-		mkdirSync(path.join(world.checks, made.ref), { recursive: true });
-		writeFileSync(path.join(world.checks, made.ref, 'M1.mjs'), SCRIPT);
+		mkdirSync(path.join(world.checks, 'e2e', made.ref), { recursive: true });
+		writeFileSync(path.join(world.checks, 'e2e', made.ref, 'M1.mjs'), SCRIPT);
 		const saved = await call(client, 'check_save', {
 			sessionId,
 			item: made.ref,
@@ -247,8 +247,8 @@ describe.skipIf(!HAVE_TOOL)('a check from start to end through the MCP', () => {
 		const client = await connect({ handle: db, storage, baseUrl: 'http://board.test' }, token);
 		const { sessionId } = await call(client, 'session_start', { tool: 'claude-code' });
 		const failing = SCRIPT.replace("toHaveText('Home')", "toHaveText('Something else')");
-		mkdirSync(path.join(world.checks, made.ref), { recursive: true });
-		writeFileSync(path.join(world.checks, made.ref, 'M1.mjs'), failing);
+		mkdirSync(path.join(world.checks, 'e2e', made.ref), { recursive: true });
+		writeFileSync(path.join(world.checks, 'e2e', made.ref, 'M1.mjs'), failing);
 		await call(client, 'check_save', { sessionId, item: made.ref, check: 'M1', script: failing });
 		const asked = await call(client, 'check_run', {
 			sessionId,
