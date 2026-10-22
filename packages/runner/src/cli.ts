@@ -21,13 +21,13 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { chromium } from '@playwright/test';
 // -- MODULES -- //
-import { ApiError, RunnerApi, type Job } from './api';
+import { ApiError, RunnerApi, retryDelay, type Job } from './api';
 import { Approvals } from './approvals';
 import { runCheckJob } from './checks';
 import { loadConfig } from './config';
 import { runShotsJob } from './shots';
 import { supervise } from './supervisor';
-import { Targets } from './targets';
+import { Targets, sweepStaleRunDirs } from './targets';
 
 // -- FUNCTIONS -- //
 
@@ -154,7 +154,12 @@ async function start() {
 	const interval = Number(flag('--interval') ?? 3000);
 	const maxJobs = Number(flag('--max-jobs') ?? 0);
 	let done = 0;
+	let failures = 0;
 	try {
+		// Temp folders of runs that died without cleaning up are removed first
+		const swept = sweepStaleRunDirs();
+		if (swept)
+			say(`Removed ${swept} old run folder${swept === 1 ? '' : 's'} from the temp folder.`);
 		// Runs this runner held when it last stopped are given back, so they are not stuck until they time out
 		const back = await api.release();
 		if (back)
@@ -166,10 +171,12 @@ async function start() {
 				job = await api.claim();
 			} catch (e) {
 				if (e instanceof ApiError && e.status === 401) throw e;
+				failures++;
 				say(`Cannot reach the server: ${(e as Error).message}`);
-				await sleep(5000);
+				await sleep(retryDelay(failures));
 				continue;
 			}
+			failures = 0;
 			if (!job) {
 				if (has('--once')) break;
 				await sleep(interval);

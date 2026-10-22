@@ -65,8 +65,8 @@ export const RUNNING_TIMEOUT_MINUTES = 30;
 /** A run whose runner sends a heartbeat is reported stuck when the beat stops for this long. A runner that never beats keeps the longer rule above. */
 export const BEAT_TIMEOUT_MINUTES = 10;
 const LOG_KEEP = 20_000;
-/** The longest a single wait may last, and the default, in seconds. Keep it under the time an agent's tool call may take. */
-export const WAIT_MAX_SECONDS = 90;
+/** The longest a single wait may last, and the default, in seconds. Many MCP clients cut a call near 60 seconds, so a wait stays under that. */
+export const WAIT_MAX_SECONDS = 50;
 const WAIT_DEFAULT_SECONDS = 30;
 const WAIT_POLL_MS = 2000;
 /** How many runs per org may be waited for at once in one server process. */

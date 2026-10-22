@@ -2,7 +2,7 @@
 // 6.9: THE STDIO BRIDGE END TO END AGAINST THE REAL /mcp HANDLER, WITH THE OFFLINE QUEUE, THE DEVICE SIGN IN AND THE TOKEN STORE
 
 // -- DEP-MODULES -- //
-import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -14,7 +14,7 @@ import { approveDevice, pollDevice, startDevice } from '../../../src/lib/server/
 import { createToken } from '../../../src/lib/server/ops/tokens';
 import { makePostgres, type TestDb } from '../../../tests/support/db';
 import { makeWorld, type World } from '../../../tests/support/ops';
-import { runBridge } from './bridge';
+import { isNetworkError, runBridge } from './bridge';
 import { deviceLogin, type Fetch } from './device';
 import { Queue } from './queue';
 import { accountKey, fileStore, windowsStore } from './tokenStore';
@@ -214,12 +214,18 @@ describe('bridge', () => {
 		await b.end();
 	});
 
-	it('signs in again once when the saved token is refused, then carries on', async () => {
+	it('starts one background sign in when the saved token is refused, answers at once, then carries on', async () => {
 		let logins = 0;
 		const b = start({ fetch: shim(), token: 'afb_expired', login: async () => (logins++, token) });
+		// The refused call is answered with a clear tool error and does not wait for the sign in
+		const refused = await b.rpc('tools/call', { name: 'session_start', arguments: { tool: 'x' } });
+		expect(refused.result.isError).toBe(true);
+		expect(refused.result.content[0].text).toContain('sign in');
+		for (let i = 0; i < 100 && logins < 1; i++) await new Promise((r) => setTimeout(r, 10));
+		expect(logins).toBe(1);
+		expect(b.logs.some((l) => l.includes('no longer valid'))).toBe(true);
 		await init(b);
 		expect(logins).toBe(1);
-		expect(b.logs.some((l) => l.includes('Signing in again'))).toBe(true);
 		expect((await b.tool('session_start', { tool: 'bridge' })).out.sessionId).toMatch(/^s_/);
 		await b.end();
 	});
@@ -401,3 +407,190 @@ import { readFileSync } from 'node:fs';
 function require_file_text(file: string): string {
 	return readFileSync(file).toString('latin1');
 }
+
+// -- HANG GUARDS -- //
+
+describe('bridge hang guards', () => {
+	const dirs: string[] = [];
+	afterAll(() => {
+		for (const d of dirs) rmSync(d, { recursive: true, force: true });
+	});
+
+	/** A bridge on a pair of streams against a mock fetch, with no board behind it. */
+	function mini(fetchImpl: Fetch, extra: { postTimeoutMs?: number } = {}) {
+		const dir = mkdtempSync(join(tmpdir(), 'afb-guard-'));
+		dirs.push(dir);
+		const stdin = new PassThrough();
+		const stdout = new PassThrough();
+		const lines: any[] = [];
+		let buf = '';
+		stdout.on('data', (c) => {
+			buf += c.toString();
+			let i;
+			while ((i = buf.indexOf('\n')) >= 0) {
+				lines.push(JSON.parse(buf.slice(0, i)));
+				buf = buf.slice(i + 1);
+			}
+		});
+		const queue = new Queue(join(dir, 'queue.json'));
+		const logs: string[] = [];
+		const done = runBridge({
+			server: BASE,
+			fetch: fetchImpl,
+			getToken: () => 'afb_test',
+			login: async () => 'afb_new',
+			queue,
+			stdin,
+			stdout,
+			log: (l) => logs.push(l),
+			replayEveryMs: 0,
+			...extra
+		});
+		let id = 0;
+		const rpc = async (method: string, params?: unknown): Promise<any> => {
+			const mine = ++id;
+			stdin.write(JSON.stringify({ jsonrpc: '2.0', id: mine, method, params }) + '\n');
+			for (let i = 0; i < 400; i++) {
+				const hit = lines.find((l) => l.id === mine);
+				if (hit) return hit;
+				await new Promise((r) => setTimeout(r, 10));
+			}
+			throw new Error(`No reply to ${method}`);
+		};
+		return {
+			rpc,
+			queue,
+			dir,
+			logs,
+			end: async () => {
+				stdin.end();
+				await done;
+			}
+		};
+	}
+
+	it('only a failure to reach the board counts as a network error, not any TypeError', () => {
+		expect(isNetworkError(new TypeError('fetch failed'))).toBe(true);
+		expect(isNetworkError(Object.assign(new Error('x'), { code: 'ECONNREFUSED' }))).toBe(true);
+		expect(
+			isNetworkError(Object.assign(new TypeError('x'), { cause: { code: 'ENOTFOUND' } }))
+		).toBe(true);
+		expect(isNetworkError(new TypeError("Cannot read properties of undefined (reading 'x')"))).toBe(
+			false
+		);
+		expect(isNetworkError(new Error('network says no'))).toBe(false);
+		expect(isNetworkError(null)).toBe(false);
+	});
+
+	it('a request that hangs is given up on, answered with a clear error and never queued', async () => {
+		// A fetch that never answers but honours the signal, as the real one does
+		const hang: Fetch = (_input, init) =>
+			new Promise((_resolve, reject) => {
+				init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
+			});
+		const b = mini(hang, { postTimeoutMs: 60 });
+		const reply = await b.rpc('tools/call', { name: 'task_new', arguments: { title: 'x' } });
+		expect(reply.error.message).toContain('did not answer');
+		expect(reply.error.message).toContain('may or may not');
+		expect(b.queue.list()).toHaveLength(0);
+		await b.end();
+	});
+
+	it('a bug in the bridge is shown, not hidden as offline', async () => {
+		const broken: Fetch = async () => {
+			throw new TypeError("Cannot read properties of undefined (reading 'x')");
+		};
+		const b = mini(broken);
+		const reply = await b.rpc('tools/list');
+		expect(reply.error.message).toContain('Cannot read properties');
+		await b.end();
+	});
+
+	it('a 401 answers at once with a sign in message and starts the sign in only once', async () => {
+		let logins = 0;
+		let release: (t: string) => void = () => undefined;
+		const dir = mkdtempSync(join(tmpdir(), 'afb-guard-'));
+		dirs.push(dir);
+		const stdin = new PassThrough();
+		const stdout = new PassThrough();
+		const lines: any[] = [];
+		stdout.on('data', (c) => {
+			for (const l of c.toString().split('\n').filter(Boolean)) lines.push(JSON.parse(l));
+		});
+		const done = runBridge({
+			server: BASE,
+			fetch: async () => new Response('{}', { status: 401 }),
+			getToken: () => 'afb_old',
+			login: () =>
+				new Promise<string>((resolve) => {
+					logins++;
+					release = resolve;
+				}),
+			queue: new Queue(join(dir, 'queue.json')),
+			stdin,
+			stdout,
+			log: () => undefined,
+			replayEveryMs: 0
+		});
+		for (const id of [1, 2, 3])
+			stdin.write(
+				JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'x' } }) + '\n'
+			);
+		for (let i = 0; i < 300 && lines.length < 3; i++) await new Promise((r) => setTimeout(r, 10));
+		expect(lines).toHaveLength(3);
+		expect(
+			lines.every((l) => l.result.isError && l.result.content[0].text.includes('sign in'))
+		).toBe(true);
+		expect(logins).toBe(1);
+		release('afb_new');
+		stdin.end();
+		await done;
+	});
+});
+
+describe('the offline queue lock', () => {
+	const dirs: string[] = [];
+	afterAll(() => {
+		for (const d of dirs) rmSync(d, { recursive: true, force: true });
+	});
+	const fresh = () => {
+		const d = mkdtempSync(join(tmpdir(), 'afb-qlock-'));
+		dirs.push(d);
+		return join(d, 'queue.json');
+	};
+
+	it('takes over a stale lock left by a dead process, and removes its own lock afterwards', () => {
+		const file = fresh();
+		writeFileSync(`${file}.lock`, '99999');
+		const old = new Date(Date.now() - 60_000);
+		utimesSync(`${file}.lock`, old, old);
+		const q = new Queue(file);
+		const e = q.enqueue('task_new', { title: 'a' });
+		expect(q.list().map((x) => x.id)).toEqual([e.id]);
+		expect(existsSync(`${file}.lock`)).toBe(false);
+	});
+
+	it('waits for a fresh lock and takes it over when the wait ends', () => {
+		const file = fresh();
+		writeFileSync(`${file}.lock`, '99999');
+		const q = new Queue(file, { staleMs: 60_000, waitMs: 120 });
+		const started = Date.now();
+		q.enqueue('task_new', { title: 'a' });
+		expect(Date.now() - started).toBeGreaterThanOrEqual(100);
+		expect(q.list()).toHaveLength(1);
+		expect(existsSync(`${file}.lock`)).toBe(false);
+	});
+
+	it('keeps a write that is queued while a replay is sending', async () => {
+		const file = fresh();
+		const q = new Queue(file);
+		q.enqueue('task_new', { title: 'first', item: 'A' });
+		const r = await q.replay(async () => {
+			// A second bridge queues a write while this one is in the middle of sending
+			new Queue(file).enqueue('task_new', { title: 'second', item: 'B' });
+			return { kind: 'ok' };
+		});
+		expect(r.sent).toBe(1);
+		expect(q.list().map((x) => x.args.title)).toEqual(['second']);
+	});
+});

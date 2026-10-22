@@ -49,7 +49,7 @@ import {
 import { actorFields, canSeeItem } from './items';
 import { findItem, findProject } from './resolve';
 import { addAttachment } from './attachments';
-import { DEFAULT_QUEUE_MINUTES, isPrivateUrl, runnerCtx } from './checks';
+import { DEFAULT_QUEUE_MINUTES, WAIT_MAX_SECONDS, isPrivateUrl, runnerCtx } from './checks';
 
 // -- CONSTANTS -- //
 
@@ -1078,7 +1078,7 @@ export async function waitForShotsRun(
 		);
 	shotWaiters.set(ctx.orgId, now + 1);
 	try {
-		const until = Date.now() + Math.min(input.seconds, 90) * 1000;
+		const until = Date.now() + Math.min(input.seconds, WAIT_MAX_SECONDS) * 1000;
 		const poll = opts.pollMs ?? 1500;
 		while (SHOT_OPEN.has(view.state) && Date.now() < until) {
 			await sleep(Math.min(poll, Math.max(0, until - Date.now())));

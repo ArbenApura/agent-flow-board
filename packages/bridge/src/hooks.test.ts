@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 // -- MODULES -- //
 import { ADAPTERS, antigravity, claude, gemini, runHook } from './hooks/adapters.js';
 import { callHook, type HookEvent } from './hooks/call.js';
@@ -416,6 +416,37 @@ describe('calling the server from a hook', () => {
 				event
 			)
 		).toBeNull();
+	});
+});
+
+describe('a hook that cannot reach the board', () => {
+	it('still answers null but says why once on stderr', async () => {
+		const event: HookEvent = {
+			tool: 'claude-code',
+			event: 'stop',
+			externalId: 'conversation-0001'
+		};
+		vi.resetModules();
+		const fresh = await import('./hooks/call.js');
+		const writes: string[] = [];
+		const spy = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+			writes.push(String(chunk));
+			return true;
+		});
+		try {
+			const o = {
+				server: 'https://x.example.com',
+				token: null,
+				fetch: async () => new Response('{}')
+			};
+			expect(await fresh.callHook(o, event)).toBeNull();
+			expect(await fresh.callHook(o, event)).toBeNull();
+		} finally {
+			spy.mockRestore();
+		}
+		expect(writes).toHaveLength(1);
+		expect(writes[0]).toContain('agent-flow-board hook');
+		expect(writes[0]).toContain('login');
 	});
 });
 

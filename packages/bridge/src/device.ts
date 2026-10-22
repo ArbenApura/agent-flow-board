@@ -7,6 +7,9 @@ export type DeviceResult = { token: string; expiresInSeconds: number };
 
 // -- FUNCTIONS -- //
 
+/** How long one sign in call may take. The wait between polls is separate. */
+export const DEVICE_CALL_TIMEOUT_MS = 30_000;
+
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function deviceLogin(
@@ -19,7 +22,8 @@ export async function deviceLogin(
 	const start = await fetchImpl(`${server}/oauth/device/code`, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ client_name: options.name ?? 'agent-flow-board bridge' })
+		body: JSON.stringify({ client_name: options.name ?? 'agent-flow-board bridge' }),
+		signal: AbortSignal.timeout(DEVICE_CALL_TIMEOUT_MS)
 	});
 	if (!start.ok) throw new Error(`The server refused the sign in (${start.status}).`);
 	const d = (await start.json()) as {
@@ -43,7 +47,8 @@ export async function deviceLogin(
 			body: new URLSearchParams({
 				grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
 				device_code: d.device_code
-			}).toString()
+			}).toString(),
+			signal: AbortSignal.timeout(DEVICE_CALL_TIMEOUT_MS)
 		});
 		const body = (await res.json()) as {
 			access_token?: string;

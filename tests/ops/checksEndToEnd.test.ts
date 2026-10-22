@@ -202,7 +202,7 @@ describe.skipIf(!HAVE_TOOL)('a check from start to end through the MCP', () => {
 			check: 'M1',
 			target: 'preview',
 			step: '1.1',
-			wait: 90
+			wait: 50
 		});
 		expect(asked.error, JSON.stringify(asked.error)).toBeUndefined();
 		expect(asked.finished, workerOut).toBe(true);
@@ -228,7 +228,7 @@ describe.skipIf(!HAVE_TOOL)('a check from start to end through the MCP', () => {
 			item: made.ref,
 			check: 'M1',
 			target: 'preview',
-			wait: 90
+			wait: 50
 		});
 		expect(again.run.id).not.toBe(asked.run.id);
 		expect(again.run.result).toBe('pass');
@@ -255,7 +255,7 @@ describe.skipIf(!HAVE_TOOL)('a check from start to end through the MCP', () => {
 			item: made.ref,
 			check: 'M1',
 			target: 'preview',
-			wait: 90
+			wait: 50
 		});
 		expect(asked.finished).toBe(true);
 		expect(asked.run.result).toBe('fail');
@@ -273,7 +273,7 @@ describe.skipIf(!HAVE_TOOL)('a check from start to end through the MCP', () => {
 			item: noFile.ref,
 			check: 'M1',
 			target: 'preview',
-			wait: 90
+			wait: 50
 		});
 		expect(none.run.result).toBe('error');
 		expect(none.run.reason).toMatch(/no check file for/);

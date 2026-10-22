@@ -5,6 +5,17 @@
 
 // -- DEP-MODULES -- //
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 // -- MODULES -- //
 import type { Approvals } from './approvals';
 import type { RunnerConfig, Served } from './config';
@@ -30,7 +41,17 @@ export class TargetUnavailable extends Error {
 	}
 }
 
-type Running = { child: ChildProcess; hash: string; tail: () => string };
+type Running = { child: ChildProcess; hash: string; tail: () => string; pidFile: string };
+
+// -- CONSTANTS -- //
+
+/** A build that runs longer than this is stopped with all its children. */
+export const BUILD_DEADLINE_MS = 10 * 60_000;
+/** The most output kept of a build or a server: the end of it, which is where the error is. */
+export const OUTPUT_KEEP = 4096;
+/** A run folder this old belongs to a run that died without cleaning up. */
+export const STALE_RUN_DIR_MS = 24 * 60 * 60_000;
+const RUN_DIR_PREFIX = 'afb-run-';
 
 // -- FUNCTIONS -- //
 
@@ -48,16 +69,60 @@ function childEnv(extra?: Record<string, string>): NodeJS.ProcessEnv {
 	return env;
 }
 
-function killTree(child: ChildProcess) {
-	if (!child.pid || child.exitCode !== null) return;
-	if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F']);
+/** Kills a process and every child it started. Windows: taskkill /T /F. Elsewhere the child leads its own process group (detached), so the group goes. */
+export function killPid(pid: number) {
+	if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(pid), '/T', '/F']);
 	else {
 		try {
-			process.kill(-child.pid, 'SIGTERM');
+			process.kill(-pid, 'SIGKILL');
 		} catch {
-			child.kill('SIGTERM');
+			try {
+				process.kill(pid, 'SIGKILL');
+			} catch {
+				/* Already gone */
+			}
 		}
 	}
+}
+
+export function killTree(child: ChildProcess) {
+	if (!child.pid || child.exitCode !== null) return;
+	killPid(child.pid);
+}
+
+/** Keeps only the last `max` characters of what a process prints, so a noisy server cannot grow the memory of the runner. */
+export function tailBuffer(max = OUTPUT_KEEP) {
+	let text = '';
+	return {
+		push: (d: unknown) => {
+			text = (text + String(d)).slice(-max);
+		},
+		text: () => text
+	};
+}
+
+/** Removes the run folders (afb-run-*) in the temp folder that are older than a day. Only folders with that prefix are touched. */
+export function sweepStaleRunDirs(dir = tmpdir(), now = Date.now(), maxAgeMs = STALE_RUN_DIR_MS) {
+	let removed = 0;
+	let names: string[];
+	try {
+		names = readdirSync(dir);
+	} catch {
+		return 0;
+	}
+	for (const name of names) {
+		if (!name.startsWith(RUN_DIR_PREFIX)) continue;
+		const full = join(dir, name);
+		try {
+			const st = statSync(full);
+			if (!st.isDirectory() || now - st.mtimeMs < maxAgeMs) continue;
+			rmSync(full, { recursive: true, force: true });
+			removed++;
+		} catch {
+			/* In use or already gone */
+		}
+	}
+	return removed;
 }
 
 async function answers(url: string, path = '/'): Promise<boolean> {
@@ -93,8 +158,31 @@ export class Targets {
 		private readonly repo: string,
 		private readonly config: RunnerConfig,
 		private readonly approvals: Approvals,
-		private readonly log: (line: string) => void
+		private readonly log: (line: string) => void,
+		/** Where the pid of each server this runner starts is written, so a crash does not leave it running for good. */
+		private readonly pidDir: string = join(tmpdir(), 'afb-runner-pids'),
+		private readonly buildDeadlineMs: number = BUILD_DEADLINE_MS
 	) {}
+
+	private pidFileFor(key: string) {
+		return join(this.pidDir, `${key.replace(/[^a-zA-Z0-9._-]/g, '_')}.pid`);
+	}
+
+	/** Stops a server an earlier runner started and left behind. */
+	private reapOrphan(pidFile: string) {
+		if (!existsSync(pidFile)) return;
+		try {
+			const pid = Number(readFileSync(pidFile, 'utf8').trim());
+			const mine = [...this.running.values()].some((r) => r.child.pid === pid);
+			if (Number.isInteger(pid) && pid > 0 && !mine) {
+				this.log(`Stopping a server left over from an earlier run (process ${pid}).`);
+				killPid(pid);
+			}
+		} catch {
+			/* Unreadable pid file */
+		}
+		rmSync(pidFile, { force: true });
+	}
 
 	/** Gets the target ready and says where it is and what code it holds. */
 	async prepare(opts: {
@@ -122,10 +210,8 @@ export class Targets {
 				diffHash: hash,
 				note: 'The build from the last run was reused.'
 			};
-		if (mine) {
-			killTree(mine.child);
-			this.running.delete(key);
-		}
+		if (mine) this.stopOne(key, mine);
+		else this.reapOrphan(this.pidFileFor(key));
 		if (!served?.start) {
 			// Nothing to start: use a server that is already answering, if one is
 			if (await answers(opts.url, ready))
@@ -171,25 +257,40 @@ export class Targets {
 
 	private async build(served: Served, command: string) {
 		this.log(`Building: ${command}`);
-		const out: string[] = [];
+		const out = tailBuffer();
 		const child = spawn(command, {
 			cwd: served.cwd ?? this.repo,
 			shell: true,
 			env: childEnv(served.env),
-			stdio: ['ignore', 'pipe', 'pipe']
+			stdio: ['ignore', 'pipe', 'pipe'],
+			detached: process.platform !== 'win32'
 		});
-		child.stdout?.on('data', (d) => out.push(String(d)));
-		child.stderr?.on('data', (d) => out.push(String(d)));
-		const code: number = await new Promise((res) => child.on('close', (c) => res(c ?? 1)));
+		child.stdout?.on('data', out.push);
+		child.stderr?.on('data', out.push);
+		// The deadline stops the build and everything it started, so a hung build cannot hold the runner for good
+		let timedOut = false;
+		const timer = setTimeout(() => {
+			timedOut = true;
+			killTree(child);
+		}, this.buildDeadlineMs);
+		const code: number = await new Promise((res) => {
+			child.on('close', (c) => res(c ?? 1));
+			child.on('error', () => res(1));
+		});
+		clearTimeout(timer);
+		if (timedOut)
+			throw new TargetUnavailable(
+				`The build took longer than ${Math.round(this.buildDeadlineMs / 60_000)} minutes and was stopped. The end of its log:\n${out.text().slice(-1500)}`
+			);
 		if (code !== 0)
 			throw new TargetUnavailable(
-				`The build failed (exit ${code}). The end of its log:\n${out.join('').slice(-1500)}`
+				`The build failed (exit ${code}). The end of its log:\n${out.text().slice(-1500)}`
 			);
 	}
 
 	private async start(key: string, served: Served, url: string, hash: string) {
 		this.log(`Starting: ${served.start}`);
-		const out: string[] = [];
+		const out = tailBuffer();
 		const child = spawn(served.start!, {
 			cwd: served.cwd ?? this.repo,
 			shell: true,
@@ -197,13 +298,24 @@ export class Targets {
 			stdio: ['ignore', 'pipe', 'pipe'],
 			detached: process.platform !== 'win32'
 		});
-		child.stdout?.on('data', (d) => out.push(String(d)));
-		child.stderr?.on('data', (d) => out.push(String(d)));
-		const tail = () => out.join('').slice(-1500);
-		this.running.set(key, { child, hash, tail });
+		child.stdout?.on('data', out.push);
+		child.stderr?.on('data', out.push);
+		const tail = () => out.text().slice(-1500);
+		const pidFile = this.pidFileFor(key);
+		this.reapOrphan(pidFile);
+		if (child.pid) {
+			try {
+				mkdirSync(this.pidDir, { recursive: true });
+				writeFileSync(pidFile, String(child.pid));
+			} catch {
+				/* The pid file is a safety net only */
+			}
+		}
+		this.running.set(key, { child, hash, tail, pidFile });
 		const deadline = Date.now() + 240_000;
 		while (Date.now() < deadline) {
 			if (child.exitCode !== null) {
+				rmSync(pidFile, { force: true });
 				this.running.delete(key);
 				throw new TargetUnavailable(
 					`The server stopped while starting (exit ${child.exitCode}). The end of its log:\n${tail()}`
@@ -213,6 +325,7 @@ export class Targets {
 			await sleep(500);
 		}
 		killTree(child);
+		rmSync(pidFile, { force: true });
 		this.running.delete(key);
 		throw new TargetUnavailable(
 			`The server did not answer at ${url} within 4 minutes. The end of its log:\n${tail()}`
@@ -269,7 +382,16 @@ export class Targets {
 
 	/** Stops every server this runner started. */
 	stopAll() {
-		for (const r of this.running.values()) killTree(r.child);
+		for (const r of this.running.values()) {
+			killTree(r.child);
+			rmSync(r.pidFile, { force: true });
+		}
 		this.running.clear();
+	}
+
+	private stopOne(key: string, r: Running) {
+		killTree(r.child);
+		rmSync(r.pidFile, { force: true });
+		this.running.delete(key);
 	}
 }

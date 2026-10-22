@@ -200,6 +200,8 @@ async function main() {
 		stdout: process.stdout,
 		log
 	});
+	// A background sign in may still be polling when the tool closes the bridge, and it must not keep this process alive
+	setTimeout(() => process.exit(0), 500).unref();
 }
 
 main().catch((e) => {

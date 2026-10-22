@@ -8,7 +8,17 @@ export type Job = CheckJob | ShotsJob;
 export type Account = { email: string; password: string };
 export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
+// -- CONSTANTS -- //
+
+/** How long one call may take before it is given up, in ms. A half open connection would otherwise hang the loop for good. */
+export const CALL_TIMEOUT_MS = 30_000;
+export const UPLOAD_TIMEOUT_MS = 120_000;
+
 // -- FUNCTIONS -- //
+
+/** The wait before the next try after `failures` calls in a row failed: 5 s, doubling, at most 60 s. */
+export const retryDelay = (failures: number) =>
+	Math.min(60_000, 5000 * 2 ** Math.max(0, failures - 1));
 
 export class ApiError extends Error {
 	constructor(
@@ -29,13 +39,38 @@ export class RunnerApi {
 		private readonly doFetch: Fetch = fetch
 	) {}
 
-	private async call<T>(method: string, path: string, body?: BodyInit, type?: string): Promise<T> {
-		const res = await this.doFetch(`${this.server.replace(/\/$/, '')}/api/v1/runner${path}`, {
-			method,
-			headers: { authorization: `Bearer ${this.token}`, ...(type ? { 'content-type': type } : {}) },
-			body
-		});
-		const text = await res.text();
+	private async call<T>(
+		method: string,
+		path: string,
+		body?: BodyInit,
+		type?: string,
+		timeoutMs = CALL_TIMEOUT_MS
+	): Promise<T> {
+		// One signal covers the answer and the reading of its body
+		const signal = AbortSignal.timeout(timeoutMs);
+		let text: string;
+		let res: Response;
+		try {
+			res = await this.doFetch(`${this.server.replace(/\/$/, '')}/api/v1/runner${path}`, {
+				method,
+				headers: {
+					authorization: `Bearer ${this.token}`,
+					...(type ? { 'content-type': type } : {})
+				},
+				body,
+				signal
+			});
+			text = await res.text();
+		} catch (e) {
+			const name = (e as { name?: string } | null)?.name;
+			if (name === 'TimeoutError' || name === 'AbortError')
+				throw new ApiError(
+					0,
+					'TIMEOUT',
+					`The server did not answer ${method} ${path.split('?')[0]} within ${Math.round(timeoutMs / 1000)} seconds.`
+				);
+			throw e;
+		}
 		let json: unknown = null;
 		try {
 			json = text ? JSON.parse(text) : null;
@@ -93,7 +128,8 @@ export class RunnerApi {
 			'POST',
 			`/${kind}/${id}/${what}?${q}`,
 			file.bytes as unknown as BodyInit,
-			'application/octet-stream'
+			'application/octet-stream',
+			UPLOAD_TIMEOUT_MS
 		);
 		return out.attachmentId;
 	}

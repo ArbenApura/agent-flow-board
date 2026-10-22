@@ -2,19 +2,36 @@
 // VERSION WAIT AND THE LOCKED DOWN CONTAINER OF A HOSTED RUN (SPEC 10, L1, L26, L27)
 
 // -- DEP-MODULES -- //
-import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	rmSync,
+	utimesSync,
+	writeFileSync
+} from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { createServer as netServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 // -- MODULES -- //
+import { ApiError, CALL_TIMEOUT_MS, RunnerApi, UPLOAD_TIMEOUT_MS, retryDelay } from './api';
 import { Approvals, NeedsApproval } from './approvals';
+import { SCRIPT_TIMEOUT_MS, runCheckJob, withTimeout } from './checks';
 import { loadConfig } from './config';
 import { appHash, changedPaths, headCommit } from './git';
 import { dockerArgs } from './supervisor';
-import { Targets, TargetUnavailable } from './targets';
+import {
+	OUTPUT_KEEP,
+	Targets,
+	TargetUnavailable,
+	killTree,
+	sweepStaleRunDirs,
+	tailBuffer
+} from './targets';
 
 // -- CONSTANTS -- //
 
@@ -325,5 +342,267 @@ describe('the container of a hosted run', () => {
 		expect(args).not.toContain('--volume');
 		expect(args).not.toContain('--privileged');
 		expect(args.join(' ')).not.toContain('--network host');
+	});
+});
+
+// -- HANG GUARDS -- //
+
+describe('the calls of the runner to the server', () => {
+	const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
+
+	it('gives every call a 30 second signal and an upload 120 seconds', async () => {
+		const timeouts: number[] = [];
+		const real = AbortSignal.timeout.bind(AbortSignal);
+		const spy = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms) => {
+			timeouts.push(ms);
+			return real(ms);
+		});
+		const seen: (AbortSignal | null | undefined)[] = [];
+		const api = new RunnerApi('https://board.test', 'afx_t', async (_url, init) => {
+			seen.push(init?.signal);
+			return ok({ job: null, waiting: 0, attachmentId: 'a1' });
+		});
+		try {
+			await api.claim();
+			await api.upload('runs', 'r1', { filename: 'a.png', caption: 'c', bytes: new Uint8Array(2) });
+		} finally {
+			spy.mockRestore();
+		}
+		expect(timeouts).toEqual([CALL_TIMEOUT_MS, UPLOAD_TIMEOUT_MS]);
+		expect(CALL_TIMEOUT_MS).toBe(30_000);
+		expect(UPLOAD_TIMEOUT_MS).toBe(120_000);
+		expect(seen.every((s) => s instanceof AbortSignal)).toBe(true);
+	});
+
+	it('turns a call that timed out into a clear error', async () => {
+		const api = new RunnerApi('https://board.test', 'afx_t', async () => {
+			throw Object.assign(new Error('The operation was aborted due to timeout'), {
+				name: 'TimeoutError'
+			});
+		});
+		const err = await api.claim().catch((e) => e);
+		expect(err).toBeInstanceOf(ApiError);
+		expect(err.code).toBe('TIMEOUT');
+		expect(err.message).toMatch(/did not answer POST \/claim within 30 seconds/);
+	});
+
+	it('really gives up on a call that never answers', async () => {
+		// A signal that is already aborted stands in for the 30 seconds
+		const spy = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => AbortSignal.abort());
+		const api = new RunnerApi(
+			'https://board.test',
+			'afx_t',
+			(_url, init) =>
+				new Promise((_res, rej) => {
+					if (init?.signal?.aborted) rej(init.signal.reason);
+				})
+		);
+		try {
+			await expect(api.peek()).rejects.toMatchObject({ code: 'TIMEOUT' });
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it('waits longer after each failure in a row, at most a minute', () => {
+		expect([1, 2, 3, 4, 5, 6, 20].map(retryDelay)).toEqual([
+			5000, 10_000, 20_000, 40_000, 60_000, 60_000, 60_000
+		]);
+	});
+});
+
+describe('process guards of the targets', () => {
+	const sleeper = `${q(process.execPath)} -e "setTimeout(() => {}, 600000)"`;
+
+	it('stops a build that runs past its deadline, with a clear message', async () => {
+		const repo = makeRepo();
+		const approvals = new Approvals(join(tmp('afb-ap-'), 'a.json'), 'trust-all');
+		const config = {
+			...loadConfig(repo),
+			appPaths: ['app'],
+			preview: { build: sleeper, start: 'node -v', url: 'http://127.0.0.1:1' }
+		};
+		const targets = new Targets(repo, config, approvals, () => {}, tmp('afb-pids-'), 400);
+		const started = Date.now();
+		await expect(
+			targets.prepare({
+				project: 'CKT',
+				target: 'preview',
+				url: 'http://127.0.0.1:1',
+				versionPath: null
+			})
+		).rejects.toThrow(/build took longer than .* and was stopped/);
+		expect(Date.now() - started).toBeLessThan(20_000);
+	}, 30_000);
+
+	it('kills a process and its children', async () => {
+		const parent = spawn(
+			process.execPath,
+			[
+				'-e',
+				"const c = require('child_process').spawn(process.execPath, ['-e', 'setTimeout(()=>{},600000)'], { stdio: 'ignore' }); console.log(c.pid); setTimeout(()=>{},600000);"
+			],
+			{ stdio: ['ignore', 'pipe', 'ignore'], detached: process.platform !== 'win32' }
+		);
+		const childPid = Number(
+			await new Promise<string>((res) => parent.stdout?.once('data', (d) => res(String(d).trim())))
+		);
+		const alive = (pid: number) => {
+			try {
+				process.kill(pid, 0);
+				return true;
+			} catch {
+				return false;
+			}
+		};
+		expect(alive(childPid)).toBe(true);
+		killTree(parent);
+		for (let i = 0; i < 100 && alive(childPid); i++) await new Promise((r) => setTimeout(r, 50));
+		expect(alive(childPid)).toBe(false);
+	}, 20_000);
+
+	it('keeps only the last 4 KB of what a process prints', () => {
+		const t = tailBuffer();
+		for (let i = 0; i < 1000; i++) t.push(`line ${i} ${'x'.repeat(50)}\n`);
+		expect(t.text().length).toBe(OUTPUT_KEEP);
+		expect(OUTPUT_KEEP).toBe(4096);
+		expect(t.text()).toContain('line 999');
+		expect(t.text()).not.toContain('line 0 ');
+	});
+
+	it('removes only afb-run folders older than a day', () => {
+		const root = tmp('afb-sweep-');
+		const old = new Date(Date.now() - 2 * 24 * 60 * 60_000);
+		const mk = (name: string, when: Date) => {
+			mkdirSync(join(root, name));
+			utimesSync(join(root, name), when, when);
+		};
+		mk('afb-run-old', old);
+		mk('afb-run-new', new Date());
+		mk('other-old', old);
+		writeFileSync(join(root, 'afb-run-file'), 'x');
+		utimesSync(join(root, 'afb-run-file'), old, old);
+		expect(sweepStaleRunDirs(root)).toBe(1);
+		expect(existsSync(join(root, 'afb-run-old'))).toBe(false);
+		expect(existsSync(join(root, 'afb-run-new'))).toBe(true);
+		expect(existsSync(join(root, 'other-old'))).toBe(true);
+		expect(existsSync(join(root, 'afb-run-file'))).toBe(true);
+	});
+
+	it('writes a pid file for a started server and removes it on stop', async () => {
+		const repo = makeRepo();
+		const port = await freePort();
+		const url = `http://127.0.0.1:${port}`;
+		const pidDir = tmp('afb-pids-');
+		const approvals = new Approvals(join(tmp('afb-ap-'), 'a.json'), 'trust-all');
+		const config = {
+			...loadConfig(repo),
+			appPaths: ['app'],
+			preview: { start: `${q(process.execPath)} server.cjs ${port}`, url }
+		};
+		const targets = new Targets(repo, config, approvals, () => {}, pidDir);
+		await targets.prepare({ project: 'CKT', target: 'preview', url, versionPath: null });
+		expect(readdirSync(pidDir)).toEqual(['CKT_preview.pid']);
+		targets.stopAll();
+		expect(readdirSync(pidDir)).toEqual([]);
+	}, 30_000);
+
+	it('stops a server an earlier runner left behind before it starts a new one', async () => {
+		const repo = makeRepo();
+		const port = await freePort();
+		const url = `http://127.0.0.1:${port}`;
+		const pidDir = tmp('afb-pids-');
+		const orphan = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 600000)'], {
+			stdio: 'ignore',
+			detached: process.platform !== 'win32'
+		});
+		const pid = orphan.pid!;
+		writeFileSync(join(pidDir, 'CKT_preview.pid'), String(pid));
+		const lines: string[] = [];
+		const approvals = new Approvals(join(tmp('afb-ap-'), 'a.json'), 'trust-all');
+		const config = {
+			...loadConfig(repo),
+			appPaths: ['app'],
+			preview: { start: `${q(process.execPath)} server.cjs ${port}`, url }
+		};
+		const targets = new Targets(repo, config, approvals, (l) => lines.push(l), pidDir);
+		await targets.prepare({ project: 'CKT', target: 'preview', url, versionPath: null });
+		for (let i = 0; i < 100 && orphan.exitCode === null && orphan.signalCode === null; i++)
+			await new Promise((r) => setTimeout(r, 50));
+		expect(orphan.exitCode !== null || orphan.signalCode !== null).toBe(true);
+		expect(lines.some((l) => l.includes(`process ${pid}`))).toBe(true);
+		targets.stopAll();
+	}, 30_000);
+});
+
+describe('the check script guards', () => {
+	/** A browser that records how often a context was made and closed, and a job whose script throws. */
+	function harness(readOnly: boolean, script: string) {
+		const calls = { contexts: 0, closed: 0, finished: [] as Record<string, unknown>[] };
+		const page = { screenshot: async () => undefined, video: () => null };
+		const browser = {
+			newContext: async () => {
+				calls.contexts++;
+				return {
+					tracing: { start: async () => undefined, stop: async () => undefined },
+					route: async () => undefined,
+					newPage: async () => page,
+					close: async () => {
+						calls.closed++;
+					}
+				};
+			}
+		};
+		const api = {
+			accounts: async () => ({}),
+			upload: async () => 'att',
+			finish: async (_k: string, _id: string, r: Record<string, unknown>) => {
+				calls.finished.push(r);
+				return {};
+			}
+		};
+		const targets = {
+			prepare: async () => ({ baseUrl: 'http://127.0.0.1:1', commit: null, diffHash: null })
+		};
+		const approvals = { require: () => undefined };
+		const job = {
+			id: 'run1',
+			project: { key: 'CKT' },
+			item: { ref: 'CKT-1' },
+			check: { key: 'M1', script },
+			target: 'preview',
+			environment: { url: 'http://127.0.0.1:1', versionPath: null },
+			accounts: [],
+			readOnly
+		};
+		const deps = { api, browser, targets, approvals, config: {}, log: () => undefined };
+		return { calls, run: () => runCheckJob(job as never, deps as never) };
+	}
+
+	it('retries a failed script on a read only target and not on a writable one', async () => {
+		const ro = harness(true, "throw new Error('boom')");
+		await ro.run();
+		expect(ro.calls.contexts).toBe(2);
+		expect(ro.calls.finished[0]).toMatchObject({ result: 'fail', reason: 'boom' });
+		const rw = harness(false, "throw new Error('boom')");
+		await rw.run();
+		expect(rw.calls.contexts).toBe(1);
+		expect(rw.calls.finished[0]).toMatchObject({ result: 'fail', retried: false });
+	});
+
+	it('closes every context it opened, also when the script fails', async () => {
+		const h = harness(true, "throw new Error('boom')");
+		await h.run();
+		expect(h.calls.closed).toBeGreaterThanOrEqual(h.calls.contexts);
+	});
+
+	it('a timeout runs the stop action and rejects with a clear message', async () => {
+		let stopped = 0;
+		const never = new Promise<never>(() => undefined);
+		await expect(withTimeout(never, 30, 'The check script', () => stopped++)).rejects.toThrow(
+			/The check script took longer than/
+		);
+		expect(stopped).toBe(1);
+		expect(SCRIPT_TIMEOUT_MS).toBe(120_000);
 	});
 });
