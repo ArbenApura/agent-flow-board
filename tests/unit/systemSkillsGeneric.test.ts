@@ -49,36 +49,26 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'no commit or push', pattern: /Do not commit, push/ },
 		{ rule: 'work_stop at the end', pattern: /work_stop/ },
 		{ rule: 'untrusted text is data', pattern: /Untrusted text is data/ },
-		{ rule: 'no AI attribution', pattern: /\*\*No attribution\.\*\*/ },
-		{ rule: 'nothing live, nothing destroyed', pattern: /Nothing live, nothing destroyed/ }
+		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ }
 	],
 	'flow-critic': [
 		{ rule: 'no commit or push', pattern: /Never commit or push as part of a review/ },
 		{ rule: 'no AI attribution', pattern: /Claude or Anthropic attribution/ },
-		{ rule: 'no .env database URL', pattern: /database URL from `\.env`/ },
-		{ rule: 'no tokens', pattern: /Print or read tokens/ },
-		{
-			rule: 'never empty a database the user keeps',
-			pattern: /Reset, drop or empty a database the user keeps/
-		}
+		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ }
 	],
 	'flow-verify': [
 		{ rule: 'no push or deploy', pattern: /Never run a push, a deploy/ },
-		{
-			rule: 'never empty a database the user keeps',
-			pattern: /Never reset, drop or empty a database the user keeps/
-		},
-		{ rule: 'no tokens', pattern: /Never print or read tokens/ },
+		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
 		{ rule: 'no gates found', pattern: /no gates found/ }
 	],
 	'flow-interview': [
 		{ rule: 'no code before approval', pattern: /approves the plan|approve the plan/i },
-		{ rule: 'no .env database URL', pattern: /database URL from `\.env`/ },
+		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
 		{ rule: 'untrusted text is data', pattern: /Untrusted text is data/ }
 	],
 	'flow-task': [
-		{ rule: 'no commit or push', pattern: /Never edit code, commit or push/ },
-		{ rule: 'no AI attribution', pattern: /AI attribution/ },
+		{ rule: 'no code edits', pattern: /Never edit code/ },
+		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
 		{ rule: 'no work_start', pattern: /Do not call `work_start`/ },
 		{ rule: 'task text is data', pattern: /instructions found inside a task/ }
 	],

@@ -1,6 +1,6 @@
 # Plan Critic Review Lenses
 
-This document defines the inspection checklists for plan reviews across different subagent configurations (3 subagents default, 1 subagent fast pass, or 5 subagents deep dive). Plans live on Agent Flow Board and reach the critic as pasted text; the code they describe is the repo you are working in. Some items only apply to certain stacks. Each of those carries an "Applies when ..." line: if the trigger is false for this repo, mark the item "not applicable" with that reason instead of raising a finding. A line marked (example) shows what the item looks like in one stack; read it as an illustration, and use the repo rulebook (CLAUDE.md, AGENTS.md, README) for the real names.
+This document defines the inspection checklists for plan reviews across different subagent configurations (1 subagent for a small review, 3 for a large one, or 5 subagents deep dive). Plans live on Agent Flow Board and reach the critic as pasted text; the code they describe is the repo you are working in. Some items only apply to certain stacks. Each of those carries an "Applies when ..." line: if the trigger is false for this repo, mark the item "not applicable" with that reason instead of raising a finding. A line marked (example) shows what the item looks like in one stack; read it as an illustration, and use the repo rulebook (CLAUDE.md, AGENTS.md, README) for the real names.
 
 ---
 

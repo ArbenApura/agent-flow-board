@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.1.8",
+		"version": "1.1.9",
 		"releasedAt": "2026-10-22"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.6",
+			"version": "1.1.7",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -50,11 +50,15 @@
 				{
 					"version": "1.1.6",
 					"hash": "49792386fbc704bd48782ed3123d20769c070b7721b8539fc3fff038c9c1c4ab"
+				},
+				{
+					"version": "1.1.7",
+					"hash": "48cbf289d50aaa566641a30220f9bbb663896a742c48390d3501bed437628c35"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.1.1",
+			"version": "1.1.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -71,11 +75,15 @@
 				{
 					"version": "1.1.1",
 					"hash": "b61441fda32cb92f038c8552432483bf57c72ae44f93bb979ccf02ac1144b8be"
+				},
+				{
+					"version": "1.1.2",
+					"hash": "42bd91dcb5d86b7cc51ead8a349af3412ab59c2bb61d46a1c38e97da2c44fce9"
 				}
 			]
 		},
 		"flow-check": {
-			"version": "1.1.5",
+			"version": "1.1.6",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -108,11 +116,15 @@
 				{
 					"version": "1.1.5",
 					"hash": "8d038f679d2363229e18acef3822c18372485e751bdec10dcd5e4604e586e6c7"
+				},
+				{
+					"version": "1.1.6",
+					"hash": "e31ab495a078101cd48058b81ad400a9e0a135361e7b577b443a1964586c24f6"
 				}
 			]
 		},
 		"flow-critic": {
-			"version": "1.1.0",
+			"version": "1.1.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -125,11 +137,15 @@
 				{
 					"version": "1.1.0",
 					"hash": "fbc6a7da77757e3368ee307659e25617e8dbb8ce07c8c5e0c996d8529dbf3274"
+				},
+				{
+					"version": "1.1.1",
+					"hash": "346309b84199d9e4fd6e447bb3683f3ffdc6ec3b0d4fdeb561497bcd3a4356e0"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.1.0",
+			"version": "1.1.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -142,11 +158,15 @@
 				{
 					"version": "1.1.0",
 					"hash": "1fd410526848d4676824177c27c9f5244d4b577369ef0484ada13d14ac495ad6"
+				},
+				{
+					"version": "1.1.1",
+					"hash": "30e304b6e21e3b58d59b9051fc5b8c58ff83ce5f955e34332f48a508d7350ac6"
 				}
 			]
 		},
 		"flow-task": {
-			"version": "1.1.0",
+			"version": "1.1.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -159,11 +179,15 @@
 				{
 					"version": "1.1.0",
 					"hash": "1be365a29794ac9ab13299cb48eb345f570276f4ddcf3c1f23d38e174ad3ba51"
+				},
+				{
+					"version": "1.1.1",
+					"hash": "ae0032b5c7b49190a7d3753cde1a2a84ee97a465ae22d6882d46231602fb3fbe"
 				}
 			]
 		},
 		"flow-verify": {
-			"version": "1.1.0",
+			"version": "1.1.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -176,11 +200,31 @@
 				{
 					"version": "1.1.0",
 					"hash": "463fa7d76c6591ab5d6266fe7e66cb372b81c34eae04c99b34fc10ae4ff6d2a9"
+				},
+				{
+					"version": "1.1.1",
+					"hash": "9fd56a6d2bc0eb46cc59e639bcb1ca461c6d048fe101dfca9588bad7edef1ea8"
 				}
 			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.1.9",
+			"date": "2026-10-22",
+			"notes": [
+				"Prompt diet (AFB-20261022-0217). Skip workflow_get when the skill is installed. Shared rules block removed from flow and flow-audit and shortened for the others. flow-critic size gate (1 subagent for a small diff, pass 2 only after a blocker, no question about the mode). flow: small work is plan and approval at once, critic only for 4+ steps, audit once per item, one defaults-versus-questions rule, a typed deploy request is the confirmation, no browser steps unless asked. Safety text kept once in flow and pointed to from the other skills."
+			],
+			"skills": {
+				"flow": "1.1.7",
+				"flow-audit": "1.1.2",
+				"flow-check": "1.1.6",
+				"flow-critic": "1.1.1",
+				"flow-interview": "1.1.1",
+				"flow-task": "1.1.1",
+				"flow-verify": "1.1.1"
+			}
+		},
 		{
 			"version": "1.1.8",
 			"date": "2026-10-22",

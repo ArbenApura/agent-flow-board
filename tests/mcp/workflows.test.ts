@@ -43,7 +43,10 @@ describe('workflow text', () => {
 		}
 		const flow = workflowByName('flow')!.body;
 		expect(flow.indexOf('**Precedence.**')).toBeGreaterThan(-1);
-		expect(flow.indexOf('**Precedence.**')).toBeLessThan(flow.indexOf('## Rules that apply'));
+		// The flow text is the full rulebook, so no shared rules block is appended to it
+		expect(flow).not.toContain('## Rules that apply');
+		expect(flow).not.toContain('## Short rules');
+		expect(workflowByName('flow-audit')!.body).not.toContain('## Short rules');
 	});
 
 	it('has the critic supporting files readable by name', () => {
@@ -75,7 +78,7 @@ describe('workflow text', () => {
 
 	it('shares the rule with every workflow through the common rules', () => {
 		for (const w of WORKFLOWS) {
-			if (w.name === 'flow-task') continue;
+			if (w.name === 'flow-task' || w.name === 'flow-audit') continue;
 			expect(w.body, w.name).toContain('Progress first');
 		}
 	});
