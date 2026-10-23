@@ -89,6 +89,32 @@
 		}
 	}
 
+	/** Flips one file between private and public. Making it public asks first, because anyone who sees the item can then open it. */
+	async function setVisibility(id: string, visibility: 'public' | 'private') {
+		if (
+			visibility === 'public' &&
+			!(await askConfirm({
+				title: 'Make this file public?',
+				body: 'Anyone who can see this item will be able to open it.',
+				confirmLabel: 'Make public'
+			}))
+		)
+			return;
+		try {
+			await toast.promise(
+				api(env.org, `/attachments/${id}`, { method: 'PATCH', body: { visibility } }),
+				{
+					loading: 'Changing who can open the file...',
+					success: visibility === 'public' ? 'The file is public.' : 'The file is private.',
+					error: (e) => (e instanceof ApiError ? e.message : 'The file was not changed.')
+				}
+			);
+			await env.onchanged();
+		} catch {
+			// The promise toast already shows the failure
+		}
+	}
+
 	async function remove(id: string) {
 		if (
 			!(await askConfirm({
@@ -167,6 +193,13 @@
 							<span class="flex-1 sm:hidden"></span>
 							<Button size="sm" onclick={() => open(a.id)}>Open</Button>
 							{#if env.canWrite}
+								<Button
+									size="sm"
+									variant="ghost"
+									onclick={() =>
+										setVisibility(a.id, a.visibility === 'public' ? 'private' : 'public')}
+									>{a.visibility === 'public' ? 'Make private' : 'Make public'}</Button
+								>
 								<Button size="sm" variant="ghost" tone="danger" onclick={() => remove(a.id)}
 									>Remove</Button
 								>
