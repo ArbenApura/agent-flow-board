@@ -25,7 +25,6 @@ import { ApiError, RunnerApi, retryDelay, type Job } from './api';
 import { Approvals } from './approvals';
 import { runCheckJob } from './checks';
 import { loadConfig } from './config';
-import { runShotsJob } from './shots';
 import { supervise } from './supervisor';
 import { Targets, sweepStaleRunDirs } from './targets';
 
@@ -107,8 +106,7 @@ async function startFromStdin() {
 	try {
 		const job = input.job;
 		say(`Running ${job.kind} ${job.id.slice(0, 8)} for ${job.project.key}`);
-		if (job.kind === 'check') await runCheckJob(job, deps);
-		else await runShotsJob(job, deps, repo);
+		await runCheckJob(job, deps);
 		say('Finished.');
 	} finally {
 		targets.stopAll();
@@ -185,8 +183,7 @@ async function start() {
 			say(
 				`Taking ${job.kind} ${job.id.slice(0, 8)} for ${job.project.key}${'item' in job && job.item ? ` ${job.item.ref}` : ''}`
 			);
-			if (job.kind === 'check') await runCheckJob(job, deps);
-			else await runShotsJob(job, deps, repo);
+			await runCheckJob(job, deps);
 			say('Finished.');
 			done++;
 			if (maxJobs && done >= maxJobs) break;

@@ -10,8 +10,9 @@ import { orgContext } from '#lib/server/web/ctx.js';
 // -- FUNCTIONS -- //
 
 /**
- * A UI shot picture, for an image tag. It checks that the signed in person may see the item and the private file, then sends
- * them to the short lived signed link. A picture of an item they may not see answers 404, the same as one that does not exist.
+ * An attachment picture, for an image tag (the screenshots of a browser check). It checks that the signed in person may see the
+ * item and the private file, then sends them to the short lived signed link. A file of an item they may not see answers 404,
+ * the same as one that does not exist.
  */
 export const GET: RequestHandler = async ({ params, locals, url }) => {
 	const { ctx } = await orgContext(locals, params.org, url.pathname);

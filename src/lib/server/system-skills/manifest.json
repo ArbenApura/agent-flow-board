@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.1.9",
-		"releasedAt": "2026-10-22"
+		"version": "1.1.11",
+		"releasedAt": "2026-10-23"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.7",
+			"version": "1.1.8",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -54,6 +54,10 @@
 				{
 					"version": "1.1.7",
 					"hash": "48cbf289d50aaa566641a30220f9bbb663896a742c48390d3501bed437628c35"
+				},
+				{
+					"version": "1.1.8",
+					"hash": "61f78001f9145664aab22551e626ea70e610274f7741333124735a3d93b9d59f"
 				}
 			]
 		},
@@ -83,7 +87,7 @@
 			]
 		},
 		"flow-check": {
-			"version": "1.1.6",
+			"version": "1.1.8",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -120,6 +124,14 @@
 				{
 					"version": "1.1.6",
 					"hash": "e31ab495a078101cd48058b81ad400a9e0a135361e7b577b443a1964586c24f6"
+				},
+				{
+					"version": "1.1.7",
+					"hash": "a00cd782d320c155430fd78f8ac6cb46afdfec8a175fee14dcecfe1bf2430826"
+				},
+				{
+					"version": "1.1.8",
+					"hash": "fede68673f003ad0d903f7613bd8df50f600624f977d0330c3cee86eacb16c1f"
 				}
 			]
 		},
@@ -209,6 +221,39 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.1.11",
+			"date": "2026-10-23",
+			"notes": [
+				"flow-check: any site may be a check target (no live-site rule, no allowlist) and the preview adopts the whole .env of the connected project with no exemption (afb-checks 1.9.0, AFB-20261022-2332)."
+			],
+			"skills": {
+				"flow": "1.1.8",
+				"flow-audit": "1.1.2",
+				"flow-check": "1.1.8",
+				"flow-critic": "1.1.1",
+				"flow-interview": "1.1.1",
+				"flow-task": "1.1.1",
+				"flow-verify": "1.1.1"
+			}
+		},
+		{
+			"version": "1.1.10",
+			"date": "2026-10-22",
+			"notes": [
+				"flow-check: an app that signs in only by an emailed link gets its mail settings sealed (POSTMARK_*, with a test inbox and the owner's test-token word); the preview mails only that inbox, and a person runs login (AFB-20261022-0518).",
+				"flow, flow-check: the UI shots feature is gone (no ui_shots_run, ui_shots_get or ui_changes_save, no UI shots tab); a check's screenshots show as pictures on the item's Checks tab, so flow loses step 5b and flow-check gains a Screenshots section (AFB-20261022-2318)."
+			],
+			"skills": {
+				"flow": "1.1.8",
+				"flow-audit": "1.1.2",
+				"flow-check": "1.1.7",
+				"flow-critic": "1.1.1",
+				"flow-interview": "1.1.1",
+				"flow-task": "1.1.1",
+				"flow-verify": "1.1.1"
+			}
+		},
 		{
 			"version": "1.1.9",
 			"date": "2026-10-22",
@@ -426,9 +471,7 @@
 		{
 			"version": "1.0.0",
 			"date": "2026-10-21",
-			"notes": [
-				"First release of the system skills bundle."
-			],
+			"notes": ["First release of the system skills bundle."],
 			"skills": {
 				"flow": "1.0.0",
 				"flow-audit": "1.0.0",

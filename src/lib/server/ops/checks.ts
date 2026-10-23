@@ -16,6 +16,7 @@ import { classifyRun } from '../../shared/runErrors';
 import { findSecret, maskSecrets, type Needle } from '../../shared/scan';
 import { appendEvent } from '../db/events';
 import {
+	attachment,
 	check,
 	checkRun,
 	environment,
@@ -26,7 +27,6 @@ import {
 	runner,
 	secret,
 	step,
-	uiShotRun,
 	userPref
 } from '../db/schema';
 import { TARGETS } from '../db/schema/helpers';
@@ -453,6 +453,19 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 					.orderBy(desc(checkRun.createdAt))
 					.limit(60)
 			: [];
+		// The files a run saved (screenshots, trace, video), named so the board shows pictures as pictures and the rest as links
+		const evidenceIds = [...new Set(runs.flatMap((r) => r.evidence))];
+		const files = evidenceIds.length
+			? await tx
+					.select({
+						id: attachment.id,
+						filename: attachment.filename,
+						caption: attachment.caption,
+						mime: attachment.mime
+					})
+					.from(attachment)
+					.where(and(inArray(attachment.id, evidenceIds), isNull(attachment.deletedAt)))
+			: [];
 		const [pref] = await tx.select().from(userPref).where(eq(userPref.userId, ctx.actor.userId));
 		const envs = await tx.select().from(environment).where(eq(environment.projectId, it.projectId));
 		return {
@@ -484,7 +497,10 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 					runs: runs
 						.filter((r) => r.checkId === c.id)
 						.slice(0, 8)
-						.map(runView)
+						.map((r) => ({
+							...runView(r),
+							files: r.evidence.flatMap((fid) => files.filter((f) => f.id === fid))
+						}))
 				};
 			})
 		};
@@ -1530,7 +1546,7 @@ async function reopenOnFail(
 }
 
 /**
- * How many runs wait for this runner: queued check runs and UI shots runs of the projects it serves. A supervisor asks this
+ * How many runs wait for this runner: queued check runs of the projects it serves. A supervisor asks this
  * before it starts a container, so an idle queue starts nothing.
  */
 export async function peekQueue(handle: DbHandle, auth: RunnerAuth): Promise<number> {
@@ -1549,17 +1565,7 @@ export async function peekQueue(handle: DbHandle, auth: RunnerAuth): Promise<num
 					registrationClaimable(held)
 				)
 			);
-		const [b] = await tx
-			.select({ n: sql<number>`count(*)::int` })
-			.from(uiShotRun)
-			.where(
-				and(
-					eq(uiShotRun.orgId, auth.orgId),
-					eq(uiShotRun.state, 'queued'),
-					inArray(uiShotRun.projectId, auth.projectIds)
-				)
-			);
-		return (a?.n ?? 0) + (b?.n ?? 0);
+		return a?.n ?? 0;
 	});
 }
 

@@ -58,7 +58,6 @@
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import MessagesSquare from '@lucide/svelte/icons/messages-square';
 	import MonitorCheck from '@lucide/svelte/icons/monitor-check';
-	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
 	import Paperclip from '@lucide/svelte/icons/paperclip';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash from '@lucide/svelte/icons/trash';
@@ -69,23 +68,13 @@
 
 	// -- CONSTANTS -- //
 
-	const TABS = [
-		'plan',
-		'decisions',
-		'docs',
-		'checks',
-		'ui',
-		'activity',
-		'files',
-		'discussion'
-	] as const;
+	const TABS = ['plan', 'decisions', 'docs', 'checks', 'activity', 'files', 'discussion'] as const;
 	type Tab = (typeof TABS)[number];
 	const TAB_LABEL: Record<Tab, string> = {
 		plan: 'Plan',
 		decisions: 'Decisions',
 		docs: 'Documents',
 		checks: 'Checks',
-		ui: 'UI shots',
 		activity: 'Activity',
 		files: 'Files',
 		discussion: 'Discussion'
@@ -95,7 +84,6 @@
 		decisions: Gavel,
 		docs: FileText,
 		checks: MonitorCheck,
-		ui: PanelsTopLeft,
 		activity: Activity,
 		files: Paperclip,
 		discussion: MessagesSquare
@@ -612,7 +600,7 @@
 				class="[scrollbar-width:none]! overflow-x-auto overflow-y-hidden overscroll-x-contain [&::-webkit-scrollbar]:hidden"
 			>
 				<ul class="flex min-w-max gap-1">
-					{#each TABS.filter((t) => (t !== 'checks' && t !== 'ui') || d.project.webApp) as t (t)}
+					{#each TABS.filter((t) => t !== 'checks' || d.project.webApp) as t (t)}
 						{@const Icon = TAB_ICON[t]}
 						<li>
 							<a
@@ -650,11 +638,6 @@
 			{#await import('#lib/board/item/DocsTab.svelte') then m}<m.default detail={d} {env} />{/await}
 		{:else if tab === 'checks' && d.project.webApp}
 			{#await import('#lib/board/item/ChecksTab.svelte') then m}<m.default
-					detail={d}
-					{env}
-				/>{/await}
-		{:else if tab === 'ui' && d.project.webApp}
-			{#await import('#lib/board/item/UiShotsTab.svelte') then m}<m.default
 					detail={d}
 					{env}
 				/>{/await}

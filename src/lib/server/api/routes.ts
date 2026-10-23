@@ -120,15 +120,6 @@ import {
 	toolApprovalInput,
 	toolRunnerInput
 } from '../ops/environments';
-import {
-	getScale,
-	itemShots,
-	listUiChanges,
-	requestMeasure,
-	requestShots,
-	requestShotsInput,
-	saveUiChanges
-} from '../ops/uiShots';
 import { backupHealth } from '../backup/run';
 import { handleHook, hookInput } from '../ops/hooks';
 import { createInvite, listInvites, revokeInvite } from '../orgs/invites';
@@ -951,58 +942,6 @@ export const routes: Route[] = [
 		summary: 'The newest runs of an item',
 		tag: 'Browser checks',
 		handler: ({ ctx, params }) => listRuns(ctx, { item: params.item })
-	},
-
-	// -- UI shots -- //
-	{
-		method: 'GET',
-		path: '/orgs/{org}/items/{item}/ui-changes',
-		summary: 'The pages pinned to the UI shots of an item (optional)',
-		tag: 'UI shots',
-		handler: ({ ctx, params }) => listUiChanges(ctx, params.item)
-	},
-	{
-		method: 'PUT',
-		path: '/orgs/{org}/items/{item}/ui-changes',
-		summary:
-			'Optional: pin extra pages to the UI shots of an item, as Markdown or as rows. Every row is checked first.',
-		tag: 'UI shots',
-		body: z.object({
-			markdown: z.string().max(200000).optional(),
-			rows: z.array(z.any()).optional()
-		}),
-		handler: ({ ctx, params, body }) =>
-			saveUiChanges(ctx, { ...(body as object), item: params.item } as never)
-	},
-	{
-		method: 'GET',
-		path: '/orgs/{org}/items/{item}/ui-shots',
-		summary: 'The newest UI shots runs of an item, with measurements and flags',
-		tag: 'UI shots',
-		handler: ({ ctx, params }) => itemShots(ctx, params.item)
-	},
-	{
-		method: 'POST',
-		path: '/orgs/{org}/items/{item}/ui-shots',
-		summary: 'Ask for a UI shots run. It only reads: every write the page tries is aborted.',
-		tag: 'UI shots',
-		body: strip(requestShotsInput, 'item'),
-		handler: ({ ctx, params, body }) =>
-			requestShots(ctx, { ...(body as object), item: params.item } as never)
-	},
-	{
-		method: 'GET',
-		path: '/orgs/{org}/projects/{project}/scale',
-		summary: 'The measured design scale of the project',
-		tag: 'UI shots',
-		handler: ({ ctx, params }) => getScale(ctx, params.project)
-	},
-	{
-		method: 'POST',
-		path: '/orgs/{org}/projects/{project}/scale/measure',
-		summary: 'Measure the design scale from the reference pages (admins and owners)',
-		tag: 'UI shots',
-		handler: ({ ctx, params }) => requestMeasure(ctx, params.project)
 	},
 
 	// -- tokens (a person signed in on the web, never a token) -- //

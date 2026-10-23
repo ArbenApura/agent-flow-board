@@ -1,19 +1,12 @@
 // ZOD SCHEMAS GENERATED FROM THE DRIZZLE TABLES (drizzle-zod), SHARED BY THE API, THE MCP TOOL INPUTS AND THE FORMS
-// Refinements add the rules a column type cannot hold: the tab name pattern and the "UI changes" row rules.
+// Refinements add the rules a column type cannot hold: the tab name pattern.
 
 // -- DEP-MODULES -- //
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-zod';
 import { z } from 'zod';
 // -- MODULES -- //
 import { CONTINUE_MODES, CONTINUE_TOOL_IDS, validPair } from '../../shared/continue';
-import {
-	STATE_STEP,
-	TAB_NAME,
-	UI_LEVELS,
-	UI_THEMES,
-	UI_VIEWPORTS,
-	levelName
-} from '../../shared/uiChange';
+import { TAB_NAME } from '../../shared/tabName';
 import {
 	apiToken,
 	attachment,
@@ -32,7 +25,6 @@ import {
 	session,
 	step,
 	task,
-	uiChange,
 	userPref
 } from './schema';
 
@@ -42,24 +34,6 @@ const tabName = z
 	.string()
 	.max(30, 'A tab name is at most 30 characters')
 	.regex(TAB_NAME, 'Use 1 to 3 words in UPPERCASE joined by underscores, for example ROOM_TYPES');
-
-/** A level from the vocabulary, optionally with its own selector, for example button-primary=css:.save-bar button. */
-const level = z
-	.string()
-	.refine(
-		(spec) =>
-			(UI_LEVELS as readonly string[]).includes(levelName(spec)) &&
-			(!spec.includes('=') || /^[^=]+=css:\S.*$/.test(spec)),
-		'Unknown level. Use title, section, body, label, button-primary, button, button-icon, input, card, row, icon or image'
-	);
-
-/** The recipe of a state: steps joined by " > ", opening only. */
-const stateRecipe = z
-	.string()
-	.refine(
-		(value) => value === '' || value.split(' > ').every((step) => STATE_STEP.test(step.trim())),
-		'A state step is click:, wait: or scroll: followed by a locator'
-	);
 
 // -- SELECT SCHEMAS (what a read returns) -- //
 
@@ -108,26 +82,6 @@ export const attachmentInsert = createInsertSchema(attachment, {
 export const checkInsert = createInsertSchema(check);
 export const environmentInsert = createInsertSchema(environment, { url: (s) => s.url() });
 export const apiTokenInsert = createInsertSchema(apiToken);
-
-/** One "UI changes" row as a person or a tool writes it. Missing columns, unknown levels and bad viewports are refused. */
-export const uiChangeInput = z.object({
-	page: z.string().regex(/^\/\S*$/, 'A page is a route that starts with /'),
-	stateRecipe,
-	themes: z.array(z.enum(UI_THEMES)).min(1),
-	accounts: z.string().min(1),
-	siblings: z
-		.array(z.string().min(1))
-		.min(1, 'Name 1 to 3 sibling pages')
-		.max(3, 'Name 1 to 3 sibling pages'),
-	levels: z.array(level).min(1),
-	viewports: z
-		.array(
-			z.union(UI_VIEWPORTS.map((v) => z.literal(v)) as [z.ZodLiteral<1440>, z.ZodLiteral<390>])
-		)
-		.min(1)
-});
-export const uiChangeInsert = createInsertSchema(uiChange);
-export type UiChangeInput = z.infer<typeof uiChangeInput>;
 
 /**
  * The "Continue with" choice of a person: a tool and a way. Open in VS Code is only valid with a tool that has the link.

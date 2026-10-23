@@ -1,6 +1,6 @@
 # Design
 
-How Agent Flow Board looks and moves, and what was tried and dropped. Read this before changing any screen. Colour tokens, the size scale and the layout rules are in the second half of this file. The machine form of the scale is `tests/ui-shots/scale.json`, read by `yarn ui-shots`.
+How Agent Flow Board looks and moves, and what was tried and dropped. Read this before changing any screen. Colour tokens, the size scale and the layout rules are in the second half of this file. The machine form of the scale is `tests/ui-shots/scale.json`.
 
 ## Principles
 
@@ -151,7 +151,7 @@ The plain accent on the soft tint is 4.19 in light mode, so text on the soft tin
 
 ### Scale per level
 
-UI shots measure against these values. Sizes are CSS pixels. Desktop is 1440 wide and phone is 390 wide. A value off this table, or larger than its sibling at the same level, is a "to fix" flag.
+Screens are judged against these values. Sizes are CSS pixels. Desktop is 1440 wide and phone is 390 wide. A value off this table, or larger than its sibling at the same level, is a "to fix" flag.
 
 | Level            | Desktop                                              | Phone              | Notes                                                                                             |
 | ---------------- | ---------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------- |

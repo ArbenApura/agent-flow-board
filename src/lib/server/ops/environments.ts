@@ -1,4 +1,4 @@
-// ENVIRONMENTS, TEST ACCOUNT SECRETS AND RUNNERS: THE SETUP BROWSER CHECKS AND UI SHOTS NEED (SPEC 10, ADR-017, ADR-024)
+// ENVIRONMENTS, TEST ACCOUNT SECRETS AND RUNNERS: THE SETUP BROWSER CHECKS NEED (SPEC 10, ADR-017, ADR-024)
 // Environments say where a check may run and whether it may write. Secrets are test accounts, sealed with the org's data key and
 // never returned by any call. Runners are the programs that run checks; a runner token is shown once and stored as a hash.
 
@@ -19,8 +19,7 @@ import {
 	org,
 	project,
 	runner,
-	secret,
-	uiShotRun
+	secret
 } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { OpError, capsOf, idempotent, projectAllowed, requireCap, run } from './context';
@@ -33,7 +32,7 @@ import { TARGETS } from '../db/schema/helpers';
 // -- CONSTANTS -- //
 
 export const RUNNER_PREFIX = 'afx_';
-/** A key for ONE run: `afrun_<runs|shots>.<org>.<run>.<key>`. It opens that run's accounts, uploads and result, and nothing else. */
+/** A key for ONE run: `afrun_runs.<org>.<run>.<key>`. It opens that run's accounts, uploads and result, and nothing else. */
 export const RUN_KEY_PREFIX = 'afrun_';
 /** A runner that has not called for this long is offline. */
 export const RUNNER_ONLINE_SECONDS = 90;
@@ -728,7 +727,7 @@ export async function recordToolCapacity(
 
 // -- RUN KEYS -- //
 
-export type RunKeyAuth = RunnerAuth & { runKind: 'runs' | 'shots'; runId: string };
+export type RunKeyAuth = RunnerAuth & { runKind: 'runs'; runId: string };
 
 const runKeyMac = (
 	secretKey: string,
@@ -747,7 +746,7 @@ const runKeyMac = (
  */
 export function makeRunKey(
 	secretKey: string,
-	kind: 'runs' | 'shots',
+	kind: 'runs',
 	auth: RunnerAuth,
 	runId: string
 ): string {
@@ -762,20 +761,13 @@ export async function authenticateRunKey(
 ): Promise<RunKeyAuth | null> {
 	if (!secretKey || !presented.startsWith(RUN_KEY_PREFIX)) return null;
 	const [kind, orgId, runId, mac] = presented.slice(RUN_KEY_PREFIX.length).split('.');
-	if ((kind !== 'runs' && kind !== 'shots') || !UUID.test(orgId ?? '') || !UUID.test(runId ?? ''))
-		return null;
+	if (kind !== 'runs' || !UUID.test(orgId ?? '') || !UUID.test(runId ?? '')) return null;
 	if (!/^[0-9a-f]{64}$/.test(mac ?? '')) return null;
 	return withTenant(handle, { orgId }, async (tx) => {
-		const [row] =
-			kind === 'runs'
-				? await tx
-						.select({ runnerId: checkRun.runnerId, orgId: checkRun.orgId })
-						.from(checkRun)
-						.where(eq(checkRun.id, runId))
-				: await tx
-						.select({ runnerId: uiShotRun.runnerId, orgId: uiShotRun.orgId })
-						.from(uiShotRun)
-						.where(eq(uiShotRun.id, runId));
+		const [row] = await tx
+			.select({ runnerId: checkRun.runnerId, orgId: checkRun.orgId })
+			.from(checkRun)
+			.where(eq(checkRun.id, runId));
 		if (!row?.runnerId || row.orgId !== orgId) return null;
 		const want = Buffer.from(runKeyMac(secretKey, kind, orgId, runId, row.runnerId));
 		const got = Buffer.from(mac);

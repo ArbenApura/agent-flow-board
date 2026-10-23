@@ -27,4 +27,3 @@ jobs:
           BETTER_AUTH_SECRET: build-time-placeholder-0123456789abcdef
       - run: yarn playwright install --with-deps chromium
       - run: yarn test:checks
-      - run: yarn ui-shots

@@ -25,7 +25,6 @@ import {
 } from '../../src/lib/server/ops/environments';
 import { createItem } from '../../src/lib/server/ops/items';
 import { updateProject } from '../../src/lib/server/ops/projects';
-import { claimShotsJob, requestMeasure } from '../../src/lib/server/ops/uiShots';
 import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
 
@@ -212,21 +211,6 @@ describe('the afb-checks tool as a runner', () => {
 		expect(asked.run.result).toBe('queued');
 		expect(await claimCheckJob(db, hostedAuth, services)).toBeNull();
 		expect(await claimCheckJob(db, fresh, services)).not.toBeNull();
-	});
-
-	it('a UI shots run is taken by the tool without an environment row, and never from production', async () => {
-		const tool = await registerToolRunner(as('admin'), { name: 'Shots afb-checks' });
-		const auth = (await authenticateRunner(db, tool.token))!;
-		await updateProject(as('admin'), { project: w.projectKey, referencePages: ['/a', '/b', '/c'] });
-		const asked = await requestMeasure(as('admin'), w.projectKey, 'preview');
-		expect(asked.state).toBe('queued');
-		const job = await claimShotsJob(db, auth, services);
-		expect(job).toMatchObject({
-			kind: 'measure',
-			afterTarget: 'preview',
-			afterUrl: '',
-			beforeUrl: null
-		});
 	});
 
 	it('a tool stops working the moment the person who made it is removed or can no longer manage', async () => {

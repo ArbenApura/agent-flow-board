@@ -3,7 +3,7 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
-	"description": "The runner program of agent-flow-board: takes browser check and UI shots runs from the server and runs them in a real browser. Local or hosted (Docker).",
+	"description": "The runner program of agent-flow-board: takes browser check runs from the server and runs them in a real browser. Local or hosted (Docker).",
 	"bin": {
 		"afb-runner": "src/cli.ts"
 	},

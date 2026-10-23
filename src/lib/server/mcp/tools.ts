@@ -50,7 +50,6 @@ import {
 	waitForRun
 } from '../ops/checks';
 import { approveToolConnection } from '../ops/environments';
-import { itemShots, requestShots, saveUiChanges, waitForShotsRun } from '../ops/uiShots';
 import { readItemDoc } from '../ops/itemDocs';
 import { recordSteps } from '../ops/steps';
 import { setStatus } from '../ops/status';
@@ -312,7 +311,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			(async (args: Record<string, unknown>) => {
 				try {
 					// Waiting tools look again and again with a sleep between, each look its own short transaction, so they never share one
-					const joined = !/^(check_|ui_shots_)/.test(name);
+					const joined = !/^check_/.test(name);
 					const once = async (call: Ctx) => {
 						let sessionRow:
 							| { id: string; tool: string; label: string | null; claimedItemId?: string | null }
@@ -1395,91 +1394,6 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 					pinnedTarget: c.pinnedTarget,
 					registration: c.registration,
 					runs: c.runs.slice(0, 3)
-				}))
-			} as never;
-		}
-	);
-
-	tool(
-		'ui_changes_save',
-		'Optional: pin extra pages to the UI shots of an item with a Markdown table (columns Page, State, Themes, Accounts, Siblings, Levels, Viewports). Never needed: a capture finds the changed screens itself. Every row is checked first.',
-		{
-			item: itemName.optional().describe('Defaults to your claimed item'),
-			markdown: z.string().max(200000)
-		},
-		{ session: true },
-		async (a, { ctx, claimed }) =>
-			(await saveUiChanges(ctx, { item: need(a.item, claimed), markdown: a.markdown })) as never
-	);
-
-	tool(
-		'ui_shots_run',
-		'Capture the screens an item changed, before (last commit) and after (working tree). No pages or table needed. Run it once after you finish a screen change. An unchanged tree is not rebuilt; a waiting capture is returned. wait (max 50) returns the result, else read it with ui_shots_get.',
-		{
-			item: itemName.optional().describe('Defaults to your claimed item'),
-			target: z.enum(['dev', 'preview', 'deployed']).optional(),
-			force: z
-				.boolean()
-				.optional()
-				.describe('Take fresh pictures even when nothing changed. Leave it out unless asked'),
-			wait: z
-				.number()
-				.int()
-				.min(0)
-				.max(50)
-				.optional()
-				.describe('Seconds to wait for the capture to finish, at most 50')
-		},
-		{ session: true },
-		async (a, { ctx, claimed }) => {
-			const out = await requestShots(ctx, {
-				item: need(a.item, claimed),
-				target: a.target,
-				force: a.force
-			});
-			// A capture the board could not queue is already finished: say what to do, in one line
-			if (out.unavailable)
-				return {
-					...out,
-					next: 'The capture tool is not connected. Call runner_status for this project and follow its agentAction (it connects or repairs the tool), then ask again.'
-				} as never;
-			if (!a.wait) return out as never;
-			const waited = await waitForShotsRun(ctx, { run: out.id, seconds: a.wait });
-			return {
-				...out,
-				state: waited.run.state,
-				run: waited.run,
-				finished: waited.finished,
-				...(waited.finished
-					? {}
-					: {
-							next: 'Not finished yet: call ui_shots_get for this capture after about a minute, at most 3 times in total, then call runner_status and stop polling.'
-						})
-			} as never;
-		}
-	);
-
-	tool(
-		'ui_shots_get',
-		'The newest captures of an item: state, screens, commits, plain notes, and whether a capture can be asked for now. No pictures.',
-		{ item: itemName.optional().describe('Defaults to your claimed item') },
-		{ readOnly: true },
-		async (a, { ctx, claimed }) => {
-			const v = await itemShots(ctx, need(a.item, claimed));
-			return {
-				item: v.item.ref,
-				toolOnline: v.toolOnline,
-				canRun: v.canRun,
-				runs: v.runs.map((r) => ({
-					id: r.id,
-					state: r.state,
-					screens: r.screens,
-					beforeTarget: r.beforeTarget,
-					beforeCommit: r.beforeCommit,
-					afterCommit: r.afterCommit,
-					notes: r.notes,
-					reason: r.reason,
-					createdAt: r.createdAt
 				}))
 			} as never;
 		}

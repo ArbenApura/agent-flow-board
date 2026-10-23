@@ -145,6 +145,8 @@ export const checkRun = tenantTable(
 );
 
 // -- UI SHOTS AND DESIGN FIT (SPEC 10.1) -- //
+// The UI shots feature was removed: nothing reads or writes these three tables any more (browser checks carry the screenshots).
+// They are kept so no migration drops live rows; a later migration may drop them.
 
 export const uiChange = tenantTable(
 	'ui_change',

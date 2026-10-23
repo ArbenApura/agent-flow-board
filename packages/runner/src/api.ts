@@ -2,9 +2,8 @@
 
 // -- TYPES -- //
 import type { CheckJob } from '../../../src/lib/server/ops/checks';
-import type { ShotsJob } from '../../../src/lib/server/ops/uiShots';
 
-export type Job = CheckJob | ShotsJob;
+export type Job = CheckJob;
 export type Account = { email: string; password: string };
 export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -110,23 +109,22 @@ export class RunnerApi {
 	}
 
 	/** The test accounts of the run's project, opened for this run only. */
-	async accounts(kind: 'runs' | 'shots', id: string): Promise<Record<string, Account>> {
+	async accounts(kind: 'runs', id: string): Promise<Record<string, Account>> {
 		return (
 			await this.call<{ accounts: Record<string, Account> }>('GET', `/${kind}/${id}/accounts`)
 		).accounts;
 	}
 
-	/** Stores a file of a run. `artifacts` for a check run, `images` for a shots run. */
+	/** Stores a file of a run. Check run files are stored as artifacts. */
 	async upload(
-		kind: 'runs' | 'shots',
+		kind: 'runs',
 		id: string,
 		file: { filename: string; caption: string; bytes: Uint8Array }
 	): Promise<string> {
-		const what = kind === 'runs' ? 'artifacts' : 'images';
 		const q = `filename=${encodeURIComponent(file.filename)}&caption=${encodeURIComponent(file.caption)}`;
 		const out = await this.call<{ attachmentId: string }>(
 			'POST',
-			`/${kind}/${id}/${what}?${q}`,
+			`/${kind}/${id}/artifacts?${q}`,
 			file.bytes as unknown as BodyInit,
 			'application/octet-stream',
 			UPLOAD_TIMEOUT_MS
@@ -134,7 +132,7 @@ export class RunnerApi {
 		return out.attachmentId;
 	}
 
-	async finish<T = unknown>(kind: 'runs' | 'shots', id: string, report: unknown): Promise<T> {
+	async finish<T = unknown>(kind: 'runs', id: string, report: unknown): Promise<T> {
 		return this.call<T>(
 			'POST',
 			`/${kind}/${id}/finish`,

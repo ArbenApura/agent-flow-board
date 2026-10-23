@@ -24,7 +24,7 @@ import {
 	user
 } from '../db/schema';
 import { tabNameSchema } from '../db/zod';
-import { tabNameFromTitle } from '../../shared/uiChange';
+import { tabNameFromTitle } from '../../shared/tabName';
 import { OpError, idempotent, rateLimit, requireCap, requireOrgMember, run } from './context';
 import { enforcePlanRules } from './planRules';
 import { canSeeItem, findItem, findProject, visibleItemSql } from './resolve';

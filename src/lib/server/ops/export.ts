@@ -18,7 +18,6 @@ import {
 	project,
 	section,
 	step,
-	uiChange,
 	user
 } from '../db/schema';
 
@@ -105,11 +104,6 @@ export async function loadPublishable(tx: Tx, projectId: string) {
 		.where(eq(section.projectId, projectId))
 		.orderBy(asc(section.position));
 	const aliases = await tx.select().from(itemAlias).where(eq(itemAlias.projectId, projectId));
-	const uiRows = await tx
-		.select()
-		.from(uiChange)
-		.where(eq(uiChange.projectId, projectId))
-		.orderBy(asc(uiChange.position));
 	const items = rows.map(({ it, assignee }) => ({
 		item: it,
 		assignee: assignee ?? null,
@@ -119,8 +113,7 @@ export async function loadPublishable(tx: Tx, projectId: string) {
 		manualChecks: checks.filter((c) => c.itemId === it.id),
 		decisions: decisions.filter((d) => d.itemId === it.id),
 		sections: sections.filter((s) => s.itemId === it.id),
-		aliases: aliases.filter((a) => a.itemId === it.id).map((a) => a.alias),
-		uiChanges: uiRows.filter((u) => u.itemId === it.id)
+		aliases: aliases.filter((a) => a.itemId === it.id).map((a) => a.alias)
 	}));
 	return {
 		project: proj,
@@ -237,22 +230,6 @@ function progressMarkdown(i: PublishItem): string {
 	return out.join('\n') + '\n';
 }
 
-function uiMarkdown(i: PublishItem): string | null {
-	if (!i.uiChanges.length) return null;
-	return (
-		[
-			`# Pages pinned to the UI shots of ${i.item.ref}`,
-			'',
-			'| Page | State | Themes | Accounts | Siblings | Levels | Viewports |',
-			'|---|---|---|---|---|---|---|',
-			...i.uiChanges.map(
-				(u) =>
-					`| ${cell(u.page)} | ${cell(u.stateRecipe || 'none')} | ${cell(u.themes.join(', '))} | ${cell(u.accounts)} | ${cell(u.siblings.join(', '))} | ${cell(u.levels.join(', '))} | ${cell(u.viewports.join(', '))} |`
-			)
-		].join('\n') + '\n'
-	);
-}
-
 /** One item's files, by path inside its folder. */
 export function itemFiles(i: PublishItem): Record<string, string> {
 	const dir = `items/${i.item.ref}`;
@@ -262,8 +239,6 @@ export function itemFiles(i: PublishItem): Record<string, string> {
 	};
 	const decisions = decisionsMarkdown(i);
 	if (decisions) files[`${dir}/DECISIONS.md`] = decisions;
-	const ui = uiMarkdown(i);
-	if (ui) files[`${dir}/UI-CHANGES.md`] = ui;
 	for (const s of i.sections)
 		files[`${dir}/docs/${s.slug}.md`] = `# ${line(s.title)}\n\n${s.body.trimEnd()}\n`;
 	return files;
@@ -314,16 +289,7 @@ function snapshotItem(i: PublishItem) {
 			answer: d.answer,
 			source: d.source
 		})),
-		sections: i.sections.map((s) => ({ slug: s.slug, title: s.title, body: s.body })),
-		uiChanges: i.uiChanges.map((u) => ({
-			page: u.page,
-			stateRecipe: u.stateRecipe,
-			themes: u.themes,
-			accounts: u.accounts,
-			siblings: u.siblings,
-			levels: u.levels,
-			viewports: u.viewports
-		}))
+		sections: i.sections.map((s) => ({ slug: s.slug, title: s.title, body: s.body }))
 	};
 }
 

@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { tabNameFromTitle } from '../../shared/uiChange';
-import {
-	continueChoice,
-	itemInsert,
-	projectInsert,
-	projectPinInput,
-	tabNameSchema,
-	uiChangeInput
-} from './zod';
+import { tabNameFromTitle } from '../../shared/tabName';
+import { continueChoice, itemInsert, projectInsert, projectPinInput, tabNameSchema } from './zod';
 
 const ids = {
 	orgId: '00000000-0000-4000-8000-000000000001',
@@ -38,7 +31,7 @@ describe('tab names', () => {
 	});
 });
 
-describe('project and UI change rules', () => {
+describe('project rules', () => {
 	it('refuses a bad project key', () => {
 		expect(projectInsert.safeParse({ orgId: ids.orgId, key: 'hapr', name: 'x' }).success).toBe(
 			false
@@ -46,36 +39,6 @@ describe('project and UI change rules', () => {
 		expect(projectInsert.safeParse({ orgId: ids.orgId, key: 'HAPR', name: 'x' }).success).toBe(
 			true
 		);
-	});
-
-	const row = {
-		page: '/sign-in',
-		stateRecipe: '',
-		themes: ['light', 'dark'],
-		accounts: 'default',
-		siblings: ['/'],
-		levels: ['title', 'button-primary=css:.save button'],
-		viewports: [1440, 390]
-	};
-	it('accepts a complete row', () => {
-		expect(uiChangeInput.safeParse(row).success).toBe(true);
-		expect(
-			uiChangeInput.safeParse({ ...row, stateRecipe: 'click:text=Areas > wait:.list' }).success
-		).toBe(true);
-	});
-	it('refuses an unknown level, a missing column, a bad viewport and 4 siblings', () => {
-		expect(uiChangeInput.safeParse({ ...row, levels: ['heading'] }).success).toBe(false);
-		expect(uiChangeInput.safeParse({ ...row, levels: ['title=.x'] }).success).toBe(false);
-		const { siblings: _s, ...missing } = row;
-		expect(uiChangeInput.safeParse(missing).success).toBe(false);
-		expect(uiChangeInput.safeParse({ ...row, viewports: [800] }).success).toBe(false);
-		expect(uiChangeInput.safeParse({ ...row, siblings: ['/a', '/b', '/c', '/d'] }).success).toBe(
-			false
-		);
-	});
-	it('refuses a state step that is not click, wait or scroll, and a route outside the app', () => {
-		expect(uiChangeInput.safeParse({ ...row, stateRecipe: 'submit:form' }).success).toBe(false);
-		expect(uiChangeInput.safeParse({ ...row, page: 'sign-in' }).success).toBe(false);
 	});
 });
 
