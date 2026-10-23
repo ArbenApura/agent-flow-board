@@ -4,12 +4,7 @@
 	// -- MODULES -- //
 	import { ApiError, api, upload } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
-	import TabCard from '#lib/board/item/TabCard.svelte';
-	import Badge from '#lib/ui/Badge.svelte';
-	import Button from '#lib/ui/Button.svelte';
-	import EmptyState from '#lib/ui/EmptyState.svelte';
-	import FilePicker from '#lib/ui/FilePicker.svelte';
-	import TextField from '#lib/ui/TextField.svelte';
+	import { cn } from '#lib/ui/cn.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	// -- DEP-COMPONENTS -- //
@@ -17,18 +12,40 @@
 	import FileSpreadsheet from '@lucide/svelte/icons/file-spreadsheet';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Film from '@lucide/svelte/icons/film';
+	import Globe from '@lucide/svelte/icons/globe';
 	import ImageIcon from '@lucide/svelte/icons/image';
+	import Lock from '@lucide/svelte/icons/lock';
 	import Paperclip from '@lucide/svelte/icons/paperclip';
+	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import Upload from '@lucide/svelte/icons/upload';
+	import X from '@lucide/svelte/icons/x';
+	// -- COMPONENTS -- //
+	import ActionMenu, { type MenuItem } from '#lib/ui/ActionMenu.svelte';
+	import Badge from '#lib/ui/Badge.svelte';
+	import Button from '#lib/ui/Button.svelte';
+	import EmptyState from '#lib/ui/EmptyState.svelte';
+	import TabCard from '#lib/board/item/TabCard.svelte';
+	import TextField from '#lib/ui/TextField.svelte';
 
 	// -- REQUIRED PROPS -- //
 
 	let { detail, extras, env }: { detail: ItemView; extras: ItemExtras; env: TabEnv } = $props();
 
+	// -- TYPES -- //
+
+	type Attachment = ItemExtras['attachments'][number];
+
 	// -- STATES -- //
 
 	let busy = $state(false);
 	let caption = $state('');
+	let picked = $state<File[]>([]);
+	let dragging = $state(false);
 	let input = $state<HTMLInputElement>();
+
+	// -- REACTIVE STATES -- //
+
+	const single = $derived(picked.length === 1);
 
 	// -- FUNCTIONS -- //
 
@@ -50,33 +67,65 @@
 				? `${Math.round(n / 1024)} KB`
 				: `${(n / 1_048_576).toFixed(1)} MB`;
 
+	/** Adds files to the queue, skipping one that is already there (same name, size and date). */
+	function add(files: File[]) {
+		const next = [...picked];
+		for (const f of files)
+			if (
+				!next.some(
+					(p) => p.name === f.name && p.size === f.size && p.lastModified === f.lastModified
+				)
+			)
+				next.push(f);
+		picked = next;
+	}
+
+	function unpick(file: File) {
+		picked = picked.filter((p) => p !== file);
+	}
+
+	/** The extension in capitals, as the short type shown in the meta line. */
+	function kindOf(filename: string) {
+		const ext = filename.includes('.') ? filename.split('.').pop() : '';
+		return ext ? ext.toUpperCase() : 'File';
+	}
+
+	/** Sends the queue one file after another. A file that fails stays in the queue so it can be tried again. */
 	async function send() {
-		const file = input?.files?.[0];
-		if (!file) return;
+		if (picked.length === 0 || busy) return;
 		busy = true;
+		const total = picked.length;
+		const named = single ? caption.trim() : '';
 		try {
 			await toast.promise(
-				upload(env.org, `/items/${detail.item.ref}/attachments`, file, {
-					filename: file.name,
-					caption: caption.trim() || file.name,
-					kind: 'file'
-				}),
+				(async () => {
+					let failed: string | null = null;
+					for (const file of [...picked]) {
+						try {
+							await upload(env.org, `/items/${detail.item.ref}/attachments`, file, {
+								filename: file.name,
+								caption: named || file.name,
+								kind: 'file'
+							});
+							unpick(file);
+						} catch (e) {
+							failed ??= e instanceof ApiError ? e.message : `${file.name} was not attached.`;
+						}
+					}
+					if (failed) throw new Error(failed);
+				})(),
 				{
-					loading: `Attaching ${file.name}...`,
-					success: 'File attached. It is private until someone makes it public.',
-					error: (e) => (e instanceof ApiError ? e.message : 'The file was not attached.')
+					loading: total === 1 ? `Attaching ${picked[0]?.name}...` : `Attaching ${total} files...`,
+					success: total === 1 ? 'File attached.' : `${total} files attached.`,
+					error: (e) => (e instanceof Error ? e.message : 'The files were not attached.')
 				}
 			);
 			caption = '';
-			if (input) {
-				input.value = '';
-				input.dispatchEvent(new Event('change'));
-			}
-			await env.onchanged();
 		} catch {
 			// The promise toast already shows the failure
 		} finally {
 			busy = false;
+			await env.onchanged();
 		}
 	}
 
@@ -135,27 +184,105 @@
 			// The promise toast already shows the failure
 		}
 	}
+
+	/** The menu of one file: who can open it, and removing it. */
+	function menuFor(a: Attachment): MenuItem[] {
+		return [
+			a.visibility === 'public'
+				? { label: 'Make private', icon: Lock, onselect: () => setVisibility(a.id, 'private') }
+				: { label: 'Make public', icon: Globe, onselect: () => setVisibility(a.id, 'public') },
+			{ label: 'Remove', icon: Trash2, danger: true, onselect: () => remove(a.id) }
+		];
+	}
 </script>
 
 <div class="flex flex-col gap-6" data-testid="files-tab">
 	{#if env.canWrite}
 		<TabCard role="region" aria-label="File upload">
-			{#snippet heading()}Attach a file{/snippet}
+			{#snippet heading()}Attach files{/snippet}
 			<form
-				class="flex flex-wrap items-end gap-2 p-4 max-sm:p-3.5"
+				class="flex flex-col gap-3 p-4 max-sm:p-3.5"
 				onsubmit={(e) => {
 					e.preventDefault();
 					void send();
 				}}
 			>
-				<FilePicker label="File" required bind:el={input} class="min-w-48 flex-1" />
-				<TextField
-					label="Caption"
-					bind:value={caption}
-					placeholder="What the file shows"
-					class="min-w-48 flex-1"
-				/>
-				<Button type="submit" variant="primary" loading={busy}>Attach</Button>
+				<!-- DROP ZONE: THE NATIVE INPUT COVERS IT, SO A CLICK, A TAP, THE KEYBOARD AND A DROP ALL WORK -->
+				<div
+					class={cn(
+						'relative flex min-h-28 flex-col items-center justify-center gap-1 rounded-lg border border-dashed px-4 py-5 text-center',
+						dragging ? 'border-accent bg-accent-soft' : 'border-line bg-surface hover:bg-raised'
+					)}
+					role="presentation"
+					ondragover={(e) => {
+						e.preventDefault();
+						dragging = true;
+					}}
+					ondragleave={() => (dragging = false)}
+					ondrop={(e) => {
+						e.preventDefault();
+						dragging = false;
+						add([...(e.dataTransfer?.files ?? [])]);
+					}}
+				>
+					<Upload size={20} class="text-muted" aria-hidden="true" />
+					<span class="text-sm font-medium">
+						Drop files here or <span class="text-accent-text">browse</span>
+					</span>
+					<span class="text-xs text-muted"
+						>Up to 100 MB each. Files are private until you make them public.</span
+					>
+					<input
+						bind:this={input}
+						type="file"
+						multiple
+						aria-label="Choose files to attach"
+						class="absolute inset-0 size-full cursor-pointer opacity-0"
+						onchange={(e) => {
+							add([...(e.currentTarget.files ?? [])]);
+							e.currentTarget.value = '';
+						}}
+					/>
+				</div>
+
+				{#if picked.length > 0}
+					<!-- THE QUEUE: WHAT WILL BE SENT, WITH A WAY TO TAKE ONE OUT -->
+					<ul class="flex flex-col" aria-label="Files ready to attach">
+						{#each picked as f (`${f.name}:${f.size}:${f.lastModified}`)}
+							{@const Icon = iconFor(f.name)}
+							<li class="flex min-h-11 items-center gap-3 border-b border-line last:border-b-0">
+								<Icon size={16} class="shrink-0 text-muted" aria-hidden="true" />
+								<span class="min-w-0 flex-1 truncate text-sm">{f.name}</span>
+								<span class="shrink-0 text-xs text-muted tabular-nums">{size(f.size)}</span>
+								<Button
+									size="sm"
+									variant="ghost"
+									iconOnly
+									aria-label={`Take ${f.name} out of the list`}
+									disabled={busy}
+									onclick={() => unpick(f)}><X size={16} /></Button
+								>
+							</li>
+						{/each}
+					</ul>
+					<div class="flex flex-wrap items-end gap-2">
+						{#if single}
+							<TextField
+								label="Caption (optional)"
+								bind:value={caption}
+								placeholder="What the file shows"
+								class="min-w-48 flex-1"
+							/>
+						{:else}
+							<span class="min-w-48 flex-1 text-sm text-muted"
+								>Each file is captioned with its file name.</span
+							>
+						{/if}
+						<Button type="submit" variant="primary" loading={busy}
+							>{picked.length === 1 ? 'Attach file' : `Attach ${picked.length} files`}</Button
+						>
+					</div>
+				{/if}
 			</form>
 		</TabCard>
 	{/if}
@@ -176,33 +303,37 @@
 				{#each extras.attachments as a (a.id)}
 					{@const Icon = iconFor(a.filename)}
 					<li
-						class="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-2 last:border-b-0 max-sm:px-3.5 sm:flex-nowrap"
+						class="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-2.5 last:border-b-0 max-sm:px-3.5 sm:flex-nowrap"
 						data-row
 						data-testid="attachment"
 					>
-						<Icon size={16} class="shrink-0 text-muted" aria-hidden="true" />
+						<span
+							class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-raised text-muted"
+							aria-hidden="true"
+						>
+							<Icon size={20} />
+						</span>
 						<span class="min-w-0 flex-1 text-sm">
 							<span class="block truncate font-medium">{a.caption}</span>
 							<span class="block truncate text-xs text-muted"
-								>{a.filename}, {size(a.size)}, {ago(a.createdAt)}</span
+								>{kindOf(a.filename)} · {size(a.size)} · {ago(a.createdAt)}{a.caption !== a.filename
+									? ` · ${a.filename}`
+									: ''}</span
 							>
 						</span>
 						<!-- ON A PHONE THE BADGE AND BUTTONS DROP TO THEIR OWN LINE UNDER THE CAPTION -->
-						<span class="flex w-full items-center gap-2 pl-7 sm:w-auto sm:pl-0">
-							<Badge tone={a.visibility === 'public' ? 'info' : 'neutral'}>{a.visibility}</Badge>
+						<span class="flex w-full items-center gap-2 pl-[52px] sm:w-auto sm:pl-0">
+							<Badge tone={a.visibility === 'public' ? 'info' : 'neutral'}>
+								{#if a.visibility === 'public'}<Globe size={12} aria-hidden="true" />{:else}<Lock
+										size={12}
+										aria-hidden="true"
+									/>{/if}
+								{a.visibility === 'public' ? 'Public' : 'Private'}
+							</Badge>
 							<span class="flex-1 sm:hidden"></span>
 							<Button size="sm" onclick={() => open(a.id)}>Open</Button>
 							{#if env.canWrite}
-								<Button
-									size="sm"
-									variant="ghost"
-									onclick={() =>
-										setVisibility(a.id, a.visibility === 'public' ? 'private' : 'public')}
-									>{a.visibility === 'public' ? 'Make private' : 'Make public'}</Button
-								>
-								<Button size="sm" variant="ghost" tone="danger" onclick={() => remove(a.id)}
-									>Remove</Button
-								>
+								<ActionMenu items={menuFor(a)} label={`More actions for ${a.caption}`} size="sm" />
 							{/if}
 						</span>
 					</li>
