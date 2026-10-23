@@ -380,7 +380,7 @@ describe('verbs', () => {
 			addAttachment(
 				ctx('member'),
 				{ item: it.ref, filename: 'big.png', caption: 'x' },
-				new Uint8Array(15 * 1024 * 1024 + 1)
+				new Uint8Array(100 * 1024 * 1024 + 1)
 			)
 		).rejects.toMatchObject({ code: 'INVALID' });
 		await expect(

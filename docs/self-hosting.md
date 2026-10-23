@@ -105,13 +105,15 @@ The `migrate` step runs first and the app starts only when it succeeded. Migrati
 - **`BACKUP_KEY`.** A new key encrypts new archives. Keep the old key as long as you keep old archives.
 - **`BETTER_AUTH_SECRET`.** Change it and restart. Everyone signs in again.
 
-## 7. Browser checks and UI shots
+## 7. Browser checks
 
 The runner is a separate program (see [runners.md](runners.md)). Hosted runs use a supervisor that starts one throwaway container for each waiting run. Run it on a different machine from the board, on a network that cannot reach your private network.
 
 ## 8. Behind another proxy
 
 If you already run nginx, Traefik or a cloud load balancer, remove the `caddy` service, publish the app's port 3000 to that proxy only (bind it to `127.0.0.1:3000`, so nobody can reach the app directly and send their own `X-Forwarded-*` headers), keep `AFB_BASE_URL` set to the public address, make the proxy send `X-Forwarded-Proto` and `X-Forwarded-Host` (the app sets `PROTOCOL_HEADER` and `HOST_HEADER` to read them; without them it assumes `https` and every form post is refused as cross-site), and turn off response buffering for the path `/*/stream` (the live updates are one long Server-Sent Events response each). A proxy that buffers it makes pages update only after they are reloaded.
+
+File uploads: a file can be up to 100 MB. The API accepts a request body of up to 101 MB, and the image sets `BODY_SIZE_LIMIT=102M` so the server does not refuse a file earlier (the Node default is 512 KB, which fails an upload with a 413). Allow at least 102 MB in your own proxy too (nginx: `client_max_body_size 102m;`). Caddy has no limit by default.
 
 ## What this does not cover
 

@@ -32,6 +32,8 @@ RUN yarn workspaces focus --production
 
 FROM node:24-slim
 ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0
+# adapter-node refuses bodies over 512K by default. The API caps a body at 101 MB itself (MAX_BODY_BYTES, a file is at most 100 MB), so the server limit sits just above it and the person gets the API's own message
+ENV BODY_SIZE_LIMIT=102M
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/package.json ./package.json

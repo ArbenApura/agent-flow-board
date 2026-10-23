@@ -15,7 +15,7 @@ import { findItem } from './resolve';
 
 // -- CONSTANTS -- //
 
-export const MAX_ATTACHMENT_BYTES = 15 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 export const SIGNED_URL_SECONDS = 300;
 /** File types allowed as attachments, by extension. Anything else is refused, whatever its content type says. */
 const ALLOWED = new Set([
@@ -90,7 +90,7 @@ export async function addAttachment(ctx: Ctx, raw: z.input<typeof attachInput>, 
 		);
 	if (bytes.byteLength === 0) throw new OpError('INVALID', 'The file is empty.');
 	if (bytes.byteLength > MAX_ATTACHMENT_BYTES)
-		throw new OpError('INVALID', 'The file is larger than 15 MB.');
+		throw new OpError('INVALID', 'The file is larger than 100 MB.');
 	const store = storage(ctx);
 	return run(ctx, (tx) =>
 		idempotent(ctx, tx, async () => {

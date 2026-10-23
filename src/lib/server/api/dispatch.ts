@@ -46,7 +46,7 @@ export type ApiDeps = {
 
 // -- CONSTANTS -- //
 
-export const MAX_BODY_BYTES = 16 * 1024 * 1024;
+export const MAX_BODY_BYTES = 101 * 1024 * 1024;
 /** Handles one API call from a session or a token and returns a status and a JSON body. */
 export async function handleApi(req: ApiRequest, deps: ApiDeps): Promise<ApiResponse> {
 	try {
@@ -59,7 +59,7 @@ export async function handleApi(req: ApiRequest, deps: ApiDeps): Promise<ApiResp
 		// A runner program has its own token and its own small set of calls
 		if (req.path.startsWith('/runner/')) return await handleRunnerApi(req, deps);
 		if (req.body.byteLength > MAX_BODY_BYTES)
-			return fail(413, 'INVALID', 'The request body is larger than 16 MB.');
+			return fail(413, 'INVALID', 'The request body is larger than 101 MB.');
 		// Who is calling: a bearer token, or the signed in person of the session cookie
 		const bearer = /^Bearer\s+(\S+)$/i.exec(req.headers.get('authorization') ?? '')?.[1];
 		const token = bearer ? await authenticateToken(deps.handle, bearer) : null;

@@ -29,7 +29,6 @@ import {
 	TOOL_PROTOCOL_MIN
 } from '../ops/environments';
 import { TOOL_REGISTRATIONS_HEADER, recordToolRegistrations } from '../ops/registrations';
-import { claimShotsJob, finishShotsRun, shotsAccounts, storeShotImage } from '../ops/uiShots';
 import { MAX_ATTACHMENT_BYTES } from '../ops/attachments';
 import { NO_STORE, errorResponse, fail } from './respond';
 
@@ -101,27 +100,19 @@ export async function handleRunnerApi(req: ApiRequest, deps: ApiDeps): Promise<A
 			return fail(403, 'FORBIDDEN', 'This key opens one run only.');
 
 		if (route === 'POST claim') {
-			// A check run first, then a shots or measure run
-			const job =
-				(await claimCheckJob(deps.handle, auth, services)) ??
-				(await claimShotsJob(deps.handle, auth, services));
+			const job = await claimCheckJob(deps.handle, auth, services);
 			// The run's own key goes with it, for a supervisor that hands the run to a throwaway container
-			const key =
-				job && deps.masterKey
-					? makeRunKey(deps.masterKey, job.kind === 'check' ? 'runs' : 'shots', auth, job.id)
-					: null;
+			const key = job && deps.masterKey ? makeRunKey(deps.masterKey, 'runs', auth, job.id) : null;
 			return ok({ job, runKey: key });
 		}
 		if (route === 'POST peek') return ok({ waiting: await peekQueue(deps.handle, auth) });
 		if (route === 'POST release')
 			return ok({ released: await releaseRunnerRuns(deps.handle, auth) });
 		if (req.body.byteLength > MAX_ATTACHMENT_BYTES + 1024)
-			return fail(413, 'INVALID', 'The upload is larger than 15 MB.');
+			return fail(413, 'INVALID', 'The upload is larger than 100 MB.');
 		if (route === 'GET runs/:id/accounts')
 			return ok({ accounts: await runAccounts(deps.handle, auth, id, services) });
 		if (route === 'POST runs/:id/beat') return ok(await beatCheckRun(deps.handle, auth, id));
-		if (route === 'GET shots/:id/accounts')
-			return ok({ accounts: await shotsAccounts(deps.handle, auth, id, services) });
 		if (route === 'POST runs/:id/artifacts')
 			return ok(
 				await storeRunArtifact(
@@ -136,24 +127,8 @@ export async function handleRunnerApi(req: ApiRequest, deps: ApiDeps): Promise<A
 					services
 				)
 			);
-		if (route === 'POST shots/:id/images')
-			return ok(
-				await storeShotImage(
-					deps.handle,
-					auth,
-					id,
-					{
-						filename: req.query.filename ?? '',
-						caption: req.query.caption ?? 'UI shot',
-						bytes: req.body
-					},
-					services
-				)
-			);
 		if (route === 'POST runs/:id/finish')
 			return ok(await finishCheckRun(deps.handle, auth, id, json(req) as never, services));
-		if (route === 'POST shots/:id/finish')
-			return ok(await finishShotsRun(deps.handle, auth, id, json(req) as never));
 		return fail(404, 'NOT_FOUND', 'No such runner call.');
 	} catch (e) {
 		if (e instanceof SyntaxError) return fail(400, 'INVALID', 'The body must be valid JSON.');
