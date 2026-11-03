@@ -10,6 +10,9 @@ description: "Use when planning, implementing or tracking a feature, fix, refact
 
 > **Be fast and accurate**: decide with a recommended default, record it, move on; ask only what blocks and is the user's. Once building is approved, never stop between phases (see "Keep going").
 
+> [!IMPORTANT]
+> **Approval gate (hard rule, read first).** Writing a plan never starts the build. After the plan is on the board, end the turn with the approval question (section 2, step 7) and write no code until the user answers it in a later message. Running `/flow-interview` or `/flow-critic`, or starting the build, is the user's choice, never yours. "Keep going" below applies only after that answer.
+
 Plans, progress and decisions for the repo you are working in live on **Agent Flow Board**, in a project with a key `<KEY>`: `<your-board-url>/<org>/<KEY>`. They are read and written through the **Agent Flow Board MCP** and nothing else. The code is the repo you are in, on the branch that is checked out (`git branch --show-current`). The repo rulebook is CLAUDE.md or AGENTS.md at its root (and the README and package scripts): read it, and it wins over any plan.
 
 **Finding the project key.** Use the first that applies: (1) the key the user names, (2) a key written in the repo rulebook, (3) `board_brief`: when it shows one project use it, when it shows several ask which, (4) none: stop and ask. Never guess a key.
@@ -20,9 +23,9 @@ Two modes: **Planning** (write the plan, wait for approval) and **Execution** (b
 
 ## Keep going (hard rule)
 
-Once the user has approved the plan, or told you to build, proceed or "do all the phases", **the whole instruction is the permission**. Run every phase, one after the other, until the last step is recorded and the item is in review. Do not stop between steps or phases to report, to ask "shall I continue?", or to wait for a go-ahead. A progress line is text in the same turn, never the end of the turn.
+Once the user has answered the approval question with build (section 2, step 7), or has written in their own words "build", "implement", "proceed", "go ahead" or "do all the phases", **that whole instruction is the permission**. A word like "fix", "do", "add" or "make" in the request that started the plan is not an approval. Run every phase, one after the other, until the last step is recorded and the item is in review. Do not stop between steps or phases to report, to ask "shall I continue?", or to wait for a go-ahead. A progress line is text in the same turn, never the end of the turn.
 
-- **Never ask permission to do what the plan already says**: starting the next phase, running the gates, running `/flow-critic` or `/flow-audit`, fixing a confirmed finding, adding a step the work turned out to need (`plan_add_steps`), recording a step.
+- **Never ask permission to do what the plan and the approval already say**: starting the next phase, running the gates, running the reviews the user chose in the approval answer (and `/flow-audit` at the end), fixing a confirmed finding, adding a step the work turned out to need (`plan_add_steps`), recording a step.
 - **A problem is not a stop.** A failing gate, a finding or a surprise is fixed, then the work goes on. Try the fix, then a second approach, and `related_plans` once (section 3, 6d) before you call it blocked.
 - **The only reasons to stop**: (1) a decision that is the user's and that the documents, the code and earlier decisions cannot settle (intent, money, priority, wording, anything live); (2) a safety rule (section 5, point 4: push, commit, a live site, a shared database, a process the user started); (3) a tool error that `/mcp` or the user must fix (an auth error); (4) the work is truly blocked after the attempts above. Say which one in one plain sentence, record it in `blockers`, and give the work back with `work_stop`.
 - **Defaults and questions (the one rule, `/flow-interview` and `/flow-task` follow it).** Anything the user has not said and the documents cannot settle (the user's words, the repo rulebook, the code, the spec, earlier decisions, `related_plans`) is recorded as a `settled` decision with the recommended default and its source, and you go on. A wrong default costs one follow-up; a question costs the user's attention every time. Ask only when the answer changes data, access, money, wording or anything live. If you ask, ask once, with a "Checked" line and your recommended answer first, and carry on with that answer for everything that does not depend on the reply. Never ask a yes/no confirmation of something the user already said, a choice every option of which builds the same thing, or something the user can change at a glance afterwards.
@@ -76,13 +79,13 @@ The user runs several sessions at once, so they must always see which item a ses
    Put the base commit (`git log -1` in this repo) and branch in `references`.
 5. **Settle before asking.** Check the user's attachments and files, then the documents the spec cites, then the code, then earlier decisions. Record each answer as a `settled` decision naming its source, so they can overrule it at a glance. Ask only what is left and what changes what gets built (intent, money, priority, wording, anything live). If an open question remains, run `/flow-interview` instead of listing questions in chat.
 6. **Check the record**: `board_validate` for the new reference must show no errors.
-7. **Present the plan**: the item link and a short summary, then wait for approval. **Small work needs no wait.** Small work is a plan of 1 to 3 steps, or any request whose message already says do, fix, build, proceed, "plan and build", "do all phases" or "go ahead". For it the plan and the approval are one act: create the item, say nothing more than the item link, and go straight to Execution mode. Only a plan of 4 or more steps, with no such words from the user, waits for approval.
+7. **Present the plan and stop for approval (hard rule, every plan, whatever its size).** Give the item link and a short summary, then ask once, in plain words, which of these the user wants, with your recommendation first: (a) build it now; (b) `/flow-interview` first, to settle open questions; (c) `/flow-critic` on the plan first, then build; (d) change the plan. Use the harness's question tool when it has one. Then **end the turn**: no code, no `work_start`, no critic or interview run, no subagents until the user answers. Recommend (c) for a plan of 4 or more steps, (a) for 1 to 3 steps. The only exception is a message that already contains an explicit build instruction in the user's own words ("plan and build", "build it", "implement it", "do all phases", "go ahead and build"); then say in one line that you took it as approval, and go to Execution mode. A short fix request, a plan of few steps, or the user having run `/flow` does not count as such an instruction. When in doubt, ask.
 
 Steps are small enough to finish and check, and each says what is verified. The percent is done steps over counted steps and is never typed. Manual checks (`M1`, `M2`…) are the user's and are not counted.
 
 ## 3. Execution mode
 
-1. **Critique the plan first, only when the plan has 4 or more steps**: `/flow-critic` in plan mode on the item before the first phase (skip it if it already passed and the plan has not changed, and always for 3 steps or fewer). Apply its confirmed findings to the plan yourself and go on; do not stop to show them.
+1. **Critique the plan first only when the user chose it** in the approval answer (section 2, step 7, option c) or asked for it: `/flow-critic` in plan mode on the item before the first phase (skip it if it already passed and the plan has not changed). Never start it on your own. Apply its confirmed findings to the plan yourself and go on; do not stop to show them.
 2. `work_start` the item and phase. Read the phase with `item_doc` (`phase:<key>`), and the spec with `item_doc` (`section:spec`).
 3. Gather phase context: read every file the phase names.
 4. Execute the phase on the checked out branch (`git branch --show-current`). Never create or switch branches.
@@ -152,7 +155,8 @@ Before an item can be COMPLETED (The user's call):
 
 - Never guess a reference, a step key or a status; read them from the board.
 - Never write the plan only in chat or a scratch file: the board item is the plan of record.
-- Never edit code before the user approves the plan.
+- Never edit code before the user approves the plan, and never treat the end of planning as that approval.
+- Never run `/flow-interview` or `/flow-critic` (plan mode) without the user's choice in the approval answer or an explicit request.
 - Never type a percent or status, or batch the step records for the end of a phase. Record each step the moment it is finished, before starting the next (section 3, rule 6).
 - Never use a package manager or tool the repo does not use, never commit or push unless asked, never delete installed dependencies or `.git` when cleaning up.
 - Never read or print a token, an MCP auth header or a `.env` value.

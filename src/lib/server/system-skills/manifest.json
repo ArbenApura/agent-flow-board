@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.1.11",
-		"releasedAt": "2026-10-23"
+		"version": "1.1.12",
+		"releasedAt": "2026-11-03"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.8",
+			"version": "1.1.9",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -58,6 +58,10 @@
 				{
 					"version": "1.1.8",
 					"hash": "61f78001f9145664aab22551e626ea70e610274f7741333124735a3d93b9d59f"
+				},
+				{
+					"version": "1.1.9",
+					"hash": "61421349d0fc6d11a6c70f170a44cacf5016e8930d869e137c96e516a11a02e6"
 				}
 			]
 		},
@@ -221,6 +225,22 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.1.12",
+			"date": "2026-11-03",
+			"notes": [
+				"flow: a hard approval gate. Every plan ends with the approval question (build, /flow-interview, /flow-critic or change the plan) and no code, work_start or critic run happens before the user answers; the \"small work needs no wait\" shortcut is removed and the plan-mode critic only runs when the user chose it."
+			],
+			"skills": {
+				"flow": "1.1.9",
+				"flow-audit": "1.1.2",
+				"flow-check": "1.1.8",
+				"flow-critic": "1.1.1",
+				"flow-interview": "1.1.1",
+				"flow-task": "1.1.1",
+				"flow-verify": "1.1.1"
+			}
+		},
 		{
 			"version": "1.1.11",
 			"date": "2026-10-23",
@@ -471,7 +491,9 @@
 		{
 			"version": "1.0.0",
 			"date": "2026-10-21",
-			"notes": ["First release of the system skills bundle."],
+			"notes": [
+				"First release of the system skills bundle."
+			],
 			"skills": {
 				"flow": "1.0.0",
 				"flow-audit": "1.0.0",
