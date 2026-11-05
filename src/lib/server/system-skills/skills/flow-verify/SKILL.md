@@ -15,6 +15,7 @@ Run the right checks for what changed, and nothing more. A stylesheet tweak need
 - **Before a commit**: run it right before a commit the user asked for, including a commit made as part of autonomous execution. (Docs-only and test-only commits do not need it.) Never commit or push without the user's word.
 - **Autonomous execution**: run it after each finished change; run the full test suite at the end of a phase.
 - **Active engagement without a request**: do not run it. The user sees failures themselves while testing.
+- **After a merge, a pull or a rebase**: run the full test suite on the merged tree before any push the user asked for, and report which failing test files come from other sessions' commits and which from this work. A failure that predates this work is reported, not fixed quietly. The push itself is only on the user's word.
 
 ## Arguments
 

@@ -26,6 +26,9 @@ import {
 	upsertSection
 } from '../ops/docs';
 import { addAttachment } from '../ops/attachments';
+import { closeLiteItem, createLiteItem, liteInput } from '../ops/lite';
+import { recordCallTiming } from './timing';
+import { slowCallsInput, slowestCalls } from '../ops/timing';
 import { OpError, fingerprintOf, run, runCall, subRequest } from '../ops/context';
 import { listEvents, undoChange, undoSession } from '../ops/history';
 import { pinProject, unpinProject } from '../ops/pins';
@@ -54,7 +57,7 @@ import { readItemDoc } from '../ops/itemDocs';
 import { recordSteps } from '../ops/steps';
 import { setStatus } from '../ops/status';
 import { trackingNotes } from '../ops/tracking';
-import { claim, requireSession, startSession } from './sessions';
+import { claim, renewedSession, requireSession, startSession } from './sessions';
 import { MANIFEST, servedSkillFile, systemSkills } from '../system-skills';
 import {
 	HARNESSES,
@@ -86,6 +89,52 @@ const DOC_PAGE = 6000;
 /** The short view of an item cuts a note to this many characters, and a next step to STEP_CHARS. */
 const NOTE_CHARS = 300;
 const STEP_CHARS = 200;
+const sectionsIn = z
+	.array(z.object({ slug: z.string(), title: z.string(), body: z.string() }))
+	.optional();
+const decisionsIn = z
+	.array(
+		z.object({
+			kind: z.enum(['adr', 'settled']).optional(),
+			number: z.number().int().optional(),
+			title: z.string(),
+			context: z.string().optional(),
+			decision: z.string().optional(),
+			alternatives: z.string().optional(),
+			consequences: z.string().optional(),
+			answer: z.string().optional(),
+			source: z.string().optional()
+		})
+	)
+	.optional();
+
+/**
+ * Writes sections and decisions of one item into `out`. Every write takes its own request id, so one call can carry several
+ * writes and still be retried safely. item_update, step_done and record share it; an MCP call is one transaction, so a
+ * failure anywhere in the call leaves nothing written.
+ */
+async function writeDocs(
+	ctx: Ctx,
+	name: string,
+	sections: z.infer<typeof sectionsIn>,
+	decisions: z.infer<typeof decisionsIn>,
+	out: Record<string, unknown>
+) {
+	for (const s of sections ?? [])
+		out[`section:${s.slug}`] = (
+			await upsertSection(subRequest(ctx, `section:${s.slug}`, name, s), { item: name, ...s })
+		).changed
+			? 'saved'
+			: 'unchanged';
+	for (const [i, d] of (decisions ?? []).entries()) {
+		const r = await upsertDecision(subRequest(ctx, `decision:${i}`, name, d), {
+			item: name,
+			...d
+		} as never);
+		out[`decision:${r.decision.kind}-${r.decision.number}`] = r.created ? 'created' : 'updated';
+	}
+}
+
 const marks = z
 	.array(
 		z.object({
@@ -123,7 +172,7 @@ const requestId = z
 /** The named item, or the claimed one, or a plain refusal that says what to do. */
 /** The line a not finished wait ends with, so an agent knows how to continue without polling for ever. */
 const WAIT_AGAIN =
-	'Not finished yet. Call check_wait with the same run id again, at most 3 times in total. If it is still not finished, call runner_status to see whether a runner is online, and stop polling.';
+	'Not finished yet. A run takes a build of 3 to 4 minutes plus the script, so call check_wait with the same run id again and keep waiting, up to about 12 calls (10 minutes) in total. Only then call runner_status to see whether a runner is online, and stop polling.';
 
 const need = (named: string | undefined, claimed: string | null): string => {
 	const name = named ?? claimed;
@@ -309,6 +358,9 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				annotations: options.readOnly ? { readOnlyHint: true } : undefined
 			},
 			(async (args: Record<string, unknown>) => {
+				const startedAt = performance.now();
+				let outcome = 'ok';
+				let claimedItemId: string | null = null;
 				try {
 					// Waiting tools look again and again with a sleep between, each look its own short transaction, so they never share one
 					const joined = !/^check_/.test(name);
@@ -317,21 +369,46 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 							| { id: string; tool: string; label: string | null; claimedItemId?: string | null }
 							| undefined;
 						// Reads need no session. When one is given it supplies the claimed item and keeps the session alive
-						if (options.session && !options.readOnly)
-							sessionRow = await requireSession(call, args.sessionId as string | undefined);
-						else if (args.sessionId)
+						let renewed: string | null = null;
+						if (options.session && !options.readOnly) {
+							try {
+								sessionRow = await requireSession(call, args.sessionId as string | undefined);
+							} catch (e) {
+								// A missing or unknown session id on a write: the write goes on under a session of this person and
+								// token, and the reply names it (sessionRenewed), so the caller neither fails nor repeats the call
+								if (
+									!(e instanceof OpError) ||
+									!(e.details as { needsSession?: boolean })?.needsSession
+								)
+									throw e;
+								sessionRow = await renewedSession(call, auth.name);
+								renewed = sessionRow.id;
+							}
+						} else if (args.sessionId)
 							sessionRow = await requireSession(call, args.sessionId as string).catch(
 								() => undefined
 							);
 						const ctx = { ...base(sessionRow, args.requestId as string | undefined), tx: call.tx };
 						if (ctx.requestId) {
-							const { requestId: _rid, ...rest } = args;
+							// The session id is left out, so a retry with the renewed id replays instead of answering CONFLICT
+							const { requestId: _rid, sessionId: _sid, ...rest } = args;
 							ctx.fingerprint = fingerprintOf(name, rest);
 						}
-						const out = await fn(args as never, {
+						claimedItemId = sessionRow?.claimedItemId ?? null;
+						const first = await fn(args as never, {
 							ctx,
 							claimed: sessionRow?.claimedItemId ?? null
 						});
+						const out = renewed
+							? {
+									...first,
+									sessionRenewed: true,
+									sessionId: renewed,
+									claimLost: true,
+									renewNote:
+										'Your session id was not known, so this call ran under a new session. Use this sessionId from now on, and call work_start again if you hold an item.'
+								}
+							: first;
 						// Reminders ride inside the reply: a quiet claim, a claim released by a close (SPEC 9.4)
 						if (sessionRow) {
 							const notes = await run(ctx, (tx) => trackingNotes(tx, sessionRow!.id));
@@ -342,7 +419,18 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 					// One tenant transaction for the whole call: the session check, the verb and the reminders share it
 					return joined ? await runCall(base(), once) : await once(base());
 				} catch (e) {
+					outcome = e instanceof OpError ? e.code : 'INTERNAL';
 					return errorReply(e);
+				} finally {
+					// Timing is written after the call and never waited for: it must not slow or break the call it measures. check_wait waits by design.
+					if (!/^check_wait$/.test(name))
+						void recordCallTiming(base(), {
+							tool: name,
+							durationMs: performance.now() - startedAt,
+							outcome,
+							project: typeof args.project === 'string' ? args.project : undefined,
+							item: typeof args.item === 'string' ? args.item : claimedItemId
+						});
 				}
 			}) as never
 		);
@@ -403,7 +491,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		{ item: itemName, phase: z.string().optional() },
 		{ session: true },
 		async (a, { ctx }) => {
-			const c = await claim(ctx, a.sessionId!, a.item, a.phase);
+			const c = await claim(ctx, ctx.actor.sessionId ?? a.sessionId!, a.item, a.phase);
 			const d = await getItem(ctx, a.item);
 			return { displayTitle: c.displayTitle, phase: c.phase, ...summarize(d) };
 		}
@@ -415,8 +503,59 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		{},
 		{ session: true },
 		async (a, { ctx }) => {
-			const c = await claim(ctx, a.sessionId!, null);
+			const c = await claim(ctx, ctx.actor.sessionId ?? a.sessionId!, null);
 			return { released: true, displayTitle: c.displayTitle };
+		}
+	);
+
+	tool(
+		'lite_new',
+		'Lite flow for a plan of 1 to 3 steps: creates the item with its steps, spec and settled decisions in one call. A longer plan is refused; use item_new. You still ask for approval before building.',
+		{
+			project: z.string(),
+			title: z.string().min(3),
+			tabName: z.string().optional(),
+			stream: z.string().optional(),
+			scope: z.string().optional(),
+			steps: z.array(z.string()).min(1).describe('One to three steps, each says what is verified'),
+			spec: z.string().describe('Problem, goal, scope and rules'),
+			validation: z.string().optional(),
+			references: z.string().optional(),
+			decisions: z
+				.array(z.object({ title: z.string(), answer: z.string(), source: z.string() }))
+				.optional()
+				.describe('Settled decisions, each with its source')
+		},
+		{ session: true },
+		async (a, { ctx }) => {
+			const { sessionId: _s, requestId: _r, ...input } = a;
+			void _s;
+			void _r;
+			return (await createLiteItem(ctx, liteInput.parse(input))) as never;
+		}
+	);
+
+	tool(
+		'lite_close',
+		'Lite flow close: writes the lessons, marks the last steps done with one log line (500 characters at most) and releases the claim, in one call.',
+		{
+			item: itemName.optional(),
+			keys: z.array(z.string()).optional(),
+			log: z.string().optional(),
+			lessons: z.string().describe('One to five lessons, or "No lessons:" and the reason')
+		},
+		{ session: true },
+		async (a, { ctx, claimed }) => {
+			const name = a.item ?? claimed;
+			if (!name) throw new OpError('INVALID', 'Name an item, or claim one with work_start.');
+			const r = await closeLiteItem(ctx, {
+				item: name,
+				keys: a.keys ?? [],
+				log: a.log,
+				lessons: a.lessons
+			});
+			await claim(ctx, ctx.actor.sessionId!, null);
+			return { ...r, released: true } as never;
 		}
 	);
 
@@ -773,24 +912,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			visibility: z.enum(['public', 'private']).optional(),
 			branchNote: z.string().nullable().optional(),
 			assigneeId: z.string().nullable().optional(),
-			sections: z
-				.array(z.object({ slug: z.string(), title: z.string(), body: z.string() }))
-				.optional(),
-			decisions: z
-				.array(
-					z.object({
-						kind: z.enum(['adr', 'settled']).optional(),
-						number: z.number().int().optional(),
-						title: z.string(),
-						context: z.string().optional(),
-						decision: z.string().optional(),
-						alternatives: z.string().optional(),
-						consequences: z.string().optional(),
-						answer: z.string().optional(),
-						source: z.string().optional()
-					})
-				)
-				.optional()
+			sections: sectionsIn,
+			decisions: decisionsIn
 		},
 		{ session: true },
 		async (a, { ctx, claimed }) => {
@@ -810,19 +933,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				out.changed = r.changed;
 				out.version = r.item.version;
 			}
-			for (const s of sections ?? [])
-				out[`section:${s.slug}`] = (
-					await upsertSection(subRequest(ctx, `section:${s.slug}`, name, s), { item: name, ...s })
-				).changed
-					? 'saved'
-					: 'unchanged';
-			for (const [i, d] of (decisions ?? []).entries()) {
-				const r = await upsertDecision(subRequest(ctx, `decision:${i}`, name, d), {
-					item: name,
-					...d
-				} as never);
-				out[`decision:${r.decision.kind}-${r.decision.number}`] = r.created ? 'created' : 'updated';
-			}
+			await writeDocs(ctx, name, sections, decisions, out);
 			return out;
 		}
 	);
@@ -851,7 +962,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'step_done',
-		'Mark steps done as you finish them. Returns the percent, the automatic status changes (statusChanges), the next steps and the next phase.',
+		'Mark steps done as you finish them. Returns the percent, the automatic status changes (statusChanges), the next steps and the next phase. It can also write sections and decisions first, all or nothing. A log over 500 characters is cut, and the reply says so.',
 		{
 			item: itemName.optional(),
 			keys: z.array(z.string()).min(1).max(30),
@@ -864,18 +975,27 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				})
 				.optional(),
 			log: z.string().optional(),
+			sections: sectionsIn,
+			decisions: decisionsIn,
 			dryRun: z.boolean().optional()
 		},
 		{ session: true },
 		async (a, { ctx, claimed }) => {
 			const name = a.item ?? claimed;
 			if (!name) throw new OpError('INVALID', 'Name an item, or claim one with work_start.');
-			return recordSteps(ctx, {
-				item: name,
-				marks: a.keys.map((key) => ({ key, mark: 'done' as const, evidence: a.evidence })),
-				log: a.log,
-				dryRun: a.dryRun
-			}) as never;
+			// Sections and decisions go first (the lessons must exist before the last step closes the item); a dry run writes none
+			const docs: Record<string, unknown> = {};
+			if (!a.dryRun) await writeDocs(ctx, name, a.sections, a.decisions, docs);
+			const r = await recordSteps(
+				a.sections?.length || a.decisions?.length ? subRequest(ctx, 'steps', name, a) : ctx,
+				{
+					item: name,
+					marks: a.keys.map((key) => ({ key, mark: 'done' as const, evidence: a.evidence })),
+					log: a.log,
+					dryRun: a.dryRun
+				}
+			);
+			return { ...r, ...(Object.keys(docs).length ? { docs } : {}) } as never;
 		}
 	);
 
@@ -886,18 +1006,26 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			item: itemName.optional(),
 			marks: marks.optional(),
 			log: z.string().optional(),
+			sections: sectionsIn,
+			decisions: decisionsIn,
 			dryRun: z.boolean().optional()
 		},
 		{ session: true },
 		async (a, { ctx, claimed }) => {
 			const name = a.item ?? claimed;
 			if (!name) throw new OpError('INVALID', 'Name an item, or claim one with work_start.');
-			return recordSteps(ctx, {
-				item: name,
-				marks: a.marks ?? [],
-				log: a.log,
-				dryRun: a.dryRun
-			}) as never;
+			const docs: Record<string, unknown> = {};
+			if (!a.dryRun) await writeDocs(ctx, name, a.sections, a.decisions, docs);
+			const r = await recordSteps(
+				a.sections?.length || a.decisions?.length ? subRequest(ctx, 'steps', name, a) : ctx,
+				{
+					item: name,
+					marks: a.marks ?? [],
+					log: a.log,
+					dryRun: a.dryRun
+				}
+			);
+			return { ...r, ...(Object.keys(docs).length ? { docs } : {}) } as never;
 		}
 	);
 
@@ -1244,7 +1372,20 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
 			check: z.string().describe('The manual check key, for example M2'),
-			script: z.string().min(1).max(100_000).describe('The check script (an ES module)'),
+			script: z
+				.string()
+				.min(1)
+				.max(100_000)
+				.optional()
+				.describe(
+					'The whole check script (an ES module). Leave it out and give edit to fix a saved script'
+				),
+			edit: z
+				.object({ old: z.string(), new: z.string() })
+				.optional()
+				.describe(
+					'One replacement in the saved script; old must appear exactly once. No need to resend the script'
+				),
 			target: z
 				.enum(['dev', 'preview', 'deployed'])
 				.optional()
@@ -1273,6 +1414,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				item: need(a.item, claimed),
 				key: a.check,
 				script: a.script,
+				edit: a.edit,
 				requiredTarget: a.target,
 				pinnedTarget: a.pinnedTarget,
 				registration: a.registration,
@@ -1340,7 +1482,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'check_wait',
-		'Wait for a run to finish and return it. Waits up to the seconds given (at most 50, default 30); finished false means ask again, at most 3 times, then call runner_status. A failed run carries a code and a fix line.',
+		'Wait for a run to finish and return it. Waits up to the seconds given (at most 50, default 30); finished false means ask again, up to about 12 times, then call runner_status. A failed run carries a code and a fix line.',
 		{
 			run: z.string().describe('The run id from check_run or check_status'),
 			seconds: z.number().int().min(0).max(50).optional().describe('Seconds to wait, default 30')
@@ -1379,8 +1521,11 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'check_status',
-		'The browser checks of an item, their newest runs, and which targets can run now.',
-		{ item: itemName.optional().describe('Defaults to your claimed item') },
+		'The browser checks of an item, the newest run of each in short form, and which targets can run now. detail:true gives the newest three runs in full, with their files.',
+		{
+			item: itemName.optional().describe('Defaults to your claimed item'),
+			detail: z.boolean().optional()
+		},
 		{ readOnly: true },
 		async (a, { ctx, claimed }) => {
 			const v = await itemChecks(ctx, need(a.item, claimed));
@@ -1393,12 +1538,65 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 					requiredTarget: c.requiredTarget,
 					pinnedTarget: c.pinnedTarget,
 					registration: c.registration,
-					runs: c.runs.slice(0, 3)
+					// Short form: no evidence ids and no file lists, so a busy item does not return every old run
+					runs: a.detail
+						? c.runs.slice(0, 3)
+						: c.runs.slice(0, 1).map((r) => ({
+								id: r.id,
+								result: r.result,
+								target: r.target,
+								durationMs: r.durationMs,
+								reason: r.reason,
+								code: r.code,
+								fix: r.fix,
+								sharedCpu: r.sharedCpu,
+								commit: r.commit,
+								files: r.files.length,
+								createdAt: r.createdAt
+							})),
+					olderRuns: Math.max(0, c.runs.length - (a.detail ? 3 : 1))
 				}))
 			} as never;
 		}
 	);
 
+	tool(
+		'check_get',
+		'The saved script of one browser check, so a small fix can be made with check_save edit.',
+		{
+			item: itemName.optional().describe('Defaults to your claimed item'),
+			check: z.string().describe('The manual check key, for example M2')
+		},
+		{ readOnly: true },
+		async (a, { ctx, claimed }) => {
+			const v = await itemChecks(ctx, need(a.item, claimed));
+			const c = v.checks.find((x) => x.key === a.check);
+			if (!c) throw new OpError('NOT_FOUND', `${v.item.ref} has no browser check ${a.check}.`);
+			return {
+				item: v.item.ref,
+				check: c.key,
+				script: c.script,
+				requiredTarget: c.requiredTarget,
+				pinnedTarget: c.pinnedTarget,
+				registration: c.registration
+			} as never;
+		}
+	);
+
+	tool(
+		'slow_calls',
+		'The slowest MCP calls of a project (or the organisation) in the last days, and per tool the count, median, 90th percentile and maximum in ms. Admins only.',
+		{
+			project: z
+				.string()
+				.optional()
+				.describe('A project key. Needed for a token limited to some projects'),
+			days: z.number().int().min(1).max(14).optional(),
+			limit: z.number().int().min(1).max(50).optional()
+		},
+		{ readOnly: true },
+		async (a, { ctx }) => (await slowestCalls(ctx, slowCallsInput.parse(a))) as never
+	);
 	return { tool, base };
 }
 

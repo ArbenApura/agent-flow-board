@@ -246,6 +246,13 @@
       "when": 1792636971113,
       "tag": "0034_overconfident_midnight",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793863068538,
+      "tag": "0035_young_daredevil",
+      "breakpoints": true
     }
   ]
 }

@@ -114,17 +114,33 @@ export async function requireSession(
 		// A session the hooks made (it has the tool's own conversation id) is made with the bridge's device token, while the MCP
 		// calls of the same conversation come with the connector's token. It is still this person's, so it must not be refused
 		// (a refusal made the agent start a second session, and the claim and the reminders then lived on different rows).
-		const foreignToken =
-			!!ctx.actor.tokenId && !!row?.tokenId && row.tokenId !== ctx.actor.tokenId && !row.externalId;
-		if (!row || foreignToken) {
+		// The same holds when the connector's access token is refreshed (every hour, ACCESS_TOKEN_SECONDS): the new token has
+		// a new id, but the session is still this person's in this org, so the row follows the token instead of being refused.
+		// That refusal was the cause of "Unknown session" in the middle of a long conversation (AFB-20261105-0653).
+		if (!row) {
 			throw new OpError('INVALID', 'Unknown session. Call session_start again.', {
 				needsSession: true
 			});
+		}
+		if (ctx.actor.tokenId && row.tokenId !== ctx.actor.tokenId && !row.externalId) {
+			await tx.update(session).set({ tokenId: ctx.actor.tokenId }).where(eq(session.id, row.id));
 		}
 		// Renewal is written at most once a minute, so a burst of calls costs one write (SPEC 9.2)
 		await renewSession(tx, row.id);
 		return row;
 	});
+}
+
+/**
+ * The session id on a write tool is missing, unknown or empty: the write goes on under a session of this person and token
+ * (the one of the last 12 hours, else a new one), and the reply tells the caller the id to use from now on. A missing id and
+ * a foreign id give the same answer, so a session id cannot be probed. The renewed session holds no claim.
+ */
+export async function renewedSession(
+	ctx: Ctx,
+	toolName: string
+): Promise<typeof session.$inferSelect> {
+	return implicitSession(ctx, toolName);
 }
 
 /** Binds a session to an item (and the phase being worked), or releases it with a null item. Returns the title to show. */

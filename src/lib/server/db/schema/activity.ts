@@ -169,3 +169,26 @@ export const rateBucket = tenantTable(
 	},
 	(t) => [unique('rate_bucket_uq').on(t.orgId, t.actor, t.windowStart)]
 );
+
+// -- MCP CALL TIMING (ONE ROW PER MCP CALL: TOOL, DURATION, OUTCOME; NEVER A PAYLOAD) -- //
+
+export const mcpCallTiming = tenantTable(
+	'mcp_call_timing',
+	'org',
+	{
+		id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(),
+		orgId: orgId(),
+		// No foreign key and nullable: a call such as session_start belongs to no project, and the log outlives a deleted project
+		projectId: uuid('project_id'),
+		/** The tool name, taken from the fixed tool registry. */
+		tool: text('tool').notNull(),
+		durationMs: integer('duration_ms').notNull(),
+		/** ok, or the error code (INVALID, NOT_FOUND, ...). Never the message: it can quote what a person wrote. */
+		outcome: text('outcome').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [
+		index('mcp_call_timing_project_idx').on(t.orgId, t.projectId, t.durationMs),
+		index('mcp_call_timing_created_idx').on(t.orgId, t.createdAt)
+	]
+);

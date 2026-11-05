@@ -22,6 +22,11 @@ export type Mark = z.infer<typeof markIn>;
 
 // -- CONSTANTS -- //
 
+// The activity log keeps 500 characters. A longer line is accepted up to LOG_MAX_INPUT and cut with a notice in the reply, so a long
+// line costs no retry (it was refused before).
+export const LOG_MAX = 500;
+const LOG_MAX_INPUT = 5000;
+
 const markIn = z.object({
 	/** A step key such as 3.2, or a manual check key such as M2. */
 	key: z.string().regex(/^(?:[0-9A-Za-z]+\.[0-9]+[a-z]?|M[0-9]+)$/),
@@ -42,7 +47,7 @@ export const recordInput = z.object({
 	item: z.string().min(1),
 	marks: z.array(markIn).max(60).default([]),
 	/** One short line for the activity log. A call with only a log line changes no counted step and moves no status. */
-	log: z.string().min(3).max(500).optional(),
+	log: z.string().min(3).max(LOG_MAX_INPUT).optional(),
 	expectVersion: z.number().int().optional(),
 	dryRun: z.boolean().optional()
 });
@@ -56,6 +61,10 @@ export const recordInput = z.object({
  */
 export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 	const input = recordInput.parse(raw);
+	// Cut by code points, so a multibyte character is never split
+	const logChars = input.log ? [...input.log] : [];
+	const logCut = logChars.length > LOG_MAX;
+	const logText = logCut ? logChars.slice(0, LOG_MAX).join('') : (input.log ?? '');
 	return maybeDry(input.dryRun, ctx, (tx) =>
 		idempotent(ctx, tx, async () => {
 			const it = await findItem(tx, ctx, input.item, { lock: true });
@@ -186,7 +195,7 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 					verb: 'item.log',
 					targetType: 'item',
 					targetId: it.id,
-					after: { text: input.log } as never,
+					after: { text: logText } as never,
 					undoable: false
 				});
 			}
@@ -273,6 +282,11 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 						}
 					: {}),
 				...(claim ? { claim } : {}),
+				...(logCut
+					? {
+							logNotice: `The log line was cut to ${LOG_MAX} characters (it had ${logChars.length}).`
+						}
+					: {}),
 				version: fresh.version
 			};
 		})

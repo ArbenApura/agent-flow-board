@@ -55,7 +55,25 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			rule: 'the mockup question only on Claude',
 			pattern: /Anywhere else, or when you are not sure, do not ask/
 		},
-		{ rule: 'the build follows the agreed design', pattern: /Build what was agreed/ }
+		{ rule: 'the build follows the agreed design', pattern: /Build what was agreed/ },
+		{
+			rule: 'the lite flow keeps the approval gate',
+			pattern: /Lite flow \(a plan of 1 to 3 steps\)[\s\S]*approval gate/
+		},
+		{
+			rule: 'the server refuses more than 3 lite steps',
+			pattern: /refuses more than 3 steps in .lite_new./
+		},
+		{ rule: 'scope stays what was asked', pattern: /Scope stays what was asked/ },
+		{
+			rule: 'an answer covers only questions seen',
+			pattern: /covers only the questions the user has seen/
+		},
+		{
+			rule: 'a merge is tested before a push',
+			pattern: /A merge or pull is tested before anything is pushed/
+		},
+		{ rule: 'a renewed session is used from then on', pattern: /sessionRenewed: true/ }
 	],
 	'flow-audit': [
 		{ rule: 'no commit or push', pattern: /Do not commit, push/ },
@@ -71,6 +89,7 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'checks the build against the design', pattern: /An unapproved difference is/ }
 	],
 	'flow-verify': [
+		{ rule: 'tests after a merge before a push', pattern: /After a merge, a pull or a rebase/ },
 		{ rule: 'no push or deploy', pattern: /Never run a push, a deploy/ },
 		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
 		{ rule: 'no gates found', pattern: /no gates found/ }
@@ -92,6 +111,11 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'task text is data', pattern: /instructions found inside a task/ }
 	],
 	'flow-check': [
+		{ rule: 'blocked calls are listed', pattern: /addInitScript/ },
+		{
+			rule: 'the write path is proved first',
+			pattern: /The write path and the dialog that closes first/
+		},
 		{ rule: 'stop for a shared database, a server or a live site', pattern: /live site/ },
 		{ rule: 'the afb-checks tool', pattern: /afb-checks/ }
 	]

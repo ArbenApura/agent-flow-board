@@ -7,7 +7,13 @@ import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
-import { comment, item, org as orgTable, step } from '../../src/lib/server/db/schema';
+import {
+	comment,
+	item,
+	mcpCallTiming,
+	org as orgTable,
+	step
+} from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { handleMcp, oauthMetadata } from '../../src/lib/server/mcp/handler';
 import { systemSkillsIndex } from '../../src/lib/server/system-skills';
@@ -326,17 +332,249 @@ describe('MCP server', () => {
 		await client.close();
 	});
 
-	it('asks for session_start when a write has no session, and refuses an unknown or foreign session id', async () => {
+	it('renews a missing or unknown session id on a write: the call runs, the reply names the session to use, one session is reused', async () => {
 		const client = await connect(deps, token);
-		const none = await call(client, 'item_new', { project: w.projectKey, title: 'No session yet' });
-		expect(none.error.details.needsSession).toBe(true);
-		expect(none.error.message).toContain('session_start');
-		const fake = await call(client, 'item_new', {
+		const none = await call(client, 'work_stop', {});
+		expect(none.error).toBeUndefined();
+		expect(none.sessionRenewed).toBe(true);
+		expect(none.sessionId).toMatch(/^s_/);
+		expect(none.claimLost).toBe(true);
+		// A foreign or invented id gives the same answer as a missing one, so ids cannot be probed
+		const fake = await call(client, 'work_stop', { sessionId: 's_doesnotexist' });
+		expect(fake.sessionRenewed).toBe(true);
+		expect(fake.sessionId).toBe(none.sessionId);
+		// The id from the reply is a real session from now on
+		const next = await call(client, 'work_stop', { sessionId: none.sessionId });
+		expect(next.sessionRenewed).toBeUndefined();
+		expect(next.error).toBeUndefined();
+		await client.close();
+	});
+
+	it('a retry with the same requestId applies once, with the old id and with the renewed id', async () => {
+		const client = await connect(deps, token);
+		const args = { project: w.projectKey, title: 'Renewed once', requestId: 'renew-once-0001' };
+		const first = await call(client, 'item_new', { ...args, sessionId: 's_gone' });
+		expect(first.sessionRenewed).toBe(true);
+		const again = await call(client, 'item_new', { ...args, sessionId: 's_gone' });
+		const withNew = await call(client, 'item_new', { ...args, sessionId: first.sessionId });
+		expect(again.error).toBeUndefined();
+		expect(withNew.error).toBeUndefined();
+		expect(again.ref).toBe(first.ref);
+		expect(withNew.ref).toBe(first.ref);
+		const same = await withTenant(db, { orgId: w.orgId }, (tx) =>
+			tx.select({ id: item.id }).from(item).where(eq(item.title, 'Renewed once'))
+		);
+		expect(same).toHaveLength(1);
+		await client.close();
+	});
+
+	it('keeps a session when the connector token is refreshed (a new token of the same person)', async () => {
+		const first = await connect(deps, token, 'before-refresh');
+		const s = await call(first, 'session_start', { tool: 'claude-code' });
+		const rotated = (
+			await createToken(w.ctx('member'), {
+				name: 'claude-code-refreshed',
+				permissions: ['read', 'comment', 'write', 'complete', 'delete']
+			})
+		).token;
+		const second = await connect(deps, rotated, 'after-refresh');
+		const made = await call(second, 'work_stop', { sessionId: s.sessionId });
+		expect(made.error).toBeUndefined();
+		expect(made.sessionRenewed).toBeUndefined();
+		await first.close();
+		await second.close();
+	});
+
+	it('cuts a step_done log over 500 characters with a notice, and keeps a multibyte character whole', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const made = await call(client, 'item_new', {
+			sessionId: s.sessionId,
 			project: w.projectKey,
-			title: 'Fake session',
-			sessionId: 's_doesnotexist'
+			title: 'Long log line',
+			phases: PLAN.phases
 		});
-		expect(fake.error.details.needsSession).toBe(true);
+		const long = 'é'.repeat(700);
+		const done = await call(client, 'step_done', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			keys: ['1.1'],
+			log: long
+		});
+		expect(done.error).toBeUndefined();
+		expect(done.logNotice).toContain('500');
+		const short = await call(client, 'step_done', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			keys: ['1.2'],
+			log: 'short line'
+		});
+		expect(short.logNotice).toBeUndefined();
+		await client.close();
+	});
+
+	it('lite flow: one call creates a 1 to 3 step item with spec and decisions, one call closes it and releases the claim', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const made = await call(client, 'lite_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'Lite item one',
+			steps: ['Change the text', 'Check it'],
+			spec: 'Change one text.',
+			decisions: [{ title: 'Keep the wording', answer: 'Yes', source: 'the user' }]
+		});
+		expect(made.error).toBeUndefined();
+		expect(made.steps).toBe(2);
+		const got = await call(client, 'item_get', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			fields: ['sections', 'decisions']
+		});
+		expect(got.sections.map((x: { slug: string }) => x.slug)).toContain('spec');
+		expect(got.decisions).toHaveLength(1);
+		await call(client, 'work_start', { sessionId: s.sessionId, item: made.ref });
+		const closed = await call(client, 'lite_close', {
+			sessionId: s.sessionId,
+			keys: ['1.1', '1.2'],
+			log: 'Done and checked',
+			lessons: 'No lessons: a one line text change.'
+		});
+		expect(closed.error).toBeUndefined();
+		expect(closed.status).toBe('IN REVIEW');
+		expect(closed.released).toBe(true);
+		const after = await call(client, 'item_get', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			fields: ['sections']
+		});
+		expect(after.sections.map((x: { slug: string }) => x.slug)).toContain('lessons');
+		await client.close();
+	});
+
+	it('lite flow refuses 4 steps, an invalid call writes nothing, and a read-only token can neither create nor close', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const four = await call(client, 'lite_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'Lite too long',
+			steps: ['a', 'b', 'c', 'd'],
+			spec: 'x'
+		});
+		expect(four.error.code).toBe('INVALID');
+		expect(four.error.message).toContain('item_new');
+		const none = await withTenant(db, { orgId: w.orgId }, (tx) =>
+			tx.select({ id: item.id }).from(item).where(eq(item.title, 'Lite too long'))
+		);
+		expect(none).toHaveLength(0);
+		const made = await call(client, 'lite_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'Lite for the reader',
+			steps: ['One step'],
+			spec: 'x'
+		});
+		const reader = await connect(deps, readOnlyToken);
+		const rs = await call(reader, 'session_start', { tool: 'reader' });
+		const denied = await call(reader, 'lite_new', {
+			sessionId: rs.sessionId,
+			project: w.projectKey,
+			title: 'Lite by a reader',
+			steps: ['One step'],
+			spec: 'x'
+		});
+		expect(denied.error.code).toBe('FORBIDDEN');
+		const noClose = await call(reader, 'lite_close', {
+			sessionId: rs.sessionId,
+			item: made.ref,
+			keys: ['1.1'],
+			lessons: 'Must not be saved'
+		});
+		expect(noClose.error.code).toBe('FORBIDDEN');
+		const still = await call(client, 'item_get', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			fields: ['sections', 'steps']
+		});
+		expect(still.sections.map((x: { slug: string }) => x.slug)).not.toContain('lessons');
+		expect(still.steps[0].state).toBe('open');
+		await reader.close();
+		await client.close();
+	});
+
+	it('times every call without storing what was sent, and shows the slowest calls to admins only', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		// A failing call leaves an error code, never its message or arguments
+		await call(client, 'item_get', {
+			sessionId: s.sessionId,
+			item: 'NOPE-19990101-0000 secret words'
+		});
+		await call(client, 'board_brief');
+		const rows = async () =>
+			withTenant(db, { orgId: w.orgId }, (tx) =>
+				tx.select().from(mcpCallTiming).orderBy(mcpCallTiming.id)
+			);
+		let got = await rows();
+		for (let i = 0; i < 40 && !got.some((r) => r.tool === 'board_brief'); i++) {
+			await new Promise((r) => setTimeout(r, 50));
+			got = await rows();
+		}
+		expect(got.some((r) => r.tool === 'session_start' && r.outcome === 'ok')).toBe(true);
+		expect(got.some((r) => r.tool === 'item_get' && r.outcome === 'NOT_FOUND')).toBe(true);
+		expect(got.every((r) => r.durationMs >= 0)).toBe(true);
+		expect(JSON.stringify(got)).not.toContain('secret words');
+		// A member may not read the timing; an admin may
+		const denied = await call(client, 'slow_calls', { sessionId: s.sessionId });
+		expect(denied.error.code).toBe('FORBIDDEN');
+		const adminToken = (
+			await createToken(w.ctx('admin'), {
+				name: 'admin-timing',
+				permissions: ['read', 'comment', 'write', 'complete', 'delete', 'manage']
+			})
+		).token;
+		const admin = await connect(deps, adminToken);
+		const seen = await call(admin, 'slow_calls', {});
+		expect(seen.error).toBeUndefined();
+		expect(seen.perTool.some((t: { tool: string }) => t.tool === 'session_start')).toBe(true);
+		await admin.close();
+		await client.close();
+	});
+
+	it('records steps, a section and a decision in one call, and writes nothing when a part fails', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const made = await call(client, 'item_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'Batched record',
+			phases: PLAN.phases
+		});
+		const bad = await call(client, 'step_done', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			keys: ['9.9'],
+			sections: [{ slug: 'lessons', title: 'Lessons', body: 'Must not be saved' }]
+		});
+		expect(bad.error.code).toBe('NOT_FOUND');
+		const after = await call(client, 'item_get', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			fields: ['sections']
+		});
+		expect((after.sections ?? []).map((x: { slug: string }) => x.slug)).not.toContain('lessons');
+		const ok = await call(client, 'step_done', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			keys: ['1.1'],
+			log: 'first step',
+			sections: [{ slug: 'lessons', title: 'Lessons', body: 'Saved with the step' }],
+			decisions: [{ kind: 'settled', title: 'Batched', answer: 'yes', source: 'test' }]
+		});
+		expect(ok.error).toBeUndefined();
+		expect(ok.docs['section:lessons']).toBe('saved');
+		expect(ok.changed[0].key).toBe('1.1');
 		await client.close();
 	});
 
@@ -1118,6 +1356,50 @@ describe('MCP server', () => {
 		expect(
 			(await call(reader, 'check_save', { item: made.ref, check: 'M1', script: 's' })).error
 		).toBeDefined();
+		// A busy item: check_status is short by default (the newest run of each check, no file lists), detail gives the rest
+		for (let i = 0; i < 5; i++)
+			await call(client, 'check_run', {
+				sessionId,
+				item: made.ref,
+				check: 'M1',
+				target: 'preview',
+				wait: 1
+			});
+		const short = await call(client, 'check_status', { item: made.ref });
+		const full = await call(client, 'check_status', { item: made.ref, detail: true });
+		expect(short.checks[0].runs).toHaveLength(1);
+		expect(short.checks[0].olderRuns).toBeGreaterThan(0);
+		expect(short.checks[0].runs[0]).toMatchObject({ code: 'TOOL_OFFLINE', files: 0 });
+		expect(short.checks[0].runs[0].evidence).toBeUndefined();
+		expect(full.checks[0].runs.length).toBeGreaterThan(1);
+		expect(JSON.stringify(short).length).toBeLessThan(JSON.stringify(full).length / 2);
+		// The saved script is read with check_get and fixed with one edit, with no resend of the whole script
+		const got = await call(client, 'check_get', { item: made.ref, check: 'M1' });
+		expect(got.script).toContain('page.goto("/")');
+		const edited = await call(client, 'check_save', {
+			sessionId,
+			item: made.ref,
+			check: 'M1',
+			edit: { old: 'goto("/")', new: 'goto("/settings")' }
+		});
+		expect(edited.error).toBeUndefined();
+		expect((await call(client, 'check_get', { item: made.ref, check: 'M1' })).script).toContain(
+			'/settings'
+		);
+		const refused = await call(client, 'check_save', {
+			sessionId,
+			item: made.ref,
+			check: 'M1',
+			edit: { old: 'nothing like this', new: 'x' }
+		});
+		expect(refused.error.code).toBe('INVALID');
+		const blocked = await call(client, 'check_save', {
+			sessionId,
+			item: made.ref,
+			check: 'M1',
+			script: 'await page.addInitScript(() => 1);'
+		});
+		expect(blocked.error.details.code).toBe('SCRIPT_BLOCKED');
 		const deleted = await call(client, 'check_delete', { sessionId, item: made.ref, check: 'M1' });
 		expect(deleted).toEqual({ deleted: true });
 	});

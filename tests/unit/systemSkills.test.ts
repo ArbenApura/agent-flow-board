@@ -192,3 +192,43 @@ describe('the zip', () => {
 		expect(crc32(new TextEncoder().encode('123456789'))).toBe(0xcbf43926);
 	});
 });
+
+// -- DRIFT GUARD (AFB-20261105-0653, TASK T-1) -- //
+
+describe('drift between the served texts and the skill sources', () => {
+	it('changes the skill hash when one byte of any text changes, so a text cannot change under the same version', () => {
+		const files = sourceFiles();
+		for (const [name, list] of Object.entries(files)) {
+			const base = skillHash(list);
+			const changed = list.map((f, i) => (i === 0 ? { ...f, text: `${f.text}.` } : f));
+			expect(skillHash(changed), `${name} hash ignores a changed byte`).not.toBe(base);
+		}
+	});
+
+	it('serves every workflow body from exactly the source text of its skill', () => {
+		for (const w of WORKFLOWS) {
+			const src = skillBody(w.name).trim();
+			expect(src.length, `${w.name} has no text`).toBeGreaterThan(200);
+			expect(w.body.includes(src), `${w.name}: served body differs from the source`).toBe(true);
+		}
+	});
+
+	it('keeps the local .claude/skills copy equal to the source after line ending normalisation (skipped when the folder is absent)', async () => {
+		const { existsSync, readFileSync } = await import('node:fs');
+		const { join } = await import('node:path');
+		const root = join(process.cwd(), '.claude', 'skills');
+		if (!existsSync(root)) return;
+		for (const [name, list] of Object.entries(sourceFiles())) {
+			for (const f of list) {
+				const path = join(root, name, f.path);
+				if (!existsSync(path)) continue;
+				const local = stripFrontMatter(readFileSync(path, 'utf8')).replace(/\r\n/g, '\n').trim();
+				const body = stripFrontMatter(f.text).replace(/\r\n/g, '\n').trim();
+				expect(
+					local === body,
+					`${name}/${f.path}: .claude/skills differs, run yarn skills:sync`
+				).toBe(true);
+			}
+		}
+	});
+});

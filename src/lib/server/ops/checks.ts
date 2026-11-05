@@ -9,7 +9,7 @@ import type { DbHandle } from '../db/client';
 import type { Ctx } from './context';
 import type { RunnerAuth } from './environments';
 // -- DEP-MODULES -- //
-import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { classifyRun } from '../../shared/runErrors';
@@ -45,6 +45,7 @@ import { findItem, findProject } from './resolve';
 import { recordSteps } from './steps';
 import { registrationFit, runnerRegistrationPairs } from './registrations';
 import { addAttachment } from './attachments';
+import { lintCheckScript } from './checkLint';
 
 // -- TYPES -- //
 
@@ -84,7 +85,10 @@ export const checkInput = z.object({
 	item: z.string().min(1),
 	/** The manual check this closes, such as M8. */
 	key: z.string().regex(/^M[0-9]+$/, 'Use the manual check key, for example M8'),
-	script: z.string().min(1).max(100_000),
+	/** The whole script. Leave it out and give `edit` to change a saved script by one replacement. */
+	script: z.string().min(1).max(100_000).optional(),
+	/** One replacement in the saved script: `old` must appear exactly once. Saves resending a long script for a small fix. */
+	edit: z.object({ old: z.string().min(1).max(20_000), new: z.string().max(20_000) }).optional(),
 	coveredPaths: z.array(z.string().min(1).max(200)).max(50).default([]),
 	requiredTarget: z.enum(TARGETS).default('preview'),
 	pinnedTarget: z.enum(TARGETS).nullish(),
@@ -294,18 +298,54 @@ export async function saveCheck(ctx: Ctx, raw: z.input<typeof checkInput>) {
 				.from(manualCheck)
 				.where(and(eq(manualCheck.itemId, it.id), eq(manualCheck.key, input.key)));
 			if (!mc) throw new OpError('NOT_FOUND', `${it.ref} has no manual check ${input.key}.`);
+			const [existing] = await tx
+				.select()
+				.from(check)
+				.where(and(eq(check.itemId, it.id), eq(check.manualKey, input.key)));
+			// The script is the whole text, or the saved text with one replacement. Both are read before anything is written
+			if ((input.script === undefined) === (input.edit === undefined))
+				throw new OpError(
+					'INVALID',
+					'Give either the whole script or one edit, not both and not neither.'
+				);
+			let script = input.script;
+			if (input.edit) {
+				if (!existing)
+					throw new OpError(
+						'NOT_FOUND',
+						`${input.key} has no saved script to edit. Save the whole script first.`
+					);
+				const parts = existing.script.split(input.edit.old);
+				if (parts.length !== 2)
+					throw new OpError(
+						'INVALID',
+						parts.length === 1
+							? 'The text to replace was not found in the saved script, so nothing was saved.'
+							: `The text to replace appears ${parts.length - 1} times in the saved script: give more of the line, so it is unique. Nothing was saved.`
+					);
+				script = `${parts[0]}${input.edit.new}${parts[1]}`;
+			}
+			const blocked = lintCheckScript(script!);
+			if (blocked.length)
+				throw new OpError(
+					'INVALID',
+					`The script cannot run in the afb-checks tool, so it was not saved. ${blocked.join(' ')}`,
+					{ code: 'SCRIPT_BLOCKED', blocked }
+				);
+			// An edit keeps what the saved check already says unless the call names it
+			const keep = !!input.edit;
 			const values = {
-				script: input.script,
-				coveredPaths: input.coveredPaths,
-				requiredTarget: input.requiredTarget,
-				pinnedTarget: input.pinnedTarget ?? null,
+				script: script!,
+				coveredPaths: keep && !raw.coveredPaths ? existing!.coveredPaths : input.coveredPaths,
+				requiredTarget:
+					keep && !raw.requiredTarget ? existing!.requiredTarget : input.requiredTarget,
+				pinnedTarget:
+					keep && raw.pinnedTarget === undefined
+						? existing!.pinnedTarget
+						: (input.pinnedTarget ?? null),
 				// Left out keeps the registration already saved; null clears it
 				...(input.registration === undefined ? {} : { registration: input.registration })
 			};
-			const [existing] = await tx
-				.select({ id: check.id })
-				.from(check)
-				.where(and(eq(check.itemId, it.id), eq(check.manualKey, input.key)));
 			let id: string;
 			if (existing) {
 				await tx
@@ -466,6 +506,26 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 					.from(attachment)
 					.where(and(inArray(attachment.id, evidenceIds), isNull(attachment.deletedAt)))
 			: [];
+		// The time windows of the organisation's runs since the oldest shown run began, to tell which ones shared the machine
+		const firstStart = runs.reduce<Date | null>(
+			(m, r) => (r.startedAt && (!m || r.startedAt < m) ? r.startedAt : m),
+			null
+		);
+		const windows = firstStart
+			? await tx
+					.select({ id: checkRun.id, s: checkRun.startedAt, f: checkRun.finishedAt })
+					.from(checkRun)
+					.where(and(eq(checkRun.orgId, ctx.orgId), gte(checkRun.startedAt, firstStart)))
+			: [];
+		const overlapped = (r: typeof checkRun.$inferSelect) =>
+			!!r.startedAt &&
+			windows.some(
+				(w) =>
+					w.id !== r.id &&
+					!!w.s &&
+					w.s < (r.finishedAt ?? new Date()) &&
+					(w.f ?? new Date()) > r.startedAt!
+			);
 		const [pref] = await tx.select().from(userPref).where(eq(userPref.userId, ctx.actor.userId));
 		const envs = await tx.select().from(environment).where(eq(environment.projectId, it.projectId));
 		return {
@@ -499,6 +559,8 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 						.slice(0, 8)
 						.map((r) => ({
 							...runView(r),
+							// A run that shared the machine with another run of the organisation is no speed measurement
+							sharedCpu: overlapped(r),
 							files: r.evidence.flatMap((fid) => files.filter((f) => f.id === fid))
 						}))
 				};

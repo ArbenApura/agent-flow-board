@@ -135,6 +135,98 @@ describe('checks an agent drives alone', () => {
 		expect((await manual(it2.id)).state).toBe('done');
 	});
 
+	it('check_save refuses a script the tool would block, and changes a saved script by one edit', async () => {
+		const it1 = await newItem();
+		// A blocked call is refused at once and nothing is saved; a comment that names it is not a finding
+		await expect(
+			saveCheck(as('member'), {
+				item: it1.ref,
+				key: 'M1',
+				script: 'await page.addInitScript(() => 1);'
+			})
+		).rejects.toMatchObject({ code: 'INVALID', details: { code: 'SCRIPT_BLOCKED' } });
+		await expect(
+			saveCheck(as('member'), {
+				item: it1.ref,
+				key: 'M1',
+				script: 'await page.goto("about:blank");'
+			})
+		).rejects.toMatchObject({ code: 'INVALID' });
+		expect(await checkCount(it1.id)).toBe(0);
+		await saveCheck(as('member'), {
+			item: it1.ref,
+			key: 'M1',
+			script: '// addInitScript is blocked\nawait page.goto("/a");\nawait page.goto("/b");',
+			coveredPaths: ['src/a']
+		});
+		// An edit with no saved script, a text that is missing, one that is not unique, and both script and edit: all refused
+		const other = await newItem();
+		await expect(
+			saveCheck(as('member'), { item: other.ref, key: 'M1', edit: { old: 'x', new: 'y' } })
+		).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(
+			saveCheck(as('member'), { item: it1.ref, key: 'M1', edit: { old: 'nope', new: 'y' } })
+		).rejects.toThrow(/not found in the saved script/);
+		await expect(
+			saveCheck(as('member'), { item: it1.ref, key: 'M1', edit: { old: 'page.goto(', new: 'p(' } })
+		).rejects.toThrow(/2 times/);
+		await expect(
+			saveCheck(as('member'), {
+				item: it1.ref,
+				key: 'M1',
+				script: 'a',
+				edit: { old: 'a', new: 'b' }
+			})
+		).rejects.toMatchObject({ code: 'INVALID' });
+		expect((await itemChecks(as('member'), it1.ref)).checks[0].script).toContain('"/a"');
+		// A good edit changes only that text, keeps the covered paths, and is also checked for blocked calls
+		await saveCheck(as('member'), {
+			item: it1.ref,
+			key: 'M1',
+			edit: { old: 'goto("/a")', new: 'goto("/c")' }
+		});
+		const saved = (await itemChecks(as('member'), it1.ref)).checks[0];
+		expect(saved.script).toBe(
+			'// addInitScript is blocked\nawait page.goto("/c");\nawait page.goto("/b");'
+		);
+		expect(saved.coveredPaths).toEqual(['src/a']);
+		await expect(
+			saveCheck(as('member'), {
+				item: it1.ref,
+				key: 'M1',
+				edit: { old: 'goto("/c")', new: 'addInitScript(1)' }
+			})
+		).rejects.toMatchObject({ details: { code: 'SCRIPT_BLOCKED' } });
+		expect((await itemChecks(as('member'), it1.ref)).checks[0].script).toContain('"/c"');
+	});
+
+	it('marks a run that shared the machine with another run as sharedCpu, and a run that ran alone as not', async () => {
+		const a = await newItem();
+		const b = await newItem();
+		await saveCheck(as('member'), { item: a.ref, key: 'M1', script: 'await page.goto("/")' });
+		await saveCheck(as('member'), { item: b.ref, key: 'M1', script: 'await page.goto("/")' });
+		const idOf = async (itemId: string) =>
+			(
+				await db.admin.query<{ id: string }>(`select id from "check" where item_id = '${itemId}'`)
+			)[0].id;
+		const [ca, cb] = [await idOf(a.id), await idOf(b.id)];
+		const insert = (checkId: string, start: string, end: string) =>
+			db.admin.exec(
+				`insert into check_run (org_id, project_id, check_id, target, result, started_at, finished_at)
+				 values ('${w.orgId}', '${w.projectId}', '${checkId}', 'preview', 'pass', now() - interval '${start}', now() - interval '${end}')`
+			);
+		// Item a ran from 10 to 6 minutes ago, item b from 8 to 4 minutes ago: they overlap. A second run of a, 3 to 2 minutes ago, ran alone
+		await insert(ca, '10 minutes', '6 minutes');
+		await insert(cb, '8 minutes', '4 minutes');
+		await insert(ca, '3 minutes', '2 minutes');
+		const runs = (await itemChecks(as('member'), a.ref)).checks[0].runs;
+		const flags = runs
+			.map((r) => ({ at: r.startedAt!.getTime(), shared: r.sharedCpu }))
+			.sort((x, y) => x.at - y.at)
+			.map((r) => r.shared);
+		expect(flags).toEqual([true, false]);
+	});
+
 	it('check_save needs write, hides a private item, stays inside a token, and needs the web app switch', async () => {
 		const it3 = await newItem();
 		await expect(

@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.1.13",
+		"version": "1.1.14",
 		"releasedAt": "2026-11-05"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.10",
+			"version": "1.1.11",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -66,6 +66,10 @@
 				{
 					"version": "1.1.10",
 					"hash": "ce0ba6ac10c9c33af71e56805e39209494dabe2ff811111948bea0c57e7a612d"
+				},
+				{
+					"version": "1.1.11",
+					"hash": "2b6c196df346f759a420de2a45cd56eef21a5aeb81effaf287810de665ccaa80"
 				}
 			]
 		},
@@ -95,7 +99,7 @@
 			]
 		},
 		"flow-check": {
-			"version": "1.1.8",
+			"version": "1.1.9",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -140,6 +144,10 @@
 				{
 					"version": "1.1.8",
 					"hash": "fede68673f003ad0d903f7613bd8df50f600624f977d0330c3cee86eacb16c1f"
+				},
+				{
+					"version": "1.1.9",
+					"hash": "24207266d7649364f6475b48c04a8dbd061320ec94bff6fc0ee3586be7c68266"
 				}
 			]
 		},
@@ -215,7 +223,7 @@
 			]
 		},
 		"flow-verify": {
-			"version": "1.1.1",
+			"version": "1.1.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -232,11 +240,34 @@
 				{
 					"version": "1.1.1",
 					"hash": "9fd56a6d2bc0eb46cc59e639bcb1ca461c6d048fe101dfca9588bad7edef1ea8"
+				},
+				{
+					"version": "1.1.2",
+					"hash": "5aa51c81c9e89114a37e2777556e2fd343c2c35ab2eb384d1b2ec7d39113a3c8"
 				}
 			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.1.14",
+			"date": "2026-11-05",
+			"notes": [
+				"flow: a lite flow for plans of 1 to 3 steps (lite_new creates the item, spec and settled decisions in one call; lite_close writes the lessons, marks the last steps and releases the claim). The approval gate, step_done after each step, work_stop and every safety rule stay; the server refuses more than 3 steps.",
+				"flow: session ids no longer expire when the connector token is refreshed, and a write with an unknown id runs once under a renewed session (sessionRenewed, claimLost). step_done and record can carry sections and decisions in the same call, and a log over 500 characters is cut with a notice instead of refused.",
+				"flow: slow_calls shows the slowest MCP calls of a project to admins.",
+				"flow, flow-check and flow-verify: the limits of a check script in one list (blocked calls, the 2 minute time, writes, a signed-in registration, sample data, shared runs), proving the write path and the dialog that closes before the read-only checks, facts from the source before a check, one measurement alone, scope that stays what was asked, an answer that covers only the questions the user has seen, and a full test run on the merged tree before a push. check_save refuses a blocked script at once and can change a saved script by one edit (check_get reads it); check_status is short by default."
+			],
+			"skills": {
+				"flow": "1.1.11",
+				"flow-audit": "1.1.2",
+				"flow-check": "1.1.9",
+				"flow-critic": "1.1.2",
+				"flow-interview": "1.1.2",
+				"flow-task": "1.1.1",
+				"flow-verify": "1.1.2"
+			}
+		},
 		{
 			"version": "1.1.13",
 			"date": "2026-11-05",
