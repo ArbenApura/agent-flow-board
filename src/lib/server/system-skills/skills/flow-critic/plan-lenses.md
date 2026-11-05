@@ -135,9 +135,15 @@ When the user requests 5 subagents, the critique is split across 5 dedicated ind
 ## Standing Checklist - Design Fit (Lens F, plans with a user-facing screen)
 
 Whatever the topic, when the plan adds or changes a screen, one subagent also checks:
-- [ ] **No UI changes table, no mockup, no UI shots steps**
-  Applies when the repo rulebook says the user looks at every screen themselves and wants no mockup, UI-changes table or browser-check steps. Then a plan that adds any of them is itself the finding (`MEDIUM`): remove them. If the rulebook does not say so, mark this item not applicable.
+- [ ] **No UI changes table, no UI shots steps**
+  Applies when the repo rulebook says the user looks at every screen themselves and wants no UI-changes table or browser-check steps. Then a plan that adds any of them is itself the finding (`MEDIUM`): remove them. If the rulebook does not say so, mark this item not applicable.
   (example) the user looks at each screen on the local dev server, so `yarn ui-shots` steps are a finding.
+- [ ] **Has a sourced design brief**
+  Does the plan have a `design-brief` section (`/flow` section 2, step 4a) with the user's preferences, the brand identity, the similar components it copies, what is reused and new, and the rejected looks, and does every line name a source? A missing brief, or a visible choice with no source, is a `HIGH`, unless the spec states that the change restores the existing look.
+- [ ] **The inspiration is real**
+  Do the similar screens and components the brief names exist at those paths, and does what it says it copies match their code? A false one is a `HIGH`.
+- [ ] **The mockup question was handled**
+  A plan may record the mockup answer as a `settled` decision, and an approved mockup is linked from `design-brief`. A mockup made without a recorded yes, a mockup written as a counted step or a file in the repo, or a build approval asked before an agreed mockup was approved is a `MEDIUM`. A plan with no recorded answer is fine when it was written where `/flow` step 6a does not apply, and is a `MEDIUM` when that step applied.
 - [ ] **Names its sibling pages**
   Does the spec name 1 to 3 sibling pages the new screen is copied from, level by level? Missing is a `MEDIUM`.
 - [ ] **Sizes from the scale**

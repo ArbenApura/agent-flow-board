@@ -432,6 +432,8 @@ there are no UI shots, the reviewer works from the code and the design rules, an
 The ruler is the repo's design-fit list, design document and size scale, if it has them.
 (example) the nine-step Design fit list in the root `CLAUDE.md`, `DESIGN.md` and `tests/ui-shots/scale.json`.
 
+- [ ] The code matches the item's `design-brief` section and the approved mockup when there is one,
+      and any difference was shown to the user. An unapproved difference is a `HIGH`.
 - [ ] No element larger than its sibling at the same level (title, section, body, label,
       primary button, button, input, card, row, icon). Emphasis comes from weight or colour tokens,
       not size.

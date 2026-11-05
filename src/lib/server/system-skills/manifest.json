@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.1.12",
-		"releasedAt": "2026-11-03"
+		"version": "1.1.13",
+		"releasedAt": "2026-11-05"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.9",
+			"version": "1.1.10",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -62,6 +62,10 @@
 				{
 					"version": "1.1.9",
 					"hash": "61421349d0fc6d11a6c70f170a44cacf5016e8930d869e137c96e516a11a02e6"
+				},
+				{
+					"version": "1.1.10",
+					"hash": "ce0ba6ac10c9c33af71e56805e39209494dabe2ff811111948bea0c57e7a612d"
 				}
 			]
 		},
@@ -140,7 +144,7 @@
 			]
 		},
 		"flow-critic": {
-			"version": "1.1.1",
+			"version": "1.1.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -157,11 +161,15 @@
 				{
 					"version": "1.1.1",
 					"hash": "346309b84199d9e4fd6e447bb3683f3ffdc6ec3b0d4fdeb561497bcd3a4356e0"
+				},
+				{
+					"version": "1.1.2",
+					"hash": "0375ce893f358eb0bbda672566d7111b5e3568ab86b5f02995b06e57b03abac5"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.1.1",
+			"version": "1.1.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -178,6 +186,10 @@
 				{
 					"version": "1.1.1",
 					"hash": "30e304b6e21e3b58d59b9051fc5b8c58ff83ce5f955e34332f48a508d7350ac6"
+				},
+				{
+					"version": "1.1.2",
+					"hash": "4cc68312da136617a86c29b9d746768ab72f5b220649a197be387830658bc926"
 				}
 			]
 		},
@@ -225,6 +237,24 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.1.13",
+			"date": "2026-11-05",
+			"notes": [
+				"flow: every plan that adds or visibly changes a screen writes a design-brief section with a source on each line: the user's preferences, the brand identity, the similar components it copies, what is reused and new, and the rejected looks. A visible choice with no source copies the nearest similar component, or is asked once; it is never invented.",
+				"flow: on Claude, when its artifact tools are available, the agent asks whether the user wants a Claude artifact design mockup before asking for build approval, and makes none without a yes. Other harnesses are not asked and hear nothing about it.",
+				"flow-interview and flow-critic: both work from the design brief, and flow-critic checks its sources and that the code matches the approved mockup."
+			],
+			"skills": {
+				"flow": "1.1.10",
+				"flow-audit": "1.1.2",
+				"flow-check": "1.1.8",
+				"flow-critic": "1.1.2",
+				"flow-interview": "1.1.2",
+				"flow-task": "1.1.1",
+				"flow-verify": "1.1.1"
+			}
+		},
 		{
 			"version": "1.1.12",
 			"date": "2026-11-03",

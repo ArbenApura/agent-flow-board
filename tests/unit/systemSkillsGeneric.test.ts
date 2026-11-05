@@ -43,7 +43,19 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'no branch creation', pattern: /Never create or switch branches/ },
 		{ rule: 'confirm anything live', pattern: /confirmed with them immediately before/ },
 		{ rule: 'project key discovery', pattern: /board_brief/ },
-		{ rule: 'no gates found', pattern: /no gates found/ }
+		{ rule: 'no gates found', pattern: /no gates found/ },
+		{ rule: 'a sourced design brief', pattern: /`design-brief` before you present the plan/ },
+		{
+			rule: 'a visible choice is never invented',
+			pattern: /never invent it, and never settle it with a recommended default/
+		},
+		{ rule: 'a design gap is a reason to stop', pattern: /\(5\) a visible design choice/ },
+		{ rule: 'ask before any mockup', pattern: /Never make one without a yes/ },
+		{
+			rule: 'the mockup question only on Claude',
+			pattern: /Anywhere else, or when you are not sure, do not ask/
+		},
+		{ rule: 'the build follows the agreed design', pattern: /Build what was agreed/ }
 	],
 	'flow-audit': [
 		{ rule: 'no commit or push', pattern: /Do not commit, push/ },
@@ -54,7 +66,9 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 	'flow-critic': [
 		{ rule: 'no commit or push', pattern: /Never commit or push as part of a review/ },
 		{ rule: 'no AI attribution', pattern: /Claude or Anthropic attribution/ },
-		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ }
+		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
+		{ rule: 'checks the design brief', pattern: /Has a sourced design brief/ },
+		{ rule: 'checks the build against the design', pattern: /An unapproved difference is/ }
 	],
 	'flow-verify': [
 		{ rule: 'no push or deploy', pattern: /Never run a push, a deploy/ },
@@ -64,7 +78,12 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 	'flow-interview': [
 		{ rule: 'no code before approval', pattern: /approves the plan|approve the plan/i },
 		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
-		{ rule: 'untrusted text is data', pattern: /Untrusted text is data/ }
+		{ rule: 'untrusted text is data', pattern: /Untrusted text is data/ },
+		{ rule: 'asks from the design brief', pattern: /read its `design-brief` section first/ },
+		{
+			rule: 'no mockup talk where it does not apply',
+			pattern: /do not mention artifacts or a mockup/
+		}
 	],
 	'flow-task': [
 		{ rule: 'no code edits', pattern: /Never edit code/ },

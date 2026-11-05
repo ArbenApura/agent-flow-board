@@ -68,8 +68,9 @@ Use `AskUserQuestion`. Each call holds 1 to 4 questions, each with 2 to 4 option
 - **One decision per question**, with the context in the question: what the plan or the code does now and why the choice matters, in one or two short sentences.
 - **Concrete options.** The `label` is short (1 to 5 words); the `description` says what happens if they pick it, including the cost or risk.
 - **Recommend when you can.** Put your recommended option first with " (Recommended)" and the reason in its description. Never recommend a user-facing limit or number; that is their call.
-- **Show, don't describe**, when it is visual: use `preview` with a small text mockup or example.
+- **Show, don't describe**, when it is visual: use `preview` with a small text sketch or example.
 - **`header`** is a chip of 12 characters or fewer. Use `multiSelect` only when the choices are not exclusive.
+- **Visible changes.** When the plan adds or visibly changes a screen, read its `design-brief` section first (`/flow` section 2, step 4a). Ask what the brief cannot source, and never offer a look you made up or one an existing component already settles. When the mockup question is still unanswered and `/flow` section 2, step 6a applies, ask it; where that step does not apply, do not mention artifacts or a mockup.
 
 Between rounds: record the answers (Step 4), add any new questions they open, re-rank, and start the next round with one line saying what you recorded. Stop when the list is empty or the user says stop (usually 3 to 6 rounds). "Skip" or "later" is recorded as open, not decided. If `AskUserQuestion` is not available, write the round as a numbered list with the same structure and stop until they answer.
 

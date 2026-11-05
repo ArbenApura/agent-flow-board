@@ -41,11 +41,11 @@ Checks run against `yarn build && yarn preview`, never the dev server (`tests/ru
 - Danger, warning, success and info are fixed tokens, never replaced by an org palette. A status never uses the accent, and the accent never carries a status.
 - Text on a tinted surface uses the matching ink token (`--accent-text` on `--accent-soft`). Every pair must pass AA; the palette generator enforces it.
 - Anything rendered outside the root layout (a portal, a popover moved to `<body>`) copies `data-mode` onto its own root.
-- Type is Geist Sans and Geist Mono only, through `--font-sans` and `--font-mono`. Mono is for IDs, hashes and code. Tables use tabular figures.
+- Type is Poppins for text, Bricolage Grotesque for headings and bold, and Geist Mono for IDs, hashes and code, through `--font-sans` and `--font-mono` (`DESIGN.md`, Type). Tables use tabular figures.
 
 ## Design fit (read before any visible change)
 
-The scale, the colour tokens and the layout rules are in `DESIGN.md` at the root. There are no mockup files. The look, the fonts, the logo, the cards, the motion and what was tried and dropped are there too. Read it before changing any screen.
+The scale, the colour tokens and the layout rules are in `DESIGN.md` at the root. There are no mockup files in the repo. The look, the fonts, the logo, the cards, the motion and what was tried and dropped are there too. Read it before changing any screen.
 
 1. Match the nearest sibling page. Name 1 to 3 pages a person visits next to the new screen and copy their sizes and spacing level by level.
 2. Never larger than a sibling at the same level. For emphasis use weight or colour from the tokens, not size.
@@ -57,7 +57,7 @@ The scale, the colour tokens and the layout rules are in `DESIGN.md` at the root
 8. Phones. Same type scale. Every tap target is at least 44 by 44 px, and nothing scrolls sideways.
 9. Look at the screen in both modes, at 1440 and 390 wide. A screen that only passed the type check has not been checked.
 
-A plan with a new or changed screen carries no "UI changes" table, no mockup, no UI shots step and no browser check step: see "Flow overrides for this repo" below. UI shots no longer exist: a check's screenshots show on the item's Checks tab. After a screen change the person looks at the screen on localhost 5180.
+A plan with a new or changed screen carries a sourced `design-brief` section (`/flow` section 2, step 4a), and no "UI changes" table, no mockup step, no UI shots step and no browser check step: see "Flow overrides for this repo" below. UI shots no longer exist: a check's screenshots show on the item's Checks tab. After a screen change the person looks at the screen on localhost 5180.
 
 ## Svelte and TypeScript style
 
@@ -96,7 +96,7 @@ A plan with a new or changed screen carries no "UI changes" table, no mockup, no
 
 The `/flow` skills shipped by the board are generic. These are the owner's rules for this repo only, and they win over the Design fit and Gates lines above and over any workflow text served by the board. `AGENTS.md` is a link to this file, so Codex, Gemini CLI and Antigravity read the same section.
 
-1. **No UI changes table, no UI shots steps, no clickable mockup** (no `design/*.html`) in any plan. The agent finds the changed screens itself, so no page list is ever typed. Go from the spec to code and follow `DESIGN.md` and the design-fit rules. The person looks at the result on localhost 5180.
+1. **No UI changes table, no UI shots steps and no mockup file** (no `design/*.html`) in any plan. The agent finds the changed screens itself, so no page list is ever typed. A plan with a visible change writes the `design-brief` section from the person's preferences, `DESIGN.md` and the similar components in the repo. Only on Claude, when its artifact tools are available, the agent asks whether the person wants a Claude artifact mockup before asking for build approval, and makes none without a yes; other harnesses never mention it. The person looks at the result on localhost 5180.
 2. **Browser checks run by themselves, and are never plan steps.** The agent runs a plan's automatic browser checks (`/flow-check`) without asking. A check is not a counted step, and nothing is typed for it: no script by hand. Their screenshots show on the item's Checks tab. `yarn test:checks` is the repo's own script and runs only when asked. Manual checks stay plain and are the person's. The tool builds on its own free port: the agent never starts, stops or uses the person's 5180 or 5190.
 3. **Visibility is the person's choice per item.** Create items with the board default and never make one public or private on your own.
 4. **The branch is `main`** and the base commit comes from this repo. No `feat/demo`, no `app.thehapr.com` or `demo.thehapr.com`, no step that waits on a push or runs on a demo host.
