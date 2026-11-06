@@ -21,7 +21,7 @@ Tasks live on Agent Flow Board, in the project the user means (`<your-board-url>
 1. **Read the request.** Split a pasted list or a long paragraph into one task per item. One request stays one task.
 2. **Check before writing.** Run `task_list` for the project so you do not repeat an open task. Read the code only when it makes a task clearer (the file, the page, what done looks like).
 3. **Write each task**: a plain title of at least 3 characters, a short Markdown `body` when the words or the code add detail, and a `groupName` or `priority` only when the user said them. Link an item (`linkedItems`) only when the user named it.
-4. **Create it** with `task_new` and the `sessionId`, one call per task, each with its own `requestId`.
+4. **Create it only because the user asked** (they typed `/flow-task`, used the New task button or told you to record it). Never create a task on your own from another workflow, a finding or a thought of yours: ask the user first and write it only after a yes. Create it with `task_new` and the `sessionId`, one call per task, each with its own `requestId`.
 5. **Show what you wrote**: one line per task with its reference (`T-12`), title, group and priority, and say that a task can be fixed on the Tasks page or by asking again with its reference. A vague request still becomes a task now; the user corrects it with a follow-up.
 6. **Too big?** A feature, a fix with several steps or anything that needs a design is not a task. Create nothing for it and tell the user to start it with `/flow`. In a list, record the small ones and name the big one.
 

@@ -46,7 +46,7 @@ On the machine that runs the tool, in the tool folder:
 
 ## Take one check from words to a result
 
-1. Name the item and the check key (a manual check such as `M1`). Start the session and claim the item as usual (`session_start`, `work_start`). If the item has no manual check for it, add one with `plan_add_checks`.
+1. Name the item and the check key (a manual check such as `M1`). Start the session and claim the item as usual (`session_start`, `work_start`). If the item has no manual check for it, tell the user and add one with `plan_add_checks` only after they confirm (running a check the user named is already their request).
 2. Write `checks/<ORG-SLUG>/<ITEM-REF>/<CHECK-KEY>.mjs` in the tool folder with `step(name, fn)` and `shot(caption)`. A check gets `page`, `step`, `shot`, `expect`, `log` and `baseUrl`, and nothing else.
 3. Save **the same text** on the board with `check_save` (item, check, script, target `preview`). It also marks the manual check automatic. The tool runs only the local file; if the board's text differs, the report says so.
 4. Ask `runner_status` for the project. If a tool is online, go on. If not, it answers with an `agentAction` (steps for you): do them (doctor first, or the connect steps above) and ask again.

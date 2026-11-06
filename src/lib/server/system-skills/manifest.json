@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.1.14",
-		"releasedAt": "2026-11-05"
+		"version": "1.1.15",
+		"releasedAt": "2026-11-06"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.11",
+			"version": "1.1.12",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -70,11 +70,15 @@
 				{
 					"version": "1.1.11",
 					"hash": "2b6c196df346f759a420de2a45cd56eef21a5aeb81effaf287810de665ccaa80"
+				},
+				{
+					"version": "1.1.12",
+					"hash": "6dff6f4321173f926d01725f8ccad6ffd6c7adf61dcc7e0745c61c8e3d71f2b0"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.1.2",
+			"version": "1.1.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -95,11 +99,15 @@
 				{
 					"version": "1.1.2",
 					"hash": "42bd91dcb5d86b7cc51ead8a349af3412ab59c2bb61d46a1c38e97da2c44fce9"
+				},
+				{
+					"version": "1.1.3",
+					"hash": "3a27a03a3e751d8787d28fbedf73a4f883529cc76138b3ba78ddc24425e92561"
 				}
 			]
 		},
 		"flow-check": {
-			"version": "1.1.9",
+			"version": "1.1.10",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -148,11 +156,15 @@
 				{
 					"version": "1.1.9",
 					"hash": "24207266d7649364f6475b48c04a8dbd061320ec94bff6fc0ee3586be7c68266"
+				},
+				{
+					"version": "1.1.10",
+					"hash": "f4ac12df47d29622d2b417b59ce6adbf5e3bc0aaa7017862bff5a8647f7021e5"
 				}
 			]
 		},
 		"flow-critic": {
-			"version": "1.1.2",
+			"version": "1.1.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -173,11 +185,15 @@
 				{
 					"version": "1.1.2",
 					"hash": "0375ce893f358eb0bbda672566d7111b5e3568ab86b5f02995b06e57b03abac5"
+				},
+				{
+					"version": "1.1.3",
+					"hash": "ba04330256819d53550c42942010d49257cb47fcfeaa20b47c7df0434d053a78"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.1.2",
+			"version": "1.1.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -198,11 +214,15 @@
 				{
 					"version": "1.1.2",
 					"hash": "4cc68312da136617a86c29b9d746768ab72f5b220649a197be387830658bc926"
+				},
+				{
+					"version": "1.1.3",
+					"hash": "59828b89215745f70fa9aff7e05562b78460b460d14cda83a03e8accc806e954"
 				}
 			]
 		},
 		"flow-task": {
-			"version": "1.1.1",
+			"version": "1.1.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -219,6 +239,10 @@
 				{
 					"version": "1.1.1",
 					"hash": "ae0032b5c7b49190a7d3753cde1a2a84ee97a465ae22d6882d46231602fb3fbe"
+				},
+				{
+					"version": "1.1.2",
+					"hash": "3d27774931a1ca3c48e8e0709e70f864508ccb53dd1067fbc394d1391ff5b70c"
 				}
 			]
 		},
@@ -249,6 +273,22 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.1.15",
+			"date": "2026-11-06",
+			"notes": [
+				"flow, flow-task, flow-critic, flow-interview, flow-audit and flow-check: an agent never inserts tasks, steps, phases or checks on its own. It says what and why in one line, asks the user once and writes only after a yes. A request the user typed (/flow-task, a step they asked for, an interview answer) is already the confirmation. /flow-critic stays opt-in."
+			],
+			"skills": {
+				"flow": "1.1.12",
+				"flow-audit": "1.1.3",
+				"flow-check": "1.1.10",
+				"flow-critic": "1.1.3",
+				"flow-interview": "1.1.3",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
 		{
 			"version": "1.1.14",
 			"date": "2026-11-05",
@@ -552,9 +592,7 @@
 		{
 			"version": "1.0.0",
 			"date": "2026-10-21",
-			"notes": [
-				"First release of the system skills bundle."
-			],
+			"notes": ["First release of the system skills bundle."],
 			"skills": {
 				"flow": "1.0.0",
 				"flow-audit": "1.0.0",
