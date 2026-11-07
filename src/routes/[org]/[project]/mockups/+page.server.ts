@@ -4,7 +4,7 @@ import type { PageServerLoad } from './$types';
 import { listMockups } from '#lib/server/ops/mockups.js';
 import { getMockupSettings } from '#lib/server/ops/mockupSettings.js';
 import { childContext } from '#lib/server/web/ctx.js';
-import { memberMockupUrl } from '#lib/server/web/mockupLinks.js';
+import { cardThumb } from '#lib/server/web/mockupThumbs.js';
 
 // -- FUNCTIONS -- //
 
@@ -33,15 +33,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends }) 
 			publicLinkOn: m.publicLinkOn,
 			updatedAt: m.updatedAt,
 			plan: m.plan,
-			thumb: m.hasShot
-				? memberMockupUrl({
-						orgId: org.id,
-						projectId: m.projectId,
-						mockupId: m.id,
-						version: m.currentVersion,
-						kind: 'shot'
-					})
-				: null
+			...cardThumb(org.id, m)
 		})),
 		canManage: settings.canManage,
 		canWrite: summary.caps.includes('write'),

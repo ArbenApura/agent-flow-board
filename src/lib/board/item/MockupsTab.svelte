@@ -1,12 +1,9 @@
 <script lang="ts">
 	// -- DEP-TYPES -- //
 	import type { ItemView, TabEnv } from '#lib/board/item/types.js';
-	import type { ScreenKey } from '#lib/board/mockups.js';
 	import type { ItemMockups } from '#lib/server/web/itemMockups.js';
 	// -- ENVS -- //
 	import { page } from '$app/state';
-	// -- DEP-MODULES -- //
-	import { untrack } from 'svelte';
 	// -- MODULES -- //
 	import { mockupPrompt, screensOf } from '#lib/board/mockups.js';
 	import { ago } from '#lib/board/status.js';
@@ -24,10 +21,6 @@
 
 	let { detail, env, mockups }: { detail: ItemView; env: TabEnv; mockups: ItemMockups } = $props();
 
-	// -- STATES -- //
-
-	let screen = $state<ScreenKey>('laptop');
-
 	// -- REACTIVE STATES -- //
 
 	const base = $derived(`/${env.org}/${page.params.project ?? detail.project.key}`);
@@ -35,16 +28,6 @@
 	const first = $derived(mockups.list[0]);
 	const others = $derived(mockups.list.slice(1));
 	const screens = $derived(screensOf(open?.screens));
-
-	// -- REACTIVE STATEMENTS -- //
-
-	// The first screen is the laptop when the project offers it, otherwise the first one it does
-	$effect(() => {
-		const offered = screens;
-		untrack(() => {
-			if (!offered.includes(screen)) screen = offered.includes('laptop') ? 'laptop' : offered[0];
-		});
-	});
 
 	// -- FUNCTIONS -- //
 
@@ -92,7 +75,7 @@
 			{/snippet}
 			<div class="p-4 max-sm:p-3.5">
 				{#if open}
-					<MockupPreview src={open.src} {screens} title={first.title} bind:screen />
+					<MockupPreview src={open.src} {screens} title={first.title} />
 				{:else}
 					<p class="text-sm text-muted">Loading the preview...</p>
 				{/if}

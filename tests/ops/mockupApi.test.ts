@@ -144,6 +144,7 @@ describe('mockup endpoints', () => {
 		expect(made.status).toBe(200);
 		expect(b(made).version.number).toBe(1);
 		expect(b(made).projectKey).toBe(w.projectKey);
+		expect(b(made).warnings).toEqual([]);
 		const again = await call('POST', `${base()}/mockups`, {
 			as: 'member',
 			query: { item: ref, title: 'Rooms' },
@@ -301,9 +302,27 @@ describe('mockup endpoints', () => {
 			bytes: PAGE
 		});
 		expect(b(saved)).toMatchObject({ number: 1, stale: false });
+		// The kit answer carries the plain words check: this page embeds no font, has no icons and no marked head
+		expect((b(saved).warnings as string[]).join(' ')).toContain('embeds no font file');
 		expect(b(await call('PUT', kit, { as: 'admin', query: { stale: 'true' } }))).toMatchObject({
-			stale: true
+			stale: true,
+			warnings: []
 		});
+		// A summary that is too long is told in words, not as a schema path
+		const long = await call('PUT', kit, {
+			as: 'admin',
+			query: { summary: 'x'.repeat(20_001) },
+			bytes: PAGE
+		});
+		expect(long.status).toBe(400);
+		expect(JSON.stringify(long.body)).toContain(
+			'The summary is 20,001 characters; the limit is 20,000. Shorten it.'
+		);
+		const empty = await call('POST', `${base()}/mockups`, { as: 'member', query: { item: ref } });
+		expect(empty.status).toBe(400);
+		expect(JSON.stringify(empty.body)).toContain(
+			'No page was sent. Send it in html, or push the file with the bridge command.'
+		);
 		expect(b(await call('GET', kit, { as: 'viewer', query: { limit: '6' } }))).toMatchObject({
 			untrusted: true,
 			html: '<html>',

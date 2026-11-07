@@ -73,6 +73,7 @@ describe('mockup tools', () => {
 		});
 		expect(first.error).toBeUndefined();
 		expect(first.version.number).toBe(1);
+		expect(first.warnings).toEqual([]);
 		// The same request id answers the first result and writes nothing again
 		const again = await call(member, 'mockup_publish', {
 			sessionId: s.sessionId,
@@ -113,6 +114,41 @@ describe('mockup tools', () => {
 		const list = await call(member, 'mockup_list', { project: w.projectKey, item: ref });
 		expect(list.mockups).toHaveLength(1);
 		expect(list.mockups[0]).toMatchObject({ versions: 3, plan: { ref } });
+	});
+
+	it('says in plain words what to fix: a missing page, notes or a page that is too long, and warns about what will not render', async () => {
+		const s = await call(member, 'session_start', { tool: 'claude-code' });
+		const none = await call(member, 'mockup_publish', { sessionId: s.sessionId, item: ref });
+		expect(none.error).toMatchObject({
+			code: 'INVALID',
+			message: 'No page was sent. Send it in html, or push the file with the bridge command.'
+		});
+		const notes = await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			item: ref,
+			html: PAGE,
+			keepNotes: 'k'.repeat(23_114)
+		});
+		expect(notes.error?.message).toBe(
+			'The Keep notes are 23,114 characters; the limit is 20,000. Shorten them.'
+		);
+		const huge = await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			item: ref,
+			html: 'x'.repeat(3_000_001)
+		});
+		expect(huge.error?.message).toContain(
+			'The page is 3,000,001 characters; the limit is 3,000,000.'
+		);
+		expect(huge.error?.message).toContain('bridge command');
+		const bad = await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			item: ref,
+			html: '<html><head><link href="https://fonts.example/a.css" rel="stylesheet"></head><body><button>⚙ Settings</button></body></html>'
+		});
+		expect(bad.error).toBeUndefined();
+		expect((bad.warnings as string[]).join(' ')).toContain('from the network');
+		expect((bad.warnings as string[]).join(' ')).toContain('emoji or symbol');
 	});
 
 	it('a read only token cannot publish, and the public link and the project settings are for managers', async () => {
@@ -189,6 +225,16 @@ describe('mockup tools', () => {
 			summary: 'Tokens and shell'
 		});
 		expect(saved).toMatchObject({ number: 1, stale: false });
+		expect((saved.warnings as string[]).join(' ')).toContain('embeds no font file');
+		const longSummary = await call(admin, 'mockup_kit_set', {
+			sessionId: sa.sessionId,
+			project: w.projectKey,
+			html: '<html></html>',
+			summary: 's'.repeat(20_001)
+		});
+		expect(longSummary.error?.message).toBe(
+			'The summary is 20,001 characters; the limit is 20,000. Shorten it.'
+		);
 		const part = await call(member, 'mockup_kit_get', {
 			project: w.projectKey,
 			offset: 0,

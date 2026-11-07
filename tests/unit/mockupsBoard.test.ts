@@ -7,6 +7,7 @@ import {
 	filterMockups,
 	isReadyMessage,
 	parsePinMessage,
+	pinMessages,
 	pinsOf,
 	readFilters,
 	scaleFor,
@@ -116,5 +117,16 @@ describe('screens and scale', () => {
 		];
 		expect(pinsOf(list, 1).map((p) => p.id)).toEqual(['a', 'b']);
 		expect(pinsOf(list, 3)).toEqual([]);
+	});
+});
+
+describe('pin messages sent to the frame', () => {
+	it('sends the pin mode and then only the positions of the pins, every time the frame is ready', () => {
+		const pins = [{ x: 1, y: 2, body: 'secret' } as { x: number; y: number }];
+		expect(pinMessages(true, pins)).toEqual([
+			{ type: 'afb-pin-mode', on: true },
+			{ type: 'afb-pins', pins: [{ x: 1, y: 2 }] }
+		]);
+		expect(pinMessages(false, [])[1]).toEqual({ type: 'afb-pins', pins: [] });
 	});
 });

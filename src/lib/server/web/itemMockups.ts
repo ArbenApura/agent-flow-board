@@ -6,6 +6,7 @@ import type { Ctx } from '../ops/context';
 import { getMockupSettings } from '../ops/mockupSettings';
 import { getMockup, listMockups, mockupFileGrant } from '../ops/mockups';
 import { memberMockupUrl } from './mockupLinks';
+import { cardThumb } from './mockupThumbs';
 
 // -- TYPES -- //
 
@@ -16,7 +17,9 @@ export type ItemMockups = {
 		currentVersion: number;
 		versions: number;
 		hasShot: boolean;
-		thumb: string | null;
+		thumb: string;
+		/** True when the address is a live preview page, false for a screenshot. */
+		live: boolean;
 		updatedAt: Date;
 		publicLinkOn: boolean;
 	}[];
@@ -45,15 +48,7 @@ export async function itemMockups(
 		currentVersion: m.currentVersion,
 		versions: m.versions,
 		hasShot: m.hasShot,
-		thumb: m.hasShot
-			? memberMockupUrl({
-					orgId: ctx.orgId,
-					projectId: m.projectId,
-					mockupId: m.id,
-					version: m.currentVersion,
-					kind: 'shot'
-				})
-			: null,
+		...cardThumb(ctx.orgId, m),
 		updatedAt: m.updatedAt,
 		publicLinkOn: m.publicLinkOn
 	}));

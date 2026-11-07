@@ -5,13 +5,63 @@
 import { createInterface } from 'node:readline';
 // -- CONSTANTS -- //
 export const BRIDGE_PROTOCOL_MAX = 1;
+/** The longest one request may take. A tool call can wait up to 50 seconds for a run, so this sits above that. */
+export const POST_TIMEOUT_MS = 90_000;
+const NETWORK_CODES = new Set([
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'ENOTFOUND',
+    'EAI_AGAIN',
+    'ETIMEDOUT',
+    'ENETUNREACH',
+    'EHOSTUNREACH',
+    'EPIPE',
+    'UND_ERR_CONNECT_TIMEOUT',
+    'UND_ERR_SOCKET'
+]);
 // -- FUNCTIONS -- //
-const isNetworkError = (e) => e instanceof TypeError ||
-    e?.code === 'ECONNREFUSED' ||
-    /fetch failed|network|ENOTFOUND|ECONN/i.test(String(e?.message));
+/** A request that timed out: the board may or may not have taken it, so it is never treated as offline. */
+const isTimeout = (e) => e?.name === 'TimeoutError' ||
+    e?.name === 'AbortError';
+/** Only a real failure to reach the board counts. Any other TypeError is a bug and must be shown, not hidden as offline. */
+export const isNetworkError = (e) => {
+    if (!e || typeof e !== 'object')
+        return false;
+    const err = e;
+    if (err.code && NETWORK_CODES.has(err.code))
+        return true;
+    if (err.cause?.code && NETWORK_CODES.has(err.cause.code))
+        return true;
+    // Node's fetch reports a failed connection as a TypeError whose message is exactly this
+    return (e instanceof TypeError &&
+        /^(fetch failed|failed to fetch|network request failed)/i.test(String(err.message)));
+};
+/** The board refused the saved sign in. The person has to sign in again, which the bridge starts in the background. */
+class SignInNeeded extends Error {
+}
 /** Runs until stdin closes. */
 export async function runBridge(o) {
-    let token = o.getToken() ?? (await o.login());
+    let token = o.getToken();
+    const postTimeout = o.postTimeoutMs ?? POST_TIMEOUT_MS;
+    let loginRunning = null;
+    /** Starts the device code sign in once. It runs in the background, so no call waits for the person to type a code. */
+    const startLogin = () => {
+        if (loginRunning)
+            return;
+        loginRunning = o
+            .login()
+            .then((t) => {
+            token = t;
+        })
+            .catch((err) => o.log(`Sign in failed: ${String(err?.message ?? err)}`))
+            .finally(() => {
+            loginRunning = null;
+        });
+    };
+    if (!token) {
+        o.log('No saved sign in. Starting the sign in.');
+        startLogin();
+    }
     const protocolMax = o.protocolMax ?? BRIDGE_PROTOCOL_MAX;
     let warnedProtocol = false;
     /** Tool names known to only read, from the server's own annotations. Anything else is treated as a write. */
@@ -26,14 +76,18 @@ export async function runBridge(o) {
                 accept: 'application/json, text/event-stream',
                 authorization: `Bearer ${token}`
             },
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(postTimeout)
         });
-        let res = await send();
+        if (!token)
+            throw new SignInNeeded();
+        const res = await send();
         if (res.status === 401) {
-            // The token expired or was revoked: sign in again once and retry
-            o.log('The saved sign in is no longer valid. Signing in again.');
-            token = await o.login();
-            res = await send();
+            // The token expired or was revoked. The sign in starts in the background and this call says so, instead of waiting for it
+            o.log('The saved sign in is no longer valid. Starting the sign in.');
+            token = null;
+            startLogin();
+            throw new SignInNeeded();
         }
         return res;
     };
@@ -75,7 +129,7 @@ export async function runBridge(o) {
             return { kind: 'ok' };
         }
         catch (err) {
-            if (isNetworkError(err))
+            if (err instanceof SignInNeeded || isTimeout(err) || isNetworkError(err))
                 return { kind: 'offline' };
             return { kind: 'refused', reason: String(err.message) };
         }
@@ -116,6 +170,33 @@ export async function runBridge(o) {
         catch (err) {
             if (msg.id === undefined)
                 return;
+            if (err instanceof SignInNeeded) {
+                const text = 'The board did not accept the saved sign in. A sign in was started: open the address printed by the agent-flow-board bridge (or run "agent-flow-board login" in a terminal), type the code, then try again.';
+                if (msg.method === 'tools/call')
+                    write({
+                        jsonrpc: '2.0',
+                        id: msg.id,
+                        result: {
+                            isError: true,
+                            content: [{ type: 'text', text }],
+                            structuredContent: { error: { code: 'SIGN_IN_NEEDED', message: text } }
+                        }
+                    });
+                else
+                    write({ jsonrpc: '2.0', id: msg.id, error: { code: -32001, message: text } });
+                return;
+            }
+            if (isTimeout(err)) {
+                write({
+                    jsonrpc: '2.0',
+                    id: msg.id,
+                    error: {
+                        code: -32000,
+                        message: `The board did not answer within ${Math.round(postTimeout / 1000)} seconds. The request may or may not have been applied: read the item before sending it again.`
+                    }
+                });
+                return;
+            }
             if (!isNetworkError(err)) {
                 write({
                     jsonrpc: '2.0',

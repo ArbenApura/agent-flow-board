@@ -33,7 +33,7 @@
 	import Check from '@lucide/svelte/icons/check';
 	import Copy from '@lucide/svelte/icons/copy';
 	import Funnel from '@lucide/svelte/icons/funnel';
-	import Palette from '@lucide/svelte/icons/palette';
+	import Settings from '@lucide/svelte/icons/settings';
 	import Search from '@lucide/svelte/icons/search';
 
 	// -- REQUIRED PROPS -- //
@@ -99,8 +99,8 @@
 		context={`${data.mockups.length} ${data.mockups.length === 1 ? 'mockup' : 'mockups'}, design ideas your tools drew for this project. A mockup is inspiration, never the spec.`}
 	>
 		{#snippet actions()}
-			<Button href={`${base}/settings?tab=mockup-style`} data-testid="mockup-style-button">
-				<Palette size={16} /> Mockup style
+			<Button href={`${base}/mockups/settings`} data-testid="mockup-settings-button">
+				<Settings size={16} /> Settings
 			</Button>
 		{/snippet}
 	</PageHeader>

@@ -170,6 +170,8 @@ describe('mockup push over http', () => {
 				{ method: 'PUT', headers: { authorization: `Bearer ${adminToken}` }, body: kit }
 			);
 			expect(put.status).toBe(200);
+			// The real kit meets its own contract: fonts embedded, icons present, both modes, a marked head
+			expect(((await put.json()) as { warnings: string[] }).warnings).toEqual([]);
 			const saved = await readMockupKit(as('member'), w.projectKey, { limit: 20 });
 			expect(saved).toMatchObject({ number: 1, stale: false });
 			const item = (
@@ -188,9 +190,33 @@ describe('mockup push over http', () => {
 					screenshot: join(proof, 'mockup-wide-light.png')
 				})
 			);
-			expect(result).toMatchObject({ version: 1, notes: true, screenshot: true });
+			expect(result).toMatchObject({ version: 1, notes: true, screenshot: true, warnings: [] });
 			const read = await getMockup(as('viewer'), result.mockupId);
-			expect(read.versions[0].size).toBeGreaterThan(100_000);
+			// The page carries only the marker, so it stays small: the kit holds the fonts, icons and tokens
+			expect(read.versions[0].size).toBeLessThan(50_000);
+
+			// A deliberately bad copy: an emoji icon, a font from an https address, a font of its own and a literal colour
+			const good = readFileSync(join(proof, 'mockup.html'), 'utf8');
+			const bad = good
+				.replace(
+					'<!--afb-kit-->',
+					`<!--afb-kit--><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter"><style>body{font-family:'Inter',sans-serif}.bad{color:#ff00aa}</style>`
+				)
+				.replace('<svg class="ic"><use href="#i-settings"/></svg>Settings', '\u2699 Settings');
+			expect(bad).not.toBe(good);
+			const badFile = join(dir, 'bad.html');
+			writeFileSync(badFile, bad);
+			const badResult = await pushMockup(
+				opts(badFile, memberToken, { mockup: result.mockupId, title: 'Mockups page, bad copy' })
+			);
+			const badText = badResult.warnings.join('\n');
+			expect(badText).toContain('from the network');
+			expect(badText).toContain('fonts.googleapis.com');
+			expect(badText).toContain("not one of the project's fonts");
+			expect(badText).toContain('emoji or symbol');
+			expect(badText).toContain("not one of the project's colours");
+			expect(badResult.version).toBe(2);
+			// Warnings never block: the bad copy was saved as version 2, and the clean one is still version 1
 			expect((await getMockupSettings(as('viewer'), w.projectKey)).kit?.builtFromCommit).not.toBe(
 				''
 			);
@@ -201,7 +227,9 @@ describe('mockup push over http', () => {
 					mockupBytes: read.versions[0].size,
 					version: result.version,
 					notes: result.notes,
-					screenshot: result.screenshot
+					screenshot: result.screenshot,
+					warnings: result.warnings,
+					badWarnings: badResult.warnings
 				})
 			);
 		}

@@ -16,6 +16,7 @@ import {
 	setMockupStyle
 } from '../ops/mockupSettings';
 import {
+	checkLength,
 	getMockup,
 	linkMockup,
 	listMockups,
@@ -30,7 +31,9 @@ import type { ToolBuilder } from './tools';
 // -- CONSTANTS -- //
 
 /** The most HTML or kit text one tool call carries. A bigger file goes up with the bridge command. */
-export const MCP_MOCKUP_CHARS = 5_000_000;
+export const MCP_MOCKUP_CHARS = 3_000_000;
+/** The most base64 text of a screenshot one tool call carries. Together with a page it stays under the 4 MB the MCP transport accepts, so these messages are what a person reads. */
+const MCP_SHOT_CHARS = 900_000;
 const SCREENS = z.enum(['wide', 'laptop', 'tablet', 'phone']);
 
 // -- FUNCTIONS -- //
@@ -51,9 +54,9 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_publish',
-		'Publish a design mockup as one HTML file (plain text), or a new version of one. Name the plan with item (defaults to your claimed item), or a project for a mockup with no plan, or mockup for a new version. With a shell use the bridge command "agent-flow-board mockup push" instead. A mockup is inspiration, never a spec.',
+		'Publish a design mockup as one small HTML page (over 50 KB: bridge command "mockup push"), or a new version. Name the plan (item, default your claimed item), a project, or a mockup. The answer lists warnings in plain words: fix them. Inspiration, never a spec.',
 		{
-			html: z.string().min(1).max(MCP_MOCKUP_CHARS).describe('The whole page as one HTML file'),
+			html: z.string().optional().describe('The whole page as one HTML file'),
 			item: z.string().optional().describe('The plan it belongs to. Defaults to your claimed item'),
 			project: z.string().optional(),
 			mockup: z.string().uuid().optional().describe('An existing mockup, for a new version'),
@@ -64,18 +67,41 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 			title: z.string().max(200).optional(),
 			keepNotes: z
 				.string()
-				.max(20_000)
 				.optional()
-				.describe('Layout, hierarchy, flow, states and copy to keep'),
+				.describe('Layout, hierarchy, flow, states and copy to keep (at most 20,000 characters)'),
 			freeNotes: z
 				.string()
-				.max(20_000)
 				.optional()
-				.describe('Pixels, colours and invented components that are free to change'),
-			screenshotBase64: z.string().max(7_000_000).optional().describe('A PNG, at most 5 MB')
+				.describe(
+					'Pixels, colours and invented components that are free to change (at most 20,000 characters)'
+				),
+			screenshotBase64: z
+				.string()
+				.optional()
+				.describe(
+					'A small PNG as base64 (about 600 KB at most here; a larger one goes with the bridge)'
+				)
 		},
 		{ session: true },
 		async (a, { ctx, claimed }) => {
+			// The limits are checked here and in the operation in plain words, so the answer says what to do
+			if (!a.html)
+				throw new OpError(
+					'INVALID',
+					'No page was sent. Send it in html, or push the file with the bridge command.'
+				);
+			checkLength(
+				'page',
+				a.html,
+				MCP_MOCKUP_CHARS,
+				'Push the file with the bridge command: agent-flow-board mockup push <file>.'
+			);
+			checkLength(
+				'screenshot',
+				a.screenshotBase64,
+				MCP_SHOT_CHARS,
+				'Push it with the bridge command (--screenshot), or send a smaller PNG.'
+			);
 			const target = a.mockup
 				? undefined
 				: (a.item ?? (a.project ? undefined : (claimed ?? undefined)));
@@ -243,22 +269,23 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_kit_set',
-		'Save a new project kit as one HTML file with the commit it was built from, or send only stale (true when the design files changed, false when still current) to mark the newest kit. Admins and owners only.',
+		'Save a project kit (small: over 50 KB use the bridge command "mockup kit") with its commit, or send only stale to mark the newest kit. The answer lists warnings in plain words: fix them. Admins and owners only.',
 		{
 			project,
-			html: z
-				.string()
-				.min(1)
-				.max(MCP_MOCKUP_CHARS)
-				.optional()
-				.describe('The whole kit as one HTML file'),
-			builtFromCommit: z.string().max(80).optional(),
-			summary: z.string().max(20_000).optional(),
+			html: z.string().optional().describe('The whole kit as one HTML file'),
+			builtFromCommit: z.string().optional().describe('The short commit hash it was built from'),
+			summary: z.string().optional().describe('What is in the kit and what is missing'),
 			stale: z.boolean().optional()
 		},
 		{ session: true },
-		async (a, { ctx }) =>
-			(await setMockupKit(
+		async (a, { ctx }) => {
+			checkLength(
+				'kit',
+				a.html,
+				MCP_MOCKUP_CHARS,
+				'Push the file with the bridge command: agent-flow-board mockup kit <file>.'
+			);
+			return (await setMockupKit(
 				ctx,
 				{
 					project: a.project,
@@ -267,6 +294,7 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 					stale: a.stale
 				},
 				a.html ? bytesOf(a.html) : undefined
-			)) as never
+			)) as never;
+		}
 	);
 }

@@ -12,7 +12,6 @@
 	import { ApiError, api, deletePicture, newKey, putPicture } from '#lib/board/api.js';
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
 	import BrowserChecks from '#lib/settings/BrowserChecks.svelte';
-	import MockupSettings from '#lib/settings/MockupSettings.svelte';
 	import { canon, createFollower } from '#lib/settings/follow.js';
 	import {
 		savedStreams,
@@ -35,6 +34,7 @@
 	import Bot from '@lucide/svelte/icons/bot';
 	import Activity from '@lucide/svelte/icons/activity';
 	import Download from '@lucide/svelte/icons/download';
+	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
 	import Trash from '@lucide/svelte/icons/trash';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 
@@ -269,15 +269,18 @@
 
 			<BrowserChecks webApp={p.webApp} tools={data.tools} />
 
-			{#if data.mockups}
-				<MockupSettings
-					saved={data.mockups}
-					{org}
-					projectKey={p.key}
-					projectName={p.name}
-					can={Boolean(can)}
-				/>
-			{/if}
+			<Section
+				id="mockups"
+				icon={PanelsTopLeft}
+				title="Mockups"
+				text="How your coding tool draws design mockups for this project: the look, the devices, page examples, and your colours and fonts."
+			>
+				<div>
+					<Button href={`/${org}/${key}/mockups/settings`} data-testid="open-mockup-settings"
+						>Open mockup settings <ArrowRight size={16} /></Button
+					>
+				</div>
+			</Section>
 
 			<Section
 				id="trash"

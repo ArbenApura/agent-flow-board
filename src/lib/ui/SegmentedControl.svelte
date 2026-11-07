@@ -1,10 +1,17 @@
 <script lang="ts">
+	// -- DEP-TYPES -- //
+	import type { Component } from 'svelte';
 	// -- MODULES -- //
 	import { cn } from '#lib/ui/cn.js';
 
 	// -- TYPES -- //
 
-	type Option = { value: string; label: string };
+	/** An option may carry a small icon beside its label. */
+	type Option = {
+		value: string;
+		label: string;
+		icon?: Component<{ size?: number; class?: string; 'aria-hidden'?: 'true' }>;
+	};
 
 	// -- REQUIRED PROPS -- //
 
@@ -66,12 +73,16 @@
 			onclick={() => pick(opt.value)}
 			onkeydown={(e) => onKey(e, i)}
 			class={cn(
-				'h-full min-w-16 cursor-pointer rounded-md px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+				'inline-flex h-full min-w-16 cursor-pointer items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
 				value === opt.value
 					? 'bg-surface text-ink shadow-[0_0_0_1px_var(--line)]'
 					: 'text-muted hover:text-ink'
 			)}
 		>
+			{#if opt.icon}
+				{@const Icon = opt.icon}
+				<Icon size={16} class="shrink-0" aria-hidden="true" />
+			{/if}
 			{opt.label}
 		</button>
 	{/each}

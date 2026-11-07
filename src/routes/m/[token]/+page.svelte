@@ -1,11 +1,8 @@
 <script lang="ts">
 	// -- DEP-TYPES -- //
 	import type { PageProps } from './$types';
-	import type { ScreenKey } from '#lib/board/mockups.js';
 	// -- ENVS -- //
 	import { page } from '$app/state';
-	// -- DEP-MODULES -- //
-	import { untrack } from 'svelte';
 	// -- MODULES -- //
 	import { screensOf } from '#lib/board/mockups.js';
 	import MockupPreview from '#lib/board/MockupPreview.svelte';
@@ -20,25 +17,11 @@
 
 	let { data }: PageProps = $props();
 
-	// -- STATES -- //
-
-	let screen = $state<ScreenKey>('laptop');
-
 	// -- REACTIVE STATES -- //
 
 	const screens = $derived(data.available ? screensOf(data.screens) : []);
 	// The file is served by its own route, sandboxed, and never carries the pin script
 	const src = $derived(`/m/${page.params.token}/file`);
-
-	// -- REACTIVE STATEMENTS -- //
-
-	$effect(() => {
-		const offered = screens;
-		untrack(() => {
-			if (offered.length && !offered.includes(screen))
-				screen = offered.includes('laptop') ? 'laptop' : offered[0];
-		});
-	});
 </script>
 
 <svelte:head>
@@ -86,7 +69,7 @@
 				<div
 					class="rounded-xl border border-line bg-surface p-4 shadow-[var(--elev-1)] max-sm:p-3.5"
 				>
-					<MockupPreview {src} {screens} title={data.title} bind:screen />
+					<MockupPreview {src} {screens} title={data.title} />
 				</div>
 			{/if}
 		</PageFrame>

@@ -68,7 +68,7 @@ export const mockupRoutes: Route[] = [
 		method: 'POST',
 		path: '/orgs/{org}/mockups',
 		summary:
-			'Publish a mockup file (HTML as the body). Name the plan with item, or a project, or an existing mockup for a new version.',
+			'Publish a mockup file (HTML as the body). Name the plan with item, or a project, or an existing mockup for a new version. The answer carries warnings, a list of plain words about what will not render (empty when nothing is wrong).',
 		tag: 'Mockups',
 		query: publishInput.omit({ keepNotes: true, freeNotes: true }),
 		upload: true,
@@ -249,7 +249,7 @@ export const mockupRoutes: Route[] = [
 		method: 'PUT',
 		path: '/orgs/{org}/projects/{project}/mockup-kit',
 		summary:
-			'Save a new project kit (the HTML as the body, with the commit it was built from), or send stale=true with no body to mark it out of date. Admins and owners only.',
+			'Save a new project kit (the HTML as the body, with the commit it was built from), or send stale=true with no body to mark it out of date. The answer carries warnings about the kit, in plain words. Admins and owners only.',
 		tag: 'Mockups',
 		query: noProject(kitInput),
 		upload: true,

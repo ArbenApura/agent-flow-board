@@ -38,7 +38,24 @@ export type PushResult = {
 	url: string;
 	notes: boolean;
 	screenshot: boolean;
+	/** What the board says will not render, in plain words. Empty when nothing is wrong. */
+	warnings: string[];
 };
+export type KitPushOptions = {
+	server: string;
+	org: string;
+	token: string;
+	fetch: Fetch;
+	/** The kit HTML file to upload. */
+	file: string;
+	project: string;
+	/** The short commit hash the kit was built from. */
+	commit?: string;
+	summary?: string;
+	log: (line: string) => void;
+	wait?: (ms: number) => Promise<unknown>;
+};
+export type KitPushResult = { number: number; warnings: string[] };
 
 // -- CONSTANTS -- //
 
@@ -46,6 +63,8 @@ export type PushResult = {
 export const MAX_MOCKUP_BYTES = 50 * 1024 * 1024;
 export const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
 const TRIES = 3;
+/** A kit's summary travels in the address, so it is kept short here. */
+const MAX_KIT_SUMMARY = 4000;
 
 // -- FUNCTIONS -- //
 
@@ -140,6 +159,7 @@ export async function pushMockup(o: PushOptions): Promise<PushResult> {
 		mockup: { id: string };
 		version: { number: number };
 		projectKey: string;
+		warnings?: string[];
 	};
 	const at = `${base}/mockups/${made.mockup.id}/versions/${made.version.number}`;
 	let notes = false;
@@ -169,11 +189,43 @@ export async function pushMockup(o: PushOptions): Promise<PushResult> {
 			o.log(`The mockup is published, but its screenshot was not saved: ${await failure(s)}`);
 		else screenshot = true;
 	}
+	const warnings = made.warnings ?? [];
+	for (const w of warnings) o.log(`Warning: ${w}`);
 	return {
 		mockupId: made.mockup.id,
 		version: made.version.number,
 		url: `${o.server}/${o.org}/${made.projectKey}/mockups/${made.mockup.id}`,
 		notes,
-		screenshot
+		screenshot,
+		warnings
 	};
+}
+
+/** Uploads the project's kit file (colours, fonts, icons) by path, the same way. The warnings are printed and never change the exit code. */
+export async function pushKit(o: KitPushOptions): Promise<KitPushResult> {
+	if (!o.token)
+		throw new Error('Not signed in. Run: agent-flow-board login --server <url> --org <slug>');
+	const html = readFileChecked(o.file, ['.html', '.htm'], MAX_MOCKUP_BYTES, 'kit');
+	const q = new URLSearchParams();
+	if (o.commit) q.set('builtFromCommit', o.commit.slice(0, 80));
+	if (o.summary) {
+		if (o.summary.length > MAX_KIT_SUMMARY)
+			throw new Error(
+				`The summary is ${o.summary.length.toLocaleString('en-US')} characters; the bridge sends at most ${MAX_KIT_SUMMARY.toLocaleString('en-US')}. Shorten it.`
+			);
+		q.set('summary', o.summary);
+	}
+	const res = await call(
+		o,
+		'PUT',
+		`/orgs/${encodeURIComponent(o.org)}/projects/${encodeURIComponent(o.project)}/mockup-kit?${q}`,
+		html as BodyInit,
+		{ 'content-type': 'text/html' },
+		`mockup-kit-${randomBytes(8).toString('hex')}`
+	);
+	if (!res.ok) throw new Error(await failure(res));
+	const made = (await res.json()) as { number: number; warnings?: string[] };
+	const warnings = made.warnings ?? [];
+	for (const w of warnings) o.log(`Warning: ${w}`);
+	return { number: made.number, warnings };
 }

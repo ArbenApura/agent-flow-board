@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
+import { clearKitCache } from '../../src/lib/server/mockups/kitHead';
 import { isMockupKey, mockupKey } from '../../src/lib/server/mockups/keys';
 import {
 	PUBLIC_LIMIT,
@@ -12,6 +13,8 @@ import {
 } from '../../src/lib/server/mockups/limit';
 import {
 	MOCKUP_CSP,
+	THUMB_CSP,
+	THUMB_MAX_BYTES,
 	injectPinScript,
 	readsNoSession,
 	servePublicMockup,
@@ -19,6 +22,7 @@ import {
 	signMockupGrant
 } from '../../src/lib/server/mockups/serve';
 import { createItem, trashItem, updateItem } from '../../src/lib/server/ops/items';
+import { setMockupKit } from '../../src/lib/server/ops/mockupSettings';
 import {
 	mockupFileGrant,
 	publishMockup,
@@ -202,6 +206,131 @@ describe('mockup routes', () => {
 		expect((await servePublicMockup(deps(), again.token!)).status).toBe(404);
 		// A token of one organisation reads nothing of another: the other org's rows are not reachable by any token but their own
 		expect((await servePublicMockup(deps(), 'C'.repeat(32))).status).toBe(404);
+	});
+
+	it('a thumb link serves the page with no script allowed and no pin script, and every failure is an empty transparent page', async () => {
+		const m = await publishMockup(as('member'), { item: (await plan('Thumb plan')).ref }, PAGE);
+		const g = await mockupFileGrant(as('viewer'), m.mockup.id);
+		const thumb = { ...g, kind: 'thumb' as const };
+		const { exp, sig } = linkOf(thumb);
+		const res = await serveMemberMockup(deps(), SECRET, asParams(thumb), { exp, sig });
+		expect(res.status).toBe(200);
+		expect(res.headers.get('content-security-policy')).toBe(THUMB_CSP);
+		expect(THUMB_CSP).toBe(
+			"sandbox; default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'"
+		);
+		expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+		expect(res.headers.get('cache-control')).toBe('no-store');
+		const body = await res.text();
+		expect(body).toContain('<h1>Hello</h1>');
+		expect(body).not.toContain('afb-mockup-pin');
+
+		const empty = async (r: Response) => {
+			expect(r.headers.get('content-security-policy')).toBe(THUMB_CSP);
+			const text = await r.text();
+			expect(text).toContain('transparent');
+			expect(text).not.toContain('Hello');
+			expect(text).not.toContain('<script');
+		};
+		// A link signed for the page cannot be used as a thumb, and the other way round
+		const html = linkOf(g);
+		await empty(await serveMemberMockup(deps(), SECRET, { ...asParams(g), kind: 'thumb' }, html));
+		await empty(
+			await serveMemberMockup(deps(), SECRET, asParams(thumb), { exp, sig: 'x'.repeat(43) })
+		);
+		const asPage = await serveMemberMockup(
+			deps(),
+			SECRET,
+			{ ...asParams(thumb), kind: 'html' },
+			{
+				exp,
+				sig
+			}
+		);
+		expect(asPage.headers.get('content-security-policy')).toBe(MOCKUP_CSP);
+		expect(await asPage.text()).not.toContain('Hello');
+	});
+
+	it('a page over 2 MB is never drawn as a thumb, and the answer is empty before its file is read', async () => {
+		const big = new TextEncoder().encode(
+			`<html><body>${'x'.repeat(THUMB_MAX_BYTES + 10)}</body></html>`
+		);
+		const m = await publishMockup(as('member'), { item: (await plan('Big thumb plan')).ref }, big);
+		const g = await mockupFileGrant(as('viewer'), m.mockup.id);
+		const thumb = { ...g, kind: 'thumb' as const };
+		let reads = 0;
+		const counting = {
+			handle: db,
+			storage: { ...storage, get: (k: string) => (reads++, storage.get(k)) }
+		};
+		const res = await serveMemberMockup(counting, SECRET, asParams(thumb), linkOf(thumb));
+		expect(res.headers.get('content-security-policy')).toBe(THUMB_CSP);
+		expect(await res.text()).not.toContain('xxxx');
+		expect(reads).toBe(0);
+		// The same page is still served as the full mockup
+		const full = await serveMemberMockup(deps(), SECRET, asParams(g), linkOf(g));
+		expect(full.status).toBe(200);
+	});
+
+	it('puts the kit head where the marker is on every route, removes the marker when there is no kit, and leaves a page without it alone', async () => {
+		clearKitCache();
+		const marked = new TextEncoder().encode(
+			'<html><head><!--afb-kit--><title>Marked</title></head><body><h1>Hello</h1></body></html>'
+		);
+		const m = await publishMockup(as('member'), { item: (await plan('Kit plan')).ref }, marked);
+		const plain = await publishMockup(as('member'), { item: (await plan('Plain plan')).ref }, PAGE);
+		const g = await mockupFileGrant(as('viewer'), m.mockup.id);
+		const gPlain = await mockupFileGrant(as('viewer'), plain.mockup.id);
+		const serve = async (grant: typeof g, kind: 'html' | 'thumb' = 'html') => {
+			const x = { ...grant, kind };
+			const res = await serveMemberMockup(deps(), SECRET, asParams(x), linkOf(x));
+			return { res, text: await res.text() };
+		};
+
+		// A project with no kit: the marker is removed, and nothing else changes
+		const noKit = await serve(g);
+		expect(noKit.text).not.toContain('afb-kit');
+		expect(noKit.text).toContain('<title>Marked</title>');
+		expect(m.warnings.join(' ')).toContain('no colours and fonts yet');
+
+		const kit = `<!doctype html><html><head><!--afb-kit:start--><style id="kit-head">:root{--bg:#f3f4f7}</style><!--afb-kit:end--></head><body>KIT BODY NEVER SERVED</body></html>`;
+		await setMockupKit(
+			as('admin'),
+			{ project: w.projectKey, builtFromCommit: 'serve1' },
+			new TextEncoder().encode(kit)
+		);
+		const html = await serve(g);
+		expect(html.text).toContain('<style id="kit-head">:root{--bg:#f3f4f7}</style>');
+		expect(html.text).not.toContain('afb-kit');
+		expect(html.text).not.toContain('KIT BODY NEVER SERVED');
+		expect(html.text).toContain('afb-mockup-pin');
+		expectIsolated(html.res);
+		expect(html.res.status).toBe(200);
+
+		// The thumb kind gets the head too, with its own header and no pin script
+		const thumb = await serve(g, 'thumb');
+		expect(thumb.text).toContain('id="kit-head"');
+		expect(thumb.text).not.toContain('afb-mockup-pin');
+		expect(thumb.res.headers.get('content-security-policy')).toBe(THUMB_CSP);
+
+		// A page without the marker is served as it is, and the kit is not even read for it
+		const same = await serve(gPlain);
+		expect(same.text).toContain('<h1>Hello</h1>');
+		expect(same.text).not.toContain('kit-head');
+
+		// The kit file is read once per kit: with the file gone, the head still comes from memory
+		const [kitRow] = await db.admin.query<{ storage_key: string }>(
+			'select storage_key from mockup_kit where project_id = $1',
+			[w.projectId]
+		);
+		await storage.delete(kitRow.storage_key);
+		expect((await serve(g)).text).toContain('id="kit-head"');
+
+		// The public link carries the head as well
+		const on = await setMockupPublicLink(as('admin'), m.mockup.id, true);
+		const pub = await (await servePublicMockup(deps(), on.token!)).text();
+		expect(pub).toContain('id="kit-head"');
+		expect(pub).not.toContain('afb-kit');
 	});
 
 	it('the pin script goes before the last closing body tag, or at the end, and a page script is left alone', () => {

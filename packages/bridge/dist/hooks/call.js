@@ -34,23 +34,41 @@ async function orgOf(server, token, fetchImpl) {
     }
     return slug;
 }
+// -- STATES -- //
+let warned = false;
+// -- FUNCTIONS -- //
+/** A hook still answers empty when it cannot reach the board, but says why once on stderr so the failure is not silent. */
+function warnOnce(reason) {
+    if (warned)
+        return;
+    warned = true;
+    process.stderr.write(`agent-flow-board hook: ${reason}
+`);
+}
 /** Sends one event and returns the answer, or null on any problem (no token, offline, a refusal, a slow server). */
 export async function callHook(o, event) {
-    if (!o.token)
+    if (!o.token) {
+        warnOnce('no sign-in found, so no progress reminder or claim release will reach the board. Run: agent-flow-board login');
         return null;
+    }
     try {
         const org = await orgOf(o.server, o.token, o.fetch);
-        if (!org)
+        if (!org) {
+            warnOnce(`the server ${o.server} did not give an organisation for this sign-in.`);
             return null;
+        }
         const res = await o.fetch(`${o.server}/api/v1/orgs/${org}/hooks`, {
             method: 'POST',
             headers: { authorization: `Bearer ${o.token}`, 'content-type': 'application/json' },
             body: JSON.stringify(event),
             signal: AbortSignal.timeout(TIMEOUT_MS)
         });
+        if (!res.ok)
+            warnOnce(`the server answered ${res.status} to a hook event.`);
         return res.ok ? (await res.json()) : null;
     }
     catch {
+        warnOnce(`the server ${o.server} could not be reached, so the board is not told about this session.`);
         return null;
     }
 }

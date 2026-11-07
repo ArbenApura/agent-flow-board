@@ -13,6 +13,7 @@ import { dueOrgPurges, purgeOrg } from '../../src/lib/server/orgs/purge';
 import { mockup } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { itemMockups } from '../../src/lib/server/web/itemMockups';
+import { mockupSettingsPage } from '../../src/lib/server/web/mockupSettingsPage';
 import { listEvents, listTrash, purgeTrash, undoChange } from '../../src/lib/server/ops/history';
 import { createItem, trashItem, updateItem } from '../../src/lib/server/ops/items';
 import {
@@ -430,6 +431,15 @@ describe('mockups', () => {
 			notes: { keep: 'Keep the table.', free: 'Free colours.' }
 		});
 		expect(opened.open?.src).toMatch(/^\/mf\/.+\/1\/html[?]exp=/);
+		expect(closed.list[0].live).toBe(false);
+		// A mockup with no screenshot gets the address of its live preview page, signed with no database call per card
+		const bare = await plan('Bare plan');
+		const noShot = await publishMockup(as('member'), { item: bare.ref }, html(1));
+		const bareList = (await itemMockups(as('viewer'), w.projectKey, bare.ref, false)).list;
+		expect(bareList[0]).toMatchObject({ id: noShot.mockup.id, hasShot: false, live: true });
+		expect(bareList[0].thumb).toMatch(
+			new RegExp('^/mf/' + w.orgId + '/' + w.projectId + '/' + noShot.mockup.id + '/1/thumb[?]exp=')
+		);
 		// Another plan's page never lists it, and a hidden plan's mockup is not listed for someone who cannot see it
 		const other = await plan('Another plan');
 		expect((await itemMockups(as('viewer'), w.projectKey, other.ref, false)).list).toEqual([]);
@@ -529,6 +539,40 @@ describe('mockups', () => {
 		).resolves.toMatchObject({
 			removed: true
 		});
+	});
+	it('the settings page data is read only for a viewer, names the saved values and never carries the kit file', async () => {
+		await setMockupStyle(as('admin'), {
+			project: w.projectKey,
+			style: 'Page loader style.',
+			screens: ['phone', 'wide'],
+			themes: ['dark', 'sepia']
+		});
+		await saveMockupTemplate(as('admin'), {
+			project: w.projectKey,
+			name: 'Loader page',
+			prompt: 'A form.'
+		});
+		await setMockupKit(
+			as('admin'),
+			{ project: w.projectKey, builtFromCommit: 'loader1', summary: 'Loader kit' },
+			html(5)
+		);
+		const viewer = await mockupSettingsPage(as('viewer'), w.projectKey);
+		expect(viewer.canManage).toBe(false);
+		expect(viewer.style.text).toBe('Page loader style.');
+		expect(viewer.screens).toEqual(['phone', 'wide']);
+		expect(viewer.themes).toEqual(['dark', 'sepia']);
+		expect(viewer.examples).toEqual([
+			expect.objectContaining({ name: 'Loader page', prompt: 'A form.' })
+		]);
+		expect(viewer.kit).toMatchObject({
+			builtFromCommit: 'loader1',
+			summary: 'Loader kit',
+			stale: false
+		});
+		expect(JSON.stringify(viewer)).not.toMatch(/storageKey|storage_key|<html|size/);
+		expect((await mockupSettingsPage(as('admin'), w.projectKey)).canManage).toBe(true);
+		await expect(mockupSettingsPage(as('guest'), w.projectKey)).rejects.toBeTruthy();
 	});
 	it('a backup carries the version, screenshot and kit files and restores them, and an org purge erases them', async () => {
 		const p = await plan('Backup plan');

@@ -12,9 +12,10 @@ import { z } from 'zod';
 import { appendEvent } from '../db/events';
 import { MOCKUP_SCREEN_KEYS, mockupKit, mockupProject, mockupTemplate } from '../db/schema';
 import { mockupKey } from '../mockups/keys';
+import { lintKitHtml } from '../mockups/lint';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields } from './items';
-import { MAX_MOCKUP_BYTES, authorOf, withFileCleanup } from './mockups';
+import { MAX_MOCKUP_BYTES, authorOf, checkLength, withFileCleanup } from './mockups';
 import { findProject } from './resolve';
 
 // -- CONSTANTS -- //
@@ -240,11 +241,17 @@ export async function deleteMockupTemplate(ctx: Ctx, projectKey: string, name: s
  * The kit is built by the agent from the repo, and the commit it was built from is recorded with it.
  */
 export async function setMockupKit(ctx: Ctx, raw: z.input<typeof kitInput>, bytes?: Uint8Array) {
+	// Every limit is checked here in plain words, before the schema
+	checkLength('summary', raw.summary, 20_000, 'Shorten it.');
+	checkLength('commit', raw.builtFromCommit, 80, 'Send the short commit hash.');
 	const input = kitInput.parse(raw);
 	if (bytes && bytes.byteLength > MAX_MOCKUP_BYTES)
 		throw new OpError('INVALID', 'The kit is larger than 50 MB.');
 	if (!bytes?.byteLength && input.stale === undefined)
-		throw new OpError('INVALID', 'Send the kit file, or set stale to mark the kit out of date.');
+		throw new OpError(
+			'INVALID',
+			'No kit was sent. Send it in html, or push the file with the bridge command, or send only stale to mark the newest kit.'
+		);
 	const store = bytes?.byteLength ? storage(ctx) : null;
 	const written: string[] = [];
 	// The files of kits older than the newest KEEP_KITS, deleted after the commit, so rebuilding over months does not grow storage and backups without end
@@ -270,7 +277,7 @@ export async function setMockupKit(ctx: Ctx, raw: z.input<typeof kitInput>, byte
 						.update(mockupKit)
 						.set({ stale: input.stale ?? false })
 						.where(eq(mockupKit.id, latest.id));
-					return { number: latest.number, stale: input.stale ?? false };
+					return { number: latest.number, stale: input.stale ?? false, warnings: [] as string[] };
 				}
 				const key = mockupKey(ctx.orgId, proj.id, 'kit');
 				written.push(key);
@@ -319,7 +326,9 @@ export async function setMockupKit(ctx: Ctx, raw: z.input<typeof kitInput>, byte
 				return {
 					number: row.number,
 					stale: false,
-					checksum: createHash('sha256').update(bytes).digest('hex')
+					checksum: createHash('sha256').update(bytes).digest('hex'),
+					// The check never blocks the save and is never stored: it tells the tool what will not render in a mockup
+					warnings: lintKitHtml(new TextDecoder().decode(bytes.subarray(0, 8_000_000)))
 				};
 			})
 		)

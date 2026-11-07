@@ -117,6 +117,16 @@
 			"phone": {
 				"width": [96]
 			}
+		},
+		"card-preview": {
+			"desktop": {
+				"aspectRatio": 1.6,
+				"radius": 8
+			},
+			"phone": {
+				"aspectRatio": 1.6,
+				"radius": 8
+			}
 		}
 	},
 	"locators": {
@@ -131,6 +141,7 @@
 		"card": "[data-card], .screen",
 		"row": "tbody tr, [data-row]",
 		"icon": "svg",
-		"image": "img, .shot"
+		"image": "img:not([data-card-preview] img), .shot",
+		"card-preview": "[data-card-preview]"
 	}
 }

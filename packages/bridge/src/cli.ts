@@ -7,6 +7,7 @@
 // agent-flow-board hooks print claude|antigravity|gemini [--org <slug>]   the settings to paste into the tool
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
 // agent-flow-board mockup push <file.html> --server <url> --org <slug> --item <ref>   upload one mockup file (never queued)
+// agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key>   upload the project's kit (colours, fonts, icons)
 
 // -- DEP-MODULES -- //
 import { readFileSync } from 'node:fs';
@@ -22,7 +23,7 @@ import {
 } from './hooks/gitHook.js';
 import { hookSettings } from './hooks/settings.js';
 import { deviceLogin, type Fetch } from './device.js';
-import { pushMockup } from './mockup.js';
+import { pushKit, pushMockup } from './mockup.js';
 import { Queue } from './queue.js';
 import { accountKey, configDir, pickStore } from './tokenStore.js';
 
@@ -147,9 +148,9 @@ async function main() {
 	}
 	if (cmd === 'mockup') {
 		// One upload over /api/v1 with this machine's own sign in. It is never queued, so a failure is said out loud and run again
-		if (args[1] !== 'push' || !args[2] || args[2].startsWith('--')) {
+		if (!['push', 'kit'].includes(args[1] ?? '') || !args[2] || args[2].startsWith('--')) {
 			log(
-				'Usage: agent-flow-board mockup push <file.html> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [--another] [--title <text>] [--keep <text> | --keep-file <path>] [--free <text> | --free-file <path>] [--screenshot <file.png>]'
+				'Usage: agent-flow-board mockup push <file.html> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [--another] [--title <text>] [--keep <text> | --keep-file <path>] [--free <text> | --free-file <path>] [--screenshot <file.png>]\n       agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key> [--commit <hash>] [--summary <text>]'
 			);
 			process.exit(2);
 		}
@@ -158,6 +159,26 @@ async function main() {
 		if (!org) {
 			log('Say which organisation: --org <slug>.');
 			process.exit(2);
+		}
+		if (args[1] === 'kit') {
+			const project = flag('--project');
+			if (!project) {
+				log('Say which project: --project <key>.');
+				process.exit(2);
+			}
+			const kit = await pushKit({
+				server,
+				org,
+				token: tokenFor(server, org, true) ?? '',
+				fetch: fetchImpl,
+				file: args[2],
+				project,
+				commit: flag('--commit'),
+				summary: flag('--summary'),
+				log
+			});
+			process.stdout.write(JSON.stringify(kit) + '\n');
+			return;
 		}
 		const text = (inline: string, file: string) => {
 			const path = flag(file);

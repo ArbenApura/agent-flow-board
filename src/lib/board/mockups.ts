@@ -13,8 +13,10 @@ export type MockupRow = {
 	publicLinkOn: boolean;
 	updatedAt: string | Date;
 	plan: { ref: string; title: string } | null;
-	/** A signed address of the thumbnail, made by the page loader. */
+	/** A signed address of the picture, made by the page loader: a screenshot, or a live preview page when there is none. */
 	thumb?: string | null;
+	/** True when `thumb` is a page to show in a frame, false when it is a screenshot. */
+	live?: boolean;
 };
 export type PinMessage = { x: number; y: number; hint: string };
 export type PinRow = {
@@ -128,6 +130,14 @@ export function parsePinMessage(data: unknown, from: unknown, frame: unknown): P
 			.join('')
 			.slice(0, 120)
 	};
+}
+
+/** What the parent sends a mockup frame each time the frame says it is ready: the pin mode, then the pins to draw. */
+export function pinMessages(pinMode: boolean, pins: Pick<PinRow, 'x' | 'y'>[]) {
+	return [
+		{ type: 'afb-pin-mode', on: pinMode },
+		{ type: 'afb-pins', pins: pins.map((p) => ({ x: p.x, y: p.y })) }
+	];
 }
 
 /** True for the message a mockup sends when it has loaded, so the parent can hand it the pins to draw. */

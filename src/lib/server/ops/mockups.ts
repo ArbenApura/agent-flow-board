@@ -13,7 +13,9 @@ import { z } from 'zod';
 import { appendEvent } from '../db/events';
 import { syncMockupsOfItem } from '../db/mockupSync';
 import { item, mockup, mockupVersion, project, user } from '../db/schema';
+import { KIT_MARKER, loadKit, wantsKit, type LoadedKit } from '../mockups/kitHead';
 import { mockupKey } from '../mockups/keys';
+import { lintMockupHtml } from '../mockups/lint';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields } from './items';
 import { findItem, findProject } from './resolve';
@@ -30,6 +32,10 @@ export const MAX_MOCKUP_BYTES = 50 * 1024 * 1024;
 /** A screenshot is a small PNG, never a second page. */
 export const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47];
+/** The most characters of notes a version holds. */
+export const MAX_NOTES_CHARS = 20_000;
+/** How much of a page the faithful rendering check reads. */
+const LINT_BYTES = 8_000_000;
 
 export const publishInput = z.object({
 	/** A project key. Only a mockup that belongs to no plan names a project. */
@@ -111,6 +117,30 @@ async function planOf(tx: Tx, itemId: string) {
 	return it ?? null;
 }
 
+/** Refuses a text over its limit with a sentence that says how long it is and what to do. */
+export function checkLength(label: string, text: string | undefined, max: number, advice: string) {
+	if (text !== undefined && text.length > max)
+		throw new OpError(
+			'INVALID',
+			`The ${label} ${label.endsWith('s') ? 'are' : 'is'} ${text.length.toLocaleString('en-US')} characters; the limit is ${max.toLocaleString('en-US')}. ${advice}`
+		);
+}
+
+/** The warnings of the faithful rendering check for a page, with the marker notes. Only the start of a very large page is read. */
+function warningsFor(bytes: Uint8Array, kit: LoadedKit | null): string[] {
+	const html = new TextDecoder().decode(bytes.subarray(0, LINT_BYTES));
+	const warnings = lintMockupHtml(html, kit?.facts);
+	if (wantsKit(html) && !kit)
+		warnings.push(
+			`This page starts with ${KIT_MARKER}, but the project has no colours and fonts yet, so the board adds nothing. Ask for the kit to be made first, or embed the fonts and icons in the page.`
+		);
+	else if (wantsKit(html) && kit && kit.head === null)
+		warnings.push(
+			`This page starts with ${KIT_MARKER}, but the project's kit has no head between its markers, so the board adds nothing. Rebuild the kit with its head.`
+		);
+	return warnings;
+}
+
 function checkBytes(bytes: Uint8Array) {
 	if (bytes.byteLength === 0) throw new OpError('INVALID', 'The mockup file is empty.');
 	if (bytes.byteLength > MAX_MOCKUP_BYTES)
@@ -153,6 +183,14 @@ export async function publishMockup(
 	bytes: Uint8Array,
 	screenshot?: Uint8Array
 ) {
+	// Every limit is checked here in plain words, before the schema, so the person or tool is told what to do and not a schema path
+	checkLength('Keep notes', raw.keepNotes, MAX_NOTES_CHARS, 'Shorten them.');
+	checkLength('Free notes', raw.freeNotes, MAX_NOTES_CHARS, 'Shorten them.');
+	if (!bytes || bytes.byteLength === 0)
+		throw new OpError(
+			'INVALID',
+			'No page was sent. Send it in html, or push the file with the bridge command.'
+		);
 	const input = publishInput.parse(raw);
 	// The size is checked before anything is read from the database or written to storage
 	checkBytes(bytes);
@@ -270,10 +308,14 @@ export async function publishMockup(
 					.select({ key: project.key })
 					.from(project)
 					.where(eq(project.id, projectId));
+				// The check never blocks the save and is never stored: it only tells the person or tool what will not render
+				// A kit that cannot be read only means fewer warnings: the check must never stop a save
+				const kit = await loadKit(tx, ctx.services?.storage, projectId).catch(() => null);
 				return {
 					mockup: publicMockup(target),
 					version: publicVersion(row),
-					projectKey: pk?.key ?? ''
+					projectKey: pk?.key ?? '',
+					warnings: warningsFor(bytes, kit)
 				};
 			})
 		)

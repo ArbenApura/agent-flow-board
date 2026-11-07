@@ -1,7 +1,7 @@
 <script lang="ts">
 	// -- DEP-TYPES -- //
 	import type { PageProps } from './$types';
-	import type { PinMessage, ScreenKey } from '#lib/board/mockups.js';
+	import type { PinMessage } from '#lib/board/mockups.js';
 	// -- ENVS -- //
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
@@ -39,7 +39,7 @@
 
 	// -- STATES -- //
 
-	let screen = $state<ScreenKey>('laptop');
+	let composer = $state<HTMLFormElement>();
 	let historyOpen = $state(false);
 	let shareOpen = $state(false);
 	let linkOpen = $state(false);
@@ -177,12 +177,13 @@
 		});
 	});
 
-	// The first screen is the laptop when the project offers it, otherwise the first one it does
+	// A placed pin brings its comment box into view and puts the cursor in it, so a tall tablet or phone frame never leaves the click looking like nothing happened
 	$effect(() => {
-		const offered = screens;
-		untrack(() => {
-			if (!offered.includes(screen)) screen = offered.includes('laptop') ? 'laptop' : offered[0];
-		});
+		if (!pending) return;
+		const box = composer;
+		if (!box) return;
+		box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		box.querySelector('textarea')?.focus({ preventScroll: true });
 	});
 </script>
 
@@ -256,7 +257,6 @@
 			pins={onPins}
 			{pinMode}
 			onpin={placed}
-			bind:screen
 		/>
 	</Card>
 
@@ -274,6 +274,7 @@
 		<div class="flex flex-col gap-3" data-testid="pins">
 			{#if pending}
 				<form
+					bind:this={composer}
 					class="flex flex-col gap-2 rounded-lg border border-accent bg-accent-soft/40 p-3"
 					onsubmit={(e) => {
 						e.preventDefault();

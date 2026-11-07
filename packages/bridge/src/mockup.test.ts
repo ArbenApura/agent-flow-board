@@ -6,7 +6,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
-import { MAX_MOCKUP_BYTES, pushMockup, type PushOptions } from './mockup.js';
+import {
+	MAX_MOCKUP_BYTES,
+	pushKit,
+	pushMockup,
+	type KitPushOptions,
+	type PushOptions
+} from './mockup.js';
 
 // -- FUNCTIONS -- //
 
@@ -102,7 +108,8 @@ describe('mockup push', () => {
 			version: 2,
 			url: 'https://board.test/acme/AFB/mockups/m-1',
 			notes: true,
-			screenshot: true
+			screenshot: true,
+			warnings: []
 		});
 		expect(
 			s.calls.map((c) => `${c.method} ${c.url.replace('https://board.test/api/v1', '')}`)
@@ -142,5 +149,97 @@ describe('mockup push', () => {
 		const r = await pushMockup({ ...s.options, keepNotes: 'x' });
 		expect(r).toMatchObject({ version: 2, notes: false });
 		expect(s.logs.join(' ')).toContain('notes were not saved: Too long. (400)');
+	});
+
+	it('prints each warning of the board and still succeeds, and a board with none prints nothing', async () => {
+		const warned = setup(() =>
+			json({ ...made, warnings: ['An icon font is used.', 'Two fonts.'] })
+		);
+		const r = await pushMockup(warned.options);
+		expect(r.warnings).toEqual(['An icon font is used.', 'Two fonts.']);
+		expect(warned.logs).toEqual(['Warning: An icon font is used.', 'Warning: Two fonts.']);
+		const clean = setup(() => json(made));
+		expect((await pushMockup(clean.options)).warnings).toEqual([]);
+		expect(clean.logs).toEqual([]);
+	});
+});
+
+describe('mockup kit push', () => {
+	let dir = '';
+	let kit = '';
+	beforeAll(() => {
+		dir = mkdtempSync(join(tmpdir(), 'afb-kit-'));
+		kit = join(dir, 'kit.html');
+		writeFileSync(kit, '<html><body>Kit</body></html>');
+	});
+	afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+	const run = (answer: Response | Error, extra: Partial<KitPushOptions> = {}) => {
+		const calls: { method: string; url: string; type: string | null }[] = [];
+		const logs: string[] = [];
+		const options: KitPushOptions = {
+			server: 'https://board.test',
+			org: 'acme',
+			token: 'afb_token',
+			file: kit,
+			project: 'AFB',
+			log: (l) => logs.push(l),
+			wait: async () => undefined,
+			fetch: async (url, init) => {
+				calls.push({
+					method: String(init?.method),
+					url,
+					type: new Headers(init?.headers).get('content-type')
+				});
+				if (answer instanceof Error) throw answer;
+				return answer;
+			},
+			...extra
+		};
+		return { calls, logs, options };
+	};
+	const ok = (body: unknown) =>
+		new Response(JSON.stringify(body), {
+			status: 200,
+			headers: { 'content-type': 'application/json' }
+		});
+
+	it('uploads the file with the commit and summary and prints the warnings without failing', async () => {
+		const s = run(ok({ number: 3, warnings: ['The kit embeds no font file.'] }), {
+			commit: 'abc1234',
+			summary: 'Tokens and icons'
+		});
+		const r = await pushKit(s.options);
+		expect(r).toEqual({ number: 3, warnings: ['The kit embeds no font file.'] });
+		expect(s.logs).toEqual(['Warning: The kit embeds no font file.']);
+		expect(s.calls).toEqual([
+			{
+				method: 'PUT',
+				url: 'https://board.test/api/v1/orgs/acme/projects/AFB/mockup-kit?builtFromCommit=abc1234&summary=Tokens+and+icons',
+				type: 'text/html'
+			}
+		]);
+	});
+
+	it('refuses with no sign in, a missing file or a summary that is too long, before any call', async () => {
+		const s = run(ok({ number: 1 }));
+		await expect(pushKit({ ...s.options, token: '' })).rejects.toThrow(/Not signed in/);
+		await expect(pushKit({ ...s.options, file: join(dir, 'nope.html') })).rejects.toThrow(
+			/does not exist/
+		);
+		await expect(pushKit({ ...s.options, summary: 'x'.repeat(4001) })).rejects.toThrow(
+			/4,001 characters; the bridge sends at most 4,000/
+		);
+		expect(s.calls).toHaveLength(0);
+	});
+
+	it("says the server's own words on a refusal", async () => {
+		const s = run(
+			new Response(JSON.stringify({ error: { message: 'Only admins change the kit.' } }), {
+				status: 403,
+				headers: { 'content-type': 'application/json' }
+			})
+		);
+		await expect(pushKit(s.options)).rejects.toThrow('Only admins change the kit. (403)');
 	});
 });
