@@ -46,7 +46,8 @@
 		<circle cx="200" cy="40" r="80" />
 		<circle cx="200" cy="40" r="105" />
 	</svg>
-	<div class="relative min-w-0 flex-1">
+	<!-- THE TITLE KEEPS 12 REM, SO ON A PHONE THE ACTIONS WRAP BELOW IT INSTEAD OF SQUEEZING IT TO ONE LETTER PER LINE -->
+	<div class="relative min-w-48 flex-1">
 		{#if back}
 			<a href={back.href} class="mb-1 inline-block text-sm text-accent-text hover:underline"
 				>{back.label}</a

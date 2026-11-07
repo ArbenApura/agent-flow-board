@@ -217,6 +217,7 @@
 			});
 			draft = null;
 			pinText = '';
+			pinMode = false;
 			filter = 'open';
 			drawerOpen = true;
 			toggleButton()?.focus();

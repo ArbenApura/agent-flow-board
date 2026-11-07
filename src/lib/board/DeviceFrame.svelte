@@ -31,7 +31,7 @@
 
 	// -- STATES -- //
 
-	/** True for a moment after the device changes, so the box glides to its new size. A plain resize of the window never animates. */
+	/** True for a moment after the device changes, so the frame glides to its new size. A plain resize of the window never animates. */
 	let animate = $state(false);
 	let seen = untrack(() => screen);
 	let timer: ReturnType<typeof setTimeout> | undefined;
@@ -60,87 +60,79 @@
 	$effect(() => () => clearTimeout(timer));
 </script>
 
-<!-- A DEVICE AROUND ONE SLOT. ONLY CSS CHANGES BETWEEN DEVICES, SO THE FRAME INSIDE THE SLOT IS NEVER REMOUNTED. THE BOARD DRAWS IT, A MOCKUP FILE NEVER DOES. THE BEZEL IS INK MIXED INTO THE SURFACE, 80 PERCENT IN LIGHT MODE AND 18 PERCENT IN DARK MODE, WITH A 1 PX LINE EDGE -->
-<!-- THE OUTER BOX HAS THE SCALED SIZE AND CLIPS, SO THE PAGE NEVER SCROLLS SIDEWAYS. THE SIZES AND THE SCALE ARE RUNTIME VALUES -->
+<!-- A DEVICE AROUND ONE SLOT. ONLY CSS CHANGES BETWEEN DEVICES, SO THE FRAME INSIDE THE SLOT IS NEVER REMOUNTED. THE BOARD DRAWS IT, A MOCKUP FILE NEVER DOES, AND IT HAS NO CAMERA, NOTCH OR SPEAKER. THE BEZEL IS INK MIXED INTO THE SURFACE, 80 PERCENT IN LIGHT MODE AND 18 PERCENT IN DARK MODE, WITH A 1 PX LINE EDGE -->
+<!-- CHROMIUM: THE FRAME SIZES ITSELF (ZOOM LAYS THE PAGE OUT AT THE SMALLER SIZE), SO EVERY PART GLIDES TOGETHER AND THE MOCKUP RE-FLOWS LIVE WHILE IT DOES. THE OTHERS: A BOX OF THE SCALED SIZE THAT CLIPS, SO THE PAGE NEVER SCROLLS SIDEWAYS. THE SIZES AND THE SCALE ARE RUNTIME VALUES -->
 <div
 	class={cn(
-		'mx-auto flex shrink-0 justify-center overflow-hidden',
-		// Only a change of device glides, never a plain resize of the window
-		animate && 'transition-[width,height] duration-300 ease-out motion-reduce:transition-none'
+		'mx-auto shrink-0 overflow-hidden',
+		zoomable && 'w-fit',
+		!zoomable &&
+			animate &&
+			'transition-[width,height] duration-300 ease-out motion-reduce:transition-none'
 	)}
 	data-testid="device-frame"
 	data-device={screen}
-	style:width="{Math.ceil(size.width * scale)}px"
-	style:height="{Math.ceil(size.height * scale)}px"
+	style:width={zoomable ? undefined : `${Math.ceil(size.width * scale)}px`}
+	style:height={zoomable ? undefined : `${Math.ceil(size.height * scale)}px`}
 >
-	<!-- THE DEVICE IS CENTRED IN THE BOX THAT GLIDES, SO A NEW DEVICE IS REVEALED IN PLACE AND NEVER DRIFTS FROM THE LEFT. ITS OWN BOX IS THE SCALED SIZE, WHICH A TRANSFORM DOES NOT GIVE -->
+	<!-- CHROMIUM USES ZOOM, WHICH LAYS THE PAGE OUT AT THE SMALLER SIZE, SO TEXT STAYS SHARP. A TRANSFORM ON A SANDBOXED FRAME IS SCALED AS A PICTURE AND BLURS IT -->
 	<div
-		class="shrink-0"
-		style:width="{Math.ceil(size.width * scale)}px"
-		style:height="{Math.ceil(size.height * scale)}px"
+		class={cn(
+			'origin-top-left',
+			zoomable &&
+				animate &&
+				'transition-[width,height,zoom] duration-300 ease-out motion-reduce:transition-none'
+		)}
+		style:width="{size.width}px"
+		style:height="{size.height}px"
+		style:zoom={zoomable ? scale : undefined}
+		style:transform={zoomable ? undefined : `scale(${scale})`}
 	>
-		<!-- CHROMIUM USES ZOOM, WHICH LAYS THE PAGE OUT AT THE SMALLER SIZE, SO TEXT STAYS SHARP. A TRANSFORM ON A SANDBOXED FRAME IS SCALED AS A PICTURE AND BLURS IT -->
 		<div
-			class="origin-top-left"
-			style:width="{size.width}px"
-			style:height="{size.height}px"
-			style:zoom={zoomable ? scale : undefined}
-			style:transform={zoomable ? undefined : `scale(${scale})`}
+			class={cn(
+				'relative flex size-full flex-col border border-line transition-[padding,border-radius,background-color] duration-300 ease-out motion-reduce:transition-none',
+				browser
+					? 'rounded-xl bg-surface'
+					: 'bg-[color-mix(in_srgb,var(--ink)_80%,var(--surface))] in-data-[mode=dark]:bg-[color-mix(in_srgb,var(--ink)_18%,var(--surface))]',
+				tablet && 'rounded-[24px] p-[14px]',
+				phone && 'rounded-[36px] p-[12px]'
+			)}
 		>
+			<!-- THE BROWSER BAR: THREE DOTS AND A PILL WITH THE MOCKUP TITLE. IT STAYS IN PLACE AND SHRINKS TO NOTHING ON A TABLET OR A PHONE, SO IT NEVER POPS -->
 			<div
 				class={cn(
-					'relative flex size-full flex-col border border-line',
-					browser
-						? 'overflow-hidden rounded-xl bg-surface'
-						: 'bg-[color-mix(in_srgb,var(--ink)_80%,var(--surface))] in-data-[mode=dark]:bg-[color-mix(in_srgb,var(--ink)_18%,var(--surface))]',
-					tablet && 'rounded-[24px] p-[14px]',
-					phone && 'rounded-[36px] p-[12px]'
+					'flex shrink-0 items-center gap-2 overflow-hidden border-line bg-surface transition-[height] duration-300 ease-out motion-reduce:transition-none',
+					browser ? 'h-10 rounded-t-xl border-b px-3.5' : 'h-0 px-3.5'
 				)}
+				aria-hidden="true"
 			>
-				{#if browser}
-					<!-- THE BROWSER BAR: THREE DOTS AND A PILL WITH THE MOCKUP TITLE -->
-					<div
-						class="flex h-10 shrink-0 items-center gap-2 border-b border-line bg-surface px-3.5"
-						aria-hidden="true"
-					>
-						<span class="size-2.5 rounded-full bg-line"></span>
-						<span class="size-2.5 rounded-full bg-line"></span>
-						<span class="size-2.5 rounded-full bg-line"></span>
-						<span
-							class="mx-auto h-6 max-w-[60%] min-w-0 flex-1 truncate rounded-full bg-raised px-3 text-center text-xs leading-6 text-muted"
-							>{title}</span
-						>
-						<span class="w-[46px]"></span>
-					</div>
-				{/if}
-				<div
-					class={cn(
-						'relative shrink-0 overflow-hidden bg-surface',
-						tablet && 'rounded-[10px]',
-						phone && 'rounded-[24px]'
-					)}
-					style:width="{size.screenWidth}px"
-					style:height="{size.screenHeight}px"
+				<span class="size-2.5 shrink-0 rounded-full bg-line"></span>
+				<span class="size-2.5 shrink-0 rounded-full bg-line"></span>
+				<span class="size-2.5 shrink-0 rounded-full bg-line"></span>
+				<span
+					class="mx-auto h-6 max-w-[60%] min-w-0 flex-1 truncate rounded-full bg-raised px-3 text-center text-xs leading-6 text-muted"
+					>{title}</span
 				>
-					{@render children()}
-				</div>
-				{#if tablet}
-					<span
-						class="pointer-events-none absolute top-[4px] left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-surface/40"
-						aria-hidden="true"
-					></span>
-				{/if}
-				{#if phone}
-					<span
-						class="pointer-events-none absolute top-[20px] left-1/2 h-5 w-[72px] -translate-x-1/2 rounded-full bg-[color-mix(in_srgb,var(--ink)_80%,var(--surface))] in-data-[mode=dark]:bg-[color-mix(in_srgb,var(--ink)_18%,var(--surface))]"
-						aria-hidden="true"
-					></span>
-					<span
-						class="pointer-events-none absolute bottom-[4px] left-1/2 h-1 w-[120px] -translate-x-1/2 rounded-full bg-surface/50"
-						aria-hidden="true"
-					></span>
-				{/if}
+				<span class="w-[46px] shrink-0"></span>
 			</div>
+			<div
+				class={cn(
+					'relative shrink-0 overflow-hidden bg-surface transition-[width,height,border-radius] duration-300 ease-out motion-reduce:transition-none',
+					browser && 'rounded-b-[11px]',
+					tablet && 'rounded-[10px]',
+					phone && 'rounded-[24px]'
+				)}
+				style:width="{size.screenWidth}px"
+				style:height="{size.screenHeight}px"
+			>
+				{@render children()}
+			</div>
+			{#if phone}
+				<span
+					class="pointer-events-none absolute bottom-[4px] left-1/2 h-1 w-[120px] -translate-x-1/2 rounded-full bg-surface/50"
+					aria-hidden="true"
+				></span>
+			{/if}
 		</div>
 	</div>
 </div>

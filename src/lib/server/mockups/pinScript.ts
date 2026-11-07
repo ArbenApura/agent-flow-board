@@ -15,7 +15,8 @@ function num(v){return typeof v==='number'&&isFinite(v)}
 function pct(v){return Math.min(100,Math.max(0,v))}
 function size(){
  if(layer)layer.style.display='none';
- var d=document.documentElement,s={w:Math.max(d.scrollWidth,innerWidth,1),h:Math.max(d.scrollHeight,innerHeight,1)};
+ // clientWidth and clientHeight leave out the scrollbar, so the layer is never wider than the page and never adds a sideways scroll
+ var d=document.documentElement,s={w:Math.max(d.scrollWidth,d.clientWidth,1),h:Math.max(d.scrollHeight,d.clientHeight,1)};
  if(layer)layer.style.display='block';
  return s
 }
