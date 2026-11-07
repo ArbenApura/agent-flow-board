@@ -7,7 +7,6 @@ import { AFB_BASE_URL, AFB_SEED_DEMO } from '$app/env/private';
 import { sequence } from '@sveltejs/kit/hooks';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 // -- MODULES -- //
-import { legacyMockupTarget } from '#lib/board/mockupSettings.js';
 import { getAuth } from '#lib/server/auth/index.js';
 import { getDb } from '#lib/server/db/index.js';
 import { getJobs } from '#lib/server/jobs/index.js';
@@ -59,19 +58,6 @@ const timing: Handle = async ({ event, resolve }) => {
 		/* Headers are immutable on this response */
 	}
 	return response;
-};
-
-/**
- * An old project settings address with a mockup tab (?tab=mockup-style and the others) goes to the mockup settings page. It is done
- * here, before any page loader runs, so a bookmark costs one redirect and not a settings load. Only a full page request is
- * forwarded, and the target is built from the two names in the path and a fixed path (legacyMockupTarget).
- */
-const legacyMockupTabs: Handle = ({ event, resolve }) => {
-	if (event.request.method === 'GET' && !event.isDataRequest) {
-		const target = legacyMockupTarget(event.url.pathname, event.url.search);
-		if (target) return new Response(null, { status: 303, headers: { location: target } });
-	}
-	return resolve(event);
 };
 
 /** The public page of a mockup link never sends the address on to another site and is never indexed. */
@@ -148,14 +134,7 @@ const authentication: Handle = async ({ event, resolve }) => {
 	return svelteKitHandler({ auth, event, resolve, building });
 };
 
-export const handle: Handle = sequence(
-	timing,
-	legacyMockupTabs,
-	publicMockupPage,
-	csrf,
-	theme,
-	authentication
-);
+export const handle: Handle = sequence(timing, publicMockupPage, csrf, theme, authentication);
 
 /** Fills an empty preview database with the demo data once, when the server starts. */
 export const init: ServerInit = async () => {

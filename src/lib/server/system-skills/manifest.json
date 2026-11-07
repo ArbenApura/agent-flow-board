@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.1.17",
+		"version": "1.1.18",
 		"releasedAt": "2026-11-07"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.13",
+			"version": "1.1.14",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -78,6 +78,10 @@
 				{
 					"version": "1.1.13",
 					"hash": "e9232fc7b08980e1ed5a56f78ed698addcd6f1e4307a02ff165a4661ed581e0b"
+				},
+				{
+					"version": "1.1.14",
+					"hash": "2c6c5acd44bc45abbbe777b675d43a3e539999e9d783009602ad3faf0f788048"
 				}
 			]
 		},
@@ -238,7 +242,7 @@
 			]
 		},
 		"flow-mockup": {
-			"version": "1.0.1",
+			"version": "1.0.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -247,6 +251,10 @@
 				{
 					"version": "1.0.1",
 					"hash": "5f8401c24a0613cf541b0894be2b87a8cc11b3ebc2270c109b205de195649e3b"
+				},
+				{
+					"version": "1.0.2",
+					"hash": "ee9c5bde660f684388c5775aad79d4db7e5e2ae674b852f830daa7933b5172f8"
 				}
 			]
 		},
@@ -302,6 +310,24 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.1.18",
+			"date": "2026-11-07",
+			"notes": [
+				"flow-mockup 1.0.2: the mockup settings are gone. The tools mockup_style_get and mockup_style_set were removed, so a tool still running an older flow-mockup text should update it: there is no style prompt, no page examples and no Devices setting to read any more. Every project is drawn at all four screen widths and both modes, and the kit (mockup_kit_get) stays the one thing read from the board. A mockup draws no camera, notch or bezel. A pin belongs to the device it was placed on, and mockup_get returns the open pins first.",
+				"flow 1.1.14: the mockup lines say a mockup is drawn from the project's kit (there is no saved style or page templates any more) and that a build reads the open pins."
+			],
+			"skills": {
+				"flow": "1.1.14",
+				"flow-audit": "1.1.3",
+				"flow-check": "1.1.11",
+				"flow-critic": "1.1.4",
+				"flow-interview": "1.1.4",
+				"flow-mockup": "1.0.2",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
 		{
 			"version": "1.1.17",
 			"date": "2026-11-07",

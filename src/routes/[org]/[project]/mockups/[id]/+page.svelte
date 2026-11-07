@@ -1,16 +1,17 @@
 <script lang="ts">
 	// -- DEP-TYPES -- //
 	import type { PageProps } from './$types';
-	import type { PinMessage } from '#lib/board/mockups.js';
+	import type { CommentRow, PinFilter, PinKey, PinMessage, PinPoint } from '#lib/board/mockups.js';
+	import type { ScreenKey } from '#lib/board/mockups.js';
 	// -- ENVS -- //
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- DEP-MODULES -- //
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	// -- MODULES -- //
 	import { ApiError, api, newKey } from '#lib/board/api.js';
-	import { pinsOf, screensOf } from '#lib/board/mockups.js';
-	import { ago } from '#lib/board/status.js';
+	import { ALL_SCREENS, SCREEN_LABEL, inPinFilter, onDevice, pinsOf } from '#lib/board/mockups.js';
+	import MockupComments from '#lib/board/MockupComments.svelte';
 	import MockupHistoryDrawer from '#lib/board/MockupHistoryDrawer.svelte';
 	import MockupLinkDialog from '#lib/board/MockupLinkDialog.svelte';
 	import MockupPreview from '#lib/board/MockupPreview.svelte';
@@ -28,10 +29,10 @@
 	// -- DEP-COMPONENTS -- //
 	import History from '@lucide/svelte/icons/history';
 	import Link from '@lucide/svelte/icons/link';
-	import MapPin from '@lucide/svelte/icons/map-pin';
+	import MessageSquare from '@lucide/svelte/icons/message-square';
+	import MessageSquarePlus from '@lucide/svelte/icons/message-square-plus';
 	import Share2 from '@lucide/svelte/icons/share-2';
 	import Trash from '@lucide/svelte/icons/trash';
-	import X from '@lucide/svelte/icons/x';
 
 	// -- REQUIRED PROPS -- //
 
@@ -39,16 +40,26 @@
 
 	// -- STATES -- //
 
-	let composer = $state<HTMLFormElement>();
 	let historyOpen = $state(false);
 	let shareOpen = $state(false);
 	let linkOpen = $state(false);
+	/** The device the person picked, and the one really on show (the first one until a pick). */
+	let picked = $state<ScreenKey>();
+	let device = $state<ScreenKey>('laptop');
+	/** True while the next click on the mockup places a comment. */
 	let pinMode = $state(false);
 	/** The spot a person clicked, until they post the comment or cancel. */
-	let pending = $state<PinMessage | null>(null);
+	let draft = $state<{ x: number; y: number; hint: string } | null>(null);
 	let pinText = $state('');
 	let posting = $state(false);
+	let drawerOpen = $state(false);
+	let filter = $state<PinFilter>('open');
+	let selected = $state<string | null>(null);
+	let focus = $state<{ id: string; seq: number } | null>(null);
+	let focusSeq = 0;
 	let seenVersion = untrack(() => data.version);
+	let seenDevice = untrack(() => device);
+	let hadDraft = false;
 
 	// -- REACTIVE STATES -- //
 
@@ -56,16 +67,60 @@
 	const key = $derived(page.params.project ?? '');
 	const base = $derived(`/${org}/${key}`);
 	const m = $derived(data.detail.mockup);
-	const screens = $derived(screensOf(data.screens));
 	const newest = $derived(m.currentVersion);
 	const viewing = $derived(data.version);
-	const onPins = $derived(pinsOf(data.pins, viewing));
-	const otherPins = $derived(data.pins.filter((p) => p.version !== viewing));
 	const canWrite = $derived(data.detail.canWrite);
 	const canManage = $derived(data.detail.canManage);
 	const blocked = $derived(m.visibility === 'private');
+	// The number of a comment is its place among all the comments of the version, whatever the device
+	const numbered = $derived<CommentRow[]>(
+		pinsOf(data.pins, viewing).map((p, i) => ({ ...p, n: i + 1 }))
+	);
+	const here = $derived(numbered.filter((p) => onDevice(p, device)));
+	const shown = $derived(here.filter((p) => inPinFilter(p, filter)));
+	const framePins = $derived(
+		shown.map((p) => ({ id: p.id, x: p.x, y: p.y, n: p.n, done: p.resolved }))
+	);
+	const openCount = $derived(here.filter((p) => !p.resolved).length);
 	const hrefFor = (n: number) =>
 		n === newest ? `${base}/mockups/${m.id}` : `${base}/mockups/${m.id}?v=${n}`;
+	// Other places with open comments: one more device, one more version
+	const elsewhere = $derived.by(() => {
+		const rows: {
+			key: 'device' | 'version';
+			text: string;
+			action: string;
+			label: string;
+			onact?: () => void;
+			href?: string;
+		}[] = [];
+		const other = ALL_SCREENS.find(
+			(s) => s !== device && numbered.some((p) => p.device === s && !p.resolved)
+		);
+		if (other) {
+			const k = numbered.filter((p) => p.device === other && !p.resolved).length;
+			rows.push({
+				key: 'device',
+				text: `${k} open on ${SCREEN_LABEL[other]}`,
+				action: 'Show',
+				label: `Show the ${k} open ${k === 1 ? 'comment' : 'comments'} on ${SCREEN_LABEL[other]}`,
+				onact: () => (picked = other)
+			});
+		}
+		const versions = data.pins.filter((p) => p.version !== viewing && !p.resolved);
+		const latest = Math.max(0, ...versions.map((p) => p.version));
+		if (latest) {
+			const k = versions.filter((p) => p.version === latest).length;
+			rows.push({
+				key: 'version',
+				text: `${k} open on version ${latest}`,
+				action: 'Open',
+				label: `Open version ${latest}`,
+				href: hrefFor(latest)
+			});
+		}
+		return rows;
+	});
 	const menu = $derived<MenuItem[]>(
 		canWrite
 			? [
@@ -122,35 +177,68 @@
 		}
 	}
 
-	function placed(pin: PinMessage) {
-		pending = pin;
-		pinMode = false;
+	const toggleButton = () => document.getElementById('comment-toggle');
+
+	function closeDrawer() {
+		drawerOpen = false;
+		document.getElementById('comments-toggle')?.focus();
+	}
+
+	function cancelDraft() {
+		draft = null;
 		pinText = '';
+		toggleButton()?.focus();
+	}
+
+	/** A click on the mockup while placing: the pin drops there, and a click elsewhere moves it. */
+	function placed(pin: PinMessage) {
+		draft = { x: pin.x, y: pin.y, hint: pin.hint };
+	}
+
+	function moved(point: PinPoint) {
+		if (draft) draft = { ...draft, x: point.x, y: point.y };
 	}
 
 	async function post() {
-		if (!pending || !pinText.trim()) return;
+		if (!draft || !pinText.trim() || posting) return;
 		posting = true;
 		try {
 			await api(org, `/mockups/${m.id}/pins`, {
 				method: 'POST',
 				body: {
 					version: viewing,
-					x: pending.x,
-					y: pending.y,
-					hint: pending.hint,
-					body: pinText.trim()
+					x: draft.x,
+					y: draft.y,
+					hint: draft.hint,
+					body: pinText.trim(),
+					device
 				},
 				key: newKey()
 			});
-			pending = null;
+			draft = null;
 			pinText = '';
+			filter = 'open';
+			drawerOpen = true;
+			toggleButton()?.focus();
 			await refresh();
 		} catch (e) {
-			// The composer stays open with the text, so nothing typed is lost
-			toast.error(e instanceof ApiError ? e.message : 'The pin was not saved.');
+			// The box stays open with the text, so nothing typed is lost
+			toast.error(e instanceof ApiError ? e.message : 'The comment was not saved.');
 		} finally {
 			posting = false;
+		}
+	}
+
+	async function resolve(id: string, resolved: boolean) {
+		try {
+			await api(org, `/mockup-pins/${id}/resolve`, {
+				method: 'POST',
+				body: { resolved },
+				key: newKey()
+			});
+			await refresh();
+		} catch (e) {
+			toast.error(e instanceof ApiError ? e.message : 'The comment was not changed.');
 		}
 	}
 
@@ -159,37 +247,103 @@
 			await api(org, `/mockup-pins/${id}`, { method: 'DELETE', key: newKey() });
 			await refresh();
 		} catch (e) {
-			toast.error(e instanceof ApiError ? e.message : 'The pin was not removed.');
+			toast.error(e instanceof ApiError ? e.message : 'The comment was not removed.');
+		}
+	}
+
+	/** A comment picked in the list: the mockup scrolls to its pin and the pin pulses. */
+	function selectPin(id: string) {
+		selected = id;
+		focusSeq += 1;
+		focus = { id, seq: focusSeq };
+	}
+
+	/** A pin clicked on the mockup. The id is only looked up among the comments already loaded, so a page cannot name anything else. */
+	function pinClicked(id: string) {
+		if (!numbered.some((p) => p.id === id)) return;
+		selected = id;
+		drawerOpen = true;
+	}
+
+	/** The two keys of the viewer. They also arrive from the frame, because the page that has the focus gets the key. */
+	function handleKey(keyName: PinKey) {
+		if (keyName === 'Escape') {
+			if (draft) cancelDraft();
+			else if (pinMode) pinMode = false;
+			else if (drawerOpen) closeDrawer();
+		} else if (canWrite && !draft) pinMode = !pinMode;
+	}
+
+	function onKeydown(e: KeyboardEvent) {
+		if (e.metaKey || e.ctrlKey || e.altKey || e.repeat || e.defaultPrevented) return;
+		const name: PinKey | null =
+			e.key === 'Escape' ? 'Escape' : e.key === 'c' || e.key === 'C' ? 'c' : null;
+		if (!name) return;
+		const target = e.target as HTMLElement | null;
+		if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+		// A dialog or a drawer of the page owns the keys while it is open
+		if (document.querySelector('[aria-modal="true"]')) return;
+		handleKey(name);
+	}
+
+	function onBoxKey(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			e.preventDefault();
+			e.stopPropagation();
+			cancelDraft();
+		} else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			void post();
 		}
 	}
 
 	// -- REACTIVE STATEMENTS -- //
 
-	// A pin being written belongs to the version it was placed on, so another version closes it
+	// A comment being written belongs to the version it was placed on, so another version closes it
 	$effect(() => {
 		const v = data.version;
 		untrack(() => {
 			if (v === seenVersion) return;
 			seenVersion = v;
-			pending = null;
+			draft = null;
 			pinText = '';
 			pinMode = false;
+			selected = null;
 		});
 	});
 
-	// A placed pin brings its comment box into view and puts the cursor in it, so a tall tablet or phone frame never leaves the click looking like nothing happened
+	// ...and to the device it was placed on
 	$effect(() => {
-		if (!pending) return;
-		const box = composer;
-		if (!box) return;
-		box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-		box.querySelector('textarea')?.focus({ preventScroll: true });
+		const d = device;
+		untrack(() => {
+			if (d === seenDevice) return;
+			seenDevice = d;
+			// A change the stage made by itself (a resize) keeps what is being written. Only a pick of another device closes it
+			if (picked === undefined) return;
+			draft = null;
+			pinText = '';
+			selected = null;
+		});
+	});
+
+	// A placed pin puts the cursor in its comment box, once, and not again while the pin is dragged
+	$effect(() => {
+		const has = draft !== null;
+		const first = has && !hadDraft;
+		hadDraft = has;
+		if (!first) return;
+		void tick().then(() =>
+			document
+				.querySelector<HTMLTextAreaElement>('[data-testid="pin-text"]')
+				?.focus({ preventScroll: true })
+		);
 	});
 </script>
 
 <svelte:head><title>{m.title}, Mockups</title></svelte:head>
+<svelte:window onkeydown={onKeydown} />
 
-<PageFrame class="flex flex-col gap-4 pb-12">
+<PageFrame class="flex flex-col gap-4 pb-12 max-md:pb-24">
 	<PageHeader
 		class="mb-2!"
 		title={m.title}
@@ -231,51 +385,61 @@
 
 	<Card>
 		{#snippet header()}
-			<div class="flex min-w-0 flex-1 items-center gap-3">
-				<div class="min-w-0 flex-1">
-					<h2 class="text-lg leading-6 font-semibold">Preview</h2>
-					<p class="text-xs text-muted">Sandboxed: it cannot reach the board or your sign in.</p>
-				</div>
-				<Badge tone={viewing === newest ? 'success' : 'neutral'}>v{viewing}</Badge>
+			<div class="min-w-0 flex-1">
+				<h2 class="flex items-center gap-2 text-lg leading-6 font-semibold">
+					Preview
+					<Badge tone={viewing === newest ? 'success' : 'neutral'}>v{viewing}</Badge>
+				</h2>
+				<p class="text-xs text-muted">Sandboxed: it cannot reach the board or your sign in.</p>
+			</div>
+		{/snippet}
+		<MockupPreview
+			src={data.src}
+			screens={data.screens}
+			title={`${m.title}, version ${viewing}`}
+			pins={framePins}
+			{pinMode}
+			draft={draft ? { x: draft.x, y: draft.y } : null}
+			bind:picked
+			{focus}
+			ondevice={(d) => (device = d)}
+			onpin={placed}
+			onmove={moved}
+			onpinclick={pinClicked}
+			onkey={handleKey}
+		>
+			{#snippet toolbar()}
+				<Button
+					id="comments-toggle"
+					onclick={() => (drawerOpen = !drawerOpen)}
+					aria-expanded={drawerOpen}
+					aria-controls="mockup-comments"
+					data-testid="comments-button"
+					class={drawerOpen ? 'border-accent! bg-accent-soft! text-accent-text!' : ''}
+				>
+					<MessageSquare size={16} /> Comments
+					<Badge tone="accent" class="px-2">{openCount}</Badge>
+				</Button>
 				{#if canWrite}
 					<Button
+						id="comment-toggle"
 						onclick={() => (pinMode = !pinMode)}
 						aria-pressed={pinMode}
 						data-testid="add-pin"
 						class={pinMode ? 'border-accent! bg-accent-soft! text-accent-text!' : ''}
 					>
-						<MapPin size={16} />
-						{pinMode ? 'Cancel the pin' : 'Add a pin'}
+						<MessageSquarePlus size={16} />
+						{pinMode ? 'Placing a comment' : 'Add a comment'}
+						<kbd
+							class="rounded border border-line bg-surface px-1.5 font-mono text-badge text-muted max-sm:hidden"
+							>C</kbd
+						>
 					</Button>
 				{/if}
-			</div>
-		{/snippet}
-		<MockupPreview
-			src={data.src}
-			{screens}
-			title={`${m.title}, version ${viewing}`}
-			pins={onPins}
-			{pinMode}
-			onpin={placed}
-		/>
-	</Card>
-
-	<Card>
-		{#snippet header()}
-			<h2 class="flex items-center gap-2 text-lg leading-6 font-semibold">
-				Pinned comments
-				<span
-					data-count
-					class="rounded-full bg-raised px-2 py-0.5 text-badge font-semibold text-muted tabular-nums"
-					>{onPins.length}</span
-				>
-			</h2>
-		{/snippet}
-		<div class="flex flex-col gap-3" data-testid="pins">
-			{#if pending}
+			{/snippet}
+			{#snippet composer()}
 				<form
-					bind:this={composer}
-					class="flex flex-col gap-2 rounded-lg border border-accent bg-accent-soft/40 p-3"
+					class="flex flex-col gap-3 rounded-xl border border-accent bg-surface p-4 shadow-[var(--shadow-pop)]"
 					onsubmit={(e) => {
 						e.preventDefault();
 						void post();
@@ -283,76 +447,54 @@
 					data-testid="pin-composer"
 				>
 					<TextArea
-						label={`Your comment on ${pending.hint || 'this spot'}`}
+						label={`Your comment on ${draft?.hint || 'this spot'}`}
 						rows={3}
 						bind:value={pinText}
 						maxlength={2000}
 						placeholder="What should change here?"
+						onkeydown={onBoxKey}
 						data-testid="pin-text"
 					/>
-					<div class="flex justify-end gap-2">
-						<Button type="button" onclick={() => (pending = null)} disabled={posting}>Cancel</Button
+					<div class="flex items-center justify-end gap-3">
+						<span
+							class="flex min-w-0 flex-1 items-center gap-1 text-xs whitespace-nowrap text-muted max-sm:hidden"
+							><kbd class="rounded border border-line bg-surface px-1.5 font-mono text-badge"
+								>Ctrl</kbd
+							>+<kbd class="rounded border border-line bg-surface px-1.5 font-mono text-badge"
+								>Enter</kbd
+							>
+							to post</span
 						>
-						<Button variant="primary" type="submit" loading={posting} disabled={!pinText.trim()}
-							>Post</Button
+						<Button size="sm" onclick={cancelDraft} disabled={posting}>Cancel</Button>
+						<Button
+							size="sm"
+							variant="primary"
+							type="submit"
+							loading={posting}
+							disabled={!pinText.trim()}>Post</Button
 						>
 					</div>
 				</form>
-			{/if}
-			{#if onPins.length === 0 && !pending}
-				<p class="text-sm text-muted">
-					{canWrite
-						? 'No pins on this version. Press Add a pin, click the spot on the mockup and say what should change.'
-						: 'No pins on this version.'}
-				</p>
-			{/if}
-			<ol class="flex flex-col gap-2">
-				{#each onPins as p, i (p.id)}
-					<li
-						class="flex items-start gap-3 rounded-lg border border-line px-3 py-2.5"
-						data-testid="pin"
-					>
-						<span
-							class="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-badge font-semibold text-accent-ink"
-							>{i + 1}</span
-						>
-						<!-- PLAIN TEXT ONLY: A PIN IS WRITTEN BY A PERSON, SO IT IS NEVER RENDERED AS MARKUP -->
-						<span class="min-w-0 flex-1 text-sm">
-							<span class="block text-xs text-muted">{p.author}, {ago(p.createdAt)}</span>
-							<span class="[overflow-wrap:anywhere] whitespace-pre-wrap text-ink">{p.body}</span>
-						</span>
-						{#if canWrite}
-							<Button
-								size="sm"
-								variant="subtle"
-								iconOnly
-								aria-label={`Remove pin ${i + 1}`}
-								onclick={() => removePin(p.id)}
-							>
-								<X size={16} />
-							</Button>
-						{/if}
-					</li>
-				{/each}
-			</ol>
-			{#if otherPins.length}
-				<div class="flex flex-col gap-2 border-t border-line pt-3">
-					<p class="text-xs font-medium text-muted">On other versions</p>
-					<ul class="flex flex-col gap-1.5">
-						{#each otherPins as p (p.id)}
-							<li class="flex items-start gap-3 text-sm text-muted" data-testid="pin-other">
-								<a
-									href={hrefFor(p.version)}
-									class="shrink-0 cursor-pointer rounded-md bg-raised px-1.5 font-mono text-xs text-muted hover:text-ink"
-									>v{p.version}</a
-								>
-								<span class="min-w-0 [overflow-wrap:anywhere]">{p.body}</span>
-							</li>
-						{/each}
-					</ul>
-				</div>
-			{/if}
-		</div>
+			{/snippet}
+			{#snippet drawer()}
+				<MockupComments
+					id="mockup-comments"
+					open={drawerOpen}
+					pins={shown}
+					bind:filter
+					{openCount}
+					device={SCREEN_LABEL[device]}
+					{selected}
+					{canWrite}
+					{elsewhere}
+					onclose={closeDrawer}
+					ontoggle={() => (drawerOpen = !drawerOpen)}
+					onselect={selectPin}
+					onresolve={resolve}
+					onremove={removePin}
+				/>
+			{/snippet}
+		</MockupPreview>
 	</Card>
 </PageFrame>
 

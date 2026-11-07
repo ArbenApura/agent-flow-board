@@ -1,16 +1,17 @@
-// MOCKUP SETTINGS OF A PROJECT: THE STYLE PROMPT, PAGE TEMPLATES, SCREENS, THEMES AND THE PROJECT KIT (AFB-20261107-0346)
-// Admins and owners write. Everyone who can see the project reads. Every text an agent reads is returned marked untrusted
-// with its author and last editor, because other people wrote it.
+// THE PROJECT KIT OF DESIGN MOCKUPS: COLOURS, FONTS, LOGO AND ICONS AS ONE HTML FILE (AFB-20261107-0346)
+// The mockup settings (style prompt, page templates, devices and modes) are gone (AFB-20261107-1337). Only the kit stays, with no
+// screen of its own: the agent builds it from the repo and saves it here. Admins and owners write, and everyone who can see the
+// project reads. The kit text is returned marked untrusted, because other people wrote it.
 
 // -- TYPES -- //
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
 import { createHash } from 'node:crypto';
-import { and, asc, desc, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { appendEvent } from '../db/events';
-import { MOCKUP_SCREEN_KEYS, mockupKit, mockupProject, mockupTemplate } from '../db/schema';
+import { mockupKit } from '../db/schema';
 import { mockupKey } from '../mockups/keys';
 import { lintKitHtml } from '../mockups/lint';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
@@ -20,25 +21,8 @@ import { findProject } from './resolve';
 
 // -- CONSTANTS -- //
 
-const MAX_THEMES = 10;
-const MAX_TEMPLATES = 50;
 const KEEP_KITS = 5;
 
-export const styleInput = z.object({
-	project: z.string().min(1),
-	style: z.string().max(20_000).optional(),
-	screens: z
-		.array(z.enum(MOCKUP_SCREEN_KEYS as [string, ...string[]]))
-		.min(1)
-		.max(4)
-		.optional(),
-	themes: z.array(z.string().min(1).max(40)).max(MAX_THEMES).optional()
-});
-export const templateInput = z.object({
-	project: z.string().min(1),
-	name: z.string().min(1).max(80),
-	prompt: z.string().max(20_000).default('')
-});
 export const kitInput = z.object({
 	project: z.string().min(1),
 	builtFromCommit: z.string().max(80).default(''),
@@ -49,191 +33,10 @@ export const kitInput = z.object({
 
 // -- FUNCTIONS -- //
 
-const uniq = (list: string[]) => [...new Set(list.map((s) => s.trim()).filter(Boolean))];
-
 function storage(ctx: Ctx) {
 	if (!ctx.services?.storage)
 		throw new OpError('INVALID', 'File storage is not configured on this server.');
 	return ctx.services.storage;
-}
-
-/** The project's mockup settings with its templates and the newest kit's details (never the kit file). */
-export async function getMockupSettings(ctx: Ctx, projectKey: string) {
-	return run(ctx, async (tx) => {
-		const proj = await findProject(tx, ctx, projectKey);
-		const { role } = await requireCap(tx, ctx, 'read', proj.id);
-		const [settings] = await tx
-			.select()
-			.from(mockupProject)
-			.where(eq(mockupProject.projectId, proj.id));
-		const templates = await tx
-			.select()
-			.from(mockupTemplate)
-			.where(eq(mockupTemplate.projectId, proj.id))
-			.orderBy(asc(mockupTemplate.name));
-		const [kit] = await tx
-			.select()
-			.from(mockupKit)
-			.where(eq(mockupKit.projectId, proj.id))
-			.orderBy(desc(mockupKit.number))
-			.limit(1);
-		return {
-			project: { id: proj.id, key: proj.key },
-			untrusted: true as const,
-			style: {
-				text: settings?.style ?? '',
-				updatedBy: settings?.updatedByLabel ?? null,
-				updatedAt: settings?.updatedAt ?? null
-			},
-			screens: settings?.screens ?? [...MOCKUP_SCREEN_KEYS],
-			themes: settings?.themes ?? [],
-			templates: templates.map((t) => ({
-				id: t.id,
-				name: t.name,
-				prompt: t.prompt,
-				updatedBy: t.updatedByLabel,
-				updatedAt: t.updatedAt
-			})),
-			kit: kit
-				? {
-						number: kit.number,
-						builtFromCommit: kit.builtFromCommit,
-						builtAt: kit.builtAt,
-						summary: kit.summary,
-						size: kit.size,
-						stale: kit.stale,
-						builtBy: kit.createdByLabel
-					}
-				: null,
-			canManage: role === 'owner' || role === 'admin'
-		};
-	});
-}
-
-/** Saves the style prompt, screens and themes. Only the fields that are sent change. */
-export async function setMockupStyle(ctx: Ctx, raw: z.input<typeof styleInput>) {
-	const input = styleInput.parse(raw);
-	return run(ctx, (tx) =>
-		idempotent(ctx, tx, async () => {
-			const proj = await findProject(tx, ctx, input.project);
-			await requireCap(tx, ctx, 'manage', proj.id);
-			await rateLimit(tx, ctx, 'write');
-			const who = await authorOf(tx, ctx);
-			const patch = {
-				...(input.style !== undefined ? { style: input.style } : {}),
-				...(input.screens ? { screens: uniq(input.screens) } : {}),
-				...(input.themes ? { themes: uniq(input.themes) } : {})
-			};
-			const [row] = await tx
-				.insert(mockupProject)
-				.values({
-					projectId: proj.id,
-					orgId: ctx.orgId,
-					...patch,
-					updatedBy: ctx.actor.userId,
-					updatedByLabel: who
-				})
-				.onConflictDoUpdate({
-					target: mockupProject.projectId,
-					set: {
-						...patch,
-						updatedBy: ctx.actor.userId,
-						updatedByLabel: who,
-						updatedAt: sql`now()`,
-						version: sql`${mockupProject.version} + 1`
-					}
-				})
-				.returning();
-			await appendEvent(tx, {
-				orgId: ctx.orgId,
-				projectId: proj.id,
-				...actorFields(ctx),
-				verb: 'mockup.style',
-				targetType: 'mockup_project',
-				targetId: proj.id,
-				after: { screens: row.screens, themes: row.themes } as never,
-				undoable: false
-			});
-			return { style: row.style, screens: row.screens, themes: row.themes };
-		})
-	);
-}
-
-/** Creates or changes a named page template. */
-export async function saveMockupTemplate(ctx: Ctx, raw: z.input<typeof templateInput>) {
-	const input = templateInput.parse(raw);
-	return run(ctx, (tx) =>
-		idempotent(ctx, tx, async () => {
-			const proj = await findProject(tx, ctx, input.project);
-			await requireCap(tx, ctx, 'manage', proj.id);
-			await rateLimit(tx, ctx, 'write');
-			const name = input.name.trim();
-			const have = await tx
-				.select({ name: mockupTemplate.name })
-				.from(mockupTemplate)
-				.where(eq(mockupTemplate.projectId, proj.id));
-			if (have.length >= MAX_TEMPLATES && !have.some((t) => t.name === name))
-				throw new OpError('CONFLICT', 'This project has the most templates it can hold.');
-			const who = await authorOf(tx, ctx);
-			const [row] = await tx
-				.insert(mockupTemplate)
-				.values({
-					orgId: ctx.orgId,
-					projectId: proj.id,
-					name,
-					prompt: input.prompt,
-					updatedBy: ctx.actor.userId,
-					updatedByLabel: who
-				})
-				.onConflictDoUpdate({
-					target: [mockupTemplate.projectId, mockupTemplate.name],
-					set: {
-						prompt: input.prompt,
-						updatedBy: ctx.actor.userId,
-						updatedByLabel: who,
-						updatedAt: sql`now()`
-					}
-				})
-				.returning();
-			await appendEvent(tx, {
-				orgId: ctx.orgId,
-				projectId: proj.id,
-				...actorFields(ctx),
-				verb: 'mockup.template',
-				targetType: 'mockup_template',
-				targetId: row.id,
-				after: { name } as never,
-				undoable: false
-			});
-			return { id: row.id, name: row.name };
-		})
-	);
-}
-
-export async function deleteMockupTemplate(ctx: Ctx, projectKey: string, name: string) {
-	return run(ctx, (tx) =>
-		idempotent(ctx, tx, async () => {
-			const proj = await findProject(tx, ctx, projectKey);
-			await requireCap(tx, ctx, 'manage', proj.id);
-			await rateLimit(tx, ctx, 'write');
-			const gone = await tx
-				.delete(mockupTemplate)
-				.where(and(eq(mockupTemplate.projectId, proj.id), eq(mockupTemplate.name, name.trim())))
-				.returning({ id: mockupTemplate.id });
-			if (gone.length === 0) throw new OpError('NOT_FOUND', `No template named "${name}".`);
-			await appendEvent(tx, {
-				orgId: ctx.orgId,
-				projectId: proj.id,
-				...actorFields(ctx),
-				verb: 'mockup.template-delete',
-				targetType: 'mockup_template',
-				targetId: gone[0].id,
-				before: { name } as never,
-				undoable: false
-			});
-			return { name, removed: true as const };
-		})
-	);
 }
 
 /**

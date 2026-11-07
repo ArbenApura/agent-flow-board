@@ -2,9 +2,9 @@
 import type { PageServerLoad } from './$types';
 // -- MODULES -- //
 import { error } from '@sveltejs/kit';
+import { ALL_SCREENS } from '#lib/board/mockups.js';
 import { OpError } from '#lib/server/ops/context.js';
 import { listMockupPins } from '#lib/server/ops/mockupPins.js';
-import { getMockupSettings } from '#lib/server/ops/mockupSettings.js';
 import { getMockup, mockupFileGrant } from '#lib/server/ops/mockups.js';
 import { childContext, pageError } from '#lib/server/web/ctx.js';
 import { memberMockupUrl } from '#lib/server/web/mockupLinks.js';
@@ -13,7 +13,7 @@ import { memberMockupUrl } from '#lib/server/web/mockupLinks.js';
 
 /**
  * One mockup for the viewer: its versions, the version named by `?v=` (the newest by default) with a 5 minute address for its
- * file, the pins of every version, and the screens the project draws at. The build notes are untrusted text and are shown as text.
+ * file, the pins of every version, and the four screens every project draws at. The build notes are untrusted text and are shown as text.
  */
 export const load: PageServerLoad = async ({ params, parent, locals, depends, url }) => {
 	depends('afb:project');
@@ -27,17 +27,16 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 			Number.isInteger(asked) && first.versions.some((v) => v.number === asked)
 				? asked
 				: first.mockup.currentVersion;
-		const [detail, pins, settings, grant] = await Promise.all([
+		const [detail, pins, grant] = await Promise.all([
 			version === first.mockup.currentVersion ? first : getMockup(ctx, params.id, version),
 			listMockupPins(ctx, params.id),
-			getMockupSettings(ctx, params.project),
 			mockupFileGrant(ctx, params.id, { version })
 		]);
 		return {
 			detail,
 			version,
 			pins: pins.pins,
-			screens: settings.screens,
+			screens: ALL_SCREENS,
 			src: memberMockupUrl(grant),
 			denied: null
 		};

@@ -9,9 +9,11 @@ import type { Storage } from '../adapters/storage';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 // -- MODULES -- //
-import { item, mockup, mockupProject, mockupVersion, project, user } from '../db/schema';
+import { ALL_SCREENS } from '../../board/mockups';
+import { item, mockup, mockupVersion, project, user } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { injectKitHead, loadKit, wantsKit } from './kitHead';
+import { PIN_SCRIPT } from './pinScript';
 
 // -- TYPES -- //
 
@@ -47,13 +49,6 @@ const EMPTY_THUMB_HTML =
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const UNAVAILABLE_HTML =
 	'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Link not available</title><style>:root{color-scheme:light dark}body{font:16px/1.5 system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0}main{max-width:28rem;padding:1.5rem;text-align:center}</style></head><body><main><h1>This link is no longer available</h1><p>The person who shared it may have switched it off.</p></main></body></html>';
-
-/**
- * The script added to a member's view of a mockup. It does two things only: it reports a click as a type and two numbers
- * (percent of the page, so a pin lands in the same place at any width) plus a short element hint, and it draws the numbered
- * pins the board hands it. It never reads or sends anything else, and it only listens to its own parent window.
- */
-const PIN_SCRIPT = `<script>(function(){var on=false,pins=[],layer=null;function size(){var d=document.documentElement;return{w:Math.max(d.scrollWidth,innerWidth,1),h:Math.max(d.scrollHeight,innerHeight,1)}}function draw(){if(!layer){layer=document.createElement('div');layer.style.cssText='position:absolute;left:0;top:0;width:0;height:0;z-index:2147483647;pointer-events:none';document.body.appendChild(layer)}layer.textContent='';var s=size();pins.forEach(function(p,i){var m=document.createElement('div');m.textContent=String(i+1);m.style.cssText='position:absolute;left:'+(p.x/100*s.w)+'px;top:'+(p.y/100*s.h)+'px;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:CanvasText;color:Canvas;font:600 12px/22px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px Canvas';layer.appendChild(m)})}function hint(el){if(!el||!el.tagName)return'';var t=el.tagName.toLowerCase();if(el.id)t+='#'+String(el.id).slice(0,40);var c=typeof el.className==='string'?el.className.trim().split(/\\s+/)[0]:'';if(c)t+='.'+c.slice(0,40);var x=(el.textContent||'').trim().replace(/\\s+/g,' ').slice(0,40);return(t+(x?' "'+x+'"':'')).slice(0,120)}addEventListener('message',function(e){if(e.source!==parent)return;var d=e.data;if(!d||typeof d!=='object')return;if(d.type==='afb-pin-mode'){on=d.on===true;document.documentElement.style.cursor=on?'crosshair':''}else if(d.type==='afb-pins'&&Array.isArray(d.pins)){pins=d.pins.slice(0,200).filter(function(p){return p&&typeof p.x==='number'&&typeof p.y==='number'&&isFinite(p.x)&&isFinite(p.y)}).map(function(p){return{x:Math.min(100,Math.max(0,p.x)),y:Math.min(100,Math.max(0,p.y))}});draw()}});document.addEventListener('click',function(e){if(!on)return;e.preventDefault();e.stopPropagation();var s=size();parent.postMessage({type:'afb-mockup-pin',x:Math.min(100,Math.max(0,Math.round(e.pageX/s.w*10000)/100)),y:Math.min(100,Math.max(0,Math.round(e.pageY/s.h*10000)/100)),hint:hint(e.target)},'*')},true);addEventListener('resize',draw);addEventListener('load',function(){parent.postMessage({type:'afb-mockup-ready'},'*')})})()</script>`;
 
 // -- FUNCTIONS -- //
 
@@ -300,10 +295,6 @@ export async function findPublicMockup(
 			.select({ name: project.name })
 			.from(project)
 			.where(eq(project.id, found.projectId));
-		const [settings] = await tx
-			.select({ screens: mockupProject.screens })
-			.from(mockupProject)
-			.where(eq(mockupProject.projectId, found.projectId));
 		return {
 			orgId: found.orgId,
 			projectId: found.projectId,
@@ -315,7 +306,7 @@ export async function findPublicMockup(
 			planRef,
 			sharedBy: who?.name ?? 'Someone',
 			projectName: proj?.name ?? '',
-			screens: settings?.screens ?? ['wide', 'laptop', 'tablet', 'phone']
+			screens: [...ALL_SCREENS]
 		};
 	});
 }

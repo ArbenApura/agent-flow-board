@@ -18,17 +18,36 @@ export type MockupRow = {
 	/** True when `thumb` is a page to show in a frame, false when it is a screenshot. */
 	live?: boolean;
 };
-export type PinMessage = { x: number; y: number; hint: string };
+/** Where a click or a drag landed: percent of the page, and the point in the frame with the frame's own size, so the board can place its box. */
+export type PinPoint = {
+	x: number;
+	y: number;
+	clientX: number;
+	clientY: number;
+	viewW: number;
+	viewH: number;
+};
+export type PinMessage = PinPoint & { hint: string };
 export type PinRow = {
 	id: string;
 	version: number;
 	x: number;
 	y: number;
 	hint: string;
+	/** The device the pin was placed on. Null for an older pin, which shows on every device. */
+	device: string | null;
+	resolved: boolean;
+	resolvedBy: string | null;
 	author: string;
 	body: string;
 	createdAt: string | Date;
 };
+/** A pin numbered for the list: the number is its place among all the pins of its version. */
+export type CommentRow = PinRow & { n: number };
+/** What a person asked of the frame by key, forwarded by the frame because the keys go to the page that has focus. */
+export type PinKey = 'c' | 'Escape';
+/** A pin as the frame draws it: no text and no author, only where it is, its number and whether it is done. */
+export type FramePin = { id: string; x: number; y: number; n: number; done: boolean };
 export type MockupScope = 'all' | 'plan' | 'alone';
 export type MockupView = 'cards' | 'list';
 
@@ -107,23 +126,54 @@ export function scopeCounts(rows: Pick<MockupRow, 'plan'>[]): Record<MockupScope
 	return { all: rows.length, plan, alone: rows.length - plan };
 }
 
-/**
- * The one message a mockup may send its parent: a click as a type, two numbers in percent and a short element hint. The parent
- * accepts it only from the preview frame's own window and only in exactly this shape, so a page that sends anything else is ignored.
- */
-export function parsePinMessage(data: unknown, from: unknown, frame: unknown): PinMessage | null {
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const HEX_COLOUR = /^#[0-9a-f]{6}$/i;
+const POINT_KEYS = 'clientX,clientY,type,viewH,viewW,x,y';
+
+/** The messages a mockup page may send its parent, all read by one function so each has its own exact shape. */
+function messageFrom(data: unknown, from: unknown, frame: unknown, type: string, keys: string) {
 	if (!frame || from !== frame) return null;
 	if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-	const keys = Object.keys(data).sort().join(',');
-	if (keys !== 'hint,type,x,y') return null;
+	if (Object.keys(data).sort().join(',') !== keys.split(',').sort().join(',')) return null;
 	const m = data as Record<string, unknown>;
-	if (m.type !== 'afb-mockup-pin') return null;
-	if (typeof m.x !== 'number' || typeof m.y !== 'number' || typeof m.hint !== 'string') return null;
-	if (!Number.isFinite(m.x) || !Number.isFinite(m.y)) return null;
-	if (m.x < 0 || m.x > 100 || m.y < 0 || m.y > 100) return null;
+	return m.type === type ? m : null;
+}
+
+/** A finite number inside a range, or null. */
+const inRange = (v: unknown, min: number, max: number): number | null =>
+	typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : null;
+
+function pointOf(m: Record<string, unknown>): PinPoint | null {
+	const x = inRange(m.x, 0, 100);
+	const y = inRange(m.y, 0, 100);
+	const viewW = inRange(m.viewW, 1, 10_000);
+	const viewH = inRange(m.viewH, 1, 100_000);
+	const clientX = inRange(m.clientX, 0, 10_000);
+	const clientY = inRange(m.clientY, 0, 100_000);
+	if (x === null || y === null || viewW === null || viewH === null) return null;
+	if (clientX === null || clientY === null) return null;
 	return {
-		x: Math.round(m.x * 100) / 100,
-		y: Math.round(m.y * 100) / 100,
+		x: Math.round(x * 100) / 100,
+		y: Math.round(y * 100) / 100,
+		clientX,
+		clientY,
+		viewW,
+		viewH
+	};
+}
+
+/**
+ * The message a mockup sends when the person clicks to place a pin: a type, two numbers in percent, the click point in the frame, the
+ * frame size and a short element hint. The parent accepts it only from the preview frame's own window and only in exactly this
+ * shape, so a page that sends anything else is ignored.
+ */
+export function parsePinMessage(data: unknown, from: unknown, frame: unknown): PinMessage | null {
+	const m = messageFrom(data, from, frame, 'afb-mockup-pin', `hint,${POINT_KEYS}`);
+	if (!m || typeof m.hint !== 'string') return null;
+	const point = pointOf(m);
+	if (!point) return null;
+	return {
+		...point,
 		// Printable text only, cut to the length the server keeps
 		hint: [...m.hint]
 			.filter((c) => c >= ' ' && c !== '\u007f')
@@ -132,13 +182,63 @@ export function parsePinMessage(data: unknown, from: unknown, frame: unknown): P
 	};
 }
 
-/** What the parent sends a mockup frame each time the frame says it is ready: the pin mode, then the pins to draw. */
-export function pinMessages(pinMode: boolean, pins: Pick<PinRow, 'x' | 'y'>[]) {
+/** The message a mockup sends while the pin being placed is dragged. Same checks, no hint. */
+export function parsePinMove(data: unknown, from: unknown, frame: unknown): PinPoint | null {
+	const m = messageFrom(data, from, frame, 'afb-pin-move', POINT_KEYS);
+	return m ? pointOf(m) : null;
+}
+
+/** The message a mockup sends when a pin on it is clicked: only the id. The board looks the id up in the pins it already has. */
+export function parsePinClick(data: unknown, from: unknown, frame: unknown): string | null {
+	const m = messageFrom(data, from, frame, 'afb-pin-click', 'id,type');
+	return m && typeof m.id === 'string' && UUID.test(m.id) ? m.id : null;
+}
+
+/** The message a mockup sends for the one key it forwards (the keys go to the page that has focus, which is the frame after a click). */
+export function parsePinKey(data: unknown, from: unknown, frame: unknown): PinKey | null {
+	const m = messageFrom(data, from, frame, 'afb-pin-key', 'key,type');
+	return m && (m.key === 'c' || m.key === 'Escape') ? m.key : null;
+}
+
+/** A colour the frame may be given: exactly #rrggbb, anything else is null and the frame uses its own fallback. */
+export const frameColour = (v: string | null | undefined): string | null => {
+	const t = (v ?? '').trim();
+	return HEX_COLOUR.test(t) ? t : null;
+};
+
+/**
+ * What the parent sends a mockup frame each time the frame says it is ready or something changes: the pin mode, then the pins to
+ * draw. A pin goes with its place, its number and whether it is done. Never its text or its author.
+ */
+export function pinMessages(
+	pinMode: boolean,
+	pins: FramePin[],
+	look: {
+		draft?: { x: number; y: number } | null;
+		accent?: string | null;
+		ink?: string | null;
+		reduced?: boolean;
+	} = {}
+) {
 	return [
 		{ type: 'afb-pin-mode', on: pinMode },
-		{ type: 'afb-pins', pins: pins.map((p) => ({ x: p.x, y: p.y })) }
+		{
+			type: 'afb-pins',
+			pins: pins.map((p) => ({ id: p.id, x: p.x, y: p.y, n: p.n, done: p.done })),
+			draft: look.draft ? { x: look.draft.x, y: look.draft.y } : null,
+			accent: frameColour(look.accent),
+			ink: frameColour(look.ink),
+			reduced: look.reduced === true
+		}
 	];
 }
+
+/** Asks the frame to scroll a pin into view and pulse it. */
+export const focusMessage = (id: string, reduced: boolean) => ({
+	type: 'afb-pin-focus',
+	id,
+	reduced
+});
 
 /** True for the message a mockup sends when it has loaded, so the parent can hand it the pins to draw. */
 export const isReadyMessage = (data: unknown, from: unknown, frame: unknown): boolean =>
@@ -149,13 +249,51 @@ export const isReadyMessage = (data: unknown, from: unknown, frame: unknown): bo
 	Object.keys(data).join(',') === 'type' &&
 	(data as { type?: unknown }).type === 'afb-mockup-ready';
 
-/** The pins of one version, numbered in the order they were made, for the list and the frame. */
+/** The pins of one version, numbered in the order they were made (the number is the position in this list, whatever the device), for the list and the frame. */
 export function pinsOf(pins: PinRow[], version: number): PinRow[] {
 	return pins
 		.filter((p) => p.version === version)
 		.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
+/** Whether a pin shows on a device: one placed on that device, or an older pin with no device. */
+export const onDevice = (p: Pick<PinRow, 'device'>, device: string): boolean =>
+	p.device === null || p.device === device;
+
+/** Which pins a filter shows: the ones still open, the ones done, or all of them. */
+export type PinFilter = 'open' | 'done' | 'all';
+export const PIN_FILTERS: PinFilter[] = ['open', 'done', 'all'];
+export const PIN_FILTER_LABEL: Record<PinFilter, string> = {
+	open: 'Open',
+	done: 'Resolved',
+	all: 'All'
+};
+export const inPinFilter = (p: Pick<PinRow, 'resolved'>, filter: PinFilter): boolean =>
+	filter === 'all' || (filter === 'open') !== p.resolved;
+
+/**
+ * Where the board puts its comment box so it sits beside a pin: the click point in the frame, scaled to the stage by the frame's
+ * on-screen rectangle (which already carries the zoom or the transform), to the right of the pin or to the left when the right is
+ * too tight, kept inside the stage. All numbers are pixels of the stage.
+ */
+export function boxPlace(
+	point: Pick<PinPoint, 'clientX' | 'clientY' | 'viewW' | 'viewH'>,
+	frame: { left: number; top: number; width: number; height: number },
+	stage: { width: number; height: number },
+	box: { width: number; height: number },
+	gap = 22
+): { left: number; top: number } {
+	const px = frame.left + (point.clientX / Math.max(1, point.viewW)) * frame.width;
+	const py = frame.top + (point.clientY / Math.max(1, point.viewH)) * frame.height;
+	const width = Math.min(box.width, Math.max(0, stage.width - 16));
+	const right = px + gap + width;
+	const left = right > stage.width - 8 ? px - gap - width : px + gap;
+	return {
+		left: Math.max(8, Math.min(left, stage.width - width - 8)),
+		top: Math.max(8, Math.min(py - 20, stage.height - box.height - 8))
+	};
+}
+
 /** What a person pastes into their coding tool to ask for a mockup. It names no file and no secret. */
 export const mockupPrompt = (projectName: string) =>
-	`Make a design mockup for ${projectName} with the flow-mockup skill. Read the project's mockup style and kit from the board first, build one interactive HTML page that looks like the real product, and publish it to the board. Tell me which plan or screen it is for before you start if I did not say.`;
+	`Make a design mockup for ${projectName} with the flow-mockup skill. Read the project's kit from the board first, build one interactive HTML page that looks like the real product, and publish it to the board. Tell me which plan or screen it is for before you start if I did not say.`;

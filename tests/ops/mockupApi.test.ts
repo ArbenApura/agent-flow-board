@@ -121,9 +121,14 @@ describe('mockup endpoints', () => {
 		for (const p of [
 			'/orgs/{org}/mockups',
 			'/orgs/{org}/mockups/{id}/public-link',
-			'/orgs/{org}/projects/{project}/mockup-settings'
+			'/orgs/{org}/projects/{project}/mockup-kit'
 		])
 			expect(Object.keys(doc.paths)).toContain(p);
+		for (const p of [
+			'/orgs/{org}/projects/{project}/mockup-settings',
+			'/orgs/{org}/projects/{project}/mockup-templates'
+		])
+			expect(Object.keys(doc.paths)).not.toContain(p);
 		expect(JSON.stringify(doc)).not.toMatch(/storage_key|public_token_hash/);
 	});
 
@@ -230,6 +235,35 @@ describe('mockup endpoints', () => {
 			query: { version: '1' }
 		});
 		expect(b(pins).pins).toHaveLength(1);
+		// A pin takes a device, resolves and reopens through its own route, and a made-up device is refused
+		const phonePin = await call('POST', `${base()}/mockups/${id}/pins`, {
+			as: 'member',
+			body: { version: 1, x: 5, y: 6, body: 'On the phone', device: 'phone' }
+		});
+		expect(b(phonePin).pin).toMatchObject({ device: 'phone', resolved: false });
+		expect(
+			(
+				await call('POST', `${base()}/mockups/${id}/pins`, {
+					as: 'member',
+					body: { version: 1, x: 5, y: 6, body: 'x', device: 'watch' }
+				})
+			).status
+		).toBe(400);
+		const resolveUrl = `${base()}/mockup-pins/${b(phonePin).pin.id}/resolve`;
+		expect(
+			(await call('POST', resolveUrl, { as: 'viewer', body: { resolved: true } })).status
+		).toBe(403);
+		expect(
+			(await call('POST', resolveUrl, { as: 'member', body: { resolved: 'yes' } })).status
+		).toBe(400);
+		const resolvedRes = await call('POST', resolveUrl, { as: 'member', body: { resolved: true } });
+		expect(b(resolvedRes).pin).toMatchObject({ resolved: true, resolvedBy: expect.any(String) });
+		expect(
+			b(await call('POST', resolveUrl, { as: 'admin', body: { resolved: false } })).pin.resolved
+		).toBe(false);
+		expect(
+			(await call('DELETE', `${base()}/mockup-pins/${b(phonePin).pin.id}`, { as: 'member' })).status
+		).toBe(200);
 		expect(
 			(await call('DELETE', `${base()}/mockup-pins/${b(pin).pin.id}`, { as: 'viewer' })).status
 		).toBe(403);
@@ -266,31 +300,9 @@ describe('mockup endpoints', () => {
 			b(await call('GET', `${base()}/mockups/${id}`, { as: 'member' })).mockup.publicLinkOn
 		).toBe(false);
 
+		// The style and template routes are gone
 		const settings = `${base()}/projects/${w.projectKey}/mockup-settings`;
-		expect((await call('PUT', settings, { as: 'member', body: { style: 'Loud.' } })).status).toBe(
-			403
-		);
-		expect(
-			(
-				await call('PUT', settings, {
-					as: 'admin',
-					body: { style: 'Calm.', screens: ['phone'], themes: ['light'] }
-				})
-			).status
-		).toBe(200);
-		expect((await call('PUT', settings, { as: 'admin', body: { screens: ['huge'] } })).status).toBe(
-			400
-		);
-		expect(b(await call('GET', settings, { as: 'viewer' }))).toMatchObject({
-			untrusted: true,
-			screens: ['phone']
-		});
-		const tpl = `${base()}/projects/${w.projectKey}/mockup-templates`;
-		expect(
-			(await call('PUT', tpl, { as: 'admin', body: { name: 'Home', prompt: 'A hero.' } })).status
-		).toBe(200);
-		expect((await call('DELETE', tpl, { as: 'admin', query: { name: 'Home' } })).status).toBe(200);
-		expect((await call('DELETE', tpl, { as: 'admin', query: { name: 'Home' } })).status).toBe(404);
+		expect((await call('GET', settings, { as: 'viewer' })).status).toBe(404);
 		const kit = `${base()}/projects/${w.projectKey}/mockup-kit`;
 		expect(
 			(await call('PUT', kit, { as: 'member', query: { builtFromCommit: 'a' }, bytes: PAGE }))

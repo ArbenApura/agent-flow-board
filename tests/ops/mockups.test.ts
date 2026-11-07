@@ -13,7 +13,6 @@ import { dueOrgPurges, purgeOrg } from '../../src/lib/server/orgs/purge';
 import { mockup } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { itemMockups } from '../../src/lib/server/web/itemMockups';
-import { mockupSettingsPage } from '../../src/lib/server/web/mockupSettingsPage';
 import { listEvents, listTrash, purgeTrash, undoChange } from '../../src/lib/server/ops/history';
 import { createItem, trashItem, updateItem } from '../../src/lib/server/ops/items';
 import {
@@ -28,15 +27,13 @@ import {
 	linkMockup,
 	MAX_MOCKUP_BYTES
 } from '../../src/lib/server/ops/mockups';
-import { addMockupPin, listMockupPins, removeMockupPin } from '../../src/lib/server/ops/mockupPins';
 import {
-	deleteMockupTemplate,
-	getMockupSettings,
-	readMockupKit,
-	saveMockupTemplate,
-	setMockupKit,
-	setMockupStyle
-} from '../../src/lib/server/ops/mockupSettings';
+	addMockupPin,
+	listMockupPins,
+	removeMockupPin,
+	setMockupPinResolved
+} from '../../src/lib/server/ops/mockupPins';
+import { readMockupKit, setMockupKit } from '../../src/lib/server/ops/mockupSettings';
 import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, PLAN, type World } from '../support/ops';
 
@@ -88,35 +85,9 @@ describe('mockups', () => {
 		expect(JSON.stringify(read)).not.toContain('storage');
 		expect(JSON.stringify(read)).not.toContain('publicTokenHash');
 		expect(read.canWrite).toBe(false);
-		await expect(
-			setMockupStyle(as('member'), { project: w.projectKey, style: 'Calm.' })
-		).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		await expect(setMockupPublicLink(as('member'), made.mockup.id, true)).rejects.toMatchObject({
 			code: 'FORBIDDEN'
 		});
-		await setMockupStyle(as('admin'), {
-			project: w.projectKey,
-			style: 'Calm and quiet.',
-			screens: ['wide', 'phone'],
-			themes: ['light', 'dark']
-		});
-		const settings = await getMockupSettings(as('viewer'), w.projectKey);
-		expect(settings).toMatchObject({
-			untrusted: true,
-			screens: ['wide', 'phone'],
-			canManage: false
-		});
-		expect(settings.style).toMatchObject({ text: 'Calm and quiet.', updatedBy: 'admin' });
-		await expect(
-			setMockupStyle(as('admin'), { project: w.projectKey, screens: ['huge' as never] })
-		).rejects.toThrow();
-		await saveMockupTemplate(as('admin'), {
-			project: w.projectKey,
-			name: 'Settings page',
-			prompt: 'A sidebar and a form.'
-		});
-		expect((await getMockupSettings(as('member'), w.projectKey)).templates).toHaveLength(1);
-		await deleteMockupTemplate(as('admin'), w.projectKey, 'Settings page');
 		// The kit is saved by a manager and read as untrusted text
 		await expect(
 			setMockupKit(as('member'), { project: w.projectKey, builtFromCommit: 'abc' }, html(9))
@@ -134,9 +105,9 @@ describe('mockups', () => {
 			stale: false
 		});
 		await setMockupKit(as('admin'), { project: w.projectKey, stale: true });
-		expect((await getMockupSettings(as('member'), w.projectKey)).kit?.stale).toBe(true);
+		expect((await readMockupKit(as('member'), w.projectKey))?.stale).toBe(true);
 		// A project of another organisation is the same NOT_FOUND as one that does not exist
-		await expect(getMockupSettings(as('owner'), 'NOPE-KEY')).rejects.toMatchObject({
+		await expect(readMockupKit(as('owner'), 'NOPE-KEY')).rejects.toMatchObject({
 			code: 'NOT_FOUND'
 		});
 	});
@@ -247,6 +218,60 @@ describe('mockups', () => {
 		});
 		await removeMockupPin(as('admin'), pin.pin.id);
 		expect((await listMockupPins(as('member'), m.mockup.id)).pins).toHaveLength(0);
+	});
+
+	it('a pin remembers its device, and writers resolve and reopen it without a second event for the same state', async () => {
+		const p = await plan('Resolve plan');
+		const m = await publishMockup(as('member'), { item: p.ref }, html(1));
+		const phone = await addMockupPin(as('member'), {
+			mockup: m.mockup.id,
+			version: 1,
+			x: 10,
+			y: 20,
+			body: 'Too tight on a phone',
+			device: 'phone'
+		});
+		const older = await addMockupPin(as('member'), {
+			mockup: m.mockup.id,
+			version: 1,
+			x: 30,
+			y: 40,
+			body: 'Older pin'
+		});
+		expect(phone.pin).toMatchObject({ device: 'phone', resolved: false, resolvedBy: null });
+		expect(older.pin.device).toBeNull();
+		await expect(
+			addMockupPin(as('member'), {
+				mockup: m.mockup.id,
+				version: 1,
+				x: 1,
+				y: 1,
+				body: 'x',
+				device: 'watch' as never
+			})
+		).rejects.toThrow();
+		// Viewers cannot resolve, writers can
+		await expect(setMockupPinResolved(as('viewer'), phone.pin.id, true)).rejects.toMatchObject({
+			code: 'FORBIDDEN'
+		});
+		const done = await setMockupPinResolved(as('member'), phone.pin.id, true);
+		expect(done.pin).toMatchObject({ resolved: true, resolvedBy: 'member' });
+		const events = () =>
+			db.admin.query<{ verb: string }>(
+				`select verb from event where project_id = '${w.projectId}' and verb in ('mockup.pin-resolve','mockup.pin-reopen') order by created_at`
+			);
+		const after1 = (await events()).length;
+		// Resolving a resolved pin changes nothing and writes no event
+		await setMockupPinResolved(as('admin'), phone.pin.id, true);
+		expect((await events()).length).toBe(after1);
+		const reopened = await setMockupPinResolved(as('admin'), phone.pin.id, false);
+		expect(reopened.pin).toMatchObject({ resolved: false, resolvedBy: null, resolvedAt: null });
+		expect((await events()).length).toBe(after1 + 1);
+		const listed = await listMockupPins(as('viewer'), m.mockup.id, 1);
+		expect(listed.pins.map((x) => x.device).sort()).toEqual([null, 'phone']);
+		await expect(
+			setMockupPinResolved(as('member'), '00000000-0000-4000-8000-000000000000', true)
+		).rejects.toMatchObject({ code: 'NOT_FOUND' });
 	});
 
 	it('a private plan hides its mockup from everyone else, and a change of the plan carries to its mockups', async () => {
@@ -528,51 +553,6 @@ describe('mockups', () => {
 		]);
 		expect(kits.length).toBe(5);
 		for (const k of kits) expect(storage.files.has(k.k)).toBe(true);
-		// A template name with stray spaces is saved trimmed and can be deleted with the same spaces
-		await saveMockupTemplate(as('admin'), {
-			project: w.projectKey,
-			name: '  Padded  ',
-			prompt: 'x'
-		});
-		await expect(
-			deleteMockupTemplate(as('admin'), w.projectKey, '  Padded  ')
-		).resolves.toMatchObject({
-			removed: true
-		});
-	});
-	it('the settings page data is read only for a viewer, names the saved values and never carries the kit file', async () => {
-		await setMockupStyle(as('admin'), {
-			project: w.projectKey,
-			style: 'Page loader style.',
-			screens: ['phone', 'wide'],
-			themes: ['dark', 'sepia']
-		});
-		await saveMockupTemplate(as('admin'), {
-			project: w.projectKey,
-			name: 'Loader page',
-			prompt: 'A form.'
-		});
-		await setMockupKit(
-			as('admin'),
-			{ project: w.projectKey, builtFromCommit: 'loader1', summary: 'Loader kit' },
-			html(5)
-		);
-		const viewer = await mockupSettingsPage(as('viewer'), w.projectKey);
-		expect(viewer.canManage).toBe(false);
-		expect(viewer.style.text).toBe('Page loader style.');
-		expect(viewer.screens).toEqual(['phone', 'wide']);
-		expect(viewer.themes).toEqual(['dark', 'sepia']);
-		expect(viewer.examples).toEqual([
-			expect.objectContaining({ name: 'Loader page', prompt: 'A form.' })
-		]);
-		expect(viewer.kit).toMatchObject({
-			builtFromCommit: 'loader1',
-			summary: 'Loader kit',
-			stale: false
-		});
-		expect(JSON.stringify(viewer)).not.toMatch(/storageKey|storage_key|<html|size/);
-		expect((await mockupSettingsPage(as('admin'), w.projectKey)).canManage).toBe(true);
-		await expect(mockupSettingsPage(as('guest'), w.projectKey)).rejects.toBeTruthy();
 	});
 	it('a backup carries the version, screenshot and kit files and restores them, and an org purge erases them', async () => {
 		const p = await plan('Backup plan');

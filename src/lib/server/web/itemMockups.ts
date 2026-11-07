@@ -3,7 +3,7 @@
 // -- TYPES -- //
 import type { Ctx } from '../ops/context';
 // -- MODULES -- //
-import { getMockupSettings } from '../ops/mockupSettings';
+import { ALL_SCREENS } from '../../board/mockups';
 import { getMockup, listMockups, mockupFileGrant } from '../ops/mockups';
 import { memberMockupUrl } from './mockupLinks';
 import { cardThumb } from './mockupThumbs';
@@ -54,10 +54,9 @@ export async function itemMockups(
 	}));
 	if (!withPreview || list.length === 0) return { list, open: null };
 	const first = list[0];
-	const [detail, grant, settings] = await Promise.all([
+	const [detail, grant] = await Promise.all([
 		getMockup(ctx, first.id),
-		mockupFileGrant(ctx, first.id),
-		getMockupSettings(ctx, projectKey)
+		mockupFileGrant(ctx, first.id)
 	]);
 	return {
 		list,
@@ -65,7 +64,7 @@ export async function itemMockups(
 			id: first.id,
 			version: first.currentVersion,
 			src: memberMockupUrl(grant),
-			screens: settings.screens,
+			screens: ALL_SCREENS,
 			notes: detail.notes
 				? { author: detail.notes.author, keep: detail.notes.keep, free: detail.notes.free }
 				: null

@@ -37,3 +37,4 @@ playwright-report/
 
 # Private operator notes (VPS access and secrets)
 VPS.md
+.eslintcache

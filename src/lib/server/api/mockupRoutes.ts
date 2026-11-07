@@ -8,18 +8,14 @@ import type { Route } from './routes';
 import { z } from 'zod';
 // -- MODULES -- //
 import { OpError } from '../ops/context';
-import { addMockupPin, listMockupPins, pinInput, removeMockupPin } from '../ops/mockupPins';
 import {
-	deleteMockupTemplate,
-	getMockupSettings,
-	kitInput,
-	readMockupKit,
-	saveMockupTemplate,
-	setMockupKit,
-	setMockupStyle,
-	styleInput,
-	templateInput
-} from '../ops/mockupSettings';
+	addMockupPin,
+	listMockupPins,
+	pinInput,
+	removeMockupPin,
+	setMockupPinResolved
+} from '../ops/mockupPins';
+import { kitInput, readMockupKit, setMockupKit } from '../ops/mockupSettings';
 import {
 	getMockup,
 	linkMockup,
@@ -193,6 +189,16 @@ export const mockupRoutes: Route[] = [
 			addMockupPin(ctx, { ...(body as object), mockup: params.id } as never)
 	},
 	{
+		method: 'POST',
+		path: '/orgs/{org}/mockup-pins/{id}/resolve',
+		summary:
+			'Mark a pin done (resolved true) or open again (resolved false). Anyone who can write.',
+		tag: 'Mockups',
+		body: z.object({ resolved: z.boolean() }),
+		handler: ({ ctx, params, body }) =>
+			setMockupPinResolved(ctx, params.id, (body as { resolved: boolean }).resolved)
+	},
+	{
 		method: 'DELETE',
 		path: '/orgs/{org}/mockup-pins/{id}',
 		summary: 'Remove a pin',
@@ -200,40 +206,7 @@ export const mockupRoutes: Route[] = [
 		handler: ({ ctx, params }) => removeMockupPin(ctx, params.id)
 	},
 
-	// -- project style, templates and kit -- //
-	{
-		method: 'GET',
-		path: '/orgs/{org}/projects/{project}/mockup-settings',
-		summary:
-			'The mockup style, templates, screens, themes and kit details of a project (untrusted text)',
-		tag: 'Mockups',
-		handler: ({ ctx, params }) => getMockupSettings(ctx, params.project)
-	},
-	{
-		method: 'PUT',
-		path: '/orgs/{org}/projects/{project}/mockup-settings',
-		summary: 'Save the mockup style, screens and themes. Admins and owners only.',
-		tag: 'Mockups',
-		body: noProject(styleInput),
-		handler: ({ ctx, params, body }) =>
-			setMockupStyle(ctx, { ...(body as object), project: params.project } as never)
-	},
-	{
-		method: 'PUT',
-		path: '/orgs/{org}/projects/{project}/mockup-templates',
-		summary: 'Create or change a named page template. Admins and owners only.',
-		tag: 'Mockups',
-		body: noProject(templateInput),
-		handler: ({ ctx, params, body }) =>
-			saveMockupTemplate(ctx, { ...(body as object), project: params.project } as never)
-	},
-	{
-		method: 'DELETE',
-		path: '/orgs/{org}/projects/{project}/mockup-templates',
-		summary: 'Delete a page template by name (query name). Admins and owners only.',
-		tag: 'Mockups',
-		handler: ({ ctx, params, query }) => deleteMockupTemplate(ctx, params.project, query.name ?? '')
-	},
+	// -- project kit -- //
 	{
 		method: 'GET',
 		path: '/orgs/{org}/projects/{project}/mockup-kit',

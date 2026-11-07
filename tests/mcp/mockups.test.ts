@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { createItem } from '../../src/lib/server/ops/items';
+import { addMockupPin } from '../../src/lib/server/ops/mockupPins';
 import { createToken } from '../../src/lib/server/ops/tokens';
 import { makePostgres, type TestDb } from '../support/db';
 import { call, connect } from '../support/mcp';
@@ -44,7 +45,7 @@ describe('mockup tools', () => {
 		await db.stop();
 	});
 
-	it('lists the nine mockup tools next to the others', async () => {
+	it('lists the mockup tools next to the others', async () => {
 		const names = (await member.listTools()).tools.map((t) => t.name);
 		for (const n of [
 			'mockup_publish',
@@ -52,8 +53,6 @@ describe('mockup tools', () => {
 			'mockup_list',
 			'mockup_restore',
 			'mockup_link',
-			'mockup_style_get',
-			'mockup_style_set',
 			'mockup_kit_get',
 			'mockup_kit_set'
 		])
@@ -114,6 +113,51 @@ describe('mockup tools', () => {
 		const list = await call(member, 'mockup_list', { project: w.projectKey, item: ref });
 		expect(list.mockups).toHaveLength(1);
 		expect(list.mockups[0]).toMatchObject({ versions: 3, plan: { ref } });
+	});
+
+	it('hands a builder the open pins first, and resolves a pin once the change is made', async () => {
+		const s = await call(member, 'session_start', { tool: 'claude-code' });
+		const made = await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			item: ref,
+			html: PAGE,
+			another: true
+		});
+		const id = made.mockup.id as string;
+		const sr = await call(reader, 'session_start', { tool: 'claude-code' });
+		const first = await addMockupPin(w.ctx('member'), {
+			mockup: id,
+			version: 1,
+			x: 1,
+			y: 1,
+			body: 'First, will be done',
+			device: 'laptop'
+		});
+		await addMockupPin(w.ctx('member'), {
+			mockup: id,
+			version: 1,
+			x: 2,
+			y: 2,
+			body: 'Second, open'
+		});
+		const denied = await call(reader, 'mockup_pin_resolve', {
+			sessionId: sr.sessionId,
+			pin: first.pin.id,
+			resolved: true
+		});
+		expect(denied.error?.code).toBe('FORBIDDEN');
+		const done = await call(member, 'mockup_pin_resolve', {
+			sessionId: s.sessionId,
+			pin: first.pin.id,
+			resolved: true
+		});
+		expect(done.pin).toMatchObject({ resolved: true, device: 'laptop', untrusted: true });
+		const got = await call(member, 'mockup_get', { mockup: id, version: 1 });
+		expect(got.pins.map((p: { body: string }) => p.body)).toEqual([
+			'Second, open',
+			'First, will be done'
+		]);
+		expect(got.pins.every((p: { untrusted: boolean }) => p.untrusted === true)).toBe(true);
 	});
 
 	it('says in plain words what to fix: a missing page, notes or a page that is too long, and warns about what will not render', async () => {
@@ -183,34 +227,10 @@ describe('mockup tools', () => {
 		expect(off.publicLink.mockup.publicLinkOn).toBe(false);
 		const empty = await call(admin, 'mockup_link', { sessionId: sa.sessionId, mockup: id });
 		expect(empty.error?.code).toBe('INVALID');
-		const noStyle = await call(member, 'mockup_style_set', {
-			sessionId: s.sessionId,
-			project: w.projectKey,
-			style: 'Playful.'
-		});
-		expect(noStyle.error?.code).toBe('FORBIDDEN');
-		const set = await call(admin, 'mockup_style_set', {
-			sessionId: sa.sessionId,
-			project: w.projectKey,
-			style: 'Calm and quiet.',
-			screens: ['wide', 'phone'],
-			themes: ['light', 'dark'],
-			templates: [{ name: 'Form page', prompt: 'A card with a form.' }]
-		});
-		expect(set.error).toBeUndefined();
-		const got = await call(member, 'mockup_style_get', { project: w.projectKey });
-		expect(got).toMatchObject({
-			untrusted: true,
-			screens: ['wide', 'phone'],
-			style: { text: 'Calm and quiet.' },
-			templates: [{ name: 'Form page' }]
-		});
-		const del = await call(admin, 'mockup_style_set', {
-			sessionId: sa.sessionId,
-			project: w.projectKey,
-			deleteTemplates: ['Form page']
-		});
-		expect(del['deleted:Form page']).toMatchObject({ removed: true });
+		// The style tools are gone
+		const names = (await member.listTools()).tools.map((t) => t.name);
+		expect(names).not.toContain('mockup_style_get');
+		expect(names).not.toContain('mockup_style_set');
 	});
 
 	it('saves a kit, reads it in parts, and marks it out of date', async () => {

@@ -122,7 +122,13 @@ export const mockupPin = tenantTable(
 		author: text('author').notNull().default(''),
 		/** Written by a guest or a viewer, so an agent reads it as untrusted. */
 		untrusted: boolean('untrusted').notNull().default(false),
-		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+		/** The device the pin was placed on (one of MOCKUP_SCREEN_KEYS). Null for an older pin, which shows on every device. */
+		device: text('device'),
+		/** When a person marked the comment done. Null while it is open. */
+		resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+		/** The display name of the person who resolved it, like `author`. A name, not a user reference. */
+		resolvedBy: text('resolved_by')
 	},
 	(t) => [index('mockup_pin_mockup_idx').on(t.mockupId, t.versionNumber)]
 );

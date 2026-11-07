@@ -18,7 +18,7 @@ import { handleApi, type ApiDeps } from '../../src/lib/server/api/dispatch';
 import { createItem } from '../../src/lib/server/ops/items';
 import { createToken } from '../../src/lib/server/ops/tokens';
 import { getMockup, readMockupHtml } from '../../src/lib/server/ops/mockups';
-import { getMockupSettings, readMockupKit } from '../../src/lib/server/ops/mockupSettings';
+import { readMockupKit } from '../../src/lib/server/ops/mockupSettings';
 import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
 
@@ -217,9 +217,7 @@ describe('mockup push over http', () => {
 			expect(badText).toContain("not one of the project's colours");
 			expect(badResult.version).toBe(2);
 			// Warnings never block: the bad copy was saved as version 2, and the clean one is still version 1
-			expect((await getMockupSettings(as('viewer'), w.projectKey)).kit?.builtFromCommit).not.toBe(
-				''
-			);
+			expect((await readMockupKit(as('viewer'), w.projectKey))?.builtFromCommit).not.toBe('');
 			writeFileSync(
 				join(proof, 'result.json'),
 				JSON.stringify({

@@ -9,7 +9,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { appendEvent } from '../db/events';
-import { mockupPin, mockupVersion } from '../db/schema';
+import { MOCKUP_SCREEN_KEYS, mockupPin, mockupVersion } from '../db/schema';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields } from './items';
 import { authorOf, loadMockup } from './mockups';
@@ -24,7 +24,9 @@ export const pinInput = z.object({
 	x: z.number().finite(),
 	y: z.number().finite(),
 	hint: z.string().max(300).default(''),
-	body: z.string().min(1).max(2000)
+	body: z.string().min(1).max(2000),
+	/** The device the pin was placed on. Left out, the pin shows on every device. */
+	device: z.enum(MOCKUP_SCREEN_KEYS as [string, ...string[]]).nullish()
 });
 
 // -- FUNCTIONS -- //
@@ -66,6 +68,7 @@ export async function addMockupPin(ctx: Ctx, raw: z.input<typeof pinInput>) {
 					y: clamp(input.y),
 					hint: plain(input.hint).slice(0, 120),
 					body,
+					device: input.device ?? null,
 					authorId: ctx.actor.userId,
 					author: await authorOf(tx, ctx),
 					untrusted: role === 'guest'
@@ -135,6 +138,45 @@ export async function removeMockupPin(ctx: Ctx, pinId: string) {
 	);
 }
 
+/**
+ * Marks a pin done or open again. Anyone who can write may do it (a guest or a viewer cannot). A pin already in the asked state is
+ * returned as it is, with no change and no history event. The event carries only the version, never the text of the pin.
+ */
+export async function setMockupPinResolved(ctx: Ctx, pinId: string, resolved: boolean) {
+	z.string().uuid().parse(pinId);
+	return run(ctx, (tx) =>
+		idempotent(ctx, tx, async () => {
+			const [pin] = await tx.select().from(mockupPin).where(eq(mockupPin.id, pinId)).for('update');
+			if (!pin) throw new OpError('NOT_FOUND', 'No such pin.');
+			const { m } = await loadMockup(tx, ctx, pin.mockupId);
+			await requireCap(tx, ctx, 'write', m.projectId);
+			await rateLimit(tx, ctx, 'write');
+			if (Boolean(pin.resolvedAt) === resolved) return { pin: shape(pin) };
+			const [row] = await tx
+				.update(mockupPin)
+				.set(
+					resolved
+						? { resolvedAt: new Date(), resolvedBy: await authorOf(tx, ctx) }
+						: { resolvedAt: null, resolvedBy: null }
+				)
+				.where(eq(mockupPin.id, pin.id))
+				.returning();
+			await appendEvent(tx, {
+				orgId: ctx.orgId,
+				projectId: m.projectId,
+				itemId: m.itemId,
+				...actorFields(ctx),
+				verb: resolved ? 'mockup.pin-resolve' : 'mockup.pin-reopen',
+				targetType: 'mockup',
+				targetId: m.id,
+				after: { version: pin.versionNumber } as never,
+				undoable: false
+			});
+			return { pin: shape(row) };
+		})
+	);
+}
+
 function shape(p: typeof mockupPin.$inferSelect) {
 	return {
 		id: p.id,
@@ -143,6 +185,10 @@ function shape(p: typeof mockupPin.$inferSelect) {
 		x: p.x,
 		y: p.y,
 		hint: p.hint,
+		device: p.device,
+		resolved: p.resolvedAt !== null,
+		resolvedAt: p.resolvedAt,
+		resolvedBy: p.resolvedBy,
 		author: p.author,
 		createdAt: p.createdAt,
 		// Written by a person: a reader that is an agent never follows instructions found in it
