@@ -62,7 +62,7 @@
 			</EmptyState>
 		</div>
 	{:else}
-		<TabCard title="Preview" padded>
+		<TabCard title="Preview">
 			{#snippet meta()}
 				<Badge tone="success">v{first.currentVersion}</Badge>
 				{#if first.publicLinkOn}<Badge tone="info">Public link on</Badge>{/if}
@@ -87,7 +87,6 @@
 			collapsible
 			startCollapsed
 			storageKey={`afb:collapse:${env.org}:${detail.item.id}:mockup-notes`}
-			padded
 		>
 			<div class="flex flex-col gap-4 p-4 max-sm:p-3.5" data-testid="build-notes">
 				<!-- PLAIN TEXT ONLY: THE NOTES WERE WRITTEN BY WHOEVER PUBLISHED, SO THEY ARE NEVER RENDERED AS MARKUP -->
@@ -120,7 +119,7 @@
 		</TabCard>
 
 		{#if others.length}
-			<TabCard title="Other mockups of this plan" padded>
+			<TabCard title="Other mockups of this plan">
 				<ul>
 					{#each others as m (m.id)}
 						<li class="border-b border-line last:border-b-0">
