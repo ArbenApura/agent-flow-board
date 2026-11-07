@@ -12,6 +12,7 @@
 	import { ApiError, api, deletePicture, newKey, putPicture } from '#lib/board/api.js';
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
 	import BrowserChecks from '#lib/settings/BrowserChecks.svelte';
+	import MockupSettings from '#lib/settings/MockupSettings.svelte';
 	import { canon, createFollower } from '#lib/settings/follow.js';
 	import {
 		savedStreams,
@@ -267,6 +268,16 @@
 			</Section>
 
 			<BrowserChecks webApp={p.webApp} tools={data.tools} />
+
+			{#if data.mockups}
+				<MockupSettings
+					saved={data.mockups}
+					{org}
+					projectKey={p.key}
+					projectName={p.name}
+					can={Boolean(can)}
+				/>
+			{/if}
 
 			<Section
 				id="trash"

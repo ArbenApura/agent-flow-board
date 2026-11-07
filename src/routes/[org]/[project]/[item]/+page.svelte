@@ -58,6 +58,7 @@
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import MessagesSquare from '@lucide/svelte/icons/messages-square';
 	import MonitorCheck from '@lucide/svelte/icons/monitor-check';
+	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
 	import Paperclip from '@lucide/svelte/icons/paperclip';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash from '@lucide/svelte/icons/trash';
@@ -68,12 +69,22 @@
 
 	// -- CONSTANTS -- //
 
-	const TABS = ['plan', 'decisions', 'docs', 'checks', 'activity', 'files', 'discussion'] as const;
+	const TABS = [
+		'plan',
+		'decisions',
+		'docs',
+		'mockups',
+		'checks',
+		'activity',
+		'files',
+		'discussion'
+	] as const;
 	type Tab = (typeof TABS)[number];
 	const TAB_LABEL: Record<Tab, string> = {
 		plan: 'Plan',
 		decisions: 'Decisions',
 		docs: 'Documents',
+		mockups: 'Mockups',
 		checks: 'Checks',
 		activity: 'Activity',
 		files: 'Files',
@@ -83,6 +94,7 @@
 		plan: ListChecks,
 		decisions: Gavel,
 		docs: FileText,
+		mockups: PanelsTopLeft,
 		checks: MonitorCheck,
 		activity: Activity,
 		files: Paperclip,
@@ -185,7 +197,8 @@
 	const counts = $derived<Partial<Record<Tab, number>>>({
 		plan: d?.item.totalSteps ?? 0,
 		decisions: d?.decisions.length ?? 0,
-		docs: d?.sections.length ?? 0
+		docs: d?.sections.length ?? 0,
+		mockups: data.mockups?.list.length ?? 0
 	});
 
 	// -- REACTIVE STATEMENTS -- //
@@ -636,6 +649,12 @@
 				/>{/await}
 		{:else if tab === 'docs'}
 			{#await import('#lib/board/item/DocsTab.svelte') then m}<m.default detail={d} {env} />{/await}
+		{:else if tab === 'mockups' && data.mockups}
+			{#await import('#lib/board/item/MockupsTab.svelte') then m}<m.default
+					detail={d}
+					{env}
+					mockups={data.mockups}
+				/>{/await}
 		{:else if tab === 'checks' && d.project.webApp}
 			{#await import('#lib/board/item/ChecksTab.svelte') then m}<m.default
 					detail={d}

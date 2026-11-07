@@ -15,6 +15,7 @@
 	import HeartPulse from '@lucide/svelte/icons/heart-pulse';
 	import House from '@lucide/svelte/icons/house';
 	import LayoutList from '@lucide/svelte/icons/layout-list';
+	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
 	import Plug from '@lucide/svelte/icons/plug';
 	import Settings from '@lucide/svelte/icons/settings';
 	import Settings2 from '@lucide/svelte/icons/settings-2';
@@ -58,6 +59,7 @@
 		Tasks: SquareCheckBig,
 		Activity,
 		Health: HeartPulse,
+		Mockups: PanelsTopLeft,
 		Trash,
 		'Project settings': Settings2
 	};

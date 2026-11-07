@@ -25,6 +25,8 @@ export type TenantEntry = {
 	check?: string;
 	/** Tables whose rows only ever grow. No UPDATE or DELETE is granted to the runtime role. */
 	appendOnly?: boolean;
+	/** A second, read only policy, for a table one narrow outside read must reach (the public mockup link). It never grants a write. */
+	selectPolicy?: { name: string; using: string };
 };
 
 // -- CONSTANTS -- //
@@ -77,7 +79,9 @@ export function tenantTable<T extends Record<string, PgColumnBuilderBase>>(
 	scope: TenantScope,
 	columns: T,
 	extra?: (self: Record<string, ExtraConfigColumn>) => PgTableExtraConfigValue[],
-	options: Partial<Pick<TenantEntry, 'orgColumn' | 'using' | 'check' | 'appendOnly'>> = {}
+	options: Partial<
+		Pick<TenantEntry, 'orgColumn' | 'using' | 'check' | 'appendOnly' | 'selectPolicy'>
+	> = {}
 ) {
 	TENANT_TABLES.push({ name, scope, orgColumn: options.orgColumn ?? 'org_id', ...options });
 	// The array form of the extra config is supported at runtime, its type is wider than the overloads accept

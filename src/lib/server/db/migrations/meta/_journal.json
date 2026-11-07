@@ -253,6 +253,13 @@
       "when": 1793863068538,
       "tag": "0035_young_daredevil",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794043819235,
+      "tag": "0036_material_invisible_woman",
+      "breakpoints": true
     }
   ]
 }

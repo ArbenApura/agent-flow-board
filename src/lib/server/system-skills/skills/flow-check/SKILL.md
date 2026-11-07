@@ -75,7 +75,7 @@ Every one of these cost a run of 3 to 4 minutes when it was found by failing. Re
 - **The write path and the dialog that closes first.** Before the read-only checks, prove the riskiest interaction (a form that writes, a reset or confirm dialog, anything that must close with Escape, the X and a click outside) with a write-enabled run on this machine. Read-only checks passing prove nothing about it. Do not report the work as done before that run has passed.
 - **Facts before a check.** Take every number, label and button from the real source (the component, the data, the running page), never from a comment, and never from memory of which buttons exist. Confirm the registration is signed in and the sample data exists (the limits above). A guess found by a failed run costs 3 to 4 minutes.
 - **One measurement, alone.** A speed or size comparison is run once, alone, on a quiet machine, and the number is reported with that fact. A comparison taken while other runs shared the CPU is thrown away.
-- **Do not widen the work.** Run only the checks the plan has or the user asked for. A mockup, an extra measurement or an extra check that nobody asked for is not part of the request.
+- **Do not widen the work.** Run only the checks the plan has or the user asked for. A mockup the user did not say yes to, an extra measurement or an extra check that nobody asked for is not part of the request.
 
 ## Several registrations for one board project (two repo folders, two branches)
 

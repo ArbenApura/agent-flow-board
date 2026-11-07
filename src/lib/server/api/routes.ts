@@ -121,6 +121,7 @@ import {
 	toolRunnerInput
 } from '../ops/environments';
 import { backupHealth } from '../backup/run';
+import { mockupRoutes } from './mockupRoutes';
 import { handleHook, hookInput } from '../ops/hooks';
 import { createInvite, listInvites, revokeInvite } from '../orgs/invites';
 import {
@@ -969,7 +970,10 @@ export const routes: Route[] = [
 		tag: 'Tokens',
 		sessionOnly: true,
 		handler: ({ ctx, params }) => revokeToken(ctx, params.id)
-	}
+	},
+
+	// -- mockups (their own file) -- //
+	...mockupRoutes
 ];
 
 /** Turns `/orgs/{org}/items/{item}` into a matcher that returns the named parts. */

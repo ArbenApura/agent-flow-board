@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.1.15",
-		"releasedAt": "2026-11-06"
+		"version": "1.1.16",
+		"releasedAt": "2026-11-07"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.12",
+			"version": "1.1.13",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -74,6 +74,10 @@
 				{
 					"version": "1.1.12",
 					"hash": "6dff6f4321173f926d01725f8ccad6ffd6c7adf61dcc7e0745c61c8e3d71f2b0"
+				},
+				{
+					"version": "1.1.13",
+					"hash": "e9232fc7b08980e1ed5a56f78ed698addcd6f1e4307a02ff165a4661ed581e0b"
 				}
 			]
 		},
@@ -107,7 +111,7 @@
 			]
 		},
 		"flow-check": {
-			"version": "1.1.10",
+			"version": "1.1.11",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -160,11 +164,15 @@
 				{
 					"version": "1.1.10",
 					"hash": "f4ac12df47d29622d2b417b59ce6adbf5e3bc0aaa7017862bff5a8647f7021e5"
+				},
+				{
+					"version": "1.1.11",
+					"hash": "78e3084f9b5151e1946acd155f62c2acc1bb4609a10ef71895fe7ee42a324418"
 				}
 			]
 		},
 		"flow-critic": {
-			"version": "1.1.3",
+			"version": "1.1.4",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -189,11 +197,15 @@
 				{
 					"version": "1.1.3",
 					"hash": "ba04330256819d53550c42942010d49257cb47fcfeaa20b47c7df0434d053a78"
+				},
+				{
+					"version": "1.1.4",
+					"hash": "7f562183e8759bfa25fd3d8d767e688a954004fd86ff91ba94519b7d64097438"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.1.3",
+			"version": "1.1.4",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -218,6 +230,19 @@
 				{
 					"version": "1.1.3",
 					"hash": "59828b89215745f70fa9aff7e05562b78460b460d14cda83a03e8accc806e954"
+				},
+				{
+					"version": "1.1.4",
+					"hash": "f8363a5fa9557d1c7e9e56b0bd25d3a631713a4d5ce177467614e76c2a049a91"
+				}
+			]
+		},
+		"flow-mockup": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "85c1cf88a76d3393f8e674cccbd649a5584f808bd69d3ad10f28208ef04708c3"
 				}
 			]
 		},
@@ -273,6 +298,25 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.1.16",
+			"date": "2026-11-07",
+			"notes": [
+				"flow-mockup (new): builds one interactive HTML mockup that looks like the real product, from the project's style prompt, page templates and kit saved on the board (building the kit from the repo first), looks at it, and publishes it with the bridge command or the mockup tools. A mockup is inspiration, never the spec, and never a file in the repo.",
+				"flow: the mockup offer is one more line of the single approval question on every harness (it replaces the Claude-only artifact path), asked only for a plan with a visible change and made only on the user's yes. A build reads the mockup's Keep and Free notes first, follows the project's real components before the mockup, records what it kept, adapted and dropped in the design brief and goes on. It stops to ask only when the mockup adds a feature the plan does not contain.",
+				"flow-interview, flow-critic and flow-check: the mockup wording follows the same rule."
+			],
+			"skills": {
+				"flow": "1.1.13",
+				"flow-audit": "1.1.3",
+				"flow-check": "1.1.11",
+				"flow-critic": "1.1.4",
+				"flow-interview": "1.1.4",
+				"flow-mockup": "1.0.0",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
 		{
 			"version": "1.1.15",
 			"date": "2026-11-06",
@@ -592,7 +636,9 @@
 		{
 			"version": "1.0.0",
 			"date": "2026-10-21",
-			"notes": ["First release of the system skills bundle."],
+			"notes": [
+				"First release of the system skills bundle."
+			],
 			"skills": {
 				"flow": "1.0.0",
 				"flow-audit": "1.0.0",

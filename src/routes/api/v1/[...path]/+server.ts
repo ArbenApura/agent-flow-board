@@ -2,6 +2,7 @@
 import type { RequestHandler } from './$types';
 // -- ENVS -- //
 // -- MODULES -- //
+import { bodyLimit, readBodyCapped } from '#lib/server/api/body.js';
 import { handleApi } from '#lib/server/api/dispatch.js';
 import { appServices } from '#lib/server/services.js';
 import { getDb } from '#lib/server/db/index.js';
@@ -10,15 +11,22 @@ import { getDb } from '#lib/server/db/index.js';
 
 /** One handler for every method. The dispatcher owns routing, auth, validation and errors. */
 const handler: RequestHandler = async ({ request, params, url, locals }) => {
-	const bytes =
-		request.method === 'GET' || request.method === 'DELETE'
-			? new Uint8Array()
-			: new Uint8Array(await request.arrayBuffer());
+	const path = '/' + params.path.replace(/\/+$/, '');
+	// The body is read up to this endpoint's limit only, so a mockup upload is cut at its cap while it streams in
+	const limit = bodyLimit(request.method, path);
+	const bytes = limit === 0 ? new Uint8Array() : await readBodyCapped(request, limit);
+	if (!bytes)
+		return new Response(
+			JSON.stringify({
+				error: { code: 'INVALID', message: 'The request body is larger than this endpoint allows.' }
+			}),
+			{ status: 413, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } }
+		);
 	const services = await appServices();
 	const res = await handleApi(
 		{
 			method: request.method,
-			path: '/' + params.path.replace(/\/+$/, ''),
+			path,
 			query: Object.fromEntries(url.searchParams),
 			headers: request.headers,
 			origin: url.origin,

@@ -17,6 +17,12 @@ import {
 	item,
 	manualCheck,
 	member,
+	mockup,
+	mockupKit,
+	mockupPin,
+	mockupProject,
+	mockupTemplate,
+	mockupVersion,
 	org,
 	phase,
 	project,
@@ -50,6 +56,12 @@ export const taskSelect = createSelectSchema(task);
 export const commentSelect = createSelectSchema(comment);
 export const attachmentSelect = createSelectSchema(attachment);
 export const sessionSelect = createSelectSchema(session);
+export const mockupSelect = createSelectSchema(mockup);
+export const mockupVersionSelect = createSelectSchema(mockupVersion);
+export const mockupPinSelect = createSelectSchema(mockupPin);
+export const mockupProjectSelect = createSelectSchema(mockupProject);
+export const mockupTemplateSelect = createSelectSchema(mockupTemplate);
+export const mockupKitSelect = createSelectSchema(mockupKit);
 
 // -- INSERT AND UPDATE SCHEMAS (what a write accepts) -- //
 
@@ -78,6 +90,21 @@ export const taskInsert = createInsertSchema(task);
 export const commentInsert = createInsertSchema(comment);
 export const attachmentInsert = createInsertSchema(attachment, {
 	caption: (s) => s.min(1).max(200)
+});
+export const mockupInsert = createInsertSchema(mockup, {
+	title: (s) => s.min(1).max(200)
+});
+export const mockupPinInsert = createInsertSchema(mockupPin, {
+	body: (s) => s.min(1).max(2000),
+	x: (s) => s.min(0).max(100),
+	y: (s) => s.min(0).max(100)
+});
+export const mockupProjectUpdate = createUpdateSchema(mockupProject, {
+	style: (s) => s.max(20_000)
+});
+export const mockupTemplateInsert = createInsertSchema(mockupTemplate, {
+	name: (s) => s.min(1).max(80),
+	prompt: (s) => s.max(20_000)
 });
 export const checkInsert = createInsertSchema(check);
 export const environmentInsert = createInsertSchema(environment, { url: (s) => s.url() });

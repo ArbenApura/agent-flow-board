@@ -11,6 +11,7 @@ import { getTableColumns } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 // -- MODULES -- //
 import { notifyChange } from '../realtime/notify';
+import { syncMockupsOfItem } from './mockupSync';
 import {
 	attachment,
 	decision,
@@ -228,13 +229,17 @@ export async function undoEvent(
 			.update(target.table)
 			.set({ ...set, updatedAt: sql`now()` } as never)
 			.where(eq(idCol as never, ev.targetId));
+		// An undone visibility change carries to the plan's mockups the same way the change did
+		if (ev.targetType === 'item' && (set.visibility === 'public' || set.visibility === 'private'))
+			await syncMockupsOfItem(tx, ev.targetId, { visibility: set.visibility });
 	} else if (verb === 'create') {
-		if (target.soft)
+		if (target.soft) {
 			await tx
 				.update(target.table)
 				.set({ deletedAt: sql`now()` } as never)
 				.where(eq(idCol as never, ev.targetId));
-		else await tx.delete(target.table).where(eq(idCol as never, ev.targetId));
+			if (ev.targetType === 'item') await syncMockupsOfItem(tx, ev.targetId, { trashed: true });
+		} else await tx.delete(target.table).where(eq(idCol as never, ev.targetId));
 	} else if (verb === 'delete' && target.soft) {
 		await tx
 			.update(target.table)

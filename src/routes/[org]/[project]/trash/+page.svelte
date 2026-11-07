@@ -24,7 +24,11 @@
 	const key = $derived(page.params.project ?? '');
 	const empty = $derived(
 		!!data.trash &&
-			data.trash.items.length + data.trash.tasks.length + data.trash.attachments.length === 0
+			data.trash.items.length +
+				data.trash.tasks.length +
+				data.trash.mockups.length +
+				data.trash.attachments.length ===
+				0
 	);
 
 	// -- FUNCTIONS -- //
@@ -49,6 +53,22 @@
 				success: `T-${number} is back.`,
 				error: (e) => (e instanceof ApiError ? e.message : 'The task was not restored.')
 			});
+			await invalidate('afb:project');
+		} catch {
+			// The promise toast already shows the failure
+		}
+	}
+
+	async function restoreMockup(id: string, title: string) {
+		try {
+			await toast.promise(
+				api(org, `/mockups/${id}/restore-from-trash`, { method: 'POST', body: {} }),
+				{
+					loading: `Restoring ${title}...`,
+					success: `${title} is back. Its public link stays off.`,
+					error: (e) => (e instanceof ApiError ? e.message : 'The mockup was not restored.')
+				}
+			);
 			await invalidate('afb:project');
 		} catch {
 			// The promise toast already shows the failure
@@ -162,6 +182,23 @@
 								onclick={() => restoreTask(t.id, t.number)}
 								data-testid="restore-task">Restore</Button
 							>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+		{#if data.trash.mockups.length}
+			<section class="flex flex-col gap-2" aria-label="Mockups in the trash">
+				<h2 class="text-lg font-semibold">Mockups</h2>
+				<ul class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
+					{#each data.trash.mockups as mk (mk.id)}
+						<li
+							class="flex items-center gap-3 border-b border-line px-3 py-2 text-sm last:border-b-0"
+							data-testid="trash-mockup"
+						>
+							<span class="min-w-0 flex-1 truncate">{mk.title}</span>
+							{@render daysBadge(mk.daysLeft)}
+							<Button size="sm" onclick={() => restoreMockup(mk.id, mk.title)}>Restore</Button>
 						</li>
 					{/each}
 				</ul>

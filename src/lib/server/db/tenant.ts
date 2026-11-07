@@ -21,6 +21,8 @@ export type Tenant = {
 	userId?: string;
 	/** Lets the purge sweep list the orgs an owner deleted, and nothing else. Used by no request path. */
 	purgeSweep?: boolean;
+	/** The sha256 of a public mockup address. Lets the mockup row of that one link be read, and nothing else. */
+	mockupTokenHash?: string;
 };
 
 // -- FUNCTIONS -- //
@@ -48,13 +50,16 @@ export async function withTenant<T>(
 	const userId = tenant.userId ?? '';
 	const orgSlug = tenant.orgSlug ?? '';
 	const purgeSweep = tenant.purgeSweep ? 'on' : '';
+	const tokenHash = tenant.mockupTokenHash ?? '';
+	if (tokenHash && !/^[0-9a-f]{64}$/.test(tokenHash))
+		throw new Error('mockupTokenHash must be a sha256 hex string');
 	return handle.db.transaction(async (tx) => {
 		// One round trip for the whole setup. The values are escaped as literals, and the ids are checked above
 		const lit = (v: string) => pg.escapeLiteral(v);
 		const role = handle.switchRole ? `SET LOCAL ROLE ${RUNTIME_ROLE}; ` : '';
 		await tx.execute(
 			sql.raw(
-				`${role}select set_config('app.org_id', ${lit(org)}, true), set_config('app.project_id', ${lit(project)}, true), set_config('app.user_id', ${lit(userId)}, true), set_config('app.org_slug', ${lit(orgSlug)}, true), set_config('app.purge_sweep', ${lit(purgeSweep)}, true)`
+				`${role}select set_config('app.org_id', ${lit(org)}, true), set_config('app.project_id', ${lit(project)}, true), set_config('app.user_id', ${lit(userId)}, true), set_config('app.org_slug', ${lit(orgSlug)}, true), set_config('app.purge_sweep', ${lit(purgeSweep)}, true), set_config('app.mockup_token_hash', ${lit(tokenHash)}, true)`
 			)
 		);
 		return fn(tx);

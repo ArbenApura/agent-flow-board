@@ -7,7 +7,8 @@ import { and, desc, eq, gt, inArray, isNotNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { undoEvent, type UndoResult } from '../db/events';
-import { attachment, event, item, task } from '../db/schema';
+import { attachment, event, item, mockup, mockupVersion, task } from '../db/schema';
+import { canSeeMockup } from './mockups';
 import { OpError, requireCap, run } from './context';
 import { canSeeItem, findItem, findProject, mayView, visibleItemSql } from './resolve';
 
@@ -257,6 +258,19 @@ export async function listTrash(ctx: Ctx, projectKey: string) {
 		);
 		const daysLeft = (d: Date | null) =>
 			Math.max(0, TRASH_DAYS - Math.floor((Date.now() - (d?.getTime() ?? 0)) / 86_400_000));
+		// Mockups in the trash, shown only to the people who may see them while they were live
+		const trashedMockups = await tx
+			.select()
+			.from(mockup)
+			.where(and(eq(mockup.projectId, proj.id), isNotNull(mockup.trashedAt)))
+			.orderBy(desc(mockup.trashedAt));
+		const mockupPlanIds = [
+			...new Set(trashedMockups.map((m) => m.itemId).filter((v): v is string => !!v))
+		];
+		const mockupPlans: (typeof item.$inferSelect)[] = mockupPlanIds.length
+			? await tx.select().from(item).where(inArray(item.id, mockupPlanIds))
+			: [];
+		const planOfMockup = new Map(mockupPlans.map((p) => [p.id, p]));
 		return {
 			items: items.map((i) => ({
 				id: i.id,
@@ -273,6 +287,16 @@ export async function listTrash(ctx: Ctx, projectKey: string) {
 				deletedAt: t.deletedAt,
 				daysLeft: daysLeft(t.deletedAt)
 			})),
+			mockups: trashedMockups
+				.filter((m) =>
+					canSeeMockup(m, ctx.actor.userId, m.itemId ? (planOfMockup.get(m.itemId) ?? null) : null)
+				)
+				.map((m) => ({
+					id: m.id,
+					title: m.title,
+					trashedAt: m.trashedAt,
+					daysLeft: daysLeft(m.trashedAt)
+				})),
 			attachments: visibleFiles.map((a) => ({
 				id: a.id,
 				filename: a.filename,
@@ -339,10 +363,25 @@ async function purgeTrashRows(ctx: Ctx, days: number, checkRole: boolean) {
 			.returning({ id: task.id });
 		const ids = files.map((f) => f.id);
 		if (ids.length) await tx.delete(attachment).where(inArray(attachment.id, ids));
+		// A mockup in the trash for 30 days goes with its versions and pins (cascade) and every file they own
+		const oldMockups = await tx
+			.select({ id: mockup.id })
+			.from(mockup)
+			.where(and(isNotNull(mockup.trashedAt), lt(mockup.trashedAt, cutoff)));
+		const mockupKeys: string[] = [];
+		if (oldMockups.length) {
+			const mids = oldMockups.map((m) => m.id);
+			const versions = await tx
+				.select({ key: mockupVersion.storageKey, shot: mockupVersion.screenshotKey })
+				.from(mockupVersion)
+				.where(inArray(mockupVersion.mockupId, mids));
+			for (const v of versions) mockupKeys.push(v.key, ...(v.shot ? [v.shot] : []));
+			await tx.delete(mockup).where(inArray(mockup.id, mids));
+		}
 		return {
 			items: delItems.length,
 			tasks: delTasks.length,
-			keys: keys.map((k) => k.key)
+			keys: [...keys.map((k) => k.key), ...mockupKeys]
 		};
 	});
 	// Files go after the rows, so a failure leaves a stray file and never a row pointing at nothing

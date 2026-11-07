@@ -63,6 +63,7 @@ Every page after sign in sits in one shell, a sidebar on the left and a top bar 
 
 - **Two layouts, one frame.** Pages of an organisation (`src/routes/[org]/`) use `AppSidebar` and the organisation top bar. Pages that belong to no organisation (`src/routes/(account)/`: the organisations list, Connect a tool, Your settings) use `AccountSidebar` and a lighter top bar. Both sidebars are built from `SidebarShell`, `SidebarRow`, `SidebarHeading` and `OrgTile` in `src/lib/board/`. A new sidebar page belongs in one of the two layouts, never with a header of its own.
 - **The sidebar is a 64px rail.** It shows icons only, opens to 256px over the page when the pointer or focus is on it, and stays open while its account menu is showing. It opens over the content, so the page never reflows. There is no collapse button and no saved choice. Only the width and a fade of the labels animate, icons never move.
+- **Project pages.** A project's pages sit under it in the sidebar and in the phone menu, in this order: Registry, Tasks, Activity, Health, Mockups, then Trash and Project settings. Mockups uses the `PanelsTopLeft` icon and is also in the command palette, which reads the same list.
 - **Connect a tool has two sections.** The tools and tokens, and the Skills tab (`?tab=skills`), as a plain link bar under the header with the sizes of the tab row inside its tools card. Create token stays the page's only primary button; Copy install prompt and Download bundle are plain buttons.
 - **Class names are written in full.** Tailwind builds only the classes it can read in the source, so a class made from a variable (`${prefix}:hidden`) is never generated. The rail state is the `side-collapsed:` variant, defined in `src/app.css`.
 - **The top bar** holds the breadcrumb, search (organisation pages), the light and dark switch (`ThemeToggle`, on both layouts, phones included) and the account menu. Search is not in the sidebar.
@@ -71,6 +72,16 @@ Every page after sign in sits in one shell, a sidebar on the left and a top bar 
 - **A project is shown as `ProjectTile`**: its logo, or the first two letters of its key in mono on the raised surface, at 24 or 40 and nothing between. A person is shown as `Avatar`: their picture, or initials. Both pictures are set in settings (`PictureUpload`, a PNG, JPEG or WebP under 200 KB) and read from `/pictures`, never inlined in page data.
 - **The loading placeholder draws this shell** (`#afb-boot` in `src/app.html`): the rail, the top bar and the shape the page had last time. A new page shape adds its own block there and sets `data-org` in the boot script.
 - **Database round trips are a design input.** The database can be far from the person developing, so a page that makes many queries in a row is slow. Run independent loads in parallel and avoid a transaction for a check that rarely changes.
+
+## Mockups
+
+A design mockup is one interactive HTML page a coding tool draws for a plan or a screen, saved on the board and never in the repo. It is inspiration, never the spec. No new colour token, size or font: every screen below is built from the existing scale and components.
+
+- **The Mockups page** (`/[org]/[project]/mockups`) copies the Tasks page: `PageHeader` with one plain `Mockup style` button (no primary, because tools make mockups), one toolbar card (search, a Filters popover, a Cards and List switch kept in the address), and cards like `TaskCard`. A card is a 120 by 80 thumbnail (96 by 64 on a phone) beside the title, the plan reference in mono, the version, the age and a Public or Private badge. No screenshot shows the quiet placeholder icon.
+- **The viewer** (`/[org]/[project]/mockups/[id]`) is a header band, a Reference notice (inspiration, never the spec), a Preview card and a Pinned comments card. The preview is a sandboxed frame clipped to a stage 640 px tall (480 on a phone), drawn at the chosen screen width and shrunk to fit; it scrolls inside the stage, never the page. History and Share are drawers, Link to a plan a dialog, and Move to the trash asks first.
+- **The plan's Mockups tab** is a `TabCard` with the same preview and a collapsible Build notes card (Keep and Free, plain text). The four settings sections (Mockup style, Page templates, Screens and themes, Project kit) sit under their own Mockups heading in project settings, each with its own Save bar.
+- **The public page** (`/m/{token}`) is outside the organisation shell: the logo lockup, who shared it, a sandbox notice, the preview with its switches and a footer. One plain page answers a wrong, off, trashed or private-plan link.
+- **A mockup file runs sandboxed**: no cookies, no storage, no network, no same origin. A pin is a number in a ring in the accent, drawn by the mockup itself so it stays on its element.
 
 ## Continue with
 

@@ -2,6 +2,7 @@
 import type { PageServerLoad } from './$types';
 // -- MODULES -- //
 import { listRunners } from '#lib/server/ops/environments.js';
+import { getMockupSettings } from '#lib/server/ops/mockupSettings.js';
 import { getProject } from '#lib/server/ops/projects.js';
 import { childContext } from '#lib/server/web/ctx.js';
 
@@ -11,9 +12,13 @@ import { childContext } from '#lib/server/web/ctx.js';
 export const load: PageServerLoad = async ({ params, parent, locals, depends }) => {
 	depends('afb:settings');
 	const { org, summary } = await parent();
-	if (!summary) return { project: null, usage: [], tools: [] };
+	if (!summary) return { project: null, usage: [], tools: [], mockups: null };
 	const ctx = await childContext(locals, org.id);
-	const [project, runners] = await Promise.all([getProject(ctx, params.project), listRunners(ctx)]);
+	const [project, runners, mockups] = await Promise.all([
+		getProject(ctx, params.project),
+		listRunners(ctx),
+		getMockupSettings(ctx, params.project)
+	]);
 	return {
 		project: {
 			id: project.id,
@@ -41,6 +46,8 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends }) 
 				busy: r.busy,
 				lastSeenAt: r.lastSeenAt?.toISOString() ?? null
 			})),
+		// The mockup style, templates, screens, themes and kit details. The kit file itself never leaves the server
+		mockups,
 		canManage: summary.caps.includes('manage')
 	};
 };

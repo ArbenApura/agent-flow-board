@@ -5,3 +5,4 @@ export * from './items';
 export * from './activity';
 export * from './integrations';
 export * from './auth';
+export * from './mockups';

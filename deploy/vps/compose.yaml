@@ -48,6 +48,9 @@ services:
       # The app works out its own address from these headers, which the proxy sets. Without PROTOCOL_HEADER it assumes https
       PROTOCOL_HEADER: x-forwarded-proto
       HOST_HEADER: x-forwarded-host
+      # The public mockup link is limited per client address, which is the last address Caddy added to X-Forwarded-For
+      ADDRESS_HEADER: x-forwarded-for
+      XFF_DEPTH: '1'
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
       DATABASE_URL: postgres://app_runtime:${AFB_RUNTIME_PASSWORD}@postgres:5432/afb
       DATABASE_OWNER_URL: postgres://afb_owner:${AFB_OWNER_PASSWORD}@postgres:5432/afb

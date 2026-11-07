@@ -11,6 +11,7 @@ import { allocateItemNumber } from '../db/numbering';
 import { RefSuffixesTaken, freeRefs, insertItemWithFreshRef } from '../db/flowId';
 import { recalcItem } from '../db/calc';
 import { appendEvent } from '../db/events';
+import { syncMockupsOfItem } from '../db/mockupSync';
 import {
 	decision,
 	item,
@@ -518,6 +519,11 @@ export async function updateItem(ctx: Ctx, raw: z.input<typeof updateItemInput>)
 			// Other people's sessions that were working on the item lose the claim the moment it turns private
 			if (after.visibility === 'private')
 				await releaseOthersClaimsOn(tx, ctx, updated, it.createdBy);
+			// Its mockups take the same visibility, and a private plan turns their public links off
+			if (after.visibility)
+				await syncMockupsOfItem(tx, it.id, {
+					visibility: after.visibility as 'public' | 'private'
+				});
 			await appendEvent(tx, {
 				orgId: ctx.orgId,
 				projectId: it.projectId,
@@ -557,6 +563,7 @@ export async function trashItem(
 					version: sql`${item.version} + 1`
 				})
 				.where(eq(item.id, it.id));
+			await syncMockupsOfItem(tx, it.id, { trashed: true });
 			await tx
 				.update(task)
 				.set({ linkedItemIds: sql`array_remove(${task.linkedItemIds}, ${it.id}::uuid)` })

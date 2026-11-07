@@ -1,0 +1,52 @@
+// -- DEP-TYPES -- //
+import type { PageServerLoad } from './$types';
+// -- MODULES -- //
+import { error } from '@sveltejs/kit';
+import { OpError } from '#lib/server/ops/context.js';
+import { listMockupPins } from '#lib/server/ops/mockupPins.js';
+import { getMockupSettings } from '#lib/server/ops/mockupSettings.js';
+import { getMockup, mockupFileGrant } from '#lib/server/ops/mockups.js';
+import { childContext, pageError } from '#lib/server/web/ctx.js';
+import { memberMockupUrl } from '#lib/server/web/mockupLinks.js';
+
+// -- FUNCTIONS -- //
+
+/**
+ * One mockup for the viewer: its versions, the version named by `?v=` (the newest by default) with a 5 minute address for its
+ * file, the pins of every version, and the screens the project draws at. The build notes are untrusted text and are shown as text.
+ */
+export const load: PageServerLoad = async ({ params, parent, locals, depends, url }) => {
+	depends('afb:project');
+	const { org, summary } = await parent();
+	if (!summary) error(404, 'Not found');
+	const ctx = await childContext(locals, org.id);
+	const asked = Number(url.searchParams.get('v'));
+	try {
+		const first = await getMockup(ctx, params.id);
+		const version =
+			Number.isInteger(asked) && first.versions.some((v) => v.number === asked)
+				? asked
+				: first.mockup.currentVersion;
+		const [detail, pins, settings, grant] = await Promise.all([
+			version === first.mockup.currentVersion ? first : getMockup(ctx, params.id, version),
+			listMockupPins(ctx, params.id),
+			getMockupSettings(ctx, params.project),
+			mockupFileGrant(ctx, params.id, { version })
+		]);
+		return {
+			detail,
+			version,
+			pins: pins.pins,
+			screens: settings.screens,
+			src: memberMockupUrl(grant),
+			denied: null
+		};
+	} catch (e) {
+		if (e instanceof OpError) {
+			// A refusal that pageError turns into a value (no access) is a 403 here, never a page with no data
+			pageError(e);
+			error(403, 'You cannot open this mockup.');
+		}
+		throw e;
+	}
+};

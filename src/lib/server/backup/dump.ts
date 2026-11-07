@@ -166,7 +166,21 @@ export async function exportOrg(
 				`select "storage_key", "mime", "size", "checksum", "deleted_at" from "attachment" where "org_id" = $1 order by "id"`,
 				[orgId]
 			);
-			for (const f of files) {
+			// Mockup files (versions, screenshots, kits) are stored files too. Screenshots and kits carry no saved checksum, so one is taken now
+			const mockupFiles = await q.query<{
+				storage_key: string;
+				mime: string;
+				size: string | null;
+				checksum: string | null;
+				deleted_at: string | null;
+			}>(
+				`select "storage_key", 'text/html' as "mime", "size", "checksum", null as "deleted_at" from "mockup_version" where "org_id" = $1
+				 union all select "screenshot_key", 'image/png', null, null, null from "mockup_version" where "org_id" = $1 and "screenshot_key" is not null
+				 union all select "storage_key", 'text/html', "size", null, null from "mockup_kit" where "org_id" = $1
+				 order by 1`,
+				[orgId]
+			);
+			for (const f of [...files, ...mockupFiles]) {
 				const bytes = await storage.get(f.storage_key);
 				if (!bytes) {
 					// A file in the trash may already be gone, a live one missing is data loss and is reported
@@ -174,13 +188,14 @@ export async function exportOrg(
 					continue;
 				}
 				// Stored bytes that no longer match what was saved are damage, and a backup of damage is not a backup
-				if (createHash('sha256').update(bytes).digest('hex') !== f.checksum) {
+				const sum = createHash('sha256').update(bytes).digest('hex');
+				if (f.checksum && sum !== f.checksum) {
 					if (!f.deleted_at) missing.push(`${f.storage_key} (damaged)`);
 					continue;
 				}
 				fileFrames.push({
 					type: 'file',
-					json: { key: f.storage_key, mime: f.mime, size: bytes.length, checksum: f.checksum },
+					json: { key: f.storage_key, mime: f.mime, size: bytes.length, checksum: sum },
 					bytes
 				});
 			}

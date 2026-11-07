@@ -72,6 +72,12 @@ export function securityStatements(): string[] {
 		out.push(
 			`CREATE POLICY tenant_isolation ON ${q(t.name)} FOR ALL TO ${RUNTIME_ROLE} USING (${using}) WITH CHECK (${check})`
 		);
+		if (t.selectPolicy) {
+			out.push(`DROP POLICY IF EXISTS ${q(t.selectPolicy.name)} ON ${q(t.name)}`);
+			out.push(
+				`CREATE POLICY ${q(t.selectPolicy.name)} ON ${q(t.name)} FOR SELECT TO ${RUNTIME_ROLE} USING (${t.selectPolicy.using})`
+			);
+		}
 		out.push(
 			t.appendOnly
 				? `GRANT SELECT, INSERT ON ${q(t.name)} TO ${RUNTIME_ROLE}`

@@ -10,6 +10,7 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { getAuth } from '#lib/server/auth/index.js';
 import { getDb } from '#lib/server/db/index.js';
 import { getJobs } from '#lib/server/jobs/index.js';
+import { readsNoSession } from '#lib/server/mockups/serve.js';
 import { seedForPreview } from '#lib/server/db/seedAuth.js';
 import { MODE_COOKIE, SYSTEM_MODE_SCRIPT, parseMode, serverMode } from '#lib/theme/mode.js';
 
@@ -59,6 +60,20 @@ const timing: Handle = async ({ event, resolve }) => {
 	return response;
 };
 
+/** The public page of a mockup link never sends the address on to another site and is never indexed. */
+const publicMockupPage: Handle = async ({ event, resolve }) => {
+	const response = await resolve(event);
+	if (/^\/m\/[^/]+\/?$/.test(event.url.pathname)) {
+		try {
+			response.headers.set('referrer-policy', 'no-referrer');
+			response.headers.set('x-robots-tag', 'noindex');
+		} catch {
+			/* Headers are immutable on this response */
+		}
+	}
+	return response;
+};
+
 /** Renders the theme mode into the first HTML so the first paint is correct (no flash). */
 const theme: Handle = ({ event, resolve }) => {
 	const choice = parseMode(event.cookies.get(MODE_COOKIE));
@@ -95,6 +110,12 @@ const authentication: Handle = async ({ event, resolve }) => {
 	if (event.url.pathname === '/healthz') return resolve(event);
 	// The system skills routes are public and the same for everyone, so they never read a session
 	if (event.url.pathname.startsWith('/api/v1/system-skills')) return resolve(event);
+	// Mockup files and public mockup links authenticate by their signature or address, never by the cookie, so no session is read
+	if (readsNoSession(event.url.pathname)) {
+		event.locals.user = null;
+		event.locals.session = null;
+		return resolve(event);
+	}
 	if (isShellRequest(event)) {
 		event.locals.user = null;
 		event.locals.session = null;
@@ -113,7 +134,7 @@ const authentication: Handle = async ({ event, resolve }) => {
 	return svelteKitHandler({ auth, event, resolve, building });
 };
 
-export const handle: Handle = sequence(timing, csrf, theme, authentication);
+export const handle: Handle = sequence(timing, publicMockupPage, csrf, theme, authentication);
 
 /** Fills an empty preview database with the demo data once, when the server starts. */
 export const init: ServerInit = async () => {

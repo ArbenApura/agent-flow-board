@@ -6,8 +6,10 @@
 // agent-flow-board hook claude|antigravity|gemini [event]   one hook event from stdin, one JSON object to stdout
 // agent-flow-board hooks print claude|antigravity|gemini [--org <slug>]   the settings to paste into the tool
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
+// agent-flow-board mockup push <file.html> --server <url> --org <slug> --item <ref>   upload one mockup file (never queued)
 
 // -- DEP-MODULES -- //
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runBridge } from './bridge.js';
 import { ADAPTERS, runHook } from './hooks/adapters.js';
@@ -20,6 +22,7 @@ import {
 } from './hooks/gitHook.js';
 import { hookSettings } from './hooks/settings.js';
 import { deviceLogin, type Fetch } from './device.js';
+import { pushMockup } from './mockup.js';
 import { Queue } from './queue.js';
 import { accountKey, configDir, pickStore } from './tokenStore.js';
 
@@ -142,6 +145,43 @@ async function main() {
 		}
 		return;
 	}
+	if (cmd === 'mockup') {
+		// One upload over /api/v1 with this machine's own sign in. It is never queued, so a failure is said out loud and run again
+		if (args[1] !== 'push' || !args[2] || args[2].startsWith('--')) {
+			log(
+				'Usage: agent-flow-board mockup push <file.html> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [--another] [--title <text>] [--keep <text> | --keep-file <path>] [--free <text> | --free-file <path>] [--screenshot <file.png>]'
+			);
+			process.exit(2);
+		}
+		const server = serverUrl();
+		const org = orgFlag();
+		if (!org) {
+			log('Say which organisation: --org <slug>.');
+			process.exit(2);
+		}
+		const text = (inline: string, file: string) => {
+			const path = flag(file);
+			return path ? readFileSync(path, 'utf8') : flag(inline);
+		};
+		const result = await pushMockup({
+			server,
+			org,
+			token: tokenFor(server, org, true) ?? '',
+			fetch: fetchImpl,
+			file: args[2],
+			item: flag('--item'),
+			project: flag('--project'),
+			mockup: flag('--mockup'),
+			another: args.includes('--another'),
+			title: flag('--title'),
+			keepNotes: text('--keep', '--keep-file'),
+			freeNotes: text('--free', '--free-file'),
+			screenshot: flag('--screenshot'),
+			log
+		});
+		process.stdout.write(JSON.stringify(result) + '\n');
+		return;
+	}
 	if (cmd === 'queue') {
 		const sub = args[1];
 		if (sub === 'retry' && args[2])
@@ -166,7 +206,7 @@ async function main() {
 	}
 	if (cmd !== 'mcp' && cmd !== 'login') {
 		log(
-			'Usage: agent-flow-board mcp|login|logout --server <url>, or queue list|retry <id>|drop <id>'
+			'Usage: agent-flow-board mcp|login|logout --server <url>, queue list|retry <id>|drop <id>, or mockup push <file.html>'
 		);
 		process.exit(2);
 	}

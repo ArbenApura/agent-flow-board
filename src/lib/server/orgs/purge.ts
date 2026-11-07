@@ -8,7 +8,15 @@ import type { Storage } from '../adapters/storage';
 // -- DEP-MODULES -- //
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { attachment, backupRun, deviceCode, org, orgDeletionLog } from '../db/schema';
+import {
+	attachment,
+	backupRun,
+	deviceCode,
+	mockupKit,
+	mockupVersion,
+	org,
+	orgDeletionLog
+} from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { ORG_DELETE_GRACE_DAYS, purgeAt } from './deletion';
 
@@ -68,12 +76,21 @@ export async function purgeOrg(
 				.set({ purgeStartedAt: sql`now()` })
 				.where(eq(org.id, orgId));
 		const files = await tx.select({ key: attachment.storageKey }).from(attachment);
+		// Mockup versions, their screenshots and the project kits are stored files too
+		const mockupFiles = await tx
+			.select({ key: mockupVersion.storageKey, shot: mockupVersion.screenshotKey })
+			.from(mockupVersion);
+		const kitFiles = await tx.select({ key: mockupKit.storageKey }).from(mockupKit);
 		const archives = await tx
 			.select({ key: backupRun.location })
 			.from(backupRun)
 			.where(isNotNull(backupRun.location));
 		return {
-			files: files.map((f) => f.key),
+			files: [
+				...files.map((f) => f.key),
+				...mockupFiles.flatMap((f) => (f.shot ? [f.key, f.shot] : [f.key])),
+				...kitFiles.map((f) => f.key)
+			],
 			archives: archives.map((a) => a.key!).filter(Boolean)
 		};
 	});

@@ -74,7 +74,10 @@ export const RESERVED_SLUGS = new Set([
 	'fonts',
 	'favicon',
 	'robots',
-	'deleted'
+	'deleted',
+	// The public mockup link (/m) and the signed mockup file (/mf)
+	'm',
+	'mf'
 ]);
 
 // -- FUNCTIONS -- //

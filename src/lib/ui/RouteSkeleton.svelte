@@ -15,13 +15,15 @@
 			? 'list'
 			: routeId.endsWith('/[item]')
 				? 'item'
-				: routeId.endsWith('/settings')
-					? 'form'
-					: routeId.endsWith('/activity') || routeId.endsWith('/trash')
-						? 'activity'
-						: routeId.endsWith('/[project]')
-							? 'board'
-							: 'list'
+				: routeId.endsWith('/mockups/[id]')
+					? 'item'
+					: routeId.endsWith('/settings')
+						? 'form'
+						: routeId.endsWith('/activity') || routeId.endsWith('/trash')
+							? 'activity'
+							: routeId.endsWith('/[project]')
+								? 'board'
+								: 'list'
 	);
 </script>
 

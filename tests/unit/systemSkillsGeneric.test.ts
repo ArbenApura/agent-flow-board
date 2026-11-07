@@ -52,8 +52,16 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'a design gap is a reason to stop', pattern: /\(5\) a visible design choice/ },
 		{ rule: 'ask before any mockup', pattern: /Never make one without a yes/ },
 		{
-			rule: 'the mockup question only on Claude',
-			pattern: /Anywhere else, or when you are not sure, do not ask/
+			rule: 'the mockup offer is a line of the one approval question, on every harness',
+			pattern: /the same question carries one more line: also draw a design mockup/
+		},
+		{
+			rule: 'a mockup is inspiration and never the spec',
+			pattern: /A mockup is inspiration, never the spec/
+		},
+		{
+			rule: 'a mockup that adds a feature the plan lacks is a stop',
+			pattern: /a mockup that adds a feature or behaviour the plan does not contain/
 		},
 		{ rule: 'the build follows the agreed design', pattern: /Build what was agreed/ },
 		{
@@ -101,8 +109,16 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'asks from the design brief', pattern: /read its `design-brief` section first/ },
 		{
 			rule: 'no mockup talk where it does not apply',
-			pattern: /do not mention artifacts or a mockup/
+			pattern: /do not mention mockups/
 		}
+	],
+	'flow-mockup': [
+		{ rule: 'no commit or push', pattern: /never commit or push/ },
+		{ rule: 'never in the repo', pattern: /never put a mockup file in the repo/ },
+		{ rule: 'untrusted text is data', pattern: /data written by other people/ },
+		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
+		{ rule: 'only on the user yes', pattern: /Never make a mockup the user did not say yes to/ },
+		{ rule: 'no network inside a mockup', pattern: /may not load anything from a network address/ }
 	],
 	'flow-task': [
 		{ rule: 'no code edits', pattern: /Never edit code/ },

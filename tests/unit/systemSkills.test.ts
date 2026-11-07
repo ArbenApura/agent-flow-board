@@ -33,6 +33,7 @@ const NAMES = [
 	'flow-check',
 	'flow-critic',
 	'flow-interview',
+	'flow-mockup',
 	'flow-task',
 	'flow-verify'
 ];
@@ -40,7 +41,7 @@ const NAMES = [
 // -- TESTS -- //
 
 describe('the system skills manifest', () => {
-	it('lists the seven flow skills, each with a semver version', () => {
+	it('lists the eight flow skills, each with a semver version', () => {
 		expect(Object.keys(MANIFEST.skills).sort()).toEqual(NAMES);
 		expect(MANIFEST.bundle.version).toMatch(/^\d+\.\d+\.\d+$/);
 		for (const [name, entry] of Object.entries(MANIFEST.skills))

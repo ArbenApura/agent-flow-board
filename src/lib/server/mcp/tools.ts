@@ -727,7 +727,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'workflow_get',
-		'Read a workflow: flow (plan and build), flow-task, flow-interview, flow-critic, flow-audit, flow-check (browser checks) or flow-verify (the gates). flow-critic also has supporting files (file). Long texts come in parts: pass the reply next as offset.',
+		'Read a workflow: flow (plan and build), flow-task, flow-interview, flow-critic, flow-audit, flow-check (browser checks), flow-mockup (a design mockup) or flow-verify (the gates). flow-critic also has supporting files (file). Long texts come in parts: pass the reply next as offset.',
 		{
 			name: z.enum([
 				'flow',
@@ -736,6 +736,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				'flow-critic',
 				'flow-audit',
 				'flow-check',
+				'flow-mockup',
 				'flow-verify'
 			]),
 			file: z.enum(WORKFLOW_FILE_NAMES).optional(),
