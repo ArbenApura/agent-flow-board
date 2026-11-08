@@ -46,7 +46,8 @@
 		let ox = new Float32Array(0);
 		let oy = new Float32Array(0);
 		let pulses: Pulse[] = [];
-		let color = '#6b9bff';
+		// Fallback until the accent token is read; canvas resolves currentcolor from the element
+		let color = 'currentcolor';
 		let raf = 0;
 		let last = 0;
 		let sincePulse = 0;
