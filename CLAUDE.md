@@ -26,11 +26,11 @@ A standalone multi-project team board for agent-driven flow plans. SvelteKit (Sv
 
 Two speeds (owner, 2026-11-05, after measuring: this repo's own `yarn check` took 140 s on 2026-11-05 (1,933 files, 0 errors), and in HAPR a whole-project type check ran 17 to 28 times per session, up to 45 percent of a session). The fast gate runs after each change; the full gates run once per phase and before a commit. From the repo root:
 
-| Case | Gates |
-|---|---|
-| Active engagement (the owner is testing the app and asking for fixes one after another) | none unless he asks. Make the fix, say what changed, stop |
-| Autonomous, a tweak (a text, literal or token-class edit; no script logic, props or imports) | `yarn prettier --check <file>` and `yarn eslint --cache <file>` |
-| Autonomous, each change in a phase | the tweak gates, plus `yarn vitest related --run <files>` |
+| Case                                                                                                                                    | Gates                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Active engagement (the owner is testing the app and asking for fixes one after another)                                                 | none unless he asks. Make the fix, say what changed, stop                                               |
+| Autonomous, a tweak (a text, literal or token-class edit; no script logic, props or imports)                                            | `yarn prettier --check <file>` and `yarn eslint --cache <file>`                                         |
+| Autonomous, each change in a phase                                                                                                      | the tweak gates, plus `yarn vitest related --run <files>`                                               |
 | End of each phase, right after a change to a prop, snippet signature, shared type or exported signature, and before any commit or merge | full `yarn check` and full `yarn test`. Start them with `run_in_background` and carry on while they run |
 
 - Fix every error in the files you touched. `yarn check` covers the whole project: read only the lines for your files, and report (do not fix) errors that were already there. Format only your own files (`yarn prettier --write <file>`), never the whole repo.
@@ -57,7 +57,7 @@ The scale, the colour tokens and the layout rules are in `DESIGN.md` at the root
 3. Invent no new size. Use the values in `DESIGN.md`. A new pixel value needs a reason written in the plan.
 4. One primary action per view, at the `button-primary` size. Everything else is a plain button or a link.
 5. Reuse before inventing. The component library in `src/lib/ui/` comes first. A second kind of dialog, tab bar or card is a design finding.
-5a. A tweak to a screen the person already approved (a spacing, wording, colour, size or order change) is made directly with one sentence saying what changed; a mockup or design question is for a new screen, a new pattern, or a change of structure or behaviour they have not seen.
+   5a. A tweak to a screen the person already approved (a spacing, wording, colour, size or order change) is made directly with one sentence saying what changed; a mockup or design question is for a new screen, a new pattern, or a change of structure or behaviour they have not seen.
 6. Labels are plain questions or actions a person understands without help. Every form field states its own font size explicitly, and labels, fields and the submit button of one form share it. A money or limit answer shows a live worked example before saving.
 7. Small pictures. An illustration takes at most about 12% of the first screen and stays out of the way of the first action.
 8. Phones. Same type scale. Every tap target is at least 44 by 44 px, and nothing scrolls sideways.

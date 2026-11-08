@@ -11,3 +11,8 @@ cli
 
 # The system skills are shipped byte for byte and hashed, so a formatter must never touch them
 src/lib/server/system-skills/skills
+
+# Generated output: built bridge, drizzle snapshots and the hashed skills manifest
+packages/bridge/dist
+src/lib/server/db/migrations/meta
+src/lib/server/system-skills/manifest.json
