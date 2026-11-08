@@ -1,6 +1,6 @@
 {
 	"name": "afb-flow-status",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Shows the Agent Flow Board item this Claude Code conversation is working on: tab name, reference, phase, percent and status.",
 	"author": { "name": "Agent Flow Board" },
 	"types": "./types/index.d.ts",

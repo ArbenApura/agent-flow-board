@@ -18,7 +18,6 @@ const STATUS_COLOUR: Record<string, string> = {
 	COMPLETED: 'success',
 	REMOVED: 'inactive'
 };
-const TITLE_SHOWN = 28;
 
 // -- FUNCTIONS -- //
 
@@ -36,6 +35,7 @@ export function drawLine(
 
 	// Each part of the line, then a dim dot between them. The children are lists, because a tree takes elements and strings only.
 	const parts: RenderNode[] = [];
+	let titleAt = -1;
 	if (line.tag)
 		parts.push(
 			<Text color={tagColor} weight="bold">
@@ -51,12 +51,9 @@ export function drawLine(
 				</Text>
 			);
 		parts.push(item.url ? <Link href={item.url} label={item.ref} /> : <Text mono>{item.ref}</Text>);
-		// The band is one line, so its title is short; the pane has room for the whole title
-		const title =
-			!options.hasDetails && item.title.length > TITLE_SHOWN
-				? `${item.title.slice(0, TITLE_SHOWN - 1)}…`
-				: item.title;
-		parts.push(<Text>{title}</Text>);
+		// The title is the one part that gives way: in the band it shrinks and ends with an ellipsis when the row is short of room
+		titleAt = parts.length;
+		parts.push(<Text wrap={options.hasDetails ? 'wrap' : 'truncate-end'}>{item.title}</Text>);
 		if (item.phase)
 			parts.push(<Text dimColor>{`Phase ${item.phase.position} of ${item.phase.of}`}</Text>);
 		parts.push(
@@ -81,15 +78,34 @@ export function drawLine(
 			</Button>
 		);
 
+	// The band is one row that does not wrap: every part keeps its size (flexShrink 0) and only the title shrinks. A wrapping row never
+	// shrinks an item, it moves the last part to a second line instead. The pane has room, so its row wraps and shows the whole title.
+	const isBand = !options.hasDetails;
 	const top: RenderNode[] = [];
 	parts.forEach((part, i) => {
-		if (i > 0 && item) top.push(<Text dimColor>·</Text>);
-		top.push(part);
+		if (i > 0 && item)
+			top.push(
+				isBand ? (
+					<Box flexShrink={0}>
+						<Text dimColor>·</Text>
+					</Box>
+				) : (
+					<Text dimColor>·</Text>
+				)
+			);
+		if (!isBand) top.push(part);
+		else if (i === titleAt)
+			top.push(
+				<Box flexShrink={1} minWidth={0}>
+					{part}
+				</Box>
+			);
+		else top.push(<Box flexShrink={0}>{part}</Box>);
 	});
 
 	const rows: RenderNode[] = [
 		// 'xs' is one cell across and none down on VS Code and the terminal: a number would also leave a blank line between rows
-		<Box flexDirection="row" flexWrap="wrap" gap="xs">
+		<Box flexDirection="row" flexWrap={isBand ? 'nowrap' : 'wrap'} gap="xs">
 			{top}
 		</Box>
 	];
