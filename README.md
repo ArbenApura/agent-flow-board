@@ -4,6 +4,8 @@ A team board for plans that people and coding agents work on together. Each piec
 
 It runs for many organisations, each with many projects and many people, on one server. You run it yourself, on a server with Docker and its own PostgreSQL, and you can import an existing HAPR board into it.
 
+The live board is at https://afb.arbenger.com. This product is planned on itself, in the project AFB (https://afb.arbenger.com/arbenger/AFB).
+
 ## What it does
 
 | Area    | What you get                                                                                                                                                                                                                                                                                 |
@@ -26,7 +28,7 @@ node tests/runner/preview.mjs
 
 That builds the app, starts a throwaway PostgreSQL of its own for the run (the same embedded server the tests use) and serves the app at http://localhost:5180 with demo organisations and people (read from `.env.test`; the shared sign in password is `seed-password-for-previews` and must never reach a deployment). Sign in as `owner@acme.example`.
 
-Localhost is always port **5180**, for the dev server and for the build preview (`vite.config.ts` sets `strictPort`, so a second server fails instead of moving to another port). Stop one before starting the other.
+Localhost uses two fixed ports: **5180** is the dev server and **5190** is the local build preview (`yarn build && yarn preview`). `vite.config.ts` sets `strictPort`, so a second server fails instead of moving to another port. The live board is the server at https://afb.arbenger.com, deployed with `yarn deploy:vps`.
 
 ### Local development (Docker PostgreSQL)
 
@@ -58,14 +60,16 @@ An imported plan takes the date and time of its HAPR Board id (the Board wrote i
 
 ## The gates
 
-| Command                                       | What it checks                                                             |
-| --------------------------------------------- | -------------------------------------------------------------------------- |
-| `yarn run check`                              | Types and Svelte warnings                                                  |
-| `yarn eslint .` and `yarn prettier --check .` | Lint and format                                                            |
-| `yarn run check:packages`                     | The runner and scripts type check                                          |
-| `yarn test`                                   | Unit and operations tests on an embedded real PostgreSQL                   |
-| `yarn run test:checks`                        | Browser checks on the build preview (never the dev server)                 |
-| `yarn perf`                                   | First load JavaScript and response times against `tests/perf/budgets.json` |
+| Command                                       | What it checks                                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `yarn run check`                              | Types and Svelte warnings                                                             |
+| `yarn eslint .` and `yarn prettier --check .` | Lint and format                                                                       |
+| `yarn run check:packages`                     | The runner and scripts type check                                                     |
+| `yarn test`                                   | Unit and operations tests on an embedded real PostgreSQL                              |
+| `yarn run test:checks`                        | Browser checks on the build preview (never the dev server). Run on request, not in CI |
+| `yarn perf`                                   | First load JavaScript and response times against `tests/perf/budgets.json`            |
+
+CI (`.github/workflows/ci.yml`) runs check, check:packages, lint, format check, test and build on every push to `main`.
 
 ## Run it for real
 
@@ -93,9 +97,9 @@ To release a change to a skill:
 - PostgreSQL through Drizzle. Every tenant table has forced row level security, and the app connects as a role that does not own the tables. Live updates use `LISTEN` and `NOTIFY`, background jobs use pg-boss on the same database, and files live on disk or in any S3 compatible store.
 - One operations layer (`src/lib/server/ops/`). The pages, the REST API, the MCP server and the commands all call it, and each verb reads the caller's live role.
 - Better Auth for sign in, with the OAuth 2.1 and device flows for tools written beside it.
-- `packages/runner` (the browser check runner), `packages/bridge` (the MCP stdio bridge and the tool hooks), `design/` (the brand and the size scale).
+- `packages/runner` (the browser check runner), `packages/bridge` (the MCP stdio bridge and the tool hooks), `DESIGN.md` (the brand and the size scale).
 
-The plan, the decisions and the loophole register this was built from live in the HAPR Board item FLOW-20261014-1047.
+The plan, the decisions and the loophole register this was built from live in the HAPR Board item FLOW-20261014-1047. Current work is planned in the project AFB on the live board.
 
 ## Security in one paragraph
 
