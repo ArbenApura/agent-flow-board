@@ -75,6 +75,7 @@ import {
 	updateStepBody
 } from '../ops/plan';
 import { recordInput, recordSteps } from '../ops/steps';
+import { sessionStatusByExternal, sessionStatusInput } from '../ops/sessionStatus';
 import { setStatus, setStatusInput } from '../ops/status';
 import { createToken, listTokens, revokeToken, tokenInput } from '../ops/tokens';
 import { OpError, requireCap, run } from '../ops/context';
@@ -512,6 +513,20 @@ export const routes: Route[] = [
 		summary: 'Undo everything one session changed, newest first',
 		tag: 'Activity',
 		handler: ({ ctx, params }) => undoSession(ctx, params.id)
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/sessions/by-external/{externalId}',
+		summary:
+			"Which item your session with this tool's own conversation id is working on, for an editor status line. Read only: it never renews the session, so do not send x-session-id. A missing, foreign or unknown id answers the same NOT_FOUND. Send the last etag to get { unchanged: true } when nothing changed.",
+		tag: 'Sessions',
+		query: strip(sessionStatusInput, 'externalId'),
+		handler: ({ ctx, params, query }) =>
+			sessionStatusByExternal(ctx, {
+				externalId: params.externalId,
+				tool: (query.tool || undefined) as never,
+				etag: query.etag || undefined
+			})
 	},
 	{
 		method: 'GET',

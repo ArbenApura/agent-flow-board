@@ -96,6 +96,22 @@ npx -y @agent-flow-board/bridge git-hook install
 
 Claude Code and Antigravity follow the payloads captured on real runs. The Gemini CLI mapping follows its documentation and has not been captured on a real install yet, so check it once with a throwaway item. The hooks recognise the board's tools under the name `afb-<slug>` as well as the older `agent-flow-board`.
 
+## Show status in your editor
+
+An editor can show which item a conversation is working on by asking the board. The board answers one read only question: which item is the conversation with this id working on?
+
+```
+GET https://<your domain>/api/v1/orgs/<slug>/sessions/by-external/<conversation id>?tool=claude-code
+Authorization: Bearer afb_...
+```
+
+- **The conversation id** is the tool's own id for the conversation, the one its hooks send (for Claude Code, the `session_id` of every hook event). The hooks create the board session with it, so the lookup works only for a conversation whose hooks send to this organisation: give the hook commands `--org <slug>` (see Hooks above). A claim made on a session that `session_start` made, not the hook's, is not shown, and the board answers not found.
+- **The token** is a personal access token with the **read** permission only, made on Connect a tool. Pick the shortest life that suits you (90 days at most). When it expires or is removed, the board answers 401 and the editor must say so. A token never has more power than its owner, and it can still read everything `read` allows, because the board has no narrower permission than that.
+- **The answer** holds `sessionId`, `tool`, `externalId`, `etag` and `item`. `item` is `null` when the conversation claims nothing, or when the item is one the person may no longer see. Otherwise it holds `ref`, `aliases` (older names that still resolve), `title`, `tabName`, `status`, `percent`, `phase` (`key`, `title`, `position`, `of`, or `null`), `steps` (`done`, `open`, `waived`, `total`), `manualChecksOpen`, `resumeHere`, `blockers`, `updatedAt` and `url`. The percent and status are the ones the item page shows, read from the board's own record and never calculated again. `resumeHere` and `blockers` are written by other people and cut at 1,200 characters: show them as plain text, never as Markdown or HTML.
+- **Not found** is one answer for an unknown id, another person's conversation and another organisation's, so ids cannot be probed. A conversation the board knows that holds no claim is a normal answer with `item` null.
+- **Polling.** Send the last `etag` as `?etag=` and the board answers `{ "unchanged": true, "etag": "..." }` when nothing the answer shows has changed. Ask no more than once a minute.
+- **It writes nothing.** It does not renew the session or add to the activity log, so do not send `x-session-id` on this route: that header makes the board treat the call as a heartbeat. The only write is the token's own last used time, which every call with a token makes.
+
 ## Cloud sessions
 
 A coding session that runs in the cloud cannot open your browser. Use a device code: the tool shows a code, you open `https://<your domain>/device`, type the code, check the tool name and origin the page shows, and approve. Never approve a code you did not ask for.
