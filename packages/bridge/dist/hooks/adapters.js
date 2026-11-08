@@ -28,15 +28,17 @@ export const claude = {
             cwd: text(p.cwd) || undefined
         };
         const hook = text(p.hook_event_name);
+        // The editor mod reads the status file, so the events that can change what a conversation works on ask for the status:
+        // the start, each prompt, the stop, and a call of the board's own tools (a claim, a step, a release). Plain edits and reads do not.
         if (hook === 'SessionStart')
-            return { ...base, event: 'start' };
+            return { ...base, event: 'start', status: true };
         if (hook === 'UserPromptSubmit')
-            return { ...base, event: 'prompt' };
+            return { ...base, event: 'prompt', status: true };
         // The conversation ended: the server lets go of this session's claim
         if (hook === 'SessionEnd')
             return { ...base, event: 'end' };
         if (hook === 'Stop')
-            return { ...base, event: 'stop', stopActive: p.stop_hook_active === true };
+            return { ...base, event: 'stop', stopActive: p.stop_hook_active === true, status: true };
         const tool = text(p.tool_name);
         const input = obj(p.tool_input);
         if (hook === 'PreToolUse') {
@@ -56,7 +58,13 @@ export const claude = {
             action = { kind: 'shell', command: text(input.command) };
         else if (tool.startsWith('mcp__') && BOARD_SERVER.test(tool))
             action = { kind: 'board', name: tool.split('__').pop() ?? '' };
-        return { ...base, event: 'tool', subagent, action };
+        return {
+            ...base,
+            event: 'tool',
+            subagent,
+            action,
+            ...(action.kind === 'board' ? { status: true } : {})
+        };
     },
     toOutput(event, a) {
         if (!a)

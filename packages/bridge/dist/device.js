@@ -1,19 +1,36 @@
 // DEVICE CODE SIGN IN FOR THE BRIDGE (RFC 8628). THE PERSON TYPES THE CODE ON THE SERVER'S /device PAGE; NOTHING IS PRE FILLED.
+// -- DEP-MODULES -- //
+import { createHash, randomBytes } from 'node:crypto';
 // -- FUNCTIONS -- //
 /** How long one sign in call may take. The wait between polls is separate. */
 export const DEVICE_CALL_TIMEOUT_MS = 30_000;
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function deviceLogin(server, fetchImpl, log, options = {}) {
     const wait = options.wait ?? sleep;
+    const verifier = options.pkce ? randomBytes(32).toString('base64url') : null;
     const start = await fetchImpl(`${server}/oauth/device/code`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ client_name: options.name ?? 'agent-flow-board bridge' }),
+        body: JSON.stringify({
+            client_name: options.name ?? 'agent-flow-board bridge',
+            ...(verifier
+                ? {
+                    code_challenge: createHash('sha256').update(verifier).digest('base64url'),
+                    code_challenge_method: 'S256'
+                }
+                : {})
+        }),
         signal: AbortSignal.timeout(DEVICE_CALL_TIMEOUT_MS)
     });
     if (!start.ok)
         throw new Error(`The server refused the sign in (${start.status}).`);
     const d = (await start.json());
+    options.onCode?.({
+        userCode: d.user_code,
+        verifier,
+        verificationUri: d.verification_uri,
+        expiresInSeconds: d.expires_in
+    });
     log(`To sign in, open ${d.verification_uri} and type this code: ${d.user_code}`);
     log(`The code works for ${Math.floor(d.expires_in / 60)} minutes. Waiting for you to approve it...`);
     let interval = d.interval * 1000;

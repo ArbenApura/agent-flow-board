@@ -4,6 +4,9 @@
 // board's own address. No organisation name, item text or other stored text is ever put into a step, because an agent follows the steps.
 // Nothing here is a secret: the mod files are public source and the plan holds no token, verifier or code.
 
+// -- ASSETS -- //
+// A static import, not the glob below: the production build's glob skips a folder that starts with a dot (.claude-plugin), so the manifest would be missing there
+import pluginManifest from '../../../../packages/claude-status-mod/.claude-plugin/plugin.json?raw';
 // -- MODULES -- //
 import { normalize, sha256Hex } from '../system-skills/hash';
 
@@ -35,14 +38,17 @@ export const MOD_NAME = 'afb-flow-status';
 export const MOD_PART = 12_000;
 const SLUG = /^[a-z0-9][a-z0-9-]{1,38}$/;
 
-const SOURCES = import.meta.glob(
+const GLOBBED = import.meta.glob(
 	[
-		'../../../../packages/claude-status-mod/.claude-plugin/plugin.json',
 		'../../../../packages/claude-status-mod/hooks/*.{json,ts,tsx}',
 		'../../../../packages/claude-status-mod/types/index.d.ts'
 	],
 	{ query: '?raw', import: 'default', eager: true }
 ) as Record<string, string>;
+const SOURCES: Record<string, string> = {
+	...GLOBBED,
+	'/packages/claude-status-mod/.claude-plugin/plugin.json': pluginManifest
+};
 
 // -- FUNCTIONS -- //
 
