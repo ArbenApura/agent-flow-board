@@ -1,0 +1,28 @@
+{
+	"name": "afb-flow-status",
+	"version": "0.1.0",
+	"description": "Shows the Agent Flow Board item this Claude Code conversation is working on: tab name, reference, phase, percent and status.",
+	"author": { "name": "Agent Flow Board" },
+	"types": "./types/index.d.ts",
+	"userConfig": {
+		"server": {
+			"type": "string",
+			"title": "Board address",
+			"description": "The address of your Agent Flow Board, for example https://afb.arbenger.com",
+			"default": "https://afb.arbenger.com"
+		},
+		"org": {
+			"type": "string",
+			"title": "Organisation",
+			"description": "The organisation name (slug) in the board address, for example arbenger. The hooks of your repo must send to the same organisation.",
+			"default": ""
+		},
+		"token": {
+			"type": "string",
+			"title": "Read token",
+			"description": "A personal access token with the read permission only, made on Connect a tool. It expires after 90 days at most.",
+			"sensitive": true,
+			"default": ""
+		}
+	}
+}
