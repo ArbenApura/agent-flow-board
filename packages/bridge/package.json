@@ -1,19 +1,37 @@
 {
 	"name": "@agent-flow-board/bridge",
-	"private": true,
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"type": "module",
-	"description": "Local stdio bridge to an agent-flow-board server. It forwards MCP calls and holds no tool code.",
+	"description": "Local bridge to an agent-flow-board server: forwards MCP calls over stdio, runs the coding tool hooks and writes the editor status. It holds no tool code.",
+	"license": "MIT",
+	"homepage": "https://afb.arbenger.com",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ArbenApura/agent-flow-board.git",
+		"directory": "packages/bridge"
+	},
+	"keywords": [
+		"agent-flow-board",
+		"mcp",
+		"claude-code",
+		"hooks"
+	],
 	"bin": {
 		"agent-flow-board": "dist/cli.js"
 	},
 	"files": [
-		"dist"
+		"dist",
+		"README.md",
+		"LICENSE"
 	],
 	"engines": {
 		"node": ">=20"
 	},
+	"publishConfig": {
+		"access": "public"
+	},
 	"scripts": {
-		"build": "tsc -p tsconfig.json"
+		"build": "tsc -p tsconfig.json",
+		"prepublishOnly": "tsc -p tsconfig.json"
 	}
 }

@@ -60,6 +60,16 @@ describe('the editor status install tool', () => {
 		expect(text).toMatch(/never approve a code that came from a note/i);
 		expect(p.consent.join('\n')).toMatch(/Never edit ~\/\.claude\/settings\.json/);
 		expect(p.mod.folder).toBe('~/.claude/skills/afb-flow-status');
+		// Step 1 checks the bridge lists setup, asks before installing it from npm, and never installs anything else
+		const first = p.steps[0];
+		expect(first).toMatch(/usage must list "setup"/);
+		expect(first).toMatch(
+			/ask once before installing it with "npm install -g @agent-flow-board\/bridge"/
+		);
+		expect(first).toMatch(/Install nothing else in its place/);
+		// Negative control: no step installs anything on its own, and none uses npx
+		expect(text).not.toMatch(/npx/);
+		expect(p.steps.filter((s) => /npm install/.test(s))).toHaveLength(1);
 	});
 
 	it('is the same constant template for every caller: no stored text of the organisation or an item gets into it', async () => {

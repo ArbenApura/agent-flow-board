@@ -74,12 +74,12 @@ The `/flow` skills are installed from the Skills tab on the Connect page (an age
 
 Hooks make a tool tell the board when work starts, remind it to record, and ask before it closes an item. They never block work. Print the settings for your tool and paste them where the tool keeps its hooks. Add `--org <slug>` so the hook uses that organisation's sign in:
 
-> The bridge package is not on npm yet. Until it is, build it from this repository (`yarn workspace @agent-flow-board/bridge build`) and run `node packages/bridge/dist/cli.js` in place of `npx -y @agent-flow-board/bridge`.
+> Install the bridge once with `npm install -g @agent-flow-board/bridge` (Node 20 or later), and check that `agent-flow-board` with no arguments lists `setup`. Hooks call the command several times per tool call, so install it globally rather than starting it with `npx` each time. To use a build from this repository instead, run `yarn workspace @agent-flow-board/bridge build` and link `packages/bridge`; the published package is built the same way before every publish.
 
 ```
-npx -y @agent-flow-board/bridge hooks print claude --server https://<your domain> --org <slug>
-npx -y @agent-flow-board/bridge hooks print antigravity --server https://<your domain> --org <slug>
-npx -y @agent-flow-board/bridge hooks print gemini --server https://<your domain> --org <slug>
+agent-flow-board hooks print claude --server https://<your domain> --org <slug>
+agent-flow-board hooks print antigravity --server https://<your domain> --org <slug>
+agent-flow-board hooks print gemini --server https://<your domain> --org <slug>
 ```
 
 | Tool        | Paste into                                                     |
@@ -88,10 +88,10 @@ npx -y @agent-flow-board/bridge hooks print gemini --server https://<your domain
 | Antigravity | the hooks file Antigravity and `agy` read (`hooks.json`)       |
 | Gemini CLI  | `~/.gemini/settings.json`                                      |
 
-The bridge never edits a tool's settings by itself. A git hook adds a warning (never a failure) when a commit names no item:
+The bridge edits a tool's settings only when you or your agent run `agent-flow-board setup --org <slug>` on purpose (see "Show status in your editor"); `hooks print` only prints. A git hook adds a warning (never a failure) when a commit names no item:
 
 ```
-npx -y @agent-flow-board/bridge git-hook install
+agent-flow-board git-hook install
 ```
 
 Claude Code and Antigravity follow the payloads captured on real runs. The Gemini CLI mapping follows its documentation and has not been captured on a real install yet, so check it once with a throwaway item. The hooks recognise the board's tools under the name `afb-<slug>` as well as the older `agent-flow-board`.
