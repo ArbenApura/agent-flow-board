@@ -73,7 +73,7 @@ export function modFiles(): ModFile[] {
 export const servedModFile = (path: string): ModFile | undefined =>
 	modFiles().find((f) => f.path === path);
 
-function modVersion(): string {
+export function modVersion(): string {
 	try {
 		const manifest = JSON.parse(servedModFile('.claude-plugin/plugin.json')?.text ?? '{}') as {
 			version?: unknown;

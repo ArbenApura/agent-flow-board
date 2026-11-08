@@ -90,7 +90,9 @@ export const claude: Adapter = {
 					hookEventName: 'SessionStart',
 					additionalContext: a.context ?? '',
 					...(a.title ? { sessionTitle: a.title } : {})
-				}
+				},
+				// The one line for the person (an older editor status mod), shown once as the conversation starts
+				...(a.notice ? { systemMessage: a.notice } : {})
 			};
 		if (event === 'prompt' && a.title)
 			return { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', sessionTitle: a.title } };

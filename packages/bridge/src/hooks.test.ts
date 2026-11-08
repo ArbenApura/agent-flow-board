@@ -2,13 +2,14 @@
 
 // -- DEP-MODULES -- //
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 // -- MODULES -- //
 import { ADAPTERS, antigravity, claude, gemini, runHook } from './hooks/adapters.js';
 import { callHook, type HookEvent } from './hooks/call.js';
+import { installedModVersion } from './hooks/modVersion.js';
 import {
 	checkCommit,
 	installGitHook,
@@ -114,6 +115,12 @@ describe('the Claude Code adapter', () => {
 		expect(claude.toOutput('start', { context: 'brief' })).toEqual({
 			hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: 'brief' }
 		});
+		// The update line is a message for the person, printed beside the context, at a start only
+		expect(claude.toOutput('start', { context: 'brief', notice: 'A newer mod' })).toEqual({
+			hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: 'brief' },
+			systemMessage: 'A newer mod'
+		});
+		expect(claude.toOutput('prompt', { notice: 'A newer mod' })).toEqual({});
 		expect(claude.toOutput('prompt', { title: 'T: CKT-1' })).toEqual({
 			hookSpecificOutput: { hookEventName: 'UserPromptSubmit', sessionTitle: 'T: CKT-1' }
 		});
@@ -335,6 +342,61 @@ describe('running a hook', () => {
 			'claude-code',
 			'gemini'
 		]);
+	});
+});
+
+describe('the installed editor status mod', () => {
+	let home: string;
+	const manifest = (text: string) => {
+		const dir = join(home, '.claude', 'skills', 'afb-flow-status', '.claude-plugin');
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(join(dir, 'plugin.json'), text);
+	};
+	beforeEach(() => {
+		home = mkdtempSync(join(tmpdir(), 'afb-mod-'));
+		// The remembered organisation is written to the bridge's folder: keep it out of the real one
+		process.env.AFB_BRIDGE_HOME = join(home, 'bridge');
+	});
+	afterEach(() => {
+		delete process.env.AFB_BRIDGE_HOME;
+		rmSync(home, { recursive: true, force: true });
+	});
+
+	it('reads the version of the installed mod, and nothing from a missing or odd manifest', () => {
+		// No mod at all, and a manifest that is not JSON, has no version or has a version that is not plain
+		expect(installedModVersion(home)).toBeUndefined();
+		manifest('not json');
+		expect(installedModVersion(home)).toBeUndefined();
+		manifest('{"name":"afb-flow-status"}');
+		expect(installedModVersion(home)).toBeUndefined();
+		manifest('{"version":"^0.1.0"}');
+		expect(installedModVersion(home)).toBeUndefined();
+		manifest('{"version":"0.1.0"}');
+		expect(installedModVersion(home)).toBe('0.1.0');
+	});
+
+	it('is sent on a Claude Code start only, and a start without a mod sends none', async () => {
+		const bodies: Record<string, unknown>[] = [];
+		const fetchImpl = async (url: string, init?: RequestInit) => {
+			if (url.endsWith('/api/v1/me'))
+				return new Response(JSON.stringify({ orgs: [{ slug: 'acme' }] }));
+			bodies.push(JSON.parse(init?.body as string));
+			return new Response(JSON.stringify({ notice: 'A newer mod' }));
+		};
+		const o = { server: 'https://board.example.com', token: 'afb_tok', fetch: fetchImpl, home };
+		const claudeStart: HookEvent = {
+			tool: 'claude-code',
+			event: 'start',
+			externalId: 'claude-session-0001'
+		};
+		manifest('{"version":"0.1.0"}');
+		// The answer's notice comes back to the adapter as it is
+		expect(await callHook(o, claudeStart)).toEqual({ notice: 'A newer mod' });
+		await callHook(o, { ...claudeStart, event: 'prompt' });
+		await callHook(o, { ...claudeStart, tool: 'gemini' });
+		rmSync(join(home, '.claude'), { recursive: true, force: true });
+		await callHook(o, claudeStart);
+		expect(bodies.map((b) => b.modVersion)).toEqual(['0.1.0', undefined, undefined, undefined]);
 	});
 });
 

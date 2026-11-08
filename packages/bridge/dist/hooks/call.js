@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { configDir } from '../tokenStore.js';
+import { installedModVersion } from './modVersion.js';
 // -- CONSTANTS -- //
 const TIMEOUT_MS = 4000;
 // -- FUNCTIONS -- //
@@ -57,10 +58,14 @@ export async function callHook(o, event) {
             warnOnce(`the server ${o.server} did not give an organisation for this sign-in.`);
             return null;
         }
+        // A Claude Code start tells the board which editor status mod is installed, so it can say when a newer one is served
+        const modVersion = event.tool === 'claude-code' && event.event === 'start'
+            ? installedModVersion(o.home)
+            : undefined;
         const res = await o.fetch(`${o.server}/api/v1/orgs/${org}/hooks`, {
             method: 'POST',
             headers: { authorization: `Bearer ${o.token}`, 'content-type': 'application/json' },
-            body: JSON.stringify(event),
+            body: JSON.stringify(modVersion ? { ...event, modVersion } : event),
             signal: AbortSignal.timeout(TIMEOUT_MS)
         });
         if (!res.ok)

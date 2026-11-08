@@ -12,6 +12,8 @@ import { z } from 'zod';
 // -- MODULES -- //
 import { commits, isCodeFile } from '../../shared/code';
 import { item, phase, session, step } from '../db/schema';
+import { modVersion } from '../editor-status';
+import { updateNotice } from '../editor-status/version';
 import { notifyChange } from '../realtime/notify';
 import { SESSION_PREFIX, displayTitle } from '../mcp/sessions';
 import { requireCap, run } from './context';
@@ -46,7 +48,9 @@ export const hookInput = z.object({
 		.max(10)
 		.optional(),
 	/** Ask for the status of this conversation's own session in the answer (the bridge writes it for an editor status line). */
-	status: z.boolean().optional()
+	status: z.boolean().optional(),
+	/** The version of the editor status mod the person has installed, sent on a start. Anything that is not a plain version is ignored. */
+	modVersion: z.string().max(20).optional()
 });
 export type HookInput = z.infer<typeof hookInput>;
 export type HookOutput = {
@@ -62,6 +66,8 @@ export type HookOutput = {
 	nudge?: string;
 	/** Only when the request asked for it: what this conversation's session works on, for an editor status line. */
 	status?: SessionStatus;
+	/** A line for the person at the start of a conversation: a newer editor status mod is available. */
+	notice?: string;
 };
 
 // -- FUNCTIONS -- //
@@ -306,7 +312,16 @@ async function handleEvent(
 	held.s = s;
 	if (input.event === 'start') {
 		const [context, title] = await Promise.all([brief(ctx, s), titleFor(ctx, s, true)]);
-		return { context, ...(title ? { title } : {}) };
+		// Only Claude Code has the mod, and only a start says so: one line per conversation
+		// The line is a courtesy: it is looked up only when the bridge sent a version, and a problem with it never costs the brief
+		let notice: string | null = null;
+		try {
+			if (input.tool === 'claude-code' && input.modVersion)
+				notice = updateNotice(input.modVersion, modVersion());
+		} catch {
+			notice = null;
+		}
+		return { context, ...(title ? { title } : {}), ...(notice ? { notice } : {}) };
 	}
 	if (input.event === 'prompt') {
 		const title = await titleFor(ctx, s);

@@ -6,6 +6,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Fetch } from '../device.js';
 import { configDir } from '../tokenStore.js';
+import { installedModVersion } from './modVersion.js';
 
 // -- TYPES -- //
 
@@ -35,6 +36,8 @@ export type HookAnswer = {
 	nudge?: string;
 	/** The status of the conversation's session, only when the event asked for it. Written to the status file, never printed. */
 	status?: unknown;
+	/** A line for the person: a newer editor status mod is available. Claude Code shows it at the start of a conversation. */
+	notice?: string;
 };
 
 // -- CONSTANTS -- //
@@ -87,7 +90,7 @@ function warnOnce(reason: string) {
 
 /** Sends one event and returns the answer, or null on any problem (no token, offline, a refusal, a slow server). */
 export async function callHook(
-	o: { server: string; token: string | null; fetch: Fetch },
+	o: { server: string; token: string | null; fetch: Fetch; home?: string },
 	event: HookEvent
 ): Promise<HookAnswer | null> {
 	if (!o.token) {
@@ -102,10 +105,15 @@ export async function callHook(
 			warnOnce(`the server ${o.server} did not give an organisation for this sign-in.`);
 			return null;
 		}
+		// A Claude Code start tells the board which editor status mod is installed, so it can say when a newer one is served
+		const modVersion =
+			event.tool === 'claude-code' && event.event === 'start'
+				? installedModVersion(o.home)
+				: undefined;
 		const res = await o.fetch(`${o.server}/api/v1/orgs/${org}/hooks`, {
 			method: 'POST',
 			headers: { authorization: `Bearer ${o.token}`, 'content-type': 'application/json' },
-			body: JSON.stringify(event),
+			body: JSON.stringify(modVersion ? { ...event, modVersion } : event),
 			signal: AbortSignal.timeout(TIMEOUT_MS)
 		});
 		if (!res.ok) warnOnce(`the server answered ${res.status} to a hook event.`);
