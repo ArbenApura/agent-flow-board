@@ -19,7 +19,7 @@ A standalone multi-project team board for agent-driven flow plans. SvelteKit (Sv
 
 ## Local development
 
-- Two fixed ports. **5180 is the dev server.** **5190 is the build preview (`yarn build && yarn preview`) for local checks only (the live board is the VPS at https://afb.arbenger.com, deployed with `yarn deploy:vps`)**, and it uses the same local Docker PostgreSQL as dev. Never start either on another port. If a port is busy, find out what holds it and stop that process first; never move to 5173 or any other port. Browser checks run against a build preview that the afb-checks tool starts on its own free port (ADR-017), never the dev server and never the person's 5180 or 5190.
+- Two fixed ports. **5180 is the dev server.** **5190 is the build preview (`yarn build && yarn preview`) for local checks only (the live board is the VPS at https://afb.arbenger.com, deployed with `yarn deploy:vps`)**, and it uses the same local Docker PostgreSQL as dev. Never start either on another port. If a port is busy, find out what holds it and stop that process first; never move to 5173 or any other port. Browser checks run against a build preview that the afb-checks tool, or the bridge command `agent-flow-board check run`, starts on its own free port (ADR-017), never the dev server and never the person's 5180 or 5190.
 - Day to day work uses the local Docker PostgreSQL (`yarn db:up`, `yarn db:local:migrate`, `yarn dev:local`; see README). Never point a dev server or a seed at a database that holds data you want to keep, and never put a `DATABASE_URL` with a real password in a command line or a log.
 
 ## The gates

@@ -100,14 +100,23 @@ export async function handleRunnerApi(req: ApiRequest, deps: ApiDeps): Promise<A
 			return fail(403, 'FORBIDDEN', 'This key opens one run only.');
 
 		if (route === 'POST claim') {
-			const job = await claimCheckJob(deps.handle, auth, services);
+			// A body is optional: with a runId the runner takes that run only (the bridge claims the run it just asked for)
+			const asked = req.body.byteLength ? (json(req) as { runId?: unknown }) : {};
+			const runId = typeof asked.runId === 'string' && asked.runId ? asked.runId : undefined;
+			const job = await claimCheckJob(deps.handle, auth, services, { runId });
 			// The run's own key goes with it, for a supervisor that hands the run to a throwaway container
 			const key = job && deps.masterKey ? makeRunKey(deps.masterKey, 'runs', auth, job.id) : null;
 			return ok({ job, runKey: key });
 		}
 		if (route === 'POST peek') return ok({ waiting: await peekQueue(deps.handle, auth) });
-		if (route === 'POST release')
-			return ok({ released: await releaseRunnerRuns(deps.handle, auth) });
+		if (route === 'POST release') {
+			// A body with runIds gives back only those runs; no body gives back every running run of the runner, as before
+			const named = req.body.byteLength ? (json(req) as { runIds?: unknown }) : {};
+			const runIds = Array.isArray(named.runIds)
+				? named.runIds.filter((x): x is string => typeof x === 'string')
+				: undefined;
+			return ok({ released: await releaseRunnerRuns(deps.handle, auth, runIds) });
+		}
 		if (req.body.byteLength > MAX_ATTACHMENT_BYTES + 1024)
 			return fail(413, 'INVALID', 'The upload is larger than 100 MB.');
 		if (route === 'GET runs/:id/accounts')

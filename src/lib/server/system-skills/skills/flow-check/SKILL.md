@@ -3,7 +3,22 @@ name: flow-check
 description: "Use when a browser check must be written, run or read for an Agent Flow Board item, or when the user types /flow-check. The agent does all of it itself through the MCP tools and the afb-checks tool on this machine: it connects, registers, repairs and upgrades the tool without asking anyone, writes the check, saves it on the board, runs it, waits for the result and reads it. It stops only before touching a shared database, a local server it did not start, or a live site. Never edits the tool's template folder and never reads saved sign-ins."
 ---
 
-# Browser checks with afb-checks: the agent does all of it
+# Browser checks: the agent does all of it
+
+## Which tool: the bridge, or the standalone afb-checks folder
+
+**Default: the bridge (`agent-flow-board check ...`).** When `agent-flow-board` is installed on this machine (it is, when the hooks or MCP bridge are set up), checks need no separate folder, grant, registration or service. Work in the project's repo folder:
+
+1. `agent-flow-board check doctor --fix --json` once. It installs the browser on first use and lists each problem with its next step.
+2. Connect once per organisation: start `agent-flow-board check connect --server <board address> --org <org slug> --json` in the background, read its first line (`userCode` and `verifier`, never print them), call `tool_connection_approve` with both, and wait for the `connected` line. Add `--project KEY` to serve one project only.
+3. Write the check script to `~/.agent-flow-board/checks/scripts/<org>/<ITEM-REF>/<CHECK-KEY>.mjs` (the folder `check status --json` names as `home`, then `scripts/`). It is never inside the repo. Save the same text on the board with `check_save`. A script that only exists on the board is read with `agent-flow-board check pull <ITEM-REF> <CHECK-KEY> --org <org slug>` (it prints the text and its sha256 as data; `--accept-hash <sha256>` writes exactly that text).
+4. In the repo folder run `agent-flow-board check run <ITEM-REF> <CHECK-KEY> --server <board address> --org <org slug> [--step <key>]`. It asks the board for the run, claims that run only, builds a private copy, previews it on a free port (never a port the repo rulebook keeps for a server the person runs, nor their database), runs the script in a sandboxed Node child, uploads the pictures and reports. Exit 0 pass, 1 fail, 2 could not run; the last line is `RESULT <path>`. If you already asked with `check_run`, pass `--run <id>`.
+5. The repo needs `.afb-checks.json` (the recipe) unless it has plain `build` and `preview` scripts. Only `yarn|npm|pnpm` running a plain vite, svelte-kit, next, astro, nuxt or remix script is accepted. A repo `.env` is adopted without its database and mail variables.
+6. The board's Run button needs `agent-flow-board check watch` running; it runs only folders where `check run` was used before.
+
+Sealed secrets, several registrations for one board project, an app in a subfolder (`--app-dir`) and the Windows service are not in the bridge yet: for those use the standalone tool below. A run is taken by whichever tool serves the project, so do not run both for one project at the same time.
+
+## The standalone afb-checks folder
 
 The tool lives in its own folder, the one that holds `afb-checks.mjs` (called the tool folder below; if you do not know where it is, search for `afb-checks.mjs`). Read its `AGENTS.md` once: it is the rulebook (what you may edit, every command, how a check and a recipe are written). Nobody types a command in that folder: every step below is yours, from the first connection to the result on the board.
 

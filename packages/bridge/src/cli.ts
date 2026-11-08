@@ -8,6 +8,7 @@
 // agent-flow-board hook claude|antigravity|gemini [event]   one hook event from stdin, one JSON object to stdout
 // agent-flow-board hooks print claude|antigravity|gemini [--org <slug>]   the settings to paste into the tool
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
+// agent-flow-board check connect|run|pull|bind|watch|status|doctor|clear|setup|disconnect   browser checks on this machine (see check usage)
 // agent-flow-board mockup push <file.html> --server <url> --org <slug> --item <ref>   upload one mockup file (never queued)
 // agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key>   upload the project's kit (colours, fonts, icons)
 
@@ -106,6 +107,22 @@ async function belongsToOrg(server: string, org: string, token: string): Promise
 }
 
 async function main() {
+	if (cmd === 'check') {
+		// Loaded only here, so the hooks and the MCP forwarder never load the check code or Playwright
+		const { checkMain } = await import('./checks/command.js');
+		const code = await checkMain({
+			args: args.slice(1),
+			store,
+			fetch: fetchImpl,
+			personalToken: (server, org) => tokenFor(server.replace(/\/$/, ''), org, true),
+			log,
+			out: (line) => process.stdout.write(line + '\n')
+		});
+		// A browser or a preview may still hold a handle open: the exit code is what the caller reads, so end now
+		process.exitCode = code;
+		setTimeout(() => process.exit(code), 300).unref();
+		return;
+	}
 	if (cmd === 'hook') {
 		// A hook prints exactly one JSON object and always exits 0, so it can never break the tool that runs it
 		let out: Record<string, unknown> = {};
@@ -272,7 +289,7 @@ async function main() {
 	}
 	if (cmd !== 'mcp' && cmd !== 'login') {
 		log(
-			'Usage: agent-flow-board mcp|login|logout --server <url>, setup --org <slug>, queue list|retry <id>|drop <id>, or mockup push <file.html>'
+			'Usage: agent-flow-board mcp|login|logout --server <url>, setup --org <slug>, queue list|retry <id>|drop <id>, mockup push <file.html>, or check connect|run|watch|status'
 		);
 		process.exit(2);
 	}

@@ -1,7 +1,7 @@
 {
 	"bundle": {
-		"version": "1.1.18",
-		"releasedAt": "2026-11-07"
+		"version": "1.1.19",
+		"releasedAt": "2026-11-08"
 	},
 	"skills": {
 		"flow": {
@@ -115,7 +115,7 @@
 			]
 		},
 		"flow-check": {
-			"version": "1.1.11",
+			"version": "1.1.12",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -172,6 +172,10 @@
 				{
 					"version": "1.1.11",
 					"hash": "78e3084f9b5151e1946acd155f62c2acc1bb4609a10ef71895fe7ee42a324418"
+				},
+				{
+					"version": "1.1.12",
+					"hash": "469dd98a6e7a4825c41f10e622e1e71a45dde84322874d4ea0336915ba739e88"
 				}
 			]
 		},
@@ -310,6 +314,23 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.1.19",
+			"date": "2026-11-08",
+			"notes": [
+				"flow-check 1.1.12: browser checks run through the bridge (agent-flow-board check connect, run, pull, watch, doctor) with no tool folder, grant, registration or service; the standalone afb-checks folder stays for several registrations, an app folder and sealed secrets."
+			],
+			"skills": {
+				"flow": "1.1.14",
+				"flow-audit": "1.1.3",
+				"flow-check": "1.1.12",
+				"flow-critic": "1.1.4",
+				"flow-interview": "1.1.4",
+				"flow-mockup": "1.0.2",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
 		{
 			"version": "1.1.18",
 			"date": "2026-11-07",

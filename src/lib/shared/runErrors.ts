@@ -35,15 +35,15 @@ export const RUN_FIXES: Record<RunErrorCode, string> = {
 	DB_NOT_THROWAWAY:
 		'The tool refused this database because it may hold real data. Use the throwaway database the tool creates itself.',
 	TOOL_OFFLINE:
-		'No afb-checks tool is online for this project. Call runner_status and follow its agentAction on the machine that runs the tool (node afb-checks.mjs doctor --fix --json repairs it), then ask again.',
+		'No afb-checks tool is online for this project. Call runner_status and follow its agentAction on the machine that runs the tool (node afb-checks.mjs doctor --fix --json repairs it; with the bridge it is agent-flow-board check doctor --fix --json, and agent-flow-board check connect --server <url> --org <slug> --json connects a machine that never was), then ask again.',
 	TOOL_OUTDATED:
 		'The afb-checks tool is too old for this board. Upgrade it from a folder with a newer template (node afb-checks.mjs upgrade <that folder>), then run again.',
 	TARGET_UNAVAILABLE:
 		'That target cannot run now. Pick one of the targets named in the reason, or set the target up first.',
 	RUN_TIMED_OUT:
-		'The tool took the run and stopped reporting, or the run went on for longer than its limit (40 minutes) and the tool stopped it. Call runner_status, run node afb-checks.mjs doctor --fix --json on the machine that runs the tool, and ask again.',
+		'The tool took the run and stopped reporting, or the run went on for longer than its limit (40 minutes) and the tool stopped it. Call runner_status, run node afb-checks.mjs doctor --fix --json (or agent-flow-board check doctor --fix --json with the bridge) on the machine that runs the tool, and ask again.',
 	SANDBOX_FAILED:
-		'The tool could not make the private copy of the repo for this run (the folder is not a git repo, is too big to copy, or the disk is full). Fix what the reason names, free disk with node afb-checks.mjs clear runs, then run again.',
+		'The tool could not make the private copy of the repo for this run (the folder is not a git repo, is too big to copy, or the disk is full). Fix what the reason names, free disk with node afb-checks.mjs clear runs (or agent-flow-board check clear --all with the bridge), then run again.',
 	DOCKER_DOWN:
 		'Docker does not answer on the machine that runs the tool, so the run could not make its throwaway database. Start Docker Desktop, then run again.',
 	REGISTRATION_REQUIRED:

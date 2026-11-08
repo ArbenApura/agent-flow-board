@@ -1,8 +1,8 @@
 {
 	"name": "@agent-flow-board/bridge",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"type": "module",
-	"description": "Local bridge to an agent-flow-board server: forwards MCP calls over stdio, runs the coding tool hooks and writes the editor status. It holds no tool code.",
+	"description": "Local bridge to an agent-flow-board server: forwards MCP calls over stdio, runs the coding tool hooks, writes the editor status and runs browser checks on this machine. It holds no board tool code.",
 	"license": "MIT",
 	"homepage": "https://afb.arbenger.com",
 	"repository": {

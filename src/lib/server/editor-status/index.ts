@@ -111,6 +111,7 @@ export function installPlan(o: { slug: string; server: string }): InstallPlan {
 			`Write the hooks: run "${bridge} setup --org ${o.slug} --server ${server}" in this repository. It merges into .claude/settings.local.json, keeps every other hook, backs the old file up outside the repository, and says what it changed. Report that output to the person.`,
 			`Install the mod: for every file in mod.files call editor_status_install with that file (and offset while next is not null), join the parts, check the sha256 of the whole file against mod.files, and write it under ${'`~/.claude/skills/' + MOD_NAME + '`'} with the same relative path. If one sha256 differs, delete what you wrote and say so. Ask the person once before you write outside the repository, as step 2 already did.`,
 			`Tell the person to run /reload-plugins or to start a new conversation, and that the line shows once an item is claimed. If it does not show in a VS Code conversation, offer the fallback in mod.fallback and write it only after they say yes.`,
+			`Tell the person, in one line, that the same bridge also runs browser checks (${bridge} check connect, then check run): nothing more to install, and nothing to do now. Do it only when they ask for a browser check, following the flow-check skill.`,
 			`Report what you did, step by step: what was written where, and what was not. Never print a token, a verifier or a code in the report.`
 		],
 		consent: [

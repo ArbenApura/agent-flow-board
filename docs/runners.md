@@ -94,3 +94,14 @@ node --import tsx packages/runner/src/cli.ts supervise --server https://<your do
 ```
 
 Each container is removed after its run, has a read only file system, no capabilities, limited memory, CPU and processes, no volume, and never sees the runner token. The key it is given opens the accounts, uploads and result of its own run and nothing else, so a script that runs in the container cannot take other projects' runs. The supervisor stops a container that runs longer than 35 minutes and gives the run back if the container ends without reporting. A container with no `--network` is on Docker's default network, which can reach the host's network, so always name one. Run the supervisor on a different machine from the board, on a Docker network that cannot reach your private network: that is your firewall's job, not the program's. A hosted runner cannot reach an environment on a private address; use a local runner for those.
+
+## Browser checks on your own machine with the bridge
+
+The bridge (`@agent-flow-board/bridge`, command `agent-flow-board`) runs browser checks too, with no tool folder, grant, registration or service. In the repo folder:
+
+```
+agent-flow-board check connect --server https://<your domain> --org <slug> --json   # once per organisation; an agent approves the code
+agent-flow-board check run <ITEM-REF> <CHECK-KEY> --server https://<your domain> --org <slug>
+```
+
+`check run` asks the board for the run, claims that run only, builds a private copy of the repo, previews it on a free port with a throwaway database when the recipe asks for one, runs the check script in a sandboxed Node child (it can read only the scripts folder, its run folder and the Playwright runtime, and write only its run folder), uploads the pictures and reports. Scripts live in `~/.agent-flow-board/checks/scripts/<org>/<item>/<key>.mjs`, never in the repo. `check watch` takes runs started from the board's Run button for folders where `check run` was used before. `check status`, `check doctor --fix` and `check clear` read and repair the state. Several registrations for one project, an app in a subfolder and sealed secrets stay with the standalone afb-checks tool for now.

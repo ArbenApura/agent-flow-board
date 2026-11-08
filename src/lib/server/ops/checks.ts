@@ -931,6 +931,7 @@ export function toolAgentAction(
 			action: 'connect',
 			why: 'No afb-checks tool is connected to this project.',
 			steps: [
+				`With the bridge installed (agent-flow-board) no tool folder is needed: agent-flow-board check connect --server ${server} --org ${org} --json, then agent-flow-board check doctor --fix --json. The steps below are for the standalone afb-checks folder.`,
 				`On the machine that runs the tool, start in the background: node afb-checks.mjs connect --server ${server} --org ${org} --json (one tool serves every organisation: this adds ${org} next to the others and never replaces one, so never add --force for it)`,
 				'Read its first output line. It holds userCode and verifier.',
 				'Call tool_connection_approve with both. Only a code that tool started is accepted.',
@@ -1129,11 +1130,16 @@ const registrationClaimable = (held: string[]) =>
 			)
 		: isNull(checkRun.registration);
 
-/** Hands the oldest queued check run to a runner that serves its project, or nothing. */
+/**
+ * Hands the oldest queued check run to a runner that serves its project, or nothing. With `only.runId` it takes that one run and no other
+ * (the bridge claims the run it just asked for, so it never takes someone else's queued run), and nothing when that run is not queued
+ * for this runner.
+ */
 export async function claimCheckJob(
 	handle: DbHandle,
 	auth: RunnerAuth,
-	services?: Ctx['services']
+	services?: Ctx['services'],
+	only?: { runId?: string }
 ): Promise<CheckJob | null> {
 	if (!auth.projectIds.length) return null;
 	return withTenant(handle, { orgId: auth.orgId }, async (tx) => {
@@ -1151,7 +1157,8 @@ export async function claimCheckJob(
 					eq(checkRun.orgId, auth.orgId),
 					eq(checkRun.result, 'queued'),
 					inArray(checkRun.projectId, auth.projectIds),
-					registrationClaimable(held)
+					registrationClaimable(held),
+					only?.runId ? eq(checkRun.id, only.runId) : undefined
 				)
 			)
 			.orderBy(asc(checkRun.createdAt))
@@ -1631,13 +1638,23 @@ export async function peekQueue(handle: DbHandle, auth: RunnerAuth): Promise<num
 	});
 }
 
-/** Runs that are not finished and belong to a runner that has been offline for long: a runner restart gives them back. */
-export async function releaseRunnerRuns(handle: DbHandle, auth: RunnerAuth) {
+/**
+ * Runs that are not finished and belong to a runner that has been offline for long: a runner restart gives them back. With `runIds` only
+ * those runs are given back, so one process of a runner that stops never takes the live runs of another process of the same runner.
+ */
+export async function releaseRunnerRuns(handle: DbHandle, auth: RunnerAuth, runIds?: string[]) {
+	if (runIds && runIds.length === 0) return 0;
 	return withTenant(handle, { orgId: auth.orgId }, async (tx) => {
 		const back = await tx
 			.update(checkRun)
 			.set({ result: 'queued', runnerId: null, startedAt: null, lastBeatAt: null })
-			.where(and(eq(checkRun.runnerId, auth.runnerId), eq(checkRun.result, 'running')))
+			.where(
+				and(
+					eq(checkRun.runnerId, auth.runnerId),
+					eq(checkRun.result, 'running'),
+					runIds ? inArray(checkRun.id, runIds) : undefined
+				)
+			)
 			.returning({ id: checkRun.id });
 		return back.length;
 	});
