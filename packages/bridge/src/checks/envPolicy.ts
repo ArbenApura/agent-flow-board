@@ -7,6 +7,10 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+// -- MODULES -- //
+import { databaseProblems } from './envrules.js';
+import { enforceMailSet } from './mailguard.js';
+import { adoptRepoEnv } from './repoenv.js';
 
 // -- TYPES -- //
 
@@ -17,6 +21,8 @@ export type PreviewEnvInput = {
 	baseUrl: string;
 	databaseUrl?: string;
 	databaseOwnerUrl?: string;
+	/** False when the repo env files are adopted by repoenv.ts instead (buildAdoptedEnv); the stricter reading here is then skipped. Default true. */
+	readRepoEnv?: boolean;
 };
 export type PreviewEnv = { env: Record<string, string>; stripped: string[]; notes: string[] };
 
@@ -134,7 +140,8 @@ export function buildPreviewEnv(input: PreviewEnvInput): PreviewEnv {
 		if (v !== undefined && SYSTEM.includes(k.toUpperCase())) env[k] = v;
 	}
 	// -- THE REPO'S OWN ENV FILES -- //
-	const fromFiles = readRepoEnv(input.repo);
+	const fromFiles =
+		input.readRepoEnv === false ? new Map<string, string>() : readRepoEnv(input.repo);
 	let adopted = 0;
 	let mailStripped = false;
 	for (const [name, value] of fromFiles) {
@@ -183,4 +190,75 @@ export function buildPreviewEnv(input: PreviewEnvInput): PreviewEnv {
 	if (input.databaseUrl !== undefined) env.DATABASE_URL = input.databaseUrl;
 	if (input.databaseOwnerUrl !== undefined) env.DATABASE_OWNER_URL = input.databaseOwnerUrl;
 	return { env, stripped, notes };
+}
+
+// -- THE ADOPTED ENVIRONMENT (step 3.4 and 3.7) -- //
+
+export type AdoptedEnvInput = Omit<PreviewEnvInput, 'readRepoEnv'> & {
+	/** The app folder of the registration; the env files of the repo root and of this folder are adopted, this folder winning. */
+	appDir?: string | undefined;
+	/** Names that were filled from the sealed store (SealedResolution.filled): the only mail settings that stay. */
+	sealedNames?: readonly string[];
+	/** The sealed test project's host (SealedResolution.hosts[0]): the only remote database host allowed. */
+	testHost?: string | undefined;
+};
+export type AdoptedPreviewEnv = PreviewEnv & {
+	/** For install and build: the system variables, the recipe's settings and the run's own. No adopted value. */
+	buildEnv: Record<string, string>;
+	/** Values that must never reach a log, a picture or an upload. */
+	redactions: string[];
+	/** Plain sentences naming variables whose value breaks the database rule. When this list is not empty the run does not start. */
+	problems: string[];
+	/** The adopted variable names. */
+	names: string[];
+};
+
+/**
+ * The environment of a registration that adopts its repo's whole .env. `env` is the START environment (system, adopted, recipe, run's own; later wins), `buildEnv` is
+ * the same WITHOUT the adopted values. Rules: the deny list is never adopted (repoenv.ts), every adopted database or address value is checked by databaseProblems and a
+ * problem fails the run (the caller refuses to start when `problems` is not empty), and mail settings that did not come from the sealed store are stripped.
+ * A registration that did not opt in uses buildPreviewEnv, whose stricter default strips database and mail variables.
+ */
+export function buildAdoptedEnv(input: AdoptedEnvInput): AdoptedPreviewEnv {
+	const base = buildPreviewEnv({ ...input, readRepoEnv: false });
+	const adopted = adoptRepoEnv(
+		{ repo: input.repo, appDir: input.appDir },
+		{ baseUrl: input.baseUrl }
+	);
+	const notes = [...base.notes];
+	const stripped = [...base.stripped];
+	// The database rule runs over what the files said, before the run's own settings are laid over it
+	let throwawayHost: string | undefined;
+	try {
+		if (input.databaseUrl !== undefined) throwawayHost = new URL(input.databaseUrl).host;
+	} catch {
+		throwawayHost = undefined;
+	}
+	const problems = databaseProblems(adopted.startEnv, { testHost: input.testHost, throwawayHost });
+	// Mail: only a setting from the sealed store stays
+	const mail = enforceMailSet(adopted.startEnv, input.sealedNames ?? [], 'strip');
+	stripped.push(...mail.stripped);
+	if (adopted.files.length)
+		notes.push(
+			`Adopted ${Object.keys(mail.env).length} variable(s) from ${adopted.files.join(', ')} for the start step only.`
+		);
+	if (adopted.denied.length)
+		notes.push(`Not adopted (the deny list): ${adopted.denied.join(', ')}.`);
+	if (mail.stripped.length)
+		notes.push(
+			`Stripped ${mail.stripped.length} mail variable(s) that did not come from the sealed store: ${mail.stripped.join(', ')}.`
+		);
+	for (const p of problems) notes.push(p);
+	// Later wins: system, adopted, then the recipe's and the run's own settings
+	const env = { ...mail.env, ...base.env };
+	// The system variables come first in base.env; an adopted variable never replaces one of them (the deny list already covers the dangerous names)
+	return {
+		env,
+		buildEnv: base.env,
+		stripped,
+		notes,
+		redactions: adopted.redactions,
+		problems,
+		names: Object.keys(mail.env)
+	};
 }

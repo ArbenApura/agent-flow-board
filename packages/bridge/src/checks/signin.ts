@@ -22,6 +22,12 @@ const DEFAULT_PAGE: SignInPage = {
 
 // -- FUNCTIONS -- //
 
+/** The browser flag that makes every host except this machine and the site's own unresolvable. */
+export const hostResolverRules = (siteHost: string): string => {
+	const hosts = [...new Set(['127.0.0.1', 'localhost', siteHost.toLowerCase()])];
+	return `--host-resolver-rules=MAP * ~NOTFOUND, ${hosts.map((h) => `EXCLUDE ${h}`).join(', ')}`;
+};
+
 const mask = (email: string) => email.replace(/^(.).*(@.*)$/, '$1***$2');
 
 /** Signs in through the app's own form and returns the browser state. The error never holds the password. */
@@ -37,7 +43,8 @@ export async function signInWithPassword(
 	const { chromium } = await loadPlaywright();
 	const browser = await chromium.launch({
 		headless: true,
-		args: ['--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost']
+		// The site's own host is reachable too (a live site is not on this machine); every other host is unresolvable
+		args: [hostResolverRules(new URL(baseUrl).hostname)]
 	});
 	try {
 		const ctx = await browser.newContext({ baseURL: baseUrl, serviceWorkers: 'block' });

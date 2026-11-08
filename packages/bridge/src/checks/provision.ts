@@ -39,7 +39,7 @@ const DOCKER_COMMANDS = new Set(['version', 'run', 'rm', 'exec', 'inspect', 'log
 // -- FUNCTIONS -- //
 
 /** Runs the real docker program. Never throws: a program that cannot start is a status of -1. */
-const realDocker: DockerRun = (args) =>
+export const realDocker: DockerRun = (args) =>
 	new Promise((resolve) => {
 		execFile(
 			'docker',

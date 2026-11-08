@@ -1,10 +1,11 @@
 // THE BOARDS THIS MACHINE IS CONNECTED TO FOR CHECKS: SERVER AND ORGANISATION ONLY, NEVER A TOKEN (THE TOKEN IS IN THE TOKEN STORE)
 // `check watch` re-reads this list on every loop, so a `check connect` for a second organisation is picked up without a restart.
 // -- DEP-MODULES -- //
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 // -- MODULES -- //
 import { checksHome, ensureDir, ORG_SLUG } from './paths.js';
+import { renameRetry } from './fsretry.js';
 // -- FUNCTIONS -- //
 const file = () => join(checksHome(), 'connections.json');
 export function listConnections() {
@@ -30,12 +31,12 @@ export function recordConnection(c) {
     ensureDir(checksHome());
     const tmp = `${file()}.${process.pid}.tmp`;
     writeFileSync(tmp, JSON.stringify(next, null, 1), { mode: 0o600 });
-    renameSync(tmp, file());
+    renameRetry(tmp, file());
 }
 export function forgetConnection(server, org) {
     const next = listConnections().filter((x) => !(x.server === server && x.org === org));
     ensureDir(checksHome());
     const tmp = `${file()}.${process.pid}.tmp`;
     writeFileSync(tmp, JSON.stringify(next, null, 1), { mode: 0o600 });
-    renameSync(tmp, file());
+    renameRetry(tmp, file());
 }

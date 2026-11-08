@@ -32,7 +32,23 @@ Needs Node 20 or later. Run it with no arguments to see its usage; the list shou
 | `agent-flow-board check watch [--parallel N] [--once]`                              | Takes runs started from the board's Run button, for folders where `check run` was used before.                                                                                               |
 | `agent-flow-board check status`, `check doctor --fix`, `check clear`, `check setup` | Reads and repairs the state, removes old runs, installs the browser. All take `--json`.                                                                                                      |
 
+More check commands:
+
+| Command                                                                                   | What it does                                                                                                                                              |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-flow-board check project <NAME> --org <slug> --repo <dir> [--app-dir web]`         | Registers a repo folder (and an optional app folder) for a board project, or a live site with `--url`. A repo must be inside a folder the owner approved. |
+| `agent-flow-board check approve --action <roots\|register\|secrets\|adopt-env\|pictures>` | The owner, on a terminal, gets a single-use code (10 minutes). Agents cannot make one.                                                                    |
+| `agent-flow-board check roots add\|list\|remove`                                          | The owner-approved parent folders a registration may live in (at most 5).                                                                                 |
+| `agent-flow-board check secrets import\|list\|forget`                                     | Seals test Supabase and mail values per registration (owner's code needed). Names only are ever printed.                                                  |
+| `agent-flow-board check login <NAME> --org <slug> --seeded`                               | Saves a sign in for a registration from `AFB_CHECKS_<NAME>_EMAIL` and `_PASSWORD`.                                                                        |
+| `agent-flow-board check service install\|status\|uninstall`                               | Windows: starts the worker when you sign in.                                                                                                              |
+| `agent-flow-board check import-legacy --from <afb-checks folder> --org <slug>`            | Read only: re-registers the old tool's projects and copies its check scripts.                                                                             |
+
+Runs share the machine: a slot set, one browser per host set, one database container with a clone per run, and kept dependencies and builds.
+
 Check scripts and run state live in `~/.agent-flow-board/checks/`, never in a repo. Playwright is not installed with the bridge: the first run installs it there.
+
+The sandboxed check can write its own run folder only. What the tool must be able to trust lives outside it: the live and end markers of a run (`checks/markers/`, checked against the names the tool derives for that run before any sweep acts on them) and the install, build, preview and mail-guard logs (`checks/logs/<run id>/`, which can hold values the app printed). Pictures and `result.json` are read from the run folder only when they are plain files (never a link), small enough, and the right kind of file. Changing the folder, the app folder, the site or the hosts of a registration that keeps an adopted `.env` or saved state needs the owner's `register` code (for a live site the code names `NAME@host`), and adopting a `.env` for another folder needs its own `adopt-env` code. A run started by hand stops after 40 minutes (`AFB_CHECKS_RUN_LIMIT_MS` changes it). Warm previews are not enabled in this version: `"warm": true` in a recipe is refused.
 
 The easy way to set everything up is the **Editor status** tab on the board's **Connect a tool** page: copy its prompt into Claude Code and the agent does the steps, asking you once before it writes anything.
 

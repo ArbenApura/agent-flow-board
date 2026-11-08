@@ -8,6 +8,7 @@ import { randomBytes } from 'node:crypto';
 import { linkSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 // -- MODULES -- //
+import { renameRetry } from './fsretry.js';
 import { assertName, ensureDir, locksDir } from './paths.js';
 
 // -- TYPES -- //
@@ -17,6 +18,8 @@ export type Lock = {
 	readonly file: string;
 	/** Gives the lock back. Safe to call twice, and never removes a lock that now belongs to somebody else. */
 	release(): void;
+	/** Refreshes the heartbeat of the lock (its time), so a holder that stays alive keeps a lock that is taken over once the heartbeat stops. */
+	touch(): void;
 };
 type LockBody = { pid: number; at: string; token: string };
 
@@ -24,8 +27,13 @@ type LockBody = { pid: number; at: string; token: string };
 
 /** A lock whose content cannot be read is only treated as stale after this long (it is created whole, so this means a damaged file). */
 const UNREADABLE_GRACE_MS = 2_000;
-/** For a lock that only a dead process may lose, such as the worker lock. */
+/** For a lock that only a dead process may lose. */
 export const NEVER_STALE_MS = Number.MAX_SAFE_INTEGER;
+/**
+ * The worker lock is lost by a dead process, and also by a heartbeat that stopped: a crashed worker whose process id was handed to another program would otherwise lock
+ * out `check watch` for ever. The worker touches its lock every few seconds (watch.ts), so this is long enough to survive a busy machine.
+ */
+export const WORKER_STALE_MS = 3 * 60_000;
 
 // -- FUNCTIONS -- //
 
@@ -151,6 +159,21 @@ function makeLock(file: string, token: string): Lock {
 	let released = false;
 	return {
 		file,
+		touch() {
+			if (released) return;
+			const text = readText(file);
+			const body = text === null ? null : parseBody(text);
+			if (!body || body.token !== token) return;
+			const tmp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+			try {
+				const next: LockBody = { ...body, at: new Date().toISOString() };
+				writeFileSync(tmp, JSON.stringify(next) + '\n', { mode: 0o600 });
+				renameRetry(tmp, file);
+			} catch {
+				// The next touch tries again
+				rmSync(tmp, { force: true });
+			}
+		},
 		release() {
 			if (released) return;
 			released = true;
@@ -195,9 +218,9 @@ export function lockHolderPid(name: string): number | null {
 }
 
 /**
- * The one-worker-per-machine lock of `check watch`. Only a dead process loses it (the work inside runs for hours), so the stale age is never reached.
- * Returns null when another worker holds it; the caller says so in one plain line.
+ * The one-worker-per-machine lock of `check watch`. A dead process loses it, and so does one whose heartbeat stopped for three minutes (a reused process id).
+ * The worker calls `touch()` on its lock regularly. Returns null when another worker holds it; the caller says so in one plain line.
  */
 export function machineLock(name: string): Lock | null {
-	return acquireLock(`machine-${name}`, { staleMs: NEVER_STALE_MS });
+	return acquireLock(`machine-${name}`, { staleMs: WORKER_STALE_MS });
 }

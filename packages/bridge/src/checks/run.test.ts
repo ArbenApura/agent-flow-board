@@ -3,14 +3,17 @@
 
 // -- DEP-MODULES -- //
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // -- MODULES -- //
-import { runCheck, type RunOptions } from './run.js';
+import { mintApproval } from './approve.js';
+import { saveRegistration } from './registry.js';
+import { addRoot } from './roots.js';
+import { configForRun, runCheck, type RunOptions } from './run.js';
 import { boundFolder } from './bind.js';
-import { scriptPath } from './paths.js';
+import { registrationsDir, scriptPath } from './paths.js';
 
 // -- CONSTANTS -- //
 
@@ -96,11 +99,70 @@ describe('check run, before the browser', () => {
 		expect(b.calls).toHaveLength(0);
 	});
 
-	it('remembers the folder for check watch once the script and the folder are fine', async () => {
+	it('does not remember a folder for check watch when the board gives no run', async () => {
 		writeScript('export default async ({ page }) => { await page.goto("/"); };');
 		const b = board(null);
 		await runCheck(options(b.fetchImpl));
+		expect(boundFolder('arbenger', 'AFB')).toBeNull();
+	});
+
+	it('uses the current folder and remembers it when no registration exists for the board project', () => {
+		const job = { project: { key: 'AFB' }, registration: null } as never;
+		const out = configForRun({ org: 'arbenger', dir: repo }, job, '', () => undefined, false);
+		expect(out.registration).toBeNull();
+		expect(out.cfg.repo).toBeTruthy();
 		expect(boundFolder('arbenger', 'AFB')?.folder).toBeTruthy();
+	});
+
+	it('routes a run to the registration the board names, the script header names, or refuses with the list', () => {
+		const reg = (name: string) =>
+			saveRegistration({
+				org: 'arbenger',
+				name,
+				boardProject: 'HAPR',
+				repo,
+				recipe: false,
+				database: 'none',
+				adoptEnv: false,
+				uploadSignedInPictures: false,
+				createdAt: new Date().toISOString()
+			});
+		// The repo is inside a folder the owner approved (a code minted on a terminal, used once)
+		addRoot(repo, mintApproval('roots', repo, { isTTY: true }).code);
+		reg('HAPRM');
+		reg('HAPRN');
+		const base = { org: 'arbenger', dir: repo };
+		const job = (registration: string | null) =>
+			({ project: { key: 'HAPR' }, registration }) as never;
+		// Named on the run by the board
+		expect(
+			configForRun(base, job('HAPRN'), '', () => undefined, false).cfg.registration?.name
+		).toBe('HAPRN');
+		// Named in the first lines of the script
+		expect(
+			configForRun(base, job(null), '// afb-registration: HAPRM\n', () => undefined, false).cfg
+				.registration?.name
+		).toBe('HAPRM');
+		// Named by --registration
+		expect(
+			configForRun({ ...base, registration: 'HAPRM' }, job(null), '', () => undefined, false).cfg
+				.registration?.name
+		).toBe('HAPRM');
+		// Two registrations and none named: refused with the list, never guessed
+		expect(() => configForRun(base, job(null), '', () => undefined, false)).toThrow(
+			/HAPRM.*HAPRN|HAPRN.*HAPRM/
+		);
+		// A name that serves another board project, or that no registration holds
+		expect(() => configForRun(base, job('NOPE'), '', () => undefined, false)).toThrow();
+		// The board's Run button never re-approves a changed pin
+		writeFileSync(
+			join(repo, 'package.json'),
+			JSON.stringify({
+				name: 'x',
+				scripts: { build: 'vite build', preview: 'vite preview --open' }
+			})
+		);
+		expect(() => configForRun(base, job('HAPRM'), '', () => undefined, true)).toThrow();
 	});
 
 	it('says plainly when the board does not give the run, and never starts a preview', async () => {
@@ -148,5 +210,38 @@ describe('check run, before the browser', () => {
 		const noSignIn = await runCheck(options(b.fetchImpl, { runId: undefined }));
 		expect(noSignIn.exitCode).toBe(2);
 		expect(noSignIn.message).toMatch(/Not signed in/);
+	});
+
+	it('refuses a damaged registration for the board project, and never takes the current folder in its place (C3)', () => {
+		saveRegistration({
+			org: 'arbenger',
+			name: 'HAPRM',
+			boardProject: 'HAPR',
+			repo,
+			recipe: false,
+			database: 'none',
+			adoptEnv: false,
+			uploadSignedInPictures: false,
+			createdAt: new Date().toISOString()
+		});
+		const file = join(registrationsDir(), 'arbenger', 'HAPRM.json');
+		const doc = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+		doc.adoptEnv = true;
+		writeFileSync(file, JSON.stringify(doc));
+		const job = { project: { key: 'HAPR' }, registration: null } as never;
+		expect(() =>
+			configForRun({ org: 'arbenger', dir: repo }, job, '', () => undefined, false)
+		).toThrow(/changed outside "check project"/);
+		// Nothing was remembered for check watch
+		expect(boundFolder('arbenger', 'HAPR')).toBeNull();
+		// A damaged file may have been the one for any project, so no project falls back to the folder while it is there
+		const other = { project: { key: 'OTHER' }, registration: null } as never;
+		expect(() =>
+			configForRun({ org: 'arbenger', dir: repo }, other, '', () => undefined, false)
+		).toThrow(/changed outside "check project"/);
+		rmSync(file);
+		expect(
+			configForRun({ org: 'arbenger', dir: repo }, job, '', () => undefined, false).registration
+		).toBeNull();
 	});
 });

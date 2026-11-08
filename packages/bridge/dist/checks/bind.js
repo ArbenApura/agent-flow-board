@@ -2,10 +2,11 @@
 // When the pin changes (a new script, a changed recipe, a new lockfile) the watcher stops and tells the person to run `check run` in that
 // folder, which looks at the new setup and pins it again. Nothing in the repo can re-pin by itself.
 // -- DEP-MODULES -- //
-import { existsSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 // -- MODULES -- //
 import { bindingsFile, ensureDir, ORG_SLUG } from './paths.js';
+import { renameRetry } from './fsretry.js';
 import { checkRepoFolder } from './guardrails.js';
 import { pinFiles } from './recipe.js';
 // -- CONSTANTS -- //
@@ -44,7 +45,7 @@ function writeAll(bindings) {
     const temp = `${file}.${process.pid}.${Date.now()}.tmp`;
     try {
         writeFileSync(temp, JSON.stringify({ version: 1, bindings }, null, 2) + '\n', { mode: 0o600 });
-        renameSync(temp, file);
+        renameRetry(temp, file);
     }
     catch (e) {
         rmSync(temp, { force: true });

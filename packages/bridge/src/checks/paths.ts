@@ -30,6 +30,18 @@ export const auditFile = () => join(checksHome(), 'audit.log');
 export const bindingsFile = () => join(checksHome(), 'bindings.json');
 /** Private copies of repos, one per run, kept so a crashed run can be swept. */
 export const copiesDir = () => join(checksHome(), 'copies');
+/**
+ * The live and end markers of runs, written by the tool only. The sandboxed child can write its run folder, so a marker kept there could be forged and make a later
+ * sweep kill a process or remove a container: markers live here, outside every folder the child may read or write.
+ */
+export const markersDir = () => join(checksHome(), 'markers');
+export const markerPath = (runId: string) =>
+	join(markersDir(), `${assertName(runId, 'run id')}.json`);
+export const endedPath = (runId: string) =>
+	join(markersDir(), `${assertName(runId, 'run id')}.ended`);
+/** Build, install and preview logs and the mail guard's log: they can hold values the app printed, so they are kept where the child cannot read. */
+export const logsDir = () => join(checksHome(), 'logs');
+export const logDirFor = (runId: string) => join(logsDir(), assertName(runId, 'run id'));
 
 export function ensureDir(dir: string): string {
 	mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -76,3 +88,19 @@ export function isInside(parent: string, child: string): boolean {
 		return false;
 	}
 }
+
+// -- REGISTRATIONS, SECRETS, CACHES AND POOLS (AFB-20261108-0925) -- //
+
+/** One JSON file per registration: registrations/<org>/<NAME>.json. */
+export const registrationsDir = () => join(checksHome(), 'registrations');
+/** Everything one registration owns apart from its definition: sealed secrets, sign-ins, kept builds. Never shared with another registration. */
+export const stateDirFor = (org: string, name: string) => join(checksHome(), 'state', org, name);
+/** Kept dependencies and builds of one registration. */
+export const cacheDirFor = (org: string, name: string) => join(stateDirFor(org, name), 'cache');
+/** The machine broker: slot files with a heartbeat, shared by `check run` processes and the worker. */
+export const brokerDir = () => join(checksHome(), 'broker');
+/** The shared browser and database pools of this machine, found through files here. */
+export const poolDir = () => join(checksHome(), 'pool');
+/** Owner approvals: single-use codes (hashed) and the approved roots. */
+export const approvalsFile = () => join(checksHome(), 'approvals.json');
+export const rootsFile = () => join(checksHome(), 'roots.json');

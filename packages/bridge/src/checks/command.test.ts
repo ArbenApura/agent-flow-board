@@ -54,8 +54,8 @@ describe('the check command group', () => {
 		expect(await checkMain(c)).toBe(0);
 		const state = JSON.parse(outs[0]);
 		expect(state.connections).toEqual([]);
-		expect(state.bindings).toEqual([]);
-		expect(state.home).toContain(home);
+		expect(state.registrations).toEqual([]);
+		expect(state.problems ?? []).toEqual([]);
 	});
 
 	it('doctor lists a connection with no runner token as a problem with its next step, and exits 1', async () => {
@@ -71,7 +71,7 @@ describe('the check command group', () => {
 	it('clear removes finished runs and says how many', async () => {
 		const { c, logs } = ctx(['clear', '--all']);
 		expect(await checkMain(c)).toBe(0);
-		expect(logs.join(' ')).toMatch(/Removed 0 finished run folder/);
+		expect(logs.join(' ')).toMatch(/0 finished run folder/);
 	});
 
 	it('run without a connection says how to connect, as one JSON error with --json, and does not wait', async () => {
@@ -141,15 +141,46 @@ describe('the check command group', () => {
 		expect(data.target.startsWith(join(home, 'checks', 'scripts'))).toBe(true);
 	});
 
-	it('does not read a terminal anywhere in the check code', () => {
+	it('does not read a terminal anywhere in the check code (each way of reading one has its own short list of files)', () => {
 		const dir = join(__dirname);
-		// child.ts reads its one job from a pipe the parent writes, never from a person, so it is the one file that touches stdin
-		for (const f of readdirSync(dir).filter(
-			(n) => n.endsWith('.ts') && !n.endsWith('.test.ts') && n !== 'child.ts'
-		)) {
+		// child.ts reads its one job from a pipe the parent writes, never from a person. login.ts holds the owner's headed sign in (the one allowed
+		// terminal read, refused without a terminal). approve.ts and commands.ts only ASK whether there is a terminal, to refuse minting a code without one
+		const rules: { what: string; re: RegExp; allowed: string[] }[] = [
+			{ what: 'isTTY', re: /isTTY/, allowed: ['approve.ts', 'commands.ts', 'login.ts'] },
+			{ what: 'readline', re: /node:readline|createInterface/, allowed: ['login.ts'] },
+			{ what: 'process.stdin', re: /process\.stdin/, allowed: ['child.ts', 'login.ts'] },
+			{ what: 'prompt()', re: /\bprompt\(/, allowed: [] }
+		];
+		for (const f of readdirSync(dir).filter((n) => n.endsWith('.ts') && !n.endsWith('.test.ts'))) {
 			const text = readFileSync(join(dir, f), 'utf8');
-			expect(text, f).not.toMatch(/node:readline|createInterface|isTTY|process\.stdin|\bprompt\(/);
+			for (const r of rules)
+				if (!r.allowed.includes(f)) expect(text, `${f} must not use ${r.what}`).not.toMatch(r.re);
 		}
+	});
+
+	it('a flag takes a real value: another flag in its place is refused, not read as the value (C17)', async () => {
+		const noServer = ctx(['run', 'AFB-20261108-0827', 'M1', '--server', '--org', 'arbenger']);
+		expect(await checkMain(noServer.c)).toBe(2);
+		expect(noServer.logs.join(' ')).toMatch(/Say --server <value>/);
+		// Any other flag the same way
+		const noDir = ctx(['bind', '--org', 'arbenger', '--project', 'AFB', '--dir', '--json']);
+		expect(await checkMain(noDir.c)).toBe(2);
+		expect(noDir.outs.join(' ')).toMatch(/Say --dir <value>/);
+	});
+
+	it('--file must be a script of the organisation --org names (C17)', async () => {
+		const file = join(home, 'checks', 'scripts', 'otherorg', 'AFB-20261108-0827', 'M1.mjs');
+		const { c, logs } = ctx([
+			'run',
+			'--file',
+			file,
+			'--server',
+			'https://board.test',
+			'--org',
+			'arbenger'
+		]);
+		expect(await checkMain(c)).toBe(2);
+		expect(logs.join(' ')).toMatch(/script of the organisation otherorg, but --org says arbenger/);
 	});
 
 	it('is loaded only by the check command: the hook and the MCP forwarder never import it', () => {

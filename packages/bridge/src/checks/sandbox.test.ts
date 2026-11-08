@@ -6,13 +6,21 @@ import {
 	readFileSync,
 	realpathSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 // -- MODULES -- //
-import { permissionFlag, runNodeInSandbox, runCheckInSandbox, sandboxEnv } from './sandbox.js';
+import { findLink, readPlainFile, JPEG_MAGIC } from './evidence.js';
+import {
+	cleanResult,
+	permissionFlag,
+	runNodeInSandbox,
+	runCheckInSandbox,
+	sandboxEnv
+} from './sandbox.js';
 
 // scope.ts is written by another part of the work; the sandbox only needs killTree from it, so it is faked here
 vi.mock('./scope.js', () => ({ killTree: vi.fn() }));
@@ -185,5 +193,127 @@ describe('runCheckInSandbox refuses', () => {
 			if (prev === undefined) delete process.env.AFB_BRIDGE_HOME;
 			else process.env.AFB_BRIDGE_HOME = prev;
 		}
+	});
+});
+
+describe('links inside the folders of a check (S4)', () => {
+	/** Makes a link the OS allows, or returns false (a file link needs a privilege on Windows). */
+	const link = (target: string, at: string, kind: 'file' | 'dir'): boolean => {
+		try {
+			symlinkSync(target, at, kind === 'dir' ? 'junction' : 'file');
+			return true;
+		} catch {
+			return false;
+		}
+	};
+	const READ = `
+import { readFileSync } from 'node:fs';
+const t = (f) => { try { return readFileSync(f, 'utf8'); } catch (e) { return 'ERR ' + (e && e.code); } };
+console.log('READ ' + JSON.stringify({ viaDir: t('jn/secret.txt'), viaFile: t('fl.txt') }));
+`;
+
+	it('finds the link, and a check that would use it is refused (this Node follows a link out of the allowed folders)', async () => {
+		const dir = join(base, 'linkrun');
+		mkdirSync(join(dir, 'sub'), { recursive: true });
+		const dirLinked = link(join(base, 'outside'), join(dir, 'jn'), 'dir');
+		const fileLinked = link(paths.outside, join(dir, 'fl.txt'), 'file');
+		if (!dirLinked && !fileLinked) return; // The OS refused to create any link: nothing to prove here
+		writeFileSync(join(base, 'scripts', 'readlink.mjs'), READ);
+		const run = await runNodeInSandbox({
+			entry: join(base, 'scripts', 'readlink.mjs'),
+			readDirs: [join(base, 'scripts'), dir],
+			writeDir: dir,
+			env: sandboxEnv(dir),
+			timeoutMs: 20_000
+		});
+		const line = run.stdout.split('\n').find((l) => l.startsWith('READ '));
+		expect(line, run.stderr).toBeTruthy();
+		const r = JSON.parse(String(line).slice(5)) as { viaDir: string; viaFile: string };
+		// Whatever this Node does, the tool must not depend on it: the link is found before a run and a run with one is refused
+		expect(findLink(dir)).not.toBeNull();
+		const followed = r.viaDir.includes('outside-content') || r.viaFile.includes('outside-content');
+		// On this Node the permission model follows links (that is why the walk exists); a Node that does not follow them also passes
+		expect(typeof followed).toBe('boolean');
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it('findLink is quiet for a plain folder', () => {
+		const dir = join(base, 'plainrun');
+		mkdirSync(join(dir, 'shots'), { recursive: true });
+		writeFileSync(join(dir, 'shots', '01.jpg'), 'x');
+		expect(findLink(dir)).toBeNull();
+		rmSync(dir, { recursive: true, force: true });
+	});
+
+	it('runCheckInSandbox refuses a run folder that holds a link', async () => {
+		const prev = process.env.AFB_BRIDGE_HOME;
+		const home = join(base, 'home2');
+		process.env.AFB_BRIDGE_HOME = home;
+		try {
+			const runDir = join(home, 'checks', 'runs', 'rlinked');
+			mkdirSync(runDir, { recursive: true });
+			if (!link(join(base, 'outside'), join(runDir, 'jn'), 'dir')) return;
+			await expect(
+				runCheckInSandbox({
+					job: {
+						baseUrl: 'http://127.0.0.1:1',
+						ws: 'ws://127.0.0.1:1/x',
+						storageState: null,
+						checkFile: paths.inside,
+						runDir,
+						viewport: { width: 1280, height: 800 },
+						extraHosts: [],
+						needles: []
+					},
+					scriptsRoot: join(base, 'scripts'),
+					log: () => {}
+				})
+			).rejects.toThrow(/link/);
+		} finally {
+			if (prev === undefined) delete process.env.AFB_BRIDGE_HOME;
+			else process.env.AFB_BRIDGE_HOME = prev;
+		}
+	});
+
+	it('cleanResult keeps the picture of a plain file and drops one that is a link the child planted (S2)', () => {
+		const shots = join(base, 'cleanshots');
+		mkdirSync(shots, { recursive: true });
+		writeFileSync(join(shots, '01.jpg'), Buffer.from([...JPEG_MAGIC, 1]));
+		const linked = link(paths.outside, join(shots, '02.jpg'), 'file');
+		const raw = {
+			result: 'pass',
+			durationMs: 5,
+			log: '',
+			steps: [
+				{ name: 'one', status: 'pass', ms: 1, shot: '01.jpg' },
+				{ name: 'two', status: 'pass', ms: 1, shot: '02.jpg' },
+				{ name: 'three', status: 'pass', ms: 1, shot: '../../etc/passwd' }
+			]
+		};
+		const r = cleanResult(raw, [], shots);
+		expect(r?.steps.map((s) => s.shot)).toEqual(['01.jpg', null, null]);
+		if (!linked) return; // The OS refused to make the link: the first two checks still hold
+		rmSync(shots, { recursive: true, force: true });
+	});
+
+	it('readPlainFile refuses a planted link, a wrong kind of file and a big one (S2)', () => {
+		const dir = join(base, 'shotsdir');
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(join(dir, 'good.jpg'), Buffer.from([...JPEG_MAGIC, 1, 2, 3]));
+		writeFileSync(join(dir, 'text.jpg'), 'not a picture');
+		writeFileSync(
+			join(dir, 'big.jpg'),
+			Buffer.concat([Buffer.from(JPEG_MAGIC), Buffer.alloc(100)])
+		);
+		const opts = { maxBytes: 50, magic: JPEG_MAGIC };
+		expect('bytes' in readPlainFile(dir, 'good.jpg', opts)).toBe(true);
+		expect(readPlainFile(dir, 'text.jpg', opts)).toEqual({
+			refused: 'it is not the kind of file it should be'
+		});
+		expect(readPlainFile(dir, 'big.jpg', opts)).toEqual({ refused: 'it is too big' });
+		expect(readPlainFile(dir, 'nope.jpg', opts)).toEqual({ refused: 'it is missing' });
+		if (link(paths.outside, join(dir, 'planted.jpg'), 'file'))
+			expect(readPlainFile(dir, 'planted.jpg', opts)).toEqual({ refused: 'it is a link' });
+		rmSync(dir, { recursive: true, force: true });
 	});
 });

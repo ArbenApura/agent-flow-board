@@ -16,7 +16,17 @@ description: "Use when a browser check must be written, run or read for an Agent
 5. The repo needs `.afb-checks.json` (the recipe) unless it has plain `build` and `preview` scripts. Only `yarn|npm|pnpm` running a plain vite, svelte-kit, next, astro, nuxt or remix script is accepted. A repo `.env` is adopted without its database and mail variables.
 6. The board's Run button needs `agent-flow-board check watch` running; it runs only folders where `check run` was used before.
 
-Sealed secrets, several registrations for one board project, an app in a subfolder (`--app-dir`) and the Windows service are not in the bridge yet: for those use the standalone tool below. A run is taken by whichever tool serves the project, so do not run both for one project at the same time.
+**Several folders for one board project, an app folder, secrets, live sites.** A registration names one repo folder (and optionally an app folder) or a live site for a board project:
+
+- `agent-flow-board check project <NAME> --org <slug> --repo <dir> [--app-dir web] [--board-project KEY] [--recipe]` registers a folder (it must be inside a folder the owner approved with `check roots`); `check project <NAME> --org <slug> --url <the site address> --extra-hosts <host names>` registers a live site (checks on a live site never write); `check project list|forget|pin`.
+- A run chooses its registration in this order, never by guessing: the one the board names on the run, the one saved on the check, a `// afb-registration: NAME` line in the first 12 lines of the script, the board project's only registration. With several and none named it refuses and lists them; pass `--registration NAME` to choose.
+- **The owner approves what touches secrets or a database.** Only the owner, in a terminal, can run `agent-flow-board check approve --action <roots|register|secrets|adopt-env|pictures> --target <name>`; it prints a single-use code (valid 10 minutes) that you pass as `--approval <code>`. You cannot make a code, so ask the owner. `check roots add <dir> --approval <code>`, `check secrets import --project <NAME> --org <slug> --from <file> --keys A,B --test-ref <ref> --approval <code>` (a test Supabase project only; names are printed, never values), `check secrets list|forget`.
+- A recipe may name sealed values as `{secret:NAME}`; they are given to the start only. A repo `.env` is adopted only for a registration the owner approved with `adopt-env`, and a database value that points at the person's own database fails the run.
+- Saved sign-ins: `check login <NAME> --org <slug> --seeded` (from AFB_CHECKS_<NAME>_EMAIL and _PASSWORD); the owner's headed login needs a terminal.
+- `check watch` (the board's Run button), `check service install|status|uninstall` (Windows: starts the worker at sign-in), `check status|doctor --fix|clear`, `check import-legacy --from <afb-checks folder> --org <slug>` (read only: re-registers the old tool's projects and copies its scripts).
+- Many runs at once share the machine's slots, browser and database pools, and kept dependencies and builds; nothing for you to set.
+
+A run is taken by whichever tool serves the project, so do not run the standalone tool and the bridge for one project at the same time.
 
 ## The standalone afb-checks folder
 

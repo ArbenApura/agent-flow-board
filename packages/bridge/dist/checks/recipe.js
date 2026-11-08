@@ -2,13 +2,15 @@
 // The repo is the one thing an agent edits, so the recipe is never trusted as it stands: it is pinned (bind.ts) and it is checked here
 // against constants of this package. A recipe cannot name another program, a port a check never uses, an env key outside the list, or a value
 // that is anything but a placeholder or a short plain word. It can only ask for less than the guardrails allow.
-// Sealed secrets ({secret:NAME}) are not supported in this version: a recipe that uses one is refused.
+// Sealed secrets ({secret:NAME}) are allowed only on Supabase-style and mail settings (sealedNames.ts), a mail setting takes only the sealed value of its own name, and a
+// service key never goes to a PUBLIC_, VITE_ or NEXT_PUBLIC_ name. The values are filled in by secrets.ts when the preview starts; this file only checks the shape.
 // -- DEP-MODULES -- //
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 // -- MODULES -- //
 import { FORBIDDEN_PORTS, checkRepoFolder, commandProblem } from './guardrails.js';
+import { MAIL_ENV_KEY, SECRET_ENV_KEY, placeholderProblems } from './sealedNames.js';
 // -- CONSTANTS -- //
 export const RECIPE_FILE = '.afb-checks.json';
 /** The only keys of a recipe. */
@@ -22,7 +24,8 @@ export const RECIPE_KEYS = [
     'runtimeRole',
     'testUser',
     'env',
-    'appPaths'
+    'appPaths',
+    'warm'
 ];
 /** Env keys a recipe may name: the app's own settings and the database urls, never PATH, NODE_OPTIONS or anything that loads code. */
 const ENV_KEY = /^(AFB_[A-Z0-9_]{1,50}|BETTER_AUTH_SECRET|DATABASE_URL|DATABASE_OWNER_URL|EMAIL_PROVIDER|EMAIL_FROM|ORIGIN)$/;
@@ -130,6 +133,13 @@ export function validateRecipe(recipe, scripts) {
         if (!ok)
             out.push('"testUser" must be { "email": ..., "password": ... } with a plain email and a password of 8 or more plain characters. It is a preview-only account, public by design.');
     }
+    // Warm previews are not wired in this version (the benchmark rule waived them), so the key is refused instead of being accepted and ignored
+    if (recipe.warm !== undefined) {
+        if (typeof recipe.warm !== 'boolean')
+            out.push('"warm" must be true or false.');
+        else if (recipe.warm)
+            out.push('"warm": warm previews are not enabled in this version.');
+    }
     if (recipe.appPaths !== undefined &&
         !(Array.isArray(recipe.appPaths) &&
             recipe.appPaths.every((p) => typeof p === 'string' && APP_PATH.test(p) && !p.includes('..'))))
@@ -139,10 +149,14 @@ export function validateRecipe(recipe, scripts) {
             out.push('"env" must be an object of setting names and values.');
         else
             for (const [k, v] of Object.entries(recipe.env)) {
-                if (typeof v === 'string' && v.includes('{secret:'))
-                    out.push(`The recipe gives ${k} a sealed secret. Sealed secrets are not supported in this version of the check commands.`);
-                else if (!ENV_KEY.test(k) && !PUBLIC_ENV_KEY.test(k))
+                if (!ENV_KEY.test(k) && !PUBLIC_ENV_KEY.test(k) && !SECRET_ENV_KEY.test(k))
                     out.push(`The recipe sets ${k}, which is not an env key a recipe may set.`);
+                // A sealed value only on a Supabase-style or mail setting, and only a key of that kind: never a database, NODE_OPTIONS or a path
+                else if (typeof v === 'string' && v.startsWith('{secret:'))
+                    out.push(...placeholderProblems(k, v));
+                // A mail setting is never written in the recipe: its value comes from the sealed store, behind the mail guard
+                else if (MAIL_ENV_KEY.test(k))
+                    out.push(`The recipe gives ${k}, a mail setting, a value that is not its own sealed value ({secret:${k}}).`);
                 else if (typeof v !== 'string' || !(PLACEHOLDER.test(v) || PLAIN.test(v)))
                     out.push(`The recipe gives ${k} a value that is not a placeholder ({baseUrl}, {port}, {random}, {databaseUrl}, {databaseOwnerUrl}) or a short plain word.`);
                 else if (/^\d+$/.test(v) && FORBIDDEN_PORTS.has(Number(v)))

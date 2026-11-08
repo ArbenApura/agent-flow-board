@@ -13,11 +13,12 @@ import {
 	writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { dirname, join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // -- MODULES -- //
 import { pidAlive } from './lock.js';
-import { copiesDir, runsDir } from './paths.js';
+import { pooledNames } from './dbpool.js';
+import { copiesDir, logDirFor, markerPath, runsDir } from './paths.js';
 import {
 	RunScope,
 	clearRuns,
@@ -44,12 +45,13 @@ describe('run scope', () => {
 		rmSync(home, { recursive: true, force: true });
 	});
 
-	const marker = (id: string) => join(runsDir(), id, 'ACTIVE');
+	const marker = (id: string) => markerPath(id);
 	const deadPid = 2_147_483_000;
 	/** A run folder as a crashed (or running) process left it. */
 	const plant = (id: string, pid: number | null, ageMs = 0) => {
 		mkdirSync(join(runsDir(), id), { recursive: true });
 		mkdirSync(join(copiesDir(), id), { recursive: true });
+		mkdirSync(dirname(markerPath(id)), { recursive: true });
 		writeFileSync(join(copiesDir(), id, 'f.txt'), 'x');
 		if (pid !== null)
 			writeFileSync(
@@ -199,4 +201,127 @@ describe('run scope', () => {
 		expect(pidAlive(grandPid)).toBe(false);
 		child.stdout.destroy();
 	}, 20_000);
+	// -- THE MARKER IS OUT OF THE CHILD'S REACH (S1) -- //
+
+	const sleeper = () =>
+		spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+			stdio: 'ignore',
+			windowsHide: true
+		});
+	const docker = () => vi.fn(async () => ({ status: 0, stdout: '', stderr: '' }));
+
+	it('never honours a marker forged inside the run folder the child can write', async () => {
+		const victim = sleeper();
+		const calls = docker();
+		try {
+			const pid = victim.pid ?? 0;
+			// A hostile check writes what it likes into its own run folder, in every spelling of the old marker name
+			mkdirSync(join(runsDir(), 'rforged'), { recursive: true });
+			for (const name of ['ACTIVE', 'ACTIVE.json', 'ENDED'])
+				writeFileSync(
+					join(runsDir(), 'rforged', name),
+					JSON.stringify({
+						runId: 'rforged',
+						pid: deadPid,
+						startedAt: new Date().toISOString(),
+						previewPid: pid,
+						containerName: 'afb-checks-pool-abc',
+						dbName: 'afbd_x',
+						roleName: 'afbr_x',
+						poolId: 'abc'
+					})
+				);
+			const t = new Date(Date.now() - 3_600_000);
+			utimesSync(join(runsDir(), 'rforged'), t, t);
+			await sweepOrphans(() => {}, { docker: calls });
+			expect(pidAlive(pid)).toBe(true);
+			expect(calls).not.toHaveBeenCalled();
+		} finally {
+			await killTree(victim.pid ?? 0);
+		}
+	});
+
+	it('refuses a marker that names a process, container, database or role that is not the run itself', async () => {
+		const victim = sleeper();
+		const calls = docker();
+		const notes: string[] = [];
+		try {
+			const pid = victim.pid ?? 0;
+			mkdirSync(join(runsDir(), 'rforeign'), { recursive: true });
+			mkdirSync(dirname(markerPath('rforeign')), { recursive: true });
+			writeFileSync(
+				markerPath('rforeign'),
+				JSON.stringify({
+					runId: 'rforeign',
+					pid: deadPid,
+					startedAt: new Date().toISOString(),
+					// No start time recorded with the process id
+					previewPid: pid,
+					containerName: 'afb-checks-pool-abc',
+					dbName: 'postgres',
+					roleName: 'postgres',
+					poolId: 'abc'
+				})
+			);
+			await sweepOrphans((s) => notes.push(s), { docker: calls });
+			expect(pidAlive(pid)).toBe(true);
+			expect(calls).not.toHaveBeenCalled();
+			expect(notes.join(' ')).toMatch(/preview process that does not check out/);
+			expect(notes.join(' ')).toMatch(/container that is not the one this run makes/);
+			expect(notes.join(' ')).toMatch(/database or role that is not this run/);
+		} finally {
+			await killTree(victim.pid ?? 0);
+		}
+	});
+
+	it('honours a marker whose names are the ones the tool derives for the run', async () => {
+		const names = pooledNames('rmine');
+		const calls = docker();
+		mkdirSync(join(runsDir(), 'rmine'), { recursive: true });
+		mkdirSync(dirname(markerPath('rmine')), { recursive: true });
+		writeFileSync(
+			markerPath('rmine'),
+			JSON.stringify({
+				runId: 'rmine',
+				pid: deadPid,
+				startedAt: new Date().toISOString(),
+				containerName: 'afb-checks-rmine'
+			})
+		);
+		await sweepOrphans(() => {}, { docker: calls });
+		expect(calls).toHaveBeenCalled();
+		expect(JSON.stringify(calls.mock.calls)).toContain('afb-checks-rmine');
+		expect(names.dbName).toMatch(/^afbd_/);
+	});
+
+	it('closes a resource added after the scope closed at once, and never rewrites the marker', async () => {
+		const scope = new RunScope('rlate');
+		await scope.close();
+		let closed = false;
+		scope.add('late', () => void (closed = true));
+		scope.setInfo({ previewPid: 4242 });
+		await new Promise((r) => setTimeout(r, 20));
+		expect(closed).toBe(true);
+		expect(existsSync(marker('rlate'))).toBe(false);
+	});
+
+	it('sweeps the logs of a run that has no folder, marker or copy any more, once they are old enough', async () => {
+		mkdirSync(logDirFor('rorphanlog'), { recursive: true });
+		writeFileSync(join(logDirFor('rorphanlog'), 'build.log'), 'x');
+		mkdirSync(logDirFor('ryounglog'), { recursive: true });
+		const t = new Date(Date.now() - 3_600_000);
+		utimesSync(logDirFor('rorphanlog'), t, t);
+		await sweepOrphans();
+		expect(existsSync(logDirFor('rorphanlog'))).toBe(false);
+		expect(existsSync(logDirFor('ryounglog'))).toBe(true);
+	});
+
+	it('keeps the logs of a run out of the run folder and removes them with the scope', async () => {
+		const scope = new RunScope('rlogs');
+		scope.start();
+		expect(existsSync(join(logDirFor('rlogs')))).toBe(true);
+		expect(logDirFor('rlogs').startsWith(runsDir())).toBe(false);
+		await scope.close();
+		expect(existsSync(logDirFor('rlogs'))).toBe(false);
+	});
 });

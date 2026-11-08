@@ -34,6 +34,10 @@ export type RunReport = {
 	unverified?: boolean;
 	log?: string;
 	evidence?: string[];
+	/** The registration that ran (the bare NAME the board knows), the folder name and the branch. The board refuses a pass from a registration it did not ask for. */
+	registration?: string;
+	repoName?: string;
+	branch?: string;
 };
 
 // -- MODULES -- //

@@ -33,6 +33,8 @@ export default defineConfig({
 		environment: 'node',
 		// ONE EMBEDDED POSTGRESQL SERVER FOR THE RUN, SHARED WITH THE TEST FILES THROUGH provide AND inject
 		globalSetup: ['tests/support/globalSetup.ts'],
+		// A BRIDGE TEST THAT FORGETS AFB_BRIDGE_HOME GETS A THROWAWAY HOME
+		setupFiles: ['tests/support/bridgeHome.ts'],
 		testTimeout: 60_000,
 		hookTimeout: 180_000
 	}

@@ -22,6 +22,39 @@ export type ProjectConfig = {
 	env: Record<string, string>;
 	/** Folders and files that say what was tested (hashed into the run's evidence). */
 	appPaths: string[];
+	/** The app folder inside the repo (`web`): install, build and start run in it, the private copy is made from the git root. */
+	appDir?: string;
+	/** The registration this config came from. Sign-ins, sealed secrets and caches are looked up under it and never under another. */
+	registration?: { org: string; name: string };
+	/** True when the owner approved adopting the whole repo .env for this registration. */
+	adoptEnv?: boolean;
+	/** A live site: nothing is built or started, the run is unverified. */
+	url?: string;
+	/** Exact host names the browser may reach besides the preview. */
+	extraHosts?: string[];
+};
+
+/** One registration, saved as registrations/<org>/<NAME>.json (the name is the bare NAME the board knows, 1 to 32 letters, digits, dash, underscore). */
+export type Registration = {
+	org: string;
+	name: string;
+	/** The board project key this registration serves. Defaults to the name. */
+	boardProject: string;
+	/** The repo folder (a real path), absent for a live site. */
+	repo?: string;
+	appDir?: string;
+	recipe: boolean;
+	database: 'none' | 'tool';
+	/** A live site (http or https), no repo. */
+	url?: string;
+	extraHosts?: string[];
+	/** Whole-.env adoption approved by the owner with a code. Off by default. */
+	adoptEnv: boolean;
+	/** Pictures of a signed-in run are uploaded only when the owner opted in. */
+	uploadSignedInPictures: boolean;
+	/** The pinned hash of the files that decide what runs (set by the first `check run` in the folder). */
+	pin?: string;
+	createdAt: string;
 };
 
 /** A resource a run owns, closed newest first when the run ends, whatever ends it. */
@@ -50,6 +83,10 @@ export type Preview = {
 	secrets: string[];
 	/** One plain line for the run log, for example that a throwaway database was made. */
 	note?: string;
+	/** Hosts the browser may reach besides the preview (the sealed test project's host, a live site's hosts). */
+	extraHosts?: string[];
+	/** Set when the mail guard fenced this run: the one test inbox, the guard's log and the preview port. */
+	mail?: { inbox: string; log: string; port: number };
 };
 
 /** The job handed to the sandboxed child that runs one check script. Written to the child's stdin. */

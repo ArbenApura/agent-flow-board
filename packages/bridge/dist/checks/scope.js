@@ -1,21 +1,20 @@
 // THE THINGS ONE RUN OWNS, AND WHAT HAPPENS TO THEM WHEN THE RUN ENDS, WHATEVER ENDS IT.
-// The layer that makes the resources writes a live marker file first (runs/<run id>/ACTIVE: the process id, the start time and what the run made that a
-// crash would leave behind: the preview process, the database container and the private copy). Resources are closed newest first and closing never throws.
+// The layer that makes the resources writes a live marker file first (markers/<run id>.json, in a folder the sandboxed check cannot reach: the process id, the
+// start time and what the run made that a crash would leave behind: the preview process, the database container and the private copy). Resources are closed newest first and closing never throws.
 // A later run sweeps what a dead process left: only the exact run folders and copies named by a dead marker (or by no marker and old enough), never a
 // folder that was not made by a run.
 // -- DEP-MODULES -- //
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, lstatSync, readFileSync, readdirSync, renameSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 // -- MODULES -- //
 import { pidAlive } from './lock.js';
-import { NAME, copiesDir, ensureDir, runsDir, under } from './paths.js';
-import { removeContainer } from './provision.js';
+import { NAME, copiesDir, endedPath, ensureDir, logDirFor, logsDir, markerPath, markersDir, runsDir, under } from './paths.js';
+import { dropPooledDatabase, pooledNames } from './dbpool.js';
+import { renameRetry } from './fsretry.js';
+import { CONTAINER_PREFIX, removeContainer } from './provision.js';
 // -- CONSTANTS -- //
-const MARKER = 'ACTIVE';
-/** Written when a run ends in order, so a finished run's folder is never mistaken for one whose marker was lost. */
-const ENDED = 'ENDED';
 /** A run folder with no marker is only an orphan after this long (the marker is written first, so younger ones are being made right now). */
 const NO_MARKER_GRACE_MS = 15 * 60_000;
 const DAY_MS = 86_400_000;
@@ -27,19 +26,64 @@ const noop = () => { };
 function writeWhole(file, text) {
     const tmp = `${file}.${process.pid}.tmp`;
     writeFileSync(tmp, text, { mode: 0o600 });
-    renameSync(tmp, file);
+    renameRetry(tmp, file);
 }
-function readMarker(dir) {
+/**
+ * Reads the marker of a run and checks it against what the tool itself would have written for that run id. A field that names anything else (a database,
+ * a role, a container, a process that is older than the run) is dropped and a note says so, so a marker can never make a sweep touch something that is not the
+ * run's own. A marker that does not hold a process id and its own run id is not a marker (null).
+ */
+export function readMarker(runId) {
+    let v;
     try {
-        const v = JSON.parse(readFileSync(join(dir, MARKER), 'utf8'));
-        if (!v || typeof v !== 'object')
-            return null;
-        const m = v;
-        return typeof m.pid === 'number' && typeof m.runId === 'string' ? m : null;
+        v = JSON.parse(readFileSync(markerPath(runId), 'utf8'));
     }
     catch {
         return null;
     }
+    if (!v || typeof v !== 'object')
+        return null;
+    const m = v;
+    if (typeof m.pid !== 'number' || m.runId !== runId)
+        return null;
+    const startedAt = typeof m.startedAt === 'string' ? m.startedAt : '';
+    const notes = [];
+    const out = { runId, pid: m.pid, startedAt };
+    if (m.previewPid !== undefined) {
+        const spawned = Date.parse(String(m.previewStartedAt ?? ''));
+        if (Number.isInteger(m.previewPid) &&
+            m.previewPid > 1 &&
+            m.previewPid !== m.pid &&
+            Number.isFinite(spawned) &&
+            spawned >= Date.parse(startedAt) - 1000) {
+            out.previewPid = m.previewPid;
+            out.previewStartedAt = String(m.previewStartedAt);
+        }
+        else
+            notes.push(`The marker of run ${runId} names a preview process that does not check out, so it was ignored.`);
+    }
+    if (m.containerName !== undefined) {
+        if (m.containerName === `${CONTAINER_PREFIX}${runId}`)
+            out.containerName = m.containerName;
+        else
+            notes.push(`The marker of run ${runId} names a container that is not the one this run makes, so it was ignored.`);
+    }
+    if (m.dbName !== undefined || m.roleName !== undefined || m.poolId !== undefined) {
+        const names = pooledNames(runId);
+        if (m.dbName === names.dbName &&
+            m.roleName === names.roleName &&
+            typeof m.poolId === 'string' &&
+            NAME.test(m.poolId)) {
+            out.dbName = m.dbName;
+            out.roleName = m.roleName;
+            out.poolId = m.poolId;
+        }
+        else
+            notes.push(`The marker of run ${runId} names a database or role that is not this run's, so it was ignored.`);
+    }
+    if (typeof m.copyDir === 'string')
+        out.copyDir = m.copyDir;
+    return { marker: out, notes };
 }
 export class RunScope {
     runId;
@@ -63,6 +107,8 @@ export class RunScope {
         if (this.started)
             return;
         ensureDir(this.dir);
+        ensureDir(markersDir());
+        ensureDir(logDirFor(this.runId));
         this.started = true;
         this.writeMarker();
     }
@@ -73,16 +119,29 @@ export class RunScope {
             startedAt: new Date().toISOString(),
             ...this.info
         };
-        writeWhole(join(this.dir, MARKER), JSON.stringify(marker) + '\n');
+        writeWhole(markerPath(this.runId), JSON.stringify(marker) + '\n');
     }
     /** Records what a crash would leave behind (the preview process id, the database container, the private copy) so a later sweep can remove it. */
     setInfo(info) {
+        // After the scope closed nothing may rewrite the marker: it was removed with the run
+        if (this.closed)
+            return;
         this.start();
-        this.info = { ...this.info, ...info };
+        const stamped = info.previewPid !== undefined && info.previewStartedAt === undefined
+            ? { ...info, previewStartedAt: new Date().toISOString() }
+            : info;
+        this.info = { ...this.info, ...stamped };
         this.writeMarker();
     }
     /** Registers a resource. It is closed when the scope closes, newest first. */
     add(name, dispose) {
+        // A resource made after the scope closed is closed at once: nothing will come back to do it
+        if (this.closed) {
+            void Promise.resolve()
+                .then(dispose)
+                .catch(() => this.log(`Could not close ${name}.`));
+            return;
+        }
         this.start();
         this.disposers.push({ name, dispose });
     }
@@ -104,8 +163,9 @@ export class RunScope {
         }
         try {
             if (this.started) {
-                writeWhole(join(this.dir, ENDED), new Date().toISOString() + '\n');
-                rmSync(join(this.dir, MARKER), { force: true });
+                writeWhole(endedPath(this.runId), new Date().toISOString() + '\n');
+                rmSync(markerPath(this.runId), { force: true });
+                removeTree(logDirFor(this.runId));
             }
         }
         catch {
@@ -222,6 +282,9 @@ export function installSignalHandlers(scope, onKill) {
 function removeRun(id) {
     removeTree(under(copiesDir(), id));
     removeTree(under(runsDir(), id));
+    removeTree(logDirFor(id));
+    rmSync(markerPath(id), { force: true });
+    rmSync(endedPath(id), { force: true });
 }
 const ageOf = (path) => {
     try {
@@ -236,30 +299,48 @@ const plainIds = (dir) => {
         return [];
     return readdirSync(dir).filter((n) => NAME.test(n));
 };
+/** The run ids that have a folder, a marker or an end note. */
+export function allRunIds() {
+    const ids = new Set(plainIds(runsDir()));
+    if (existsSync(markersDir()))
+        for (const f of readdirSync(markersDir())) {
+            const m = /^(.+)\.(json|ended)$/.exec(f);
+            if (m && NAME.test(m[1]))
+                ids.add(m[1]);
+        }
+    return [...ids];
+}
 /**
  * Cleans what dead runs left: a run whose marker names a dead process, or that has neither a marker nor an end note and is older than 15 minutes.
  * Stops the recorded preview process tree and database container, then removes only those run folders and copies. Returns how many runs it cleaned.
  */
-export async function sweepOrphans(log = noop) {
+export async function sweepOrphans(log = noop, deps = {}) {
     let cleaned = 0;
     const seen = new Set();
-    for (const id of plainIds(runsDir())) {
+    for (const id of allRunIds()) {
         seen.add(id);
         const dir = under(runsDir(), id);
-        const marker = readMarker(dir);
+        const checked = readMarker(id);
+        const marker = checked?.marker ?? null;
+        for (const note of checked?.notes ?? [])
+            log(note);
         if (marker) {
             if (pidAlive(marker.pid))
                 continue;
         }
-        else if (existsSync(join(dir, MARKER)) ||
-            existsSync(join(dir, ENDED)) ||
-            ageOf(dir) < NO_MARKER_GRACE_MS) {
+        else if (existsSync(markerPath(id)) ||
+            existsSync(endedPath(id)) ||
+            (existsSync(dir) ? ageOf(dir) : Infinity) < NO_MARKER_GRACE_MS) {
             continue; // Finished in order (clearRuns handles it), or too young to judge
         }
         if (marker?.previewPid && pidAlive(marker.previewPid))
             await killTree(marker.previewPid);
-        if (marker?.containerName)
-            await removeContainer(marker.containerName);
+        if (marker?.dbName && marker.roleName && marker.poolId) {
+            // A pooled run: only its own database and roles go. The pool container is never removed here, other runs live in it
+            await dropPooledDatabase({ dbName: marker.dbName, roleName: marker.roleName, poolId: marker.poolId }, { docker: deps.docker });
+        }
+        else if (marker?.containerName)
+            await removeContainer(marker.containerName, deps.docker);
         removeRun(id);
         cleaned++;
         log(`Cleaned the leftovers of run ${id}.`);
@@ -272,6 +353,14 @@ export async function sweepOrphans(log = noop) {
         cleaned++;
         log(`Removed the orphaned copy of run ${id}.`);
     }
+    // The logs of a run that has no folder, marker or copy any more: old enough that no run is still writing them
+    for (const id of plainIds(logsDir())) {
+        if (seen.has(id) || existsSync(markerPath(id)) || ageOf(logDirFor(id)) < NO_MARKER_GRACE_MS)
+            continue;
+        removeTree(logDirFor(id));
+        cleaned++;
+        log(`Removed the orphaned logs of run ${id}.`);
+    }
     return cleaned;
 }
 /**
@@ -281,11 +370,11 @@ export async function sweepOrphans(log = noop) {
 export function clearRuns(opts = {}) {
     const limit = (opts.olderThanDays ?? 7) * DAY_MS;
     let removed = 0;
-    for (const id of plainIds(runsDir())) {
+    for (const id of allRunIds()) {
         const dir = under(runsDir(), id);
-        if (existsSync(join(dir, MARKER)))
+        if (existsSync(markerPath(id)))
             continue;
-        if (!opts.all && ageOf(dir) < limit)
+        if (!opts.all && (existsSync(dir) ? ageOf(dir) : Infinity) < limit)
             continue;
         removeRun(id);
         removed++;

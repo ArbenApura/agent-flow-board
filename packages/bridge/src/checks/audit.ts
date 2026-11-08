@@ -4,19 +4,12 @@
 
 // -- DEP-MODULES -- //
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import {
-	appendFileSync,
-	existsSync,
-	linkSync,
-	readFileSync,
-	renameSync,
-	rmSync,
-	writeFileSync
-} from 'node:fs';
+import { appendFileSync, existsSync, linkSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 // -- MODULES -- //
 import { withLockSync } from './lock.js';
 import { auditFile, checksHome, ensureDir } from './paths.js';
+import { renameRetry } from './fsretry.js';
 
 // -- TYPES -- //
 
@@ -102,7 +95,7 @@ export function appendAudit(action: string, detail: AuditDetail = {}): void {
 		const head: Head = { lines: lines.length + 1, head: mac };
 		const tmp = `${headFile()}.${process.pid}.tmp`;
 		writeFileSync(tmp, JSON.stringify(head), { mode: 0o600 });
-		renameSync(tmp, headFile());
+		renameRetry(tmp, headFile());
 	});
 }
 

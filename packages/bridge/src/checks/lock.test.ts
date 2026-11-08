@@ -142,4 +142,37 @@ describe('file locks', () => {
 		).toEqual([]);
 		expect(existsSync(file) ? readFileSync(file, 'utf8') : '').not.toBe('\n');
 	});
+
+	it('takes the worker lock from a holder whose process id is alive but whose heartbeat stopped (C18)', () => {
+		// A crashed worker whose id was handed to another program: the id is alive, the heartbeat is old
+		plant('machine-watch', {
+			pid: process.pid,
+			at: new Date(Date.now() - 10 * 60_000).toISOString(),
+			token: 'crashed'
+		});
+		const w = machineLock('watch');
+		expect(w).not.toBeNull();
+		w?.release();
+	});
+
+	it('keeps the worker lock from a second worker while the first one touches it (C18)', () => {
+		const w = machineLock('watch');
+		expect(w).not.toBeNull();
+		w?.touch();
+		expect(machineLock('watch')).toBeNull();
+		const file = join(locksDir(), 'machine-watch.lock');
+		const before = Date.parse((JSON.parse(readFileSync(file, 'utf8')) as { at: string }).at);
+		// A touch moves the heartbeat forward and keeps the owner
+		const old = JSON.parse(readFileSync(file, 'utf8')) as {
+			pid: number;
+			at: string;
+			token: string;
+		};
+		writeFileSync(file, JSON.stringify({ ...old, at: new Date(before - 120_000).toISOString() }));
+		w?.touch();
+		const after = JSON.parse(readFileSync(file, 'utf8')) as { at: string; token: string };
+		expect(Date.parse(after.at)).toBeGreaterThan(before - 60_000);
+		expect(after.token).toBe(old.token);
+		w?.release();
+	});
 });

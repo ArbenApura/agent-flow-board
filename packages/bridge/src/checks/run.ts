@@ -4,21 +4,36 @@
 
 // -- DEP-MODULES -- //
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 // -- TYPES -- //
 import type { Fetch } from '../device.js';
-import type { ChildJob, ChildResult } from './types.js';
+import type { ChildJob, ChildResult, ProjectConfig, Registration } from './types.js';
 import type { CheckJob, RunReport } from './board.js';
 // -- MODULES -- //
 import { appendAudit, verifyAudit } from './audit.js';
 import { bindFolder } from './bind.js';
 import { BoardError, RunnerBoard } from './board.js';
-import { ensureBrowser, launchBrowserServer } from './browser.js';
+import { ensureBrowser } from './browser.js';
+import { acquireBrowser } from './browserpool.js';
+import { JPEG_MAGIC, MAX_SHOT_BYTES, readPlainFile } from './evidence.js';
+import { acquireSlot, slotsHeader } from './broker.js';
+import { closePoolIfIdle } from './dbpool.js';
 import { lintCheck } from './guard.js';
 import { assertName, ORG_SLUG, runsDir, scriptPath, scriptsDir } from './paths.js';
+import { liveSiteGuardOptions } from './live.js';
+import { pictureUploadAllowed, savedStateFor } from './login.js';
 import { startPreview } from './preview.js';
 import { redact } from './redact.js';
 import { pinFiles, resolveProjectConfig } from './recipe.js';
+import {
+	configFor,
+	listRegistrations,
+	pinRegistration,
+	pinState,
+	readRegistrations
+} from './registry.js';
+import { registrationHeader, routeRun } from './routing.js';
+import { registrationsHeader, sanitiseReport, withBranch } from './wire.js';
 import { runCheckInSandbox } from './sandbox.js';
 import { installSignalHandlers, RunScope, sweepOrphans } from './scope.js';
 import { signInWithPassword, stateNeedles } from './signin.js';
@@ -34,6 +49,12 @@ export type RunOptions = {
 	dir: string;
 	/** The plan step to close when the run passes, for example 7.3. */
 	step?: string;
+	/** True for a run the worker's scheduler holds: it has the slot and beats the board itself. */
+	scheduled?: boolean;
+	/** Aborts the run (a stopped worker, a run over its limit, a run the board gave up on). */
+	signal?: AbortSignal;
+	/** The registration to use, when the run and the check name none (`--registration`). */
+	registration?: string;
 	/** A run the agent already asked for (check_run through MCP). Without it the run is requested here. */
 	runId?: string;
 	/** A run `check watch` already claimed with the next-run call. Without it the run is claimed here by its id. */
@@ -59,11 +80,100 @@ export type RunOutcome = {
 
 const BEAT_EVERY_MS = 30_000;
 const MAX_EVIDENCE = 8;
+/** A run started by hand (not by the worker, whose scheduler has its own limit) stops after this long. */
+const DEFAULT_RUN_LIMIT_MS = 40 * 60_000;
 
 // -- FUNCTIONS -- //
 
-/** The slots header: this process takes one run at a time. */
-const slotsHeader = (busy: number) => `1:${busy}`;
+/** The run limit of a standalone run in ms: AFB_CHECKS_RUN_LIMIT_MS when it is a positive number, else 40 minutes. */
+export function runLimitMs(env: Record<string, string | undefined> = process.env): number {
+	const v = Number(env.AFB_CHECKS_RUN_LIMIT_MS);
+	return Number.isFinite(v) && v > 0 ? v : DEFAULT_RUN_LIMIT_MS;
+}
+
+/** The sentence for a run stopped by its limit. */
+export function limitSentence(ms: number): string {
+	return ms < 60_000
+		? `The run took longer than ${Math.round(ms / 1000)} seconds and was stopped.`
+		: `The run took longer than ${Math.round(ms / 60_000)} minutes and was stopped.`;
+}
+
+/** Writes an audit line, and never lets a failure of the log change the outcome of a run. */
+function auditSafely(
+	log: (line: string) => void,
+	action: string,
+	detail: Record<string, string | number | boolean>
+): void {
+	try {
+		appendAudit(action, detail);
+	} catch {
+		log('The audit log could not be written for this run.');
+	}
+}
+
+/** The registrations of this organisation, for the board to route a run that names one (at most 16, refreshed by every call). */
+function registrationsHeaderFor(org: string): Record<string, string> {
+	try {
+		const value = registrationsHeader(org, listRegistrations(org).map(withBranch));
+		return value ? { 'x-afb-tool-registrations': value } : {};
+	} catch {
+		return {};
+	}
+}
+
+/**
+ * The registration of a run: the one the board names, else the one asked for with --registration, else the check script's own header, else the board
+ * project's only registration. With none registered for the board project the folder of the current directory is used, as before registrations existed.
+ */
+export function configForRun(
+	o: Pick<RunOptions, 'org' | 'dir' | 'registration'>,
+	job: CheckJob,
+	source: string,
+	log: (line: string) => void,
+	fromWatch: boolean
+): { cfg: ProjectConfig; registration: Registration | null; scriptRegistration: string | null } {
+	const read = readRegistrations(o.org);
+	const all = read.registrations;
+	const mine = all.filter((r) => r.boardProject === job.project.key);
+	if (!mine.length) {
+		// A registration that is damaged or was changed by hand is not "no registration": the folder of the current directory is never taken in its place
+		if (read.problems.length)
+			throw new Error(
+				`${read.problems.join(' ')} No other registration serves ${job.project.key}, so the run was not started. Register the project again with: agent-flow-board check project`
+			);
+		const cfg = resolveProjectConfig(o.dir);
+		// Running a check in a folder is the approval of that folder (and of the files that decide what runs) for `check watch`
+		bindFolder(o.org, job.project.key, cfg.repo, pinFiles(cfg.repo));
+		return { cfg, registration: null, scriptRegistration: null };
+	}
+	const registration = routeRun({
+		org: o.org,
+		boardProject: job.project.key,
+		run: job.registration ?? o.registration ?? null,
+		script: source,
+		all
+	});
+	if (registration.repo) {
+		if (fromWatch) {
+			// The board's Run button never re-approves: a changed or missing pin needs a `check run` in the folder first
+			if (pinState(registration) !== 'ok')
+				throw new Error(
+					`The files that decide what runs in ${registration.name} changed since they were approved. In that folder run: agent-flow-board check run <item> <key> --org ${o.org}`
+				);
+		} else {
+			const pin = pinRegistration(o.org, registration.name);
+			if (pin.changed)
+				log(
+					`The files that decide what runs in ${registration.name} changed and were pinned again (${pin.files.length} files).`
+				);
+		}
+	}
+	return {
+		cfg: configFor(registration),
+		registration,
+		scriptRegistration: registrationHeader(source)
+	};
+}
 
 function auditHeaders(): Record<string, string> {
 	try {
@@ -136,6 +246,14 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 	let beat: ReturnType<typeof setInterval> | null = null;
 	let uninstall: () => void = () => undefined;
 	let claimed = false;
+	let slot: { release(): void | Promise<void> } | null = null;
+	// Everything the run must never print, filled in as it becomes known; the reasons that go to the board are redacted with it
+	const needlesAll: string[] = [];
+	let limitTimer: ReturnType<typeof setTimeout> | null = null;
+	let limitHit = false;
+	// A run the worker's scheduler holds is stopped, timed out or given up on by the scheduler, which gives it back or reports it by id
+	const schedulerOwns = () => Boolean(o.scheduled && o.signal?.aborted);
+	const reasonFor = (text: string) => redact(text, needlesAll).slice(0, 1900);
 	try {
 		if (o.claimed) claimed = true;
 		if (!ORG_SLUG.test(o.org))
@@ -143,7 +261,6 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 		assertName(o.item, 'item reference');
 		assertName(o.key, 'check key');
 		// -- THE FOLDER AND THE SCRIPT -- //
-		const cfg = resolveProjectConfig(o.dir);
 		const script = scriptPath(o.org, o.item, o.key);
 		if (!existsSync(script))
 			return stop(
@@ -155,13 +272,11 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 			return stop(
 				`This check uses ${unsafe.join(', ')}, which a check has no business doing, so it was not run. Rewrite it.`
 			);
-		// Running a check in a folder is the approval of that folder (and of the files that decide what runs) for `check watch`
-		const projectKey = /^([A-Z][A-Z0-9]{1,9})-\d{8}-\d{4}/.exec(o.item)?.[1];
-		if (projectKey) bindFolder(o.org, projectKey, cfg.repo, pinFiles(cfg.repo));
 		// -- THE RUN -- //
 		board = new RunnerBoard(o.server, o.runnerToken, o.fetch, () => ({
-			'x-afb-tool-slots': slotsHeader(claimed ? 1 : 0),
-			...auditHeaders()
+			'x-afb-tool-slots': slotsHeader(),
+			...auditHeaders(),
+			...registrationsHeaderFor(o.org)
 		}));
 		await sweepOrphans(o.log);
 		runId = o.claimed?.id ?? o.runId ?? (await requestRunOnBoard(o));
@@ -172,7 +287,7 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 				runId
 			);
 		claimed = true;
-		appendAudit('run-claimed', { run: runId });
+		auditSafely(o.log, 'run-claimed', { run: runId });
 		if (job.item.ref !== o.item || job.check.key !== o.key) {
 			await board.release([runId]).catch(() => undefined);
 			claimed = false;
@@ -184,28 +299,79 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 		const thisBoard = board;
 		const thisRun = runId;
 		const abort = new AbortController();
-		beat = setInterval(() => {
-			thisBoard.beat(thisRun).catch((e) => {
-				// The board gave up on the run: stop working on it
-				if (e instanceof BoardError && e.status === 409) abort.abort();
-			});
-		}, BEAT_EVERY_MS);
-		beat.unref();
+		// A run the worker's scheduler holds is beaten (and limited) by the scheduler from the moment of its claim; its stop reaches this run through the signal
+		if (o.signal) {
+			if (o.signal.aborted) abort.abort();
+			else o.signal.addEventListener('abort', () => abort.abort(), { once: true });
+		}
+		if (!o.scheduled) {
+			beat = setInterval(() => {
+				thisBoard.beat(thisRun).catch((e) => {
+					// The board gave up on the run: stop working on it
+					if (e instanceof BoardError && e.status === 409) abort.abort();
+				});
+			}, BEAT_EVERY_MS);
+			beat.unref();
+			// A run started by hand has the same limit the worker gives its runs
+			const limit = runLimitMs();
+			limitTimer = setTimeout(() => {
+				limitHit = true;
+				abort.abort();
+			}, limit);
+			limitTimer.unref();
+		}
 		scope = new RunScope(runId, o.log);
 		scope.start();
 		const thisScope = scope;
-		uninstall = installSignalHandlers(scope, () => {
-			void thisBoard
-				.finish(thisRun, { result: 'error', reason: 'The run was stopped before it finished.' })
-				.catch(() => undefined)
-				.finally(() => process.exit(2));
-		});
+		// The worker's runs never install their own handlers: its stop reaches them through the signal, and each closes only its own scope. A handler per run
+		// would finish every run as an error and end the whole process before the scheduler has given the others back
+		if (!o.scheduled)
+			uninstall = installSignalHandlers(scope, () => {
+				void thisBoard
+					.finish(thisRun, { result: 'error', reason: 'The run was stopped before it finished.' })
+					.catch(() => undefined)
+					.finally(() => process.exit(2));
+			});
+		// -- WHICH REGISTRATION, AND A PLACE ON THIS MACHINE -- //
+		// A registration the board or the script names is chosen here, never guessed; a refusal ends the run with its code and the list
+		const routed = configForRun(o, job, source, o.log, Boolean(o.claimed));
+		const cfg = routed.cfg;
+		const registration = routed.registration;
+		// The heartbeat already runs, so a run that waits for a slot, the preflight or another run's build keeps beating and never looks stuck to the board
+		// (a scheduled run already holds its slot)
+		if (!o.scheduled)
+			slot = await acquireSlot(
+				{ runId, kind: 'check', registration: registration?.name ?? job.project.key },
+				{ signal: abort.signal }
+			);
 		await ensureBrowser(o.log);
-		const preview = await startPreview(cfg, { runId, scope, log: o.log });
+		const preview = await startPreview(cfg, {
+			runId,
+			scope,
+			log: o.log,
+			signal: abort.signal,
+			needles: needlesAll
+		});
+		needlesAll.push(...preview.secrets);
 		if (preview.note) o.log(preview.note);
-		// -- SIGN IN AS THE RECIPE'S TEST USER -- //
+		// -- SIGN IN: A SAVED SIGN IN OF THIS REGISTRATION, ELSE THE RECIPE'S TEST USER -- //
 		let state: unknown = null;
-		if (preview.testUser) {
+		// Only a sign in the owner SAVED counts for the picture rule: the recipe's test user belongs to a throwaway preview and holds nothing worth hiding
+		let usedSavedSignIn = false;
+		if (registration) {
+			const saved = savedStateFor({
+				org: o.org,
+				registration: registration.name,
+				scriptRegistration: routed.scriptRegistration,
+				bindKey: new URL(preview.baseUrl).origin
+			});
+			if (saved) {
+				state = saved.profile?.state ?? null;
+				usedSavedSignIn = state !== null;
+				if (saved.note) o.log(saved.note);
+			}
+		}
+		if (!state && preview.testUser) {
 			o.log(`Signing in as ${preview.testUser.email.replace(/^(.).*(@.*)$/, '$1***$2')}...`);
 			state = await signInWithPassword(preview.baseUrl, preview.testUser);
 		}
@@ -214,9 +380,22 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 			...(preview.testUser ? [preview.testUser.password, preview.testUser.email] : []),
 			...stateNeedles(state)
 		];
+		needlesAll.push(...needles);
 		const runDir = join(runsDir(), runId);
-		const browser = await launchBrowserServer({ headed: o.headed });
-		thisScope.add('browser', () => browser.close());
+		// The browser may reach this machine and the hosts of this registration only (a live site's hosts, the sealed test project's host); a live
+		// site or a signed in run always has its own browser, and a live site never allows writes
+		const extraHosts = [
+			...new Set([
+				...(cfg.url ? liveSiteGuardOptions(cfg).extraHosts : (cfg.extraHosts ?? [])),
+				...(preview.extraHosts ?? [])
+			])
+		];
+		const browser = await acquireBrowser({
+			hosts: extraHosts,
+			headed: o.headed,
+			dedicated: Boolean(cfg.url) || state !== null
+		});
+		thisScope.add('browser', () => browser.release());
 		const childJob: ChildJob = {
 			baseUrl: preview.baseUrl,
 			ws: browser.wsEndpoint(),
@@ -224,7 +403,7 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 			checkFile: script,
 			runDir,
 			viewport: { width: 1280, height: 800 },
-			extraHosts: [],
+			extraHosts,
 			needles
 		};
 		const ran = await runCheckInSandbox({
@@ -234,20 +413,41 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 			signal: abort.signal
 		});
 		if (!ran.result) {
-			const why = redact(ran.stderr || 'The check did not finish.', needles).slice(-1200);
-			await board.finish(runId, {
-				result: 'error',
-				reason: `The check did not finish. ${why}`.slice(0, 1900)
-			});
-			finished = true;
-			claimed = false;
+			const why = limitHit
+				? limitSentence(runLimitMs())
+				: redact(ran.stderr || 'The check did not finish.', needlesAll).slice(-1200);
+			// A run the scheduler stopped is given back by the scheduler, not reported here
+			if (!schedulerOwns()) {
+				await board.finish(runId, {
+					result: 'error',
+					reason: reasonFor(`The check did not finish. ${why}`)
+				});
+				finished = true;
+				claimed = false;
+			}
 			return stop(`The check did not finish. ${why}`, runId);
 		}
 		// -- REPORT -- //
 		const ids: string[] = [];
-		for (const s of pickShots(ran.result.steps)) {
+		// Pictures of a signed in run are not uploaded unless the owner opted in for the registration: a compressed picture cannot be searched for a secret
+		const uploadPictures = pictureUploadAllowed(
+			registration ?? { uploadSignedInPictures: false },
+			usedSavedSignIn
+		);
+		if (!uploadPictures)
+			o.log('The pictures of a signed in run are not uploaded for this registration.');
+		for (const s of uploadPictures ? pickShots(ran.result.steps) : []) {
 			if (!s.shot) continue;
-			const bytes = readFileSync(join(runDir, 'shots', s.shot));
+			// The child wrote this file, so it is only read when it is a plain JPEG inside the shots folder (never a link it planted to a key file)
+			const read = readPlainFile(join(runDir, 'shots'), s.shot, {
+				maxBytes: MAX_SHOT_BYTES,
+				magic: JPEG_MAGIC
+			});
+			if ('refused' in read) {
+				o.log(`  A picture was not uploaded: ${read.refused}.`);
+				continue;
+			}
+			const bytes = read.bytes;
 			// A picture that holds a secret (found as bytes or text) is not uploaded
 			if (needles.some((n) => n.length >= 6 && Buffer.from(bytes).includes(n))) {
 				o.log('  A picture held a secret value, so it was not uploaded.');
@@ -262,23 +462,33 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 			);
 		}
 		const result = ran.result;
-		const report: RunReport = {
+		const wire = registration ? withBranch(registration) : null;
+		const report: RunReport = sanitiseReport({
 			result: result.result,
+			...(registration
+				? {
+						registration: registration.name,
+						...(registration.repo ? { repoName: basename(registration.repo) } : {}),
+						...(wire?.branch ? { branch: wire.branch } : {})
+					}
+				: {}),
 			durationMs: Math.min(result.durationMs, 24 * 3600 * 1000),
 			url: preview.baseUrl.slice(0, 300),
 			commit: preview.commit,
 			diffHash: preview.diffHash,
 			...(result.result === 'pass'
 				? {}
-				: { reason: redact(result.reason ?? 'The check failed.', needles).slice(0, 1900) }),
+				: { reason: reasonFor(result.reason ?? 'The check failed.') }),
 			...(preview.commit ? {} : { unverified: true }),
-			log: redact(result.log, needles).slice(0, 390_000),
+			log: redact(result.log, needlesAll).slice(0, 390_000),
 			evidence: ids
-		};
+		});
+		// A run the scheduler stopped is given back by the scheduler: what it found is not reported
+		if (schedulerOwns()) return stop('The run was stopped.', runId);
 		await board.finish(runId, report);
 		finished = true;
 		claimed = false;
-		appendAudit('run-finished', { run: runId, result: result.result });
+		auditSafely(o.log, 'run-finished', { run: runId, result: result.result });
 		return {
 			exitCode: result.result === 'pass' ? 0 : 1,
 			runId,
@@ -289,26 +499,35 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 					: `The check failed: ${result.reason ?? 'see the log'}`
 		};
 	} catch (e) {
-		const reason = e instanceof Error ? e.message : String(e);
-		if (board && runId && claimed) {
+		const said = e instanceof Error ? e.message : String(e);
+		const reason = limitHit ? limitSentence(runLimitMs()) : said;
+		// Nothing that reaches the board is unredacted: not a build log tail, not the message of an error
+		if (board && runId && claimed && !schedulerOwns()) {
 			await board
-				.finish(runId, { result: 'error', reason: reason.slice(0, 1900) })
+				.finish(runId, { result: 'error', reason: reasonFor(reason) })
 				.catch(() => undefined);
 			finished = true;
-			claimed = false;
 		}
-		return stop(reason, runId);
+		return stop(reasonFor(reason), runId);
 	} finally {
 		if (beat) clearInterval(beat);
+		if (limitTimer) clearTimeout(limitTimer);
 		uninstall();
 		if (scope) await scope.close();
+		// The slot goes back to the machine, and a pool container that no run needs any more is removed (a worker keeps it warm)
+		try {
+			await slot?.release();
+		} catch {
+			/* A slot that cannot be released is cleared by its stale heartbeat */
+		}
+		if (!o.claimed) await closePoolIfIdle().catch(() => undefined);
 		// A run that `check watch` already claimed must never be left running when this ends early (no script, a changed folder, a refusal)
-		if (o.claimed && !finished) {
+		if (o.claimed && !finished && !schedulerOwns()) {
 			const b = board ?? new RunnerBoard(o.server, o.runnerToken, o.fetch);
 			await b
 				.finish(o.claimed.id, {
 					result: 'error',
-					reason: (lastStop || 'The run stopped early.').slice(0, 1900)
+					reason: reasonFor(lastStop || 'The run stopped early.')
 				})
 				.catch(() => undefined);
 		}

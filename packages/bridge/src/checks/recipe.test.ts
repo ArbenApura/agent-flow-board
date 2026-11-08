@@ -117,11 +117,84 @@ describe('validateRecipe', () => {
 			'5433'
 		);
 	});
-	it('refuses a sealed secret with a plain line', () => {
+	it('refuses a sealed secret on a setting that may not take one, naming the setting only', () => {
 		const text = validateRecipe({ ...GOOD, env: { AFB_KEY: '{secret:AFB_KEY}' } }, SCRIPTS).join(
 			' '
 		);
-		expect(text).toContain('Sealed secrets are not supported');
+		expect(text).toContain('AFB_KEY');
+		const db = validateRecipe(
+			{ ...GOOD, env: { DATABASE_URL: '{secret:PUBLIC_SUPABASE_URL}' } },
+			SCRIPTS
+		).join(' ');
+		expect(db).toContain('DATABASE_URL');
+		expect(
+			validateRecipe({ ...GOOD, env: { ORIGIN: '{secret:PUBLIC_SUPABASE_URL}' } }, SCRIPTS)
+		).not.toEqual([]);
+	});
+	it('refuses a sealed placeholder that is malformed or names a key that cannot be sealed', () => {
+		const bad = (v: string) =>
+			validateRecipe({ ...GOOD, env: { PUBLIC_SUPABASE_URL: v } }, SCRIPTS).join(' ');
+		expect(bad('{secret:NODE_OPTIONS}')).toContain('PUBLIC_SUPABASE_URL');
+		expect(bad('{secret:lower_case}')).toContain('PUBLIC_SUPABASE_URL');
+		expect(bad('{secret:PUBLIC_SUPABASE_URL} extra')).toContain('PUBLIC_SUPABASE_URL');
+		expect(bad('{secret:}')).toContain('PUBLIC_SUPABASE_URL');
+	});
+	it('accepts a sealed value only on Supabase-style and mail settings', () => {
+		const ok = {
+			...GOOD,
+			env: {
+				PUBLIC_SUPABASE_URL: '{secret:PUBLIC_SUPABASE_URL}',
+				NEXT_PUBLIC_SUPABASE_ANON_KEY: '{secret:PUBLIC_SUPABASE_ANON_KEY}',
+				SUPABASE_SERVICE_ROLE_KEY: '{secret:SUPABASE_SERVICE_ROLE_KEY}',
+				SUPABASE_SECRET_KEY: '{secret:SUPABASE_SECRET_KEY}',
+				ATTENDEE_AUTH_SECRET: '{secret:ATTENDEE_AUTH_SECRET}',
+				POSTMARK_SERVER_TOKEN: '{secret:POSTMARK_SERVER_TOKEN}',
+				POSTMARK_FROM_EMAIL: '{secret:POSTMARK_FROM_EMAIL}',
+				POSTMARK_MESSAGE_STREAM: '{secret:POSTMARK_MESSAGE_STREAM}'
+			}
+		};
+		expect(validateRecipe(ok, SCRIPTS)).toEqual([]);
+	});
+	it('never lets a service key reach a PUBLIC_, VITE_ or NEXT_PUBLIC_ setting', () => {
+		for (const k of [
+			'PUBLIC_SUPABASE_ANON_KEY',
+			'VITE_SUPABASE_ANON_KEY',
+			'NEXT_PUBLIC_SUPABASE_ANON_KEY'
+		])
+			for (const name of ['SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEY']) {
+				const text = validateRecipe({ ...GOOD, env: { [k]: `{secret:${name}}` } }, SCRIPTS).join(
+					' '
+				);
+				expect(text, `${k} <- ${name}`).toContain('service key');
+				expect(text).toContain(k);
+			}
+	});
+	it('lets a mail setting take only the sealed value of its own name', () => {
+		const bad = (k: string, name: string) =>
+			validateRecipe({ ...GOOD, env: { [k]: `{secret:${name}}` } }, SCRIPTS).join(' ');
+		expect(bad('POSTMARK_FROM_EMAIL', 'POSTMARK_SERVER_TOKEN')).toContain('its own name');
+		expect(bad('POSTMARK_SERVER_TOKEN', 'PUBLIC_SUPABASE_URL')).toContain('its own name');
+		expect(bad('PUBLIC_SUPABASE_URL', 'POSTMARK_SERVER_TOKEN')).toContain('its own name');
+		expect(bad('POSTMARK_SERVER_TOKEN', 'POSTMARK_SERVER_TOKEN')).toBe('');
+	});
+	it('never echoes a value in a problem line', () => {
+		const text = validateRecipe(
+			{ ...GOOD, env: { ORIGIN: '{secret:SOMETHING_VERY_SECRET_9876}', AFB_X: 'plain; rm -rf' } },
+			SCRIPTS
+		).join(' ');
+		expect(text).not.toContain('SOMETHING_VERY_SECRET_9876');
+		expect(text).not.toContain('rm -rf');
+	});
+	it('refuses the warm key with one plain sentence, and accepts it switched off (warm previews are not enabled)', () => {
+		expect(validateRecipe({ ...GOOD, warm: false }, SCRIPTS)).toEqual([]);
+		expect(validateRecipe({ ...GOOD, warm: false, needsDatabase: true }, SCRIPTS)).toEqual([]);
+		expect(validateRecipe({ ...GOOD, warm: true }, SCRIPTS)).toEqual([
+			'"warm": warm previews are not enabled in this version.'
+		]);
+		expect(validateRecipe({ ...GOOD, warm: 'yes' }, SCRIPTS).join(' ')).toContain('"warm"');
+		expect(
+			validateRecipe({ ...GOOD, warm: true, needsDatabase: true }, SCRIPTS).join(' ')
+		).toContain('not enabled');
 	});
 	it('refuses an env that is not an object', () => {
 		expect(validateRecipe({ ...GOOD, env: ['a'] }, SCRIPTS).join(' ')).toContain('"env"');
@@ -241,5 +314,66 @@ describe('files on disk', () => {
 		write('vite.config.ts', 'a\nb\n');
 		write(RECIPE_FILE, '{}');
 		expect(pinFiles(repo)).not.toBe(first);
+	});
+});
+
+// -- THE REAL HAPR RECIPES (COPIED AS THEY ARE; NO VALUE IN THEM IS SECRET, ONLY {secret:NAME} PLACEHOLDERS) -- //
+
+const HAPR_WEB = `{
+	"version": 1,
+	"build": "pnpm build",
+	"start": "pnpm preview --port {port} --host 127.0.0.1",
+	"ready": "/login",
+	"needsDatabase": false,
+	"env": {
+		"PUBLIC_SUPABASE_URL": "{secret:PUBLIC_SUPABASE_URL}",
+		"PUBLIC_SUPABASE_ANON_KEY": "{secret:PUBLIC_SUPABASE_ANON_KEY}",
+		"PUBLIC_GOOGLE_MAPS_API_KEY": "placeholder",
+		"SUPABASE_SERVICE_ROLE_KEY": "{secret:SUPABASE_SERVICE_ROLE_KEY}",
+		"ATTENDEE_AUTH_SECRET": "{secret:ATTENDEE_AUTH_SECRET}",
+		"POSTMARK_SERVER_TOKEN": "{secret:POSTMARK_SERVER_TOKEN}",
+		"POSTMARK_FROM_EMAIL": "{secret:POSTMARK_FROM_EMAIL}"
+	}
+}`;
+const HAPR_LANDING = `{
+	"version": 1,
+	"build": "pnpm build",
+	"start": "pnpm preview --port {port} --host 127.0.0.1",
+	"ready": "/",
+	"needsDatabase": false,
+	"env": {
+		"PUBLIC_DEMO_HUB_VERIFIED": "true"
+	}
+}`;
+
+describe('the real hapr-gameplan recipes', () => {
+	it('accepts the web recipe', () => {
+		expect(validateRecipe(JSON.parse(HAPR_WEB), SCRIPTS)).toEqual([]);
+	});
+	it('accepts the landing recipe', () => {
+		expect(validateRecipe(JSON.parse(HAPR_LANDING), SCRIPTS)).toEqual([]);
+	});
+	it('refuses each broken variant of the sealed rules in the web recipe', () => {
+		const web = JSON.parse(HAPR_WEB) as { env: Record<string, string> };
+		const variant = (change: Record<string, string>) =>
+			validateRecipe({ ...web, env: { ...web.env, ...change } }, SCRIPTS).join(' ');
+		expect(variant({ PUBLIC_SUPABASE_ANON_KEY: '{secret:SUPABASE_SERVICE_ROLE_KEY}' })).toContain(
+			'service key'
+		);
+		expect(variant({ POSTMARK_FROM_EMAIL: '{secret:POSTMARK_SERVER_TOKEN}' })).toContain(
+			'its own name'
+		);
+		expect(variant({ DATABASE_URL: '{secret:PUBLIC_SUPABASE_URL}' })).toContain('DATABASE_URL');
+		expect(variant({ NODE_OPTIONS: '{secret:ATTENDEE_AUTH_SECRET}' })).toContain('NODE_OPTIONS');
+		expect(variant({ ATTENDEE_AUTH_SECRET: 'secret:ATTENDEE_AUTH_SECRET; rm' })).toContain(
+			'ATTENDEE_AUTH_SECRET'
+		);
+		expect(variant({ POSTMARK_SERVER_TOKEN: 'a-literal-token' })).toContain(
+			'POSTMARK_SERVER_TOKEN'
+		);
+		expect(variant({ POSTMARK_SERVER_TOKEN: 'a-literal-token' })).not.toContain('a-literal-token');
+		expect(
+			validateRecipe({ ...web, start: 'pnpm preview --port 5190' }, SCRIPTS).join(' ')
+		).toContain('5190');
 	});
 });

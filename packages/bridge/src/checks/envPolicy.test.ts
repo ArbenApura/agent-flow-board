@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // -- MODULES -- //
-import { buildPreviewEnv, parseEnvText } from './envPolicy.js';
+import { buildAdoptedEnv, buildPreviewEnv, parseEnvText } from './envPolicy.js';
 
 // -- FUNCTIONS -- //
 
@@ -127,5 +127,89 @@ describe('buildPreviewEnv', () => {
 		const r = buildPreviewEnv(base());
 		expect(r.stripped).toEqual([]);
 		expect(r.env.PORT).toBe('41234');
+	});
+});
+
+// -- THE ADOPTED ENVIRONMENT -- //
+
+describe('buildAdoptedEnv', () => {
+	let repo = '';
+	beforeEach(() => {
+		repo = mkdtempSync(join(tmpdir(), 'afb-adopt-'));
+	});
+	afterEach(() => rmSync(repo, { recursive: true, force: true }));
+	const base = () => ({ repo, recipeEnv: {}, port: 41234, baseUrl: 'http://127.0.0.1:41234' });
+
+	it('adopts the whole .env for the start step only, never for the build', () => {
+		writeFileSync(
+			join(repo, '.env'),
+			'SESSION_SECRET=keep-this-session-secret\nPUBLIC_TITLE=Hello\nORIGIN=https://live.example.com\n'
+		);
+		const r = buildAdoptedEnv(base());
+		expect(r.env.SESSION_SECRET).toBe('keep-this-session-secret');
+		expect(r.buildEnv.SESSION_SECRET).toBeUndefined();
+		expect(r.buildEnv.PUBLIC_TITLE).toBeUndefined();
+		expect(r.env.ORIGIN).toBe('http://127.0.0.1:41234');
+		expect(r.env.PORT).toBe('41234');
+		expect(r.env.EMAIL_PROVIDER).toBe('log');
+		expect(r.problems).toEqual([]);
+		expect(r.redactions).toContain('keep-this-session-secret');
+		expect(r.notes.join('\n')).not.toContain('keep-this-session-secret');
+	});
+
+	it('lets the recipe and the run win over the file, and drops the deny list', () => {
+		writeFileSync(
+			join(repo, '.env'),
+			'AFB_X=file\nNODE_OPTIONS=--require evil.js\nPATH=/evil\nPORT=1\n'
+		);
+		const r = buildAdoptedEnv({ ...base(), recipeEnv: { AFB_X: 'recipe' } });
+		expect(r.env.AFB_X).toBe('recipe');
+		expect(r.env.NODE_OPTIONS).toBeUndefined();
+		expect(r.env.PATH).not.toBe('/evil');
+		expect(r.notes.join(' ')).toContain('NODE_OPTIONS');
+	});
+
+	it('fails the run for a database value on 5433 and names the variable, not the value', () => {
+		writeFileSync(
+			join(repo, '.env'),
+			'DATABASE_URL=postgres://u:hunter2hunter2@localhost:5433/app\n'
+		);
+		const r = buildAdoptedEnv({
+			...base(),
+			databaseUrl: 'postgresql://app:pw@127.0.0.1:50000/app'
+		});
+		expect(r.problems).toHaveLength(1);
+		expect(r.problems[0]).toContain('DATABASE_URL');
+		expect(r.problems.join(' ') + r.notes.join(' ')).not.toContain('hunter2hunter2');
+		// The run's own throwaway database still wins in the environment, but the run is refused by the caller
+		expect(r.env.DATABASE_URL).toBe('postgresql://app:pw@127.0.0.1:50000/app');
+	});
+
+	it('allows the sealed test host and refuses a production host', () => {
+		writeFileSync(join(repo, '.env'), 'SUPABASE_URL=https://testref12.supabase.co\n');
+		expect(buildAdoptedEnv({ ...base(), testHost: 'testref12.supabase.co' }).problems).toEqual([]);
+		expect(buildAdoptedEnv(base()).problems).toHaveLength(1);
+	});
+
+	it('keeps only sealed mail settings', () => {
+		writeFileSync(
+			join(repo, '.env'),
+			'POSTMARK_SERVER_TOKEN=live-token-123456\nSMTP_HOST=smtp.example.com\nKEEP=1\n'
+		);
+		const r = buildAdoptedEnv({ ...base(), sealedNames: ['POSTMARK_SERVER_TOKEN'] });
+		expect(r.env.POSTMARK_SERVER_TOKEN).toBe('live-token-123456');
+		expect(r.env.SMTP_HOST).toBeUndefined();
+		expect(r.stripped).toEqual(['SMTP_HOST']);
+		expect(r.env.KEEP).toBe('1');
+	});
+
+	it('leaves the stricter default untouched for a registration that did not opt in', () => {
+		writeFileSync(
+			join(repo, '.env'),
+			'DATABASE_URL=postgres://u:p@db.example.com:5432/app\nKEEP=1\n'
+		);
+		const r = buildPreviewEnv(base());
+		expect(r.stripped).toEqual(['DATABASE_URL']);
+		expect(r.env.KEEP).toBe('1');
 	});
 });

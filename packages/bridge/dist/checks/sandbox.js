@@ -5,11 +5,12 @@
 // program and no worker, loads no addon, and gets an environment of PATH, SystemRoot, TEMP, TMP and AFB_PLAYWRIGHT_DIR and nothing else.
 // -- DEP-MODULES -- //
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 // -- MODULES -- //
 import { playwrightRuntimeDir } from './browser.js';
+import { MAX_RESULT_BYTES, findLink, isPlainFile, readPlainFile } from './evidence.js';
 import { ensureDir, isInside, runsDir } from './paths.js';
 import { redact } from './redact.js';
 import { killTree } from './scope.js';
@@ -105,7 +106,7 @@ export async function runNodeInSandbox(opts) {
 }
 const redactDeep = (text, needles, max) => redact(String(text ?? ''), needles).slice(0, max);
 /** The result the child wrote is data, not trusted: its shape is rebuilt, names are checked and every text goes through the redaction again. */
-function cleanResult(raw, needles) {
+export function cleanResult(raw, needles, shotsDir) {
     if (typeof raw !== 'object' || raw === null)
         return null;
     const r = raw;
@@ -122,7 +123,10 @@ function cleanResult(raw, needles) {
             name: redactDeep(s.name, needles, 200),
             status: s.status === 'pass' || s.status === 'fail' ? s.status : 'shot',
             ms: Number(s.ms) || 0,
-            shot: SHOT.test(String(s.shot ?? '')) ? String(s.shot) : null,
+            // A picture that is not a plain file (a link the child planted) is dropped, not reported
+            shot: SHOT.test(String(s.shot ?? '')) && (!shotsDir || isPlainFile(shotsDir, String(s.shot)))
+                ? String(s.shot)
+                : null,
             ...(s.error ? { error: redactDeep(s.error, needles, 500) } : {})
         })),
         log: redactDeep(r.log, needles, 20_000),
@@ -136,6 +140,12 @@ export async function runCheckInSandbox({ job, scriptsRoot, log, signal }) {
         throw new Error('That check is not inside the scripts folder, so it was not run.');
     if (!isInside(runsDir(), job.runDir))
         throw new Error('The run folder is not inside the runs folder, so the check was not run.');
+    // The permission model follows links, so a link in a folder the check may read or write would reach files outside it: none is allowed there
+    for (const folder of [job.runDir, scriptsRoot]) {
+        const link = findLink(folder);
+        if (link)
+            throw new Error(`There is a link or a file with several names in a folder the check may use (${basename(link)}), so the check was not run. Remove it.`);
+    }
     const pwDir = playwrightRuntimeDir();
     if (!pwDir)
         throw new Error('Playwright is not installed yet. Run "agent-flow-board check setup" and it will install it.');
@@ -169,15 +179,27 @@ export async function runCheckInSandbox({ job, scriptsRoot, log, signal }) {
             }
         }
     });
-    const stderr = redact(run.stderr, needles);
+    let stderr = redact(run.stderr, needles);
+    // A link made during the run is as bad as one made before it: nothing the check wrote is read
+    const planted = [job.runDir, scriptsRoot].map((d) => findLink(d)).find(Boolean);
+    if (planted) {
+        log('A link appeared in a folder the check may use, so what it wrote was not read.');
+        stderr = `A link appeared in the run folder (${basename(planted)}). ${stderr}`.slice(-4000);
+        return { exitCode: run.exitCode, stderr, result: null };
+    }
     const file = join(job.runDir, 'result.json');
     let result = null;
     if (existsSync(file)) {
-        try {
-            result = cleanResult(JSON.parse(readFileSync(file, 'utf8')), needles);
-        }
-        catch {
-            result = null;
+        const read = readPlainFile(job.runDir, 'result.json', { maxBytes: MAX_RESULT_BYTES });
+        if ('refused' in read)
+            log(`The result file of the check was not read: ${read.refused}.`);
+        else {
+            try {
+                result = cleanResult(JSON.parse(read.bytes.toString('utf8')), needles, join(job.runDir, 'shots'));
+            }
+            catch {
+                result = null;
+            }
         }
     }
     if (run.timedOut)

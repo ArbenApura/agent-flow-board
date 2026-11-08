@@ -4,19 +4,22 @@
 // -- DEP-MODULES -- //
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 // -- MODULES -- //
-import { verifyAudit } from './audit.js';
-import { bindFolder, listBindings, pinStatus } from './bind.js';
-import { ensureBrowser, playwrightRuntimeDir } from './browser.js';
+import { bindFolder } from './bind.js';
+import { ensureBrowser } from './browser.js';
 import { connectChecks, loadRunnerToken, runnerAccount } from './connect.js';
-import { forgetConnection, listConnections, recordConnection } from './connections.js';
-import { ORG_SLUG, checksHome, scriptPath } from './paths.js';
+import { forgetConnection, recordConnection } from './connections.js';
+import { ORG_SLUG, scriptPath, scriptsDir } from './paths.js';
 import { pinFiles, resolveProjectConfig } from './recipe.js';
 import { runCheck } from './run.js';
-import { clearRuns, sweepOrphans } from './scope.js';
-import { permissionFlag } from './sandbox.js';
 import { watchChecks } from './watch.js';
+import { approveCommand, projectCommand, rootsCommand } from './commands.js';
+import { clearCommand, healthCommand } from './doctor.js';
+import { importLegacyCommand } from './importlegacy.js';
+import { loginCommand } from './login.js';
+import { secretsCommand } from './secretscmd.js';
+import { serviceCommand } from './service.js';
 // -- CONSTANTS -- //
 export const CHECK_USAGE = [
     'Usage: agent-flow-board check <command>',
@@ -25,14 +28,36 @@ export const CHECK_USAGE = [
     '  pull <item> <key> --server <url> --org <slug> [--accept-hash <sha256>]   read the board copy of a script; accept it by hash',
     '  bind --org <slug> --project <KEY> [--dir <repo>]   remember the folder of a board project for "check watch"',
     '  watch [--parallel N] [--once]   take queued runs from the boards this machine is connected to',
-    '  status [--json]  |  doctor [--fix] [--json]  |  clear [--all]  |  setup  |  disconnect --server <url> --org <slug>'
+    '  run ... also takes [--registration NAME] [--file <script inside the scripts folder>] [--headed]',
+    '  project <NAME> --org <slug> (--repo <dir> [--app-dir web] [--board-project KEY] [--recipe] | --url <address> [--extra-hosts a,b]) [--adopt-env --adopt-env-approval <code>] [--upload-pictures --pictures-approval <code>] [--approval <code>] | project list|forget|pin',
+    '  approve --action <roots|register|secrets|adopt-env|pictures> --target <name>   (the owner, on a terminal)  |  roots add|list|remove <dir> [--approval <code>]',
+    '  secrets import|list|forget --org <slug> --project <NAME> [--from <file> --keys A,B --test-ref <ref> --test-inbox <email> --owner-said "<sentence>" --allow-service-role --approval <code>]',
+    '  login <NAME> --org <slug> --seeded  |  service install|uninstall|status [--no-start]  |  import-legacy --from <afb-checks folder> --org <slug> [--dry-run]',
+    '  status [--json]  |  doctor [--fix] [--json]  |  clear [runs|profiles|auth|dbs|previews|all] [--all] [--yes]  |  setup  |  disconnect --server <url> --org <slug>'
 ].join('\n');
 // -- FUNCTIONS -- //
+/** The value of --parallel: undefined when the flag is absent (the machine decides), else a whole number from 1 up. */
+export function parallelFlag(raw) {
+    if (raw === undefined)
+        return undefined;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1)
+        throw new Error(`--parallel takes a whole number of 1 or more, not "${raw.slice(0, 20)}".`);
+    return n;
+}
 /** Runs one check command and returns the exit code: 0 done, 1 a check failed or a problem was listed, 2 could not run. */
 export async function checkMain(ctx) {
     const { args, log, out } = ctx;
     const sub = args[0];
-    const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+    // A flag that is given takes the next word as its value; a missing value, or another flag in its place (--step --json), is an error and never a silent default
+    const flag = (name) => {
+        if (!args.includes(name))
+            return undefined;
+        const v = args[args.indexOf(name) + 1];
+        if (v === undefined || v.startsWith('--'))
+            throw new Error(`Say ${name} <value>.`);
+        return v;
+    };
     const has = (name) => args.includes(name);
     const json = has('--json');
     const need = (name) => {
@@ -83,12 +108,27 @@ export async function checkMain(ctx) {
             return 0;
         }
         if (sub === 'run') {
-            const item = args[1];
-            const key = args[2];
+            // `--file <script>` names a script inside the scripts folder (<org>/<item>/<key>.mjs) instead of the item and the key
+            let item = args[1];
+            let key = args[2];
+            let fileOrg = null;
+            const fileFlag = flag('--file');
+            if (fileFlag) {
+                const rel = relative(scriptsDir(), resolve(fileFlag)).split(/[\\/]/);
+                const base = rel[2]?.replace(/\.mjs$/, '');
+                if (rel.length !== 3 || rel.includes('..') || !base)
+                    throw new Error(`--file must be a script inside ${scriptsDir()}, in the form <org>/<item>/<key>.mjs.`);
+                fileOrg = rel[0] ?? null;
+                item = rel[1];
+                key = base;
+            }
             if (!item || !key || item.startsWith('--') || key.startsWith('--'))
-                throw new Error('Usage: agent-flow-board check run <item> <key> --server <url> --org <slug>');
+                throw new Error('Usage: agent-flow-board check run <item> <key> --server <url> --org <slug> (or --file <script>)');
             const s = server();
             const o = org();
+            // The folder of a script names its organisation: a script of one organisation is never run as another's
+            if (fileOrg !== null && fileOrg !== o)
+                throw new Error(`--file is a script of the organisation ${fileOrg.slice(0, 40)}, but --org says ${o}. Use the same organisation in both.`);
             const token = loadRunnerToken(ctx.store, s, o);
             if (!token)
                 throw new Error(`This machine is not connected to ${o} on ${s}. Run: agent-flow-board check connect --server ${s} --org ${o} --json`);
@@ -100,6 +140,7 @@ export async function checkMain(ctx) {
                 dir: resolve(flag('--dir') ?? process.cwd()),
                 step: flag('--step'),
                 runId: flag('--run'),
+                registration: flag('--registration'),
                 runnerToken: token,
                 personalToken: ctx.personalToken(s, o),
                 fetch: ctx.fetch,
@@ -162,6 +203,25 @@ export async function checkMain(ctx) {
             }));
             return 0;
         }
+        // The registration, approval, sign in and service commands live in their own modules; each takes the arguments after its word
+        if (sub === 'project')
+            return await projectCommand(args.slice(1), { log, out, json });
+        if (sub === 'approve')
+            return await approveCommand(args.slice(1), { log, out, json });
+        if (sub === 'roots')
+            return await rootsCommand(args.slice(1), { log, out, json });
+        if (sub === 'login')
+            return await loginCommand(args.slice(1), { log, out, json });
+        if (sub === 'service')
+            return await serviceCommand(args.slice(1), { log, out, json });
+        if (sub === 'secrets')
+            return await secretsCommand(args.slice(1), { log, out, json });
+        if (sub === 'import-legacy')
+            return await importLegacyCommand(args.slice(1), { log, out, json });
+        if (sub === 'clear')
+            return await clearCommand(args.slice(1), { log, out, json, store: ctx.store });
+        if (sub === 'status' || sub === 'doctor')
+            return await healthCommand(args, { log, out, json, store: ctx.store });
         if (sub === 'bind') {
             const o = org();
             const project = need('--project');
@@ -180,7 +240,8 @@ export async function checkMain(ctx) {
                 store: ctx.store,
                 fetch: ctx.fetch,
                 log,
-                parallel: Number(flag('--parallel') ?? 3) || 3,
+                // Without --parallel the slots come from the machine (CPUs and free memory); a value that is not a whole number above 0 is refused, never turned into 3
+                parallel: parallelFlag(flag('--parallel')),
                 once: has('--once'),
                 signal: ac.signal
             });
@@ -190,13 +251,6 @@ export async function checkMain(ctx) {
         if (sub === 'setup') {
             await ensureBrowser(log);
             log('The browser is ready.');
-            return 0;
-        }
-        if (sub === 'status' || sub === 'doctor')
-            return await statusOrDoctor(ctx, sub === 'doctor', has('--fix'), json);
-        if (sub === 'clear') {
-            const r = clearRuns({ all: has('--all') });
-            log(`Removed ${r.removed} finished run folder(s).`);
             return 0;
         }
         log(CHECK_USAGE);
@@ -210,71 +264,4 @@ export async function checkMain(ctx) {
             log(message);
         return 2;
     }
-}
-async function statusOrDoctor(ctx, doctor, fix, json) {
-    const problems = [];
-    const audit = verifyAudit();
-    if (!audit.ok)
-        problems.push({
-            problem: 'The audit log does not verify (it was edited or cut).',
-            next: 'Do not edit it. Move checks/audit.log aside to start a new chain.'
-        });
-    if (!permissionFlag())
-        problems.push({
-            problem: 'This Node has no permission model, so check scripts cannot be sandboxed.',
-            next: 'Install Node 20.18 or later (or any Node 22).'
-        });
-    if (!playwrightRuntimeDir()) {
-        if (doctor && fix)
-            await ensureBrowser(ctx.log);
-        else
-            problems.push({
-                problem: 'The browser is not installed.',
-                next: 'Run: agent-flow-board check setup'
-            });
-    }
-    const swept = doctor && fix ? await sweepOrphans(ctx.log) : 0;
-    const connections = listConnections().map((c) => ({
-        ...c,
-        connected: Boolean(loadRunnerToken(ctx.store, c.server, c.org))
-    }));
-    for (const c of connections)
-        if (!c.connected)
-            problems.push({
-                problem: `${c.org} on ${c.server} has no runner token.`,
-                next: `Run: agent-flow-board check connect --server ${c.server} --org ${c.org} --json`
-            });
-    const bindings = listBindings().map((b) => ({
-        org: b.org,
-        project: b.projectKey,
-        folder: b.folder,
-        pin: pinStatus(b.org, b.projectKey)
-    }));
-    for (const b of bindings)
-        if (b.pin !== 'ok')
-            problems.push({
-                problem: `${b.org}/${b.project}: the files that decide what runs changed in ${b.folder}.`,
-                next: `In that folder run a check once: agent-flow-board check run <item> <key> --org ${b.org}`
-            });
-    const state = {
-        home: checksHome(),
-        connections,
-        bindings,
-        audit: { ok: audit.ok, lines: audit.lines },
-        browser: Boolean(playwrightRuntimeDir()),
-        swept,
-        problems
-    };
-    if (json)
-        ctx.out(JSON.stringify(state));
-    else {
-        ctx.log(`State folder: ${state.home}`);
-        ctx.log(`Connections: ${connections.map((c) => `${c.org}@${c.server}${c.connected ? '' : ' (no token)'}`).join(', ') || 'none'}`);
-        ctx.log(`Bound folders: ${bindings.map((b) => `${b.org}/${b.project} -> ${b.folder} (${b.pin})`).join('; ') || 'none'}`);
-        for (const p of problems)
-            ctx.log(`Problem: ${p.problem} Next: ${p.next}`);
-        if (!problems.length)
-            ctx.log('Nothing is wrong.');
-    }
-    return doctor && problems.length ? 1 : 0;
 }

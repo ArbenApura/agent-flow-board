@@ -18,7 +18,7 @@ const IMAGE = 'postgres:16-alpine';
 const DOCKER_COMMANDS = new Set(['version', 'run', 'rm', 'exec', 'inspect', 'logs']);
 // -- FUNCTIONS -- //
 /** Runs the real docker program. Never throws: a program that cannot start is a status of -1. */
-const realDocker = (args) => new Promise((resolve) => {
+export const realDocker = (args) => new Promise((resolve) => {
     execFile('docker', args, { windowsHide: true, timeout: 120_000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
         const code = err
             ? typeof err.code === 'number'
