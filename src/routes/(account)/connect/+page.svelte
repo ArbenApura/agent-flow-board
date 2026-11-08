@@ -22,10 +22,12 @@
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 	// -- DEP-COMPONENTS -- //
+	import Activity from '@lucide/svelte/icons/activity';
 	import Bot from '@lucide/svelte/icons/bot';
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import KeyRound from '@lucide/svelte/icons/key-round';
+	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import MonitorSmartphone from '@lucide/svelte/icons/monitor-smartphone';
 	import Package from '@lucide/svelte/icons/package';
 	import Plug from '@lucide/svelte/icons/plug';
@@ -39,11 +41,37 @@
 
 	const uid = $props.id();
 
+	// What the agent does on the Editor status tab, in order. The plan itself comes from the editor_status_install tool.
+	const EDITOR_STEPS = [
+		{
+			title: 'Show you the plan',
+			text: 'The hook commands and the mod files, with their checksums, before anything is written.'
+		},
+		{
+			title: 'Sign the bridge in',
+			text: 'You are the person it signs in as. It can read, comment and write here. It cannot complete, delete or manage.'
+		},
+		{
+			title: 'Write the hooks for this repo',
+			text: 'Into .claude/settings.local.json, so teammates are not changed. The old file is backed up first.'
+		},
+		{
+			title: 'Install the editor mod',
+			text: 'Into a folder Claude Code loads by itself. It asks once before writing outside the repo.'
+		},
+		{
+			title: 'Check it works',
+			text: 'Claim an item and the line shows it. A status file appears while the conversation runs and is gone after it ends.'
+		}
+	] as const;
+
 	// -- STATES -- //
 
 	let picking = $state(false);
 	let previewOpen = $state(false);
 	let skillsPreviewOpen = $state(false);
+	let editorPreviewOpen = $state(false);
+	let tabRow = $state<HTMLElement>();
 
 	let active = $state('claude-code');
 	let name = $state('');
@@ -65,8 +93,83 @@
 			key: 'skills',
 			label: 'Skills',
 			href: data.org ? `/connect?org=${data.org.slug}&tab=skills` : '/connect?tab=skills'
+		},
+		{
+			key: 'editor',
+			label: 'Editor status',
+			href: data.org ? `/connect?org=${data.org.slug}&tab=editor` : '/connect?tab=editor'
 		}
 	]);
+	// Setting up the editor status has an agent sign a tool in, which needs the Manage permission
+	const canSetUp = $derived((data.caps as string[]).includes('manage'));
+	// The live line of the Editor status tab: one of five states, always with a plain reason
+	const editorLine = $derived.by(
+		(): {
+			dot: string;
+			tone: 'neutral' | 'success' | 'warning' | 'danger';
+			badge: string;
+			title: string;
+			note: string;
+		} => {
+			const org = data.org?.name ?? 'this organisation';
+			const sign = data.editor?.signIn;
+			if (!canSetUp)
+				return {
+					dot: 'bg-muted',
+					tone: 'neutral',
+					badge: 'Needs Manage',
+					title: `You cannot set this up in ${org}`,
+					note: `Your role here is ${data.org ? ROLE_LABEL[data.org.role] : 'not set'}.`
+				};
+			if (!sign)
+				return {
+					dot: 'bg-danger',
+					tone: 'danger',
+					badge: 'Not read',
+					title: 'Could not read who is signed in',
+					note: 'Nothing was changed.'
+				};
+			if (sign.state === 'signed-in')
+				return {
+					dot: 'bg-success',
+					tone: 'success',
+					badge: 'Signed in',
+					title: `Signed in as ${data.editor?.person} in ${org}`,
+					note: `Last used ${when(sign.lastUsedAt)}. Ends ${when(sign.expiresAt)}.`
+				};
+			if (sign.state === 'expired')
+				return {
+					dot: 'bg-warning',
+					tone: 'warning',
+					badge: 'Expired',
+					title: `The bridge sign in for ${data.editor?.person} in ${org} ended ${when(sign.expiresAt)}`,
+					note: 'Paste the prompt again. The agent signs it in once more and keeps your hooks as they are.'
+				};
+			return {
+				dot: 'bg-muted',
+				tone: 'neutral',
+				badge: 'Not set up',
+				title: 'No bridge is signed in on your account yet',
+				note: 'Copy the prompt and paste it into Claude Code. This line fills in once the agent is done.'
+			};
+		}
+	);
+
+	// -- REACTIVE STATEMENTS -- //
+
+	// The active tab slides to the centre of the row on a tab change and on first load, with the row's own scroll
+	$effect(() => {
+		void data.tab;
+		const row = tabRow;
+		const current = row?.querySelector<HTMLElement>('[aria-current="page"]');
+		if (!row || !current) return;
+		const left =
+			current.getBoundingClientRect().left -
+			row.getBoundingClientRect().left +
+			row.scrollLeft -
+			(row.clientWidth - current.offsetWidth) / 2;
+		row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+	});
 
 	// -- FUNCTIONS -- //
 
@@ -209,9 +312,10 @@
 		{/snippet}
 	</PageHeader>
 
-	<!-- SECTIONS OF THIS PAGE: THE TOOLS AND THE SKILLS, KEPT IN THE ADDRESS -->
+	<!-- SECTIONS OF THIS PAGE: THE TOOLS, THE SKILLS AND THE EDITOR STATUS, KEPT IN THE ADDRESS. A SIDEWAYS ROW ON A PHONE -->
 	<nav
-		class="flex gap-0.5 border-b border-line"
+		bind:this={tabRow}
+		class="flex [scrollbar-width:none]! gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-line [&::-webkit-scrollbar]:hidden"
 		aria-label="Connect sections"
 		data-testid="connect-tabs"
 	>
@@ -220,7 +324,7 @@
 				href={t.href}
 				aria-current={data.tab === t.key ? 'page' : undefined}
 				class={cn(
-					'-mb-px inline-flex min-h-11 cursor-pointer items-center border-b-2 px-3 text-sm font-medium whitespace-nowrap',
+					'-mb-px inline-flex min-h-11 shrink-0 cursor-pointer items-center border-b-2 px-3 text-sm font-medium whitespace-nowrap',
 					data.tab === t.key
 						? 'border-accent text-accent-text'
 						: 'border-transparent text-muted hover:text-ink'
@@ -318,6 +422,81 @@
 					>{/snippet}
 			</EmptyState></Card
 		>
+	{:else if data.tab === 'editor'}
+		<!-- EDITOR STATUS: ONE PROMPT THAT SETS UP THE LINE SHOWING THE FLOW ITEM OF A CLAUDE CODE CONVERSATION -->
+		<Card
+			data-testid="editor-setup"
+			icon={Activity}
+			title="Show your flow item in your editor"
+			description="Copy this, paste it into Claude Code. The agent signs the bridge in for you, shows you what it will write and asks before it writes it. Afterwards each conversation shows the item it works on, with no token to make."
+		>
+			<!-- THE LIVE LINE: WHO THE BRIDGE IS SIGNED IN AS FOR THIS ORGANISATION, READ FROM THE PERSON'S OWN SIGN INS -->
+			<div
+				class="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-raised p-3"
+				data-testid="editor-live"
+				aria-live="polite"
+			>
+				<span class={cn('size-2 shrink-0 rounded-full', editorLine.dot)} aria-hidden="true"></span>
+				<div class="min-w-48 flex-1 text-sm text-ink">
+					<p>{editorLine.title}</p>
+					<p class="text-xs text-muted">{editorLine.note}</p>
+				</div>
+				<Badge tone={editorLine.tone}>{editorLine.badge}</Badge>
+			</div>
+			{#if !canSetUp}
+				<Notice tone="warning" class="mt-3" data-testid="editor-needs-manage">
+					Setting this up needs the Manage permission in {data.org.name}, because the agent signs a
+					tool in for you. Ask an owner or admin to run it, or to give you Manage.
+				</Notice>
+			{/if}
+			{#if data.editor && !data.editor.signIn}
+				<Notice tone="danger" class="mt-3" data-testid="editor-error">
+					The sign ins could not be read just now. The prompt still works. Reload the page to see
+					who is signed in.
+				</Notice>
+			{/if}
+			<!-- ONE PLAIN BUTTON: CREATE TOKEN STAYS THE ONLY PRIMARY ACTION OF THE PAGE -->
+			<div class="mt-4 grid grid-cols-1 gap-2 sm:flex" data-testid="editor-actions">
+				<Button
+					disabled={!canSetUp || !data.editor}
+					onclick={() => data.editor && copy(data.editor.brief)}
+					data-testid="editor-copy"
+				>
+					Copy setup prompt
+				</Button>
+			</div>
+			{#if data.editor}
+				{@render agentPreview(
+					'editor-preview',
+					data.editor.brief,
+					editorPreviewOpen,
+					() => (editorPreviewOpen = !editorPreviewOpen),
+					'editor-preview'
+				)}
+			{/if}
+		</Card>
+
+		<Card
+			data-testid="editor-does"
+			icon={ListChecks}
+			title="What the agent will do"
+			description="Five steps, in this order. You can stop it at any one of them."
+		>
+			<ol class="flex flex-col" data-testid="editor-steps">
+				{#each EDITOR_STEPS as s, i (s.title)}
+					<li class="flex gap-3 border-b border-line py-3 first:pt-0 last:border-b-0 last:pb-0">
+						<span
+							class="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-semibold text-accent-text"
+							aria-hidden="true">{i + 1}</span
+						>
+						<span class="flex flex-col gap-0.5">
+							<span class="text-sm font-medium text-ink">{s.title}</span>
+							<span class="text-xs text-muted">{s.text}</span>
+						</span>
+					</li>
+				{/each}
+			</ol>
+		</Card>
 	{:else}
 		<!-- COPY SETUP FOR YOUR AGENT -->
 		<Card

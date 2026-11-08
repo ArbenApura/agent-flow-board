@@ -7,12 +7,14 @@ import { AFB_BASE_URL } from '$app/env/private';
 import { fail, redirect } from '@sveltejs/kit';
 // -- MODULES -- //
 import { agentSetupMarkdown } from '#lib/connect/agentSetup.js';
+import { editorSetupMarkdown } from '#lib/connect/editorSetup.js';
 import { skillsBriefMarkdown } from '#lib/connect/skillsBrief.js';
 import { snippets } from '#lib/connect/snippets.js';
 import { orgMcpUrl, toolPrefix } from '#lib/shared/orgConnection.js';
 import { getDb } from '#lib/server/db/index.js';
 import { listConnections, revokeConnection } from '#lib/server/oauth/oauth.js';
 import { capsOf, OpError } from '#lib/server/ops/context.js';
+import { bridgeSignIn } from '#lib/server/ops/editorStatus.js';
 import { createToken } from '#lib/server/ops/tokens.js';
 import { listMyOrgs } from '#lib/server/orgs/orgs.js';
 import { systemSkillsIndex } from '#lib/server/system-skills/index.js';
@@ -66,13 +68,15 @@ async function personCtx(
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) redirect(303, `/sign-in?next=${encodeURIComponent('/connect')}`);
-	// The tab is in the address, so a link opens the Skills tab; anything else is the tools tab
-	const tab = url.searchParams.get('tab') === 'skills' ? 'skills' : 'tools';
+	// The tab is in the address, so a link opens the Skills or the Editor status tab; anything else is the tools tab
+	const asked = url.searchParams.get('tab');
+	const tab = asked === 'skills' ? 'skills' : asked === 'editor' ? 'editor' : 'tools';
 	const skills = skillsTab();
 	const got = await personCtx(locals, url.searchParams.get('org'));
 	if (!got || got.orgs.length === 0)
 		return {
 			tab,
+			editor: null,
 			skills,
 			baseUrl: AFB_BASE_URL,
 			snippets: snippets(AFB_BASE_URL),
@@ -86,8 +90,21 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		};
 	const org = got.orgs.find((o) => o.id === got.ctx.orgId)!;
 	const connections = await listConnections(got.ctx);
+	// The Editor status tab: who the bridge is signed in as for this organisation, and the prompt. A failed read is said on the tab, never a blank
+	const editor =
+		tab === 'editor'
+			? {
+					person: locals.user!.name,
+					signIn: await bridgeSignIn(got.ctx).catch((e) => {
+						console.error('The bridge sign in of the person could not be read.', e);
+						return null;
+					}),
+					brief: editorSetupMarkdown(AFB_BASE_URL, { slug: org.slug })
+				}
+			: null;
 	return {
 		tab,
+		editor,
 		skills,
 		baseUrl: AFB_BASE_URL,
 		// The snippets and the brief use the org that was resolved above, never the raw ?org= value

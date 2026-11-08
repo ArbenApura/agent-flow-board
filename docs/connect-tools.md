@@ -98,6 +98,21 @@ Claude Code and Antigravity follow the payloads captured on real runs. The Gemin
 
 ## Show status in your editor
 
+### With one prompt, no token
+
+On **Connect a tool**, the **Editor status** tab has one **Copy setup prompt** button. Paste it into Claude Code in a conversation that is connected to the organisation. The agent calls the board's `editor_status_install` tool, which returns the plan for that organisation, and follows it:
+
+1. It shows you the hook commands, the mod files with their checksums and the folder they go to, and asks once. It writes nothing before you say yes.
+2. It runs `agent-flow-board login --json --server <address> --org <slug>` itself and approves that sign in through `tool_connection_approve`. The bridge it signs in belongs to you and can read, comment and write. It cannot complete, delete or manage, and the approval needs the Manage permission and a token with no project limit. It approves only the code of the command it started itself.
+3. It runs `agent-flow-board setup --org <slug> --server <address>`. That merges the bridge's hooks into the repository's `.claude/settings.local.json` (`--shared` writes `settings.json` instead), keeps every other hook and key, backs the old file up in the bridge's own folder (never in the repository) and refuses a file that is not plain JSON.
+4. It writes the mod into `~/.claude/skills/afb-flow-status`, which Claude Code loads when a conversation starts, and checks every file against its sha256. Run `/reload-plugins` or start a new conversation. If the line does not show in VS Code, the fallback is to add `CLAUDE_CODE_PLUGIN_DIRS` with the mod folder to the `env` of `~/.claude/settings.json`; the agent does that only after you say yes. Whether VS Code loads a mod from the skills folder is not confirmed yet.
+
+The tab also shows who the bridge is signed in as for the organisation: signed in (with when it was last used and when it ends), not set up, expired (paste the prompt again), or that you lack the Manage permission.
+
+**The status file.** The bridge's hooks ask the board for the status of their own conversation on the start, each prompt, the stop and each call of the board's own tools, and write the answer to `~/.agent-flow-board/status/<conversation id>.json` (or the bridge's own folder when `AFB_BRIDGE_HOME` is set). The file holds the same fields as the lookup below, plus the time it was written, and no token. It is written whole and replaced, removed when the conversation ends, and files older than two days are removed when a conversation starts. The mod reads it every few seconds and needs no token and no setting. On Windows the file is private because of the profile folder's rights; the file mode is not used there. A missing, malformed, foreign or old (over 12 hours) file is ignored and the mod uses the lookup below.
+
+### With a token
+
 An editor can show which item a conversation is working on by asking the board. The board answers one read only question: which item is the conversation with this id working on?
 
 ```

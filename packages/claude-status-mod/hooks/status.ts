@@ -102,15 +102,18 @@ export function nextView(prev: View, outcome: Outcome, now: number): View {
 	const { status, body } = outcome;
 	if (status === 401 || status === 403)
 		return { ...prev, kind: 'token', item: null, etag: null, failures: 0, nextAt: now + POLL_MS };
-	if (status === 404)
+	if (status === 404) {
+		// A new conversation's hook session appears a moment after its first prompt, so ask again soon: 15, 30, then 60 seconds
+		const failures = prev.kind === 'notfound' ? prev.failures + 1 : 1;
 		return {
 			...prev,
 			kind: 'notfound',
 			item: null,
 			etag: null,
-			failures: 0,
-			nextAt: now + POLL_MS
+			failures,
+			nextAt: now + Math.min(POLL_MS, 15_000 * 2 ** (failures - 1))
 		};
+	}
 	const o = record(body);
 	if (status !== 200 || !o) return down(prev, now);
 	if (o.unchanged === true && (prev.kind === 'ok' || prev.kind === 'none'))
@@ -136,6 +139,24 @@ function down(prev: View, now: number): View {
 }
 
 const minutes = (ms: number) => Math.max(1, Math.round(ms / 60_000));
+
+/**
+ * Whether there is nothing worth showing: no answer yet, no item claimed, no board session for the conversation, or a board that
+ * cannot be reached with no item to show. The line then stays out of the way. A missing setting, a bad token, or an item (even an
+ * old one) is shown, because the person has to see it.
+ */
+export function isQuiet(view: View): boolean {
+	switch (view.kind) {
+		case 'loading':
+		case 'none':
+		case 'notfound':
+			return true;
+		case 'down':
+			return !view.item;
+		default:
+			return false;
+	}
+}
 
 /** What the band says for a view at a time: the item, a tag, or a plain message. */
 export function lineOf(view: View, now: number): Line {
@@ -213,6 +234,22 @@ export function lineOf(view: View, now: number): Line {
 	}
 }
 
+export type OrgPair = { org: string; token: string };
+
+/** The organisation a repo's hook commands send to (--org <slug>), read from its Claude settings text. */
+export const hookOrgOf = (text: string): string | null =>
+	/--org\s+([a-z0-9][a-z0-9-]*)/.exec(text)?.[1] ?? null;
+
+/**
+ * Which organisation and token to ask with. The conversation lives in the organisation its repo's hooks send to, so that one
+ * is used; with no hook organisation to go by, the first complete pair is. A hook organisation with no pair is a missing setting.
+ */
+export function pickOrg(pairs: OrgPair[], hookOrg: string | null): OrgPair | null {
+	const usable = pairs.filter((p) => p.org && p.token);
+	if (hookOrg) return usable.find((p) => p.org === hookOrg) ?? null;
+	return usable[0] ?? null;
+}
+
 /** The address of the lookup. The conversation id and the etag are encoded; no token and no session header go with it. */
 export function lookupUrl(
 	server: string,
@@ -223,4 +260,61 @@ export function lookupUrl(
 	const base = server.replace(/\/+$/, '');
 	const query = `tool=claude-code${etag ? `&etag=${encodeURIComponent(etag)}` : ''}`;
 	return `${base}/api/v1/orgs/${encodeURIComponent(org)}/sessions/by-external/${encodeURIComponent(conversationId)}?${query}`;
+}
+
+// -- THE STATUS FILE (AFB-20261108-0427) -- //
+
+/** How often the mod looks at its conversation's status file. A local read, so it is cheap. */
+export const FILE_POLL_MS = 5_000;
+/** An unchanged file renews the time of the answer this often, well inside the three minutes after which an answer is drawn as old. */
+export const FILE_RENEW_MS = 30_000;
+/**
+ * A file this old is not trusted: its hook answers stopped coming (a crash, a board that could not be reached). It falls back to the
+ * token lookup. The file is only ever read by the conversation it belongs to, so a long quiet turn is far below this.
+ */
+export const FILE_STALE_MS = 12 * 60 * 60 * 1000;
+/** A file written in the future by more than this is a clock that is wrong, not a fresh file. */
+const FILE_SKEW_MS = 5 * 60 * 1000;
+
+/** The file name of a conversation. The same rule as the bridge: a plain id only, never a path. */
+export const statusName = (conversationId: string): string | null =>
+	/^[A-Za-z0-9_-][A-Za-z0-9._-]{7,99}$/.test(conversationId) ? conversationId : null;
+
+/**
+ * Where the bridge keeps this conversation's file, in the order to look: the bridge's own folder when AFB_BRIDGE_HOME names one,
+ * then the home folder (USERPROFILE on Windows, HOME elsewhere). Empty when the id is not a plain name.
+ */
+export function statusPaths(
+	env: { bridgeHome?: string; userProfile?: string; home?: string },
+	conversationId: string
+): string[] {
+	const name = statusName(conversationId);
+	if (!name) return [];
+	const roots = [
+		env.bridgeHome,
+		env.userProfile && `${env.userProfile}/.agent-flow-board`,
+		env.home && `${env.home}/.agent-flow-board`
+	].filter((r): r is string => !!r && r.length > 0);
+	return [...new Set(roots.map((r) => `${r.replace(/[\\/]+$/, '')}/status/${name}.json`))];
+}
+
+/**
+ * The status the bridge wrote for this conversation, or null when the text is not a good file: not JSON, another shape, another
+ * conversation, too old, from the future, or with an item this mod cannot read. Null means "ask the board the old way".
+ */
+export function readStatusFile(text: string, conversationId: string, now: number): unknown | null {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return null;
+	}
+	const file = record(parsed);
+	if (!file || file.v !== 1 || typeof file.writtenAt !== 'number') return null;
+	const age = now - file.writtenAt;
+	if (!Number.isFinite(age) || age > FILE_STALE_MS || age < -FILE_SKEW_MS) return null;
+	const status = record(file.status);
+	if (!status || status.externalId !== conversationId) return null;
+	if (status.item !== null && !readItem(status.item)) return null;
+	return status;
 }

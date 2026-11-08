@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // agent-flow-board mcp --server <url> [--org <slug>]   forward MCP over stdio to the server (to /mcp/<slug> with --org)
 // agent-flow-board login --server <url> [--org <slug>] sign in by device code
+// agent-flow-board login --json --server <url> --org <slug>   for an agent: line 1 holds userCode and verifier, it approves through MCP
+// agent-flow-board setup --org <slug> --server <url> [--dir <repo>] [--shared]   write the Claude hooks into the repo's .claude/settings.local.json
 // agent-flow-board logout --server <url> [--org <slug>]
 // agent-flow-board queue list | retry <id> | drop <id>
 // agent-flow-board hook claude|antigravity|gemini [event]   one hook event from stdin, one JSON object to stdout
@@ -22,6 +24,8 @@ import {
 	uninstallGitHook
 } from './hooks/gitHook.js';
 import { hookSettings } from './hooks/settings.js';
+import { runSetup } from './hooks/setup.js';
+import { applyStatusFile } from './hooks/statusFile.js';
 import { deviceLogin, type Fetch } from './device.js';
 import { pushKit, pushMockup } from './mockup.js';
 import { Queue } from './queue.js';
@@ -110,9 +114,13 @@ async function main() {
 			const server = (flag('--server') ?? process.env.AFB_SERVER ?? '').replace(/\/$/, '');
 			if (adapter && server) {
 				const token = tokenFor(server, orgFlag(false));
-				out = await runHook(adapter, args[2] ?? '', await readStdin(), (event) =>
-					callHook({ server, token, fetch: fetchImpl }, event)
-				);
+				out = await runHook(adapter, args[2] ?? '', await readStdin(), async (event) => {
+					const asked = Date.now();
+					const answer = await callHook({ server, token, fetch: fetchImpl }, event);
+					// The status goes to this conversation's file, never to the tool. A failed write never fails the hook.
+					applyStatusFile(join(configDir(), 'status'), event, answer, asked);
+					return answer;
+				});
 			}
 		} catch {
 			out = {};
@@ -225,17 +233,70 @@ async function main() {
 		log('Signed out.');
 		return;
 	}
+	if (cmd === 'setup') {
+		const server = serverUrl();
+		const org = orgFlag();
+		if (!org) {
+			log('setup needs --org <slug>: the organisation the hooks send to.');
+			process.exit(2);
+		}
+		const token = tokenFor(server, org);
+		if (!token) {
+			log(
+				`Not signed in to ${org} on ${server}. Run: agent-flow-board login --json --server ${server} --org ${org}`
+			);
+			process.exit(1);
+		}
+		if (!(await belongsToOrg(server, org, token))) {
+			log(`The saved sign in is not for ${org}. Run the login for ${org} again.`);
+			process.exit(1);
+		}
+		const result = runSetup({
+			repo: flag('--dir') ?? process.cwd(),
+			server,
+			org,
+			shared: args.includes('--shared'),
+			configDir: configDir()
+		});
+		process.stdout.write(JSON.stringify(result) + '\n');
+		if (!result.ok) {
+			log(`Setup failed: ${result.error}`);
+			process.exit(1);
+		}
+		log(
+			result.changed
+				? `Wrote ${result.file}: ${result.added} hook(s) added, ${result.replaced} replaced, ${result.kept} other hook(s) kept.${result.backup ? ` The old file is backed up at ${result.backup}.` : ''}`
+				: `${result.file} already has these hooks. Nothing was changed.`
+		);
+		return;
+	}
 	if (cmd !== 'mcp' && cmd !== 'login') {
 		log(
-			'Usage: agent-flow-board mcp|login|logout --server <url>, queue list|retry <id>|drop <id>, or mockup push <file.html>'
+			'Usage: agent-flow-board mcp|login|logout --server <url>, setup --org <slug>, queue list|retry <id>|drop <id>, or mockup push <file.html>'
 		);
 		process.exit(2);
 	}
 	const server = serverUrl();
 	const org = orgFlag();
 	const account = accountKey(server, org);
+	// login --json is for an agent: the first line on stdout holds the code and the verifier it needs to approve the sign in through MCP
+	const asJson = cmd === 'login' && args.includes('--json');
+	if (asJson && !org) {
+		log('login --json needs --org <slug>: the agent approves the sign in for that organisation.');
+		process.exit(2);
+	}
 	const login = async () => {
-		const r = await deviceLogin(server, fetchImpl, log);
+		const r = await deviceLogin(
+			server,
+			fetchImpl,
+			log,
+			asJson
+				? {
+						pkce: true,
+						onCode: (c) => process.stdout.write(JSON.stringify(c) + '\n')
+					}
+				: {}
+		);
 		// The device approval lets the person choose the organisation, so it is checked against the one asked for before it is kept
 		if (org && !(await belongsToOrg(server, org, r.token))) {
 			throw new Error(
@@ -248,6 +309,8 @@ async function main() {
 	};
 	if (cmd === 'login') {
 		await login();
+		// The second line says it worked, with no token
+		if (asJson) process.stdout.write(JSON.stringify({ signedIn: true, server, org }) + '\n');
 		return;
 	}
 	await runBridge({

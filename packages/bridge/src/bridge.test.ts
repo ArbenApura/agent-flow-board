@@ -12,6 +12,7 @@ import { memoryStorage } from '../../../src/lib/server/adapters/storage';
 import { handleMcp } from '../../../src/lib/server/mcp/handler';
 import { approveDevice, pollDevice, startDevice } from '../../../src/lib/server/oauth/oauth';
 import { createToken } from '../../../src/lib/server/ops/tokens';
+import { approveToolConnection } from '../../../src/lib/server/ops/environments';
 import { makePostgres, type TestDb } from '../../../tests/support/db';
 import { makeWorld, type World } from '../../../tests/support/ops';
 import { isNetworkError, runBridge } from './bridge';
@@ -368,6 +369,69 @@ describe('bridge', () => {
 				}
 			})
 		).rejects.toThrow(/refused/);
+	});
+
+	it('login --json: the bridge keeps a verifier, an agent approves the code through MCP, and the token holds read, comment and write only', async () => {
+		// The real device endpoints, as in the sign in test above
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = new URL(input);
+			const body = typeof init?.body === 'string' ? init.body : '';
+			const json = (v: unknown) =>
+				new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
+			if (url.pathname === '/oauth/device/code')
+				return json(await startDevice(db, BASE, JSON.parse(body)));
+			if (url.pathname === '/oauth/token')
+				return json(await pollDevice(db, new URLSearchParams(body).get('device_code')!));
+			return new Response('no', { status: 404 });
+		};
+		const logs: string[] = [];
+		let seen: { userCode: string; verifier: string | null } | null = null;
+		let approved = false;
+		const r = await deviceLogin(BASE, fetchImpl, (l) => logs.push(l), {
+			pkce: true,
+			onCode: (c) => (seen = c),
+			wait: async () => {
+				if (seen?.verifier && !approved) {
+					approved = true;
+					await approveToolConnection(w.ctx('admin'), {
+						userCode: seen.userCode,
+						verifier: seen.verifier
+					});
+				}
+				await db.admin.exec('update device_code set last_polled_at = null');
+			}
+		});
+		expect(r.token).toMatch(/^afb_/);
+		expect(seen).not.toBeNull();
+		const first = seen as unknown as { userCode: string; verifier: string };
+		expect(first.userCode).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+		expect(first.verifier).toMatch(/^[A-Za-z0-9_-]{43}$/);
+		// The verifier and the token are never in what the bridge logs
+		expect(logs.join('\n')).not.toContain(first.verifier);
+		expect(logs.join('\n')).not.toContain(r.token);
+		// The token the agent's approval produced reads, comments and writes, and does not manage
+		const [issued] = await db.admin.query<{ scopes: string[] }>(
+			`select scopes from device_code where status = 'issued' order by created_at desc limit 1`
+		);
+		expect([...issued.scopes].sort()).toEqual(['comment', 'read', 'write']);
+		// Negative control: without pkce no verifier exists, and the agent route cannot approve that code
+		let plain: { userCode: string; verifier: string | null } | null = null;
+		await expect(
+			deviceLogin(BASE, fetchImpl, () => undefined, {
+				onCode: (c) => (plain = c),
+				wait: async () => {
+					const c = plain as unknown as { userCode: string; verifier: string | null };
+					expect(c.verifier).toBeNull();
+					await expect(
+						approveToolConnection(w.ctx('admin'), {
+							userCode: c.userCode,
+							verifier: 'a'.repeat(43)
+						})
+					).rejects.toMatchObject({ code: 'INVALID' });
+					throw new Error('stop here');
+				}
+			})
+		).rejects.toThrow(/stop here/);
 	});
 
 	it('the file token store encrypts, keeps the key private, and gives up cleanly on a tampered file', () => {

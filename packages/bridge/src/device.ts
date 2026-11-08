@@ -1,5 +1,8 @@
 // DEVICE CODE SIGN IN FOR THE BRIDGE (RFC 8628). THE PERSON TYPES THE CODE ON THE SERVER'S /device PAGE; NOTHING IS PRE FILLED.
 
+// -- DEP-MODULES -- //
+import { createHash, randomBytes } from 'node:crypto';
+
 // -- TYPES -- //
 
 export type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
@@ -16,13 +19,36 @@ export async function deviceLogin(
 	server: string,
 	fetchImpl: Fetch,
 	log: (line: string) => void,
-	options: { name?: string; wait?: (ms: number) => Promise<unknown> } = {}
+	options: {
+		name?: string;
+		wait?: (ms: number) => Promise<unknown>;
+		/**
+		 * Keep a verifier and send only its SHA-256 with the code, so an agent that holds both can approve the code through MCP
+		 * (tool_connection_approve) and only the tool that started it can be approved. The verifier is handed to `onCode`, never logged.
+		 */
+		pkce?: boolean;
+		onCode?: (code: {
+			userCode: string;
+			verifier: string | null;
+			verificationUri: string;
+			expiresInSeconds: number;
+		}) => void;
+	} = {}
 ): Promise<DeviceResult> {
 	const wait = options.wait ?? sleep;
+	const verifier = options.pkce ? randomBytes(32).toString('base64url') : null;
 	const start = await fetchImpl(`${server}/oauth/device/code`, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ client_name: options.name ?? 'agent-flow-board bridge' }),
+		body: JSON.stringify({
+			client_name: options.name ?? 'agent-flow-board bridge',
+			...(verifier
+				? {
+						code_challenge: createHash('sha256').update(verifier).digest('base64url'),
+						code_challenge_method: 'S256'
+					}
+				: {})
+		}),
 		signal: AbortSignal.timeout(DEVICE_CALL_TIMEOUT_MS)
 	});
 	if (!start.ok) throw new Error(`The server refused the sign in (${start.status}).`);
@@ -33,6 +59,12 @@ export async function deviceLogin(
 		expires_in: number;
 		interval: number;
 	};
+	options.onCode?.({
+		userCode: d.user_code,
+		verifier,
+		verificationUri: d.verification_uri,
+		expiresInSeconds: d.expires_in
+	});
 	log(`To sign in, open ${d.verification_uri} and type this code: ${d.user_code}`);
 	log(
 		`The code works for ${Math.floor(d.expires_in / 60)} minutes. Waiting for you to approve it...`

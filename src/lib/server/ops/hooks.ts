@@ -4,6 +4,7 @@
 
 // -- TYPES -- //
 import type { Ctx } from './context';
+import type { SessionStatus } from './sessionStatus';
 // -- DEP-MODULES -- //
 import { randomBytes } from 'node:crypto';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
@@ -16,6 +17,7 @@ import { SESSION_PREFIX, displayTitle } from '../mcp/sessions';
 import { requireCap, run } from './context';
 import { findItem, mayView } from './resolve';
 import { logSessionEvent } from './sessionEvents';
+import { sessionStatusForRow } from './sessionStatus';
 import { CLOSING_STATUSES, nudgeLevel, renewSession, staleProgressNote } from './tracking';
 
 // -- TYPES -- //
@@ -42,7 +44,9 @@ export const hookInput = z.object({
 	closing: z
 		.array(z.object({ item: z.string().max(100), status: z.string().max(20) }))
 		.max(10)
-		.optional()
+		.optional(),
+	/** Ask for the status of this conversation's own session in the answer (the bridge writes it for an editor status line). */
+	status: z.boolean().optional()
 });
 export type HookInput = z.infer<typeof hookInput>;
 export type HookOutput = {
@@ -56,6 +60,8 @@ export type HookOutput = {
 	block?: string;
 	/** Sent right after an edit when finished work is not recorded yet: progress first. Never blocks. */
 	nudge?: string;
+	/** Only when the request asked for it: what this conversation's session works on, for an editor status line. */
+	status?: SessionStatus;
 };
 
 // -- FUNCTIONS -- //
@@ -271,12 +277,33 @@ async function endSession(ctx: Ctx, input: HookInput): Promise<HookOutput> {
 	return {};
 }
 
-/** One hook event of one tool. Always answers, never throws on a bad item name or an unknown session. */
+/**
+ * One hook event of one tool. Always answers, never throws on a bad item name or an unknown session.
+ * With the flag status the answer also carries the status of this conversation's own session, built after the event ran so it
+ * shows the claim as it is now. A failure to build it leaves the field out and never loses a block, a nudge or a question.
+ */
 export async function handleHook(ctx: Ctx, raw: z.input<typeof hookInput>): Promise<HookOutput> {
 	const input = hookInput.parse(raw);
+	const held: { s?: typeof session.$inferSelect } = {};
+	const out = await handleEvent(ctx, input, held);
+	// The end of a conversation has no status: the bridge removes its file
+	if (!input.status || input.event === 'end' || !held.s) return out;
+	try {
+		return { ...out, status: await sessionStatusForRow(ctx, held.s) };
+	} catch {
+		return out;
+	}
+}
+
+async function handleEvent(
+	ctx: Ctx,
+	input: HookInput,
+	held: { s?: typeof session.$inferSelect }
+): Promise<HookOutput> {
 	// The end of a conversation only lets go of its own claim. It never makes a session that does not exist.
 	if (input.event === 'end') return endSession(ctx, input);
 	const s = await sessionFor(ctx, input);
+	held.s = s;
 	if (input.event === 'start') {
 		const [context, title] = await Promise.all([brief(ctx, s), titleFor(ctx, s, true)]);
 		return { context, ...(title ? { title } : {}) };

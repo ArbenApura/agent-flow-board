@@ -23,6 +23,8 @@ export type HookEvent = {
 		| { kind: 'board'; name: string }
 		| { kind: 'read' };
 	closing?: { item: string; status: string }[];
+	/** Asks the board to put the status of this conversation's session in the answer. */
+	status?: boolean;
 };
 export type HookAnswer = {
 	context?: string;
@@ -31,6 +33,8 @@ export type HookAnswer = {
 	block?: string;
 	/** Progress first: finished work is not recorded yet. Shown to the agent right after an edit, never blocks. */
 	nudge?: string;
+	/** The status of the conversation's session, only when the event asked for it. Written to the status file, never printed. */
+	status?: unknown;
 };
 
 // -- CONSTANTS -- //

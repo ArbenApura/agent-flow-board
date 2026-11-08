@@ -42,6 +42,7 @@ const TEXT: Record<string, string> = {
 	'secret.set': 'saved a test account',
 	'secret.delete': 'removed a test account',
 	'runner.create': 'registered a runner',
+	'runner.approve': 'approved the sign in of a tool',
 	'runner.update': 'changed the projects a runner serves',
 	'runner.delete': 'removed a runner',
 	'check.save': 'saved a browser check',

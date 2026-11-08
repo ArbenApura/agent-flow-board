@@ -297,4 +297,142 @@ describe('an agent approves the sign in of its own afb-checks tool', () => {
 		expect(text).not.toContain(t.userCode.replace('-', ''));
 		expect(text).toContain('afb-checks');
 	});
+
+	// -- THE BRIDGE AS A SECOND CLIENT (AFB-20261108-0427, B.1 AND B.4) -- //
+
+	describe('the bridge as a second client', () => {
+		const BRIDGE = 'agent-flow-board bridge';
+
+		it('an admin approves the bridge code: exactly read, comment and write, never manage, and the event names the client', async () => {
+			const t = await toolStarts(BRIDGE);
+			const done = await approveToolConnection(as('admin'), {
+				userCode: t.userCode,
+				verifier: t.verifier
+			});
+			expect(done).toEqual({ ok: true, client: BRIDGE });
+			const stored = await row(t.userCode);
+			expect(stored).toMatchObject({
+				status: 'approved',
+				approved_by: w.people.admin,
+				approved_org_id: w.orgId
+			});
+			expect([...stored.scopes].sort()).toEqual(['comment', 'read', 'write']);
+			expect(stored.scopes).not.toContain('manage');
+			const token = await pollDevice(db, t.deviceCode);
+			expect(isOAuthError(token)).toBe(false);
+			expect((token as { scope: string }).scope.split(' ').sort()).toEqual([
+				'comment',
+				'read',
+				'write'
+			]);
+			// Nothing secret in the answer or the history
+			expect(JSON.stringify(done)).not.toContain(t.verifier);
+			const [event] = await db.admin.query<{ after: unknown }>(
+				`select after from event where org_id = '${w.orgId}' and verb = 'runner.approve' order by id desc limit 1`
+			);
+			expect(JSON.stringify(event)).toContain(BRIDGE);
+			expect(JSON.stringify(event)).not.toContain(t.verifier);
+			// Negative control: the afb-checks client still gets only manage
+			const checks = await toolStarts();
+			await approveToolConnection(as('admin'), {
+				userCode: checks.userCode,
+				verifier: checks.verifier
+			});
+			expect((await row(checks.userCode)).scopes).toEqual(['manage']);
+		});
+
+		it('refuses a member, a token limited to some projects, and a token that holds manage but not what the bridge is given', async () => {
+			const t = await toolStarts(BRIDGE);
+			await expect(
+				approveToolConnection(as('member'), { userCode: t.userCode, verifier: t.verifier })
+			).rejects.toMatchObject({ code: 'FORBIDDEN' });
+			await expect(
+				approveToolConnection(
+					w.ctx('admin', {
+						tokenId: '00000000-0000-4000-8000-0000000000c1',
+						tokenCaps: ['read', 'write', 'manage'],
+						tokenProjects: ['00000000-0000-4000-8000-0000000000d1']
+					}),
+					{ userCode: t.userCode, verifier: t.verifier }
+				)
+			).rejects.toMatchObject({ code: 'FORBIDDEN' });
+			// Manage and no comment: the bridge would be given more than this token holds
+			await expect(
+				approveToolConnection(
+					asToken('admin', '00000000-0000-4000-8000-0000000000c2', ['read', 'write', 'manage']),
+					{ userCode: t.userCode, verifier: t.verifier }
+				)
+			).rejects.toMatchObject({ code: 'FORBIDDEN' });
+			expect((await row(t.userCode)).status).toBe('pending');
+			// Negative control: a token that holds all four can approve
+			await expect(
+				approveToolConnection(
+					asToken('admin', '00000000-0000-4000-8000-0000000000c3', [
+						'read',
+						'comment',
+						'write',
+						'manage'
+					]),
+					{ userCode: t.userCode, verifier: t.verifier }
+				)
+			).resolves.toMatchObject({ ok: true, client: BRIDGE });
+		});
+
+		it('refuses another client name, a code with no challenge, and a wrong verifier, and leaves each code pending', async () => {
+			const other = await toolStarts('agent-flow-board bridge 2');
+			await expect(
+				approveToolConnection(as('admin'), { userCode: other.userCode, verifier: other.verifier })
+			).rejects.toMatchObject({ code: 'INVALID' });
+			const noChallenge = await toolStarts(BRIDGE, false);
+			await expect(
+				approveToolConnection(as('admin'), {
+					userCode: noChallenge.userCode,
+					verifier: noChallenge.verifier
+				})
+			).rejects.toMatchObject({ code: 'INVALID' });
+			const real = await toolStarts(BRIDGE);
+			await expect(
+				approveToolConnection(as('admin'), {
+					userCode: real.userCode,
+					verifier: randomBytes(32).toString('base64url')
+				})
+			).rejects.toMatchObject({ code: 'INVALID' });
+			for (const t of [other, noChallenge, real])
+				expect((await row(t.userCode)).status).toBe('pending');
+			// Negative control: the right verifier approves the real code
+			await expect(
+				approveToolConnection(as('admin'), { userCode: real.userCode, verifier: real.verifier })
+			).resolves.toMatchObject({ ok: true });
+		});
+
+		it('refuses an expired bridge code', async () => {
+			const t = await toolStarts(BRIDGE);
+			await db.admin.exec(
+				`update device_code set expires_at = now() - interval '1 minute' where user_code = '${t.userCode.replace('-', '')}'`
+			);
+			await expect(
+				approveToolConnection(as('admin'), { userCode: t.userCode, verifier: t.verifier })
+			).rejects.toMatchObject({ code: 'INVALID' });
+		});
+
+		it('a repeated approval of the same bridge code is the same answer', async () => {
+			const t = await toolStarts(BRIDGE);
+			// Its own token, so the refusals counted for the person's other callers above do not apply
+			const caller = asToken('admin', '00000000-0000-4000-8000-0000000000c4', [
+				'read',
+				'comment',
+				'write',
+				'manage'
+			]);
+			const first = await approveToolConnection(caller, {
+				userCode: t.userCode,
+				verifier: t.verifier
+			});
+			const again = await approveToolConnection(caller, {
+				userCode: t.userCode,
+				verifier: t.verifier
+			});
+			expect(again).toEqual(first);
+		});
+	});
 });

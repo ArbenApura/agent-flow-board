@@ -17,6 +17,19 @@
 			"description": "The organisation name (slug) in the board address, for example arbenger. The hooks of your repo must send to the same organisation.",
 			"default": ""
 		},
+		"org2": {
+			"type": "string",
+			"title": "Second organisation (optional)",
+			"description": "A second organisation name, for repos whose hooks send to it. The mod picks the organisation from the repo's own hook commands (--org).",
+			"default": ""
+		},
+		"token2": {
+			"type": "string",
+			"title": "Read token for the second organisation",
+			"description": "A read-only token made in the second organisation. A token works in the organisation it was made in only.",
+			"sensitive": true,
+			"default": ""
+		},
 		"token": {
 			"type": "string",
 			"title": "Read token",

@@ -3,7 +3,7 @@
 // never returned by any call. Runners are the programs that run checks; a runner token is shown once and stored as a hash.
 
 // -- TYPES -- //
-import type { Ctx } from './context';
+import type { Capability, Ctx } from './context';
 import type { DbHandle } from '../db/client';
 // -- DEP-MODULES -- //
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
@@ -433,7 +433,18 @@ export const toolApprovalInput = z.object({
 		.regex(/^[A-Za-z0-9_-]{43,128}$/, 'The verifier is the one the tool printed with its code.')
 });
 
-const APPROVAL_CLIENT = 'afb-checks';
+/**
+ * The tools an agent may sign in through MCP: the exact client name each starts its code under, and the permissions its token is given.
+ * The permissions are fixed here and never come from the request. The bridge gets no `manage`: a stolen bridge token can read, comment
+ * and write, and cannot change roles, delete or complete (AFB-20261108-0427 ADR-1). Any other client name is refused.
+ */
+/** The name packages/bridge/src/device.ts sends when it starts a sign in. */
+export const BRIDGE_CLIENT = 'agent-flow-board bridge';
+export const APPROVAL_CLIENTS: Readonly<Record<string, readonly Capability[]>> = {
+	'afb-checks': ['manage'],
+	[BRIDGE_CLIENT]: ['read', 'comment', 'write']
+};
+const APPROVAL_CLIENT_NAMES = Object.keys(APPROVAL_CLIENTS);
 const APPROVAL_FAILURES_MAX = 10;
 const APPROVAL_FAILURES_WINDOW_MS = 600_000;
 /** Wrong or foreign codes counted per caller token (or session), so an agent in a loop never spends the person's own budget at /device. */
@@ -466,41 +477,52 @@ export async function approveToolConnection(ctx: Ctx, raw: z.input<typeof toolAp
 				);
 			const code = input.userCode.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 			const challenge = createHash('sha256').update(input.verifier).digest('base64url');
-			// One conditional update decides everything at once: still pending, not expired, an afb-checks client, and this caller holds the verifier
-			const approved = await tx
-				.update(deviceCode)
-				.set({
-					status: 'approved',
-					approvedBy: ctx.actor.userId,
-					approvedOrgId: ctx.orgId,
-					scopes: ['manage']
-				})
+			// The code this caller may approve: pending, not expired, started by a known client, and the caller holds the verifier
+			const [pending] = await tx
+				.select({ id: deviceCode.id, client: deviceCode.client })
+				.from(deviceCode)
 				.where(
 					and(
 						eq(deviceCode.userCode, code),
 						eq(deviceCode.status, 'pending'),
-						eq(deviceCode.client, APPROVAL_CLIENT),
+						inArray(deviceCode.client, APPROVAL_CLIENT_NAMES),
 						eq(deviceCode.challengeHash, challenge),
 						gt(deviceCode.expiresAt, sql`now()`)
 					)
-				)
-				.returning({ id: deviceCode.id });
+				);
+			const scopes = pending ? APPROVAL_CLIENTS[pending.client] : undefined;
+			// The token is never given more than the caller holds today in the role and in the caller's own token
+			if (scopes) for (const scope of scopes) await requireCap(tx, ctx, scope);
+			// One conditional update decides it: still pending, so two callers can never both approve the same code
+			const approved =
+				pending && scopes
+					? await tx
+							.update(deviceCode)
+							.set({
+								status: 'approved',
+								approvedBy: ctx.actor.userId,
+								approvedOrgId: ctx.orgId,
+								scopes: [...scopes]
+							})
+							.where(and(eq(deviceCode.id, pending.id), eq(deviceCode.status, 'pending')))
+							.returning({ id: deviceCode.id })
+					: [];
 			if (approved.length === 0) {
 				// A retry of an approval that already went through (a timeout on the way back, no request id) is the same answer, not a refusal and not a failure to count
 				const [again] = await tx
-					.select({ id: deviceCode.id })
+					.select({ id: deviceCode.id, client: deviceCode.client })
 					.from(deviceCode)
 					.where(
 						and(
 							eq(deviceCode.userCode, code),
-							eq(deviceCode.client, APPROVAL_CLIENT),
+							inArray(deviceCode.client, APPROVAL_CLIENT_NAMES),
 							eq(deviceCode.challengeHash, challenge),
 							inArray(deviceCode.status, ['approved', 'issued']),
 							eq(deviceCode.approvedBy, ctx.actor.userId),
 							eq(deviceCode.approvedOrgId, ctx.orgId)
 						)
 					);
-				if (again) return { ok: true as const, client: APPROVAL_CLIENT };
+				if (again) return { ok: true as const, client: again.client };
 				const now = Date.now();
 				approvalFailures.set(
 					who,
@@ -518,9 +540,9 @@ export async function approveToolConnection(ctx: Ctx, raw: z.input<typeof toolAp
 				ctx,
 				'runner.approve',
 				{},
-				{ client: APPROVAL_CLIENT, by: ctx.actor.kind }
+				{ client: pending?.client ?? '', by: ctx.actor.kind }
 			);
-			return { ok: true as const, client: APPROVAL_CLIENT };
+			return { ok: true as const, client: pending?.client ?? '' };
 		})
 	);
 }

@@ -343,4 +343,107 @@ describe('session status by external id', () => {
 		});
 		expect((await answer()).etag).not.toBe(stepEtag);
 	});
+
+	// -- THE STATUS IN THE HOOK ANSWER (AFB-20261108-0427, S.1) -- //
+
+	describe('the status in the hook answer', () => {
+		const hook = (
+			who: 'member' | 'admin',
+			event: 'start' | 'prompt' | 'stop' | 'tool' | 'end',
+			externalId: string,
+			more: Record<string, unknown> = {}
+		) =>
+			// The route builds its context with the site address; the same here, so the item url is the same in both answers
+			handleHook(
+				{ ...w.ctx(who), services: { baseUrl: BASE } } as never,
+				{
+					tool: 'claude-code',
+					event,
+					externalId,
+					...more
+				} as never
+			);
+
+		it('carries the status of the hook own session only when the flag is set', async () => {
+			await claim(w.ctx('member'), memberSession, ref, '1');
+			const without = await hook('member', 'prompt', MEMBER_CONVERSATION);
+			expect('status' in without).toBe(false);
+			const asked = await hook('member', 'prompt', MEMBER_CONVERSATION, { status: true });
+			expect(asked.status?.item?.ref).toBe(ref);
+			expect(asked.status?.sessionId).toBe(memberSession);
+			// The same fields and etag as the lookup route gives for the same moment
+			const route = await answer();
+			expect(asked.status).toEqual(route);
+		});
+
+		it('shows no item for a conversation that claims nothing, and drops it after a release', async () => {
+			const idle = await hook('admin', 'prompt', ADMIN_CONVERSATION, { status: true });
+			expect(idle.status?.item).toBeNull();
+			await claim(w.ctx('admin'), adminSession, ref, '1');
+			expect(
+				(await hook('admin', 'stop', ADMIN_CONVERSATION, { status: true })).status?.item?.ref
+			).toBe(ref);
+			await claim(w.ctx('admin'), adminSession, null);
+			expect(
+				(
+					await hook('admin', 'tool', ADMIN_CONVERSATION, {
+						status: true,
+						action: { kind: 'read' }
+					})
+				).status?.item
+			).toBeNull();
+		});
+
+		it('never shows another person the item of a conversation id they do not own', async () => {
+			// The admin sends the member's conversation id: it is the admin's own new session, with no claim
+			const foreign = await hook('admin', 'prompt', MEMBER_CONVERSATION, { status: true });
+			expect(foreign.status?.item).toBeNull();
+			expect(foreign.status?.sessionId).not.toBe(memberSession);
+			expect(JSON.stringify(foreign)).not.toContain('Status line item');
+		});
+
+		it('hides a claimed item that turned private', async () => {
+			const made = await call('POST', `${projects()}/${w.projectKey}/items`, {
+				as: 'admin',
+				body: { title: 'Hidden from the hook', phases: PLAN.phases }
+			});
+			const hidden = (made.body as { ref: string }).ref;
+			await claim(w.ctx('member'), memberSession, hidden, '1');
+			const shown = await hook('member', 'prompt', MEMBER_CONVERSATION, { status: true });
+			expect(shown.status?.item?.ref).toBe(hidden);
+			await db.admin.exec(`UPDATE item SET visibility = 'private' WHERE ref = '${hidden}'`);
+			const out = await hook('member', 'prompt', MEMBER_CONVERSATION, { status: true });
+			expect(out.status?.item).toBeNull();
+			expect(JSON.stringify(out)).not.toContain('Hidden from the hook');
+			await claim(w.ctx('member'), memberSession, ref, '1');
+		});
+
+		it('has no status at the end of a conversation, flag or not', async () => {
+			const out = await hook('member', 'end', MEMBER_CONVERSATION, { status: true });
+			expect('status' in out).toBe(false);
+			await claim(w.ctx('member'), memberSession, ref, '1');
+		});
+
+		it('measures what the status adds to one hook call (P.3)', async () => {
+			const time = async (status: boolean) => {
+				const samples: number[] = [];
+				for (let i = 0; i < 15; i++) {
+					const t = performance.now();
+					await hook('member', 'prompt', MEMBER_CONVERSATION, status ? { status: true } : {});
+					samples.push(performance.now() - t);
+				}
+				samples.sort((a, b) => a - b);
+				return samples[Math.floor(samples.length / 2)];
+			};
+			await time(true);
+			const plain = await time(false);
+			const withStatus = await time(true);
+			const added = withStatus - plain;
+			console.info(
+				`P.3 hook call median: ${plain.toFixed(1)} ms without status, ${withStatus.toFixed(1)} ms with status, +${added.toFixed(1)} ms (6 selects: item, phases, waived count, notes, aliases, project)`
+			);
+			// The budget set in the plan: the flag adds no more than 200 ms to a hook call
+			expect(added).toBeLessThan(200);
+		});
+	});
 });
