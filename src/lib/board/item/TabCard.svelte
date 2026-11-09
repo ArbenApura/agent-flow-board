@@ -24,6 +24,7 @@
 		startCollapsed = false,
 		storageKey,
 		padded = false,
+		stack = false,
 		class: extra,
 		...rest
 	}: {
@@ -42,6 +43,8 @@
 		/** Where the person's last choice is kept in this browser, for example `afb:collapse:acme:<item id>:phase-1`; the item id, not its reference, so a rename never splits the choice. */
 		storageKey?: string;
 		padded?: boolean;
+		/** On a phone the header wraps: the title keeps its own width, the meta stays beside it and the actions take a full row under them. */
+		stack?: boolean;
 		class?: string;
 	} & Omit<HTMLAttributes<HTMLDivElement>, 'class'> = $props();
 
@@ -101,10 +104,11 @@
 <Card
 	{...rest}
 	{padded}
+	headerClass={stack ? 'max-sm:flex-wrap' : undefined}
 	class={cn(collapsible && collapsed && '[&>div:first-child]:border-transparent', extra)}
 >
 	{#snippet header()}
-		<h2 class="min-w-0 flex-1 text-lg leading-7 font-semibold">
+		<h2 class={cn('min-w-0 flex-1 text-lg leading-7 font-semibold', stack && 'max-sm:flex-none')}>
 			{#if collapsible}
 				<!-- THE WHOLE HEADER IS THE HIT AREA, THE BUTTON KEEPS THE HEADING AS ITS PARENT -->
 				<button
@@ -132,7 +136,12 @@
 			{/if}
 		</h2>
 		{#if meta}{@render meta()}{/if}
-		{#if actions}<div class="ml-auto flex shrink-0 items-center gap-2">
+		{#if actions}<div
+				class={cn(
+					'ml-auto flex shrink-0 items-center gap-2',
+					stack && 'max-sm:ml-0 max-sm:w-full max-sm:[&>*]:flex-1'
+				)}
+			>
 				{@render actions()}
 			</div>{/if}
 	{/snippet}

@@ -6,6 +6,7 @@
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
+	import { scrollFade } from '#lib/actions/scrollFade.js';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { clearCache } from '#lib/board/swr.js';
 	import VisibilityPill from '#lib/board/item/VisibilityPill.svelte';
@@ -429,50 +430,64 @@
 					</div>
 				</div>
 				<!-- THE WORKFLOWS A CODING TOOL CAN RUN FOR THIS ITEM. RESUME IS THE ONE PRIMARY ACTION OF THE PAGE -->
-				{#if canContinue}
-					<div
-						class="flex flex-wrap items-center gap-2"
-						role="group"
-						aria-label="Continue with a coding tool"
-						data-testid="continue-actions"
-					>
-						{#each CONTINUE_ACTIONS as a (a)}
-							{@const Icon = ACTION_ICON[a]}
-							<Button
+				<!-- ON A PHONE THE FIVE BUTTONS AND THE ITEM MENU ARE ONE OUTLINED GRID OF THREE COLUMNS: HAIRLINES BETWEEN THE CELLS, THE CELLS TAKE THE COLOUR OF THE BAND. FROM SM UP THIS WRAPPER LAYS NOTHING OUT -->
+				<div
+					class="contents max-sm:grid max-sm:basis-full max-sm:grid-cols-3 max-sm:gap-px max-sm:overflow-hidden max-sm:rounded-xl max-sm:border max-sm:border-line max-sm:bg-line"
+				>
+					{#if canContinue}
+						<div
+							class="flex flex-wrap items-center gap-2 max-sm:contents"
+							role="group"
+							aria-label="Continue with a coding tool"
+							data-testid="continue-actions"
+						>
+							{#each CONTINUE_ACTIONS as a (a)}
+								{@const Icon = ACTION_ICON[a]}
+								<Button
+									size="sm"
+									variant="subtle"
+									class={cn(
+										'max-sm:w-full max-sm:rounded-none max-sm:border-0 max-sm:bg-band',
+										a === 'resume' && 'max-sm:[&_svg]:text-accent'
+									)}
+									onclick={() => openContinue(a)}
+									data-testid={`continue-${a}`}
+								>
+									<Icon size={16} aria-hidden="true" />
+									{ACTION_LABEL[a]}
+								</Button>
+							{/each}
+						</div>
+					{/if}
+					{#if env.canWrite}
+						<!-- THE SIXTH CELL OF THE PHONE GRID: THE MENU BUTTON FILLS IT -->
+						<div
+							class="flex max-sm:bg-band max-sm:[&_button]:size-full max-sm:[&_button]:rounded-none max-sm:[&>span]:w-full"
+						>
+							<ActionMenu
 								size="sm"
-								variant="subtle"
-								onclick={() => openContinue(a)}
-								data-testid={`continue-${a}`}
-							>
-								<Icon size={16} aria-hidden="true" />
-								{ACTION_LABEL[a]}
-							</Button>
-						{/each}
-					</div>
-				{/if}
-				{#if env.canWrite}
-					<ActionMenu
-						size="sm"
-						label="Item actions"
-						items={[
-							{
-								label: 'Rename',
-								icon: Pencil,
-								onselect: () => {
-									title = d.item.title;
-									renameError = '';
-									renaming = true;
-								}
-							},
-							{
-								label: 'Move to trash',
-								icon: Trash,
-								danger: true,
-								onselect: () => (trashing = true)
-							}
-						]}
-					/>
-				{/if}
+								label="Item actions"
+								items={[
+									{
+										label: 'Rename',
+										icon: Pencil,
+										onselect: () => {
+											title = d.item.title;
+											renameError = '';
+											renaming = true;
+										}
+									},
+									{
+										label: 'Move to trash',
+										icon: Trash,
+										danger: true,
+										onselect: () => (trashing = true)
+									}
+								]}
+							/>
+						</div>
+					{/if}
+				</div>
 			</div>
 
 			<!-- THE TITLE AND WHO MADE THE ITEM USE THE FULL WIDTH OF THE HEADER, UNDER THE REFERENCE LINE AND THE ACTIONS -->
@@ -495,7 +510,7 @@
 
 			<!-- THE SUMMARY BAND. THE RING, THE STATUS AND WHO IS RUNNING IT -->
 			<div
-				class="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-line bg-surface p-5 shadow-[var(--elev-1)]"
+				class="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-line bg-surface p-5 shadow-[var(--elev-1)] max-sm:gap-x-4 max-sm:p-4"
 			>
 				<ProgressRing value={d.item.percent} label={`${d.item.ref} progress`} size={48} />
 				<div class="flex min-w-0 flex-col gap-1">
@@ -506,15 +521,17 @@
 						<span class="text-sm text-muted">{d.item.openManual} manual checks open</span>
 					{/if}
 				</div>
-				<div class="ml-auto flex flex-wrap items-center gap-2">
+				<!-- ON A PHONE THE STATUS IS A FULL WIDTH ROW UNDER THE PERCENT: THE LABEL ON THE LEFT, THE BADGE ON THE RIGHT -->
+				<div class="ml-auto flex flex-wrap items-center gap-2 max-sm:ml-0 max-sm:w-full">
 					<!-- THE STATUS IS ONE CONTROL: THE PILL SHOWS IT AND, FOR A WRITER, OPENS THE LIST TO CHANGE IT -->
-					<span data-testid="item-status">
+					<span data-testid="item-status" class="max-sm:w-full">
 						{#if env.canWrite}
 							<Popover
 								bind:open={statusOpen}
 								placement="bottom-end"
 								role="menu"
 								label="Change status"
+								anchorClass="max-sm:flex max-sm:w-full"
 							>
 								{#snippet trigger({ props, toggle, open })}
 									<button
@@ -524,8 +541,9 @@
 										disabled={busy}
 										aria-label={`Status ${statusLabel(d.item.status)}. Change status`}
 										data-testid="change-status"
-										class="group inline-flex min-h-11 cursor-pointer items-center rounded-md transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none motion-reduce:active:scale-100"
+										class="group inline-flex min-h-11 cursor-pointer items-center rounded-md transition-transform focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none motion-reduce:active:scale-100 max-sm:w-full max-sm:justify-between max-sm:rounded-lg max-sm:border max-sm:border-line max-sm:px-3"
 									>
+										<span class="text-sm text-muted sm:hidden">Status</span>
 										<Badge
 											tone={STATUS_TONE[d.item.status as Status]}
 											dot
@@ -608,35 +626,47 @@
 			aria-label="Item sections"
 			class="sticky top-[65px] z-20 rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-1)] before:pointer-events-none before:absolute before:inset-x-0 before:-top-2 before:h-2 before:bg-[var(--bg)] md:top-[73px]"
 		>
-			<div
-				bind:this={tabRow}
-				class="[scrollbar-width:none]! overflow-x-auto overflow-y-hidden overscroll-x-contain [&::-webkit-scrollbar]:hidden"
-			>
-				<ul class="flex min-w-max gap-1">
-					{#each TABS.filter((t) => t !== 'checks' || d.project.webApp) as t (t)}
-						{@const Icon = TAB_ICON[t]}
-						<li>
-							<a
-								href={tabHref(t)}
-								aria-current={tab === t ? 'page' : undefined}
-								data-testid={`tab-${t}`}
-								class="group flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm whitespace-nowrap text-muted transition-colors hover:bg-raised/60 hover:text-ink aria-[current=page]:bg-raised aria-[current=page]:font-medium aria-[current=page]:text-ink motion-reduce:transition-none max-sm:min-h-11"
-							>
-								<Icon
-									size={16}
-									class="shrink-0 group-aria-[current=page]:text-accent"
-									aria-hidden="true"
-								/>
-								{TAB_LABEL[t]}
-								{#if (counts[t] ?? 0) > 0}<span
-										data-count
-										class="rounded-full bg-raised px-2 py-0.5 text-badge leading-none font-semibold text-muted tabular-nums group-aria-[current=page]:bg-surface group-aria-[current=page]:text-ink"
-										>{counts[t]}</span
-									>{/if}
-							</a>
-						</li>
-					{/each}
-				</ul>
+			<!-- THE ROW SCROLLS SIDEWAYS ON A PHONE. A FADE OF THE SURFACE SHOWS AT THE EDGE WHERE IT CONTINUES -->
+			<div class="group/fade relative">
+				<div
+					bind:this={tabRow}
+					use:scrollFade
+					class="[scrollbar-width:none]! overflow-x-auto overflow-y-hidden overscroll-x-contain [&::-webkit-scrollbar]:hidden"
+				>
+					<ul class="flex min-w-max gap-1">
+						{#each TABS.filter((t) => t !== 'checks' || d.project.webApp) as t (t)}
+							{@const Icon = TAB_ICON[t]}
+							<li>
+								<a
+									href={tabHref(t)}
+									aria-current={tab === t ? 'page' : undefined}
+									data-testid={`tab-${t}`}
+									class="group flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm whitespace-nowrap text-muted transition-colors hover:bg-raised/60 hover:text-ink aria-[current=page]:bg-raised aria-[current=page]:font-medium aria-[current=page]:text-ink motion-reduce:transition-none max-sm:min-h-11"
+								>
+									<Icon
+										size={16}
+										class="shrink-0 group-aria-[current=page]:text-accent"
+										aria-hidden="true"
+									/>
+									{TAB_LABEL[t]}
+									{#if (counts[t] ?? 0) > 0}<span
+											data-count
+											class="rounded-full bg-raised px-2 py-0.5 text-badge leading-none font-semibold text-muted tabular-nums group-aria-[current=page]:bg-surface group-aria-[current=page]:text-ink"
+											>{counts[t]}</span
+										>{/if}
+								</a>
+							</li>
+						{/each}
+					</ul>
+				</div>
+				<span
+					class="pointer-events-none absolute inset-y-0 left-0 w-6 rounded-l-lg bg-[linear-gradient(to_right,var(--surface),transparent)] opacity-0 transition-opacity group-data-[fade-start]/fade:opacity-100 motion-reduce:transition-none"
+					aria-hidden="true"
+				></span>
+				<span
+					class="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-[linear-gradient(to_left,var(--surface),transparent)] opacity-0 transition-opacity group-data-[fade-end]/fade:opacity-100 motion-reduce:transition-none"
+					aria-hidden="true"
+				></span>
 			</div>
 		</nav>
 

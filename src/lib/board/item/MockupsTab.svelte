@@ -87,7 +87,7 @@
 			</EmptyState>
 		</div>
 	{:else}
-		<TabCard title="Preview">
+		<TabCard title="Preview" stack>
 			{#snippet meta()}
 				<Badge tone="success">v{current.currentVersion}</Badge>
 				{#if current.publicLinkOn}<Badge tone="info">Public link on</Badge>{/if}

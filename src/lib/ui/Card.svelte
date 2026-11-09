@@ -16,6 +16,7 @@
 		icon: Icon,
 		tone = 'default',
 		padded = true,
+		headerClass,
 		class: extra,
 		...rest
 	}: {
@@ -29,6 +30,8 @@
 		/** The danger zone: a red edge and a red title, for a card of destructive actions. */
 		tone?: 'default' | 'danger';
 		padded?: boolean;
+		/** Extra classes for the header row of a custom header, for example a row that wraps on a phone. */
+		headerClass?: string;
 		class?: string;
 	} & Omit<HTMLAttributes<HTMLDivElement>, 'class'> = $props();
 </script>
@@ -43,7 +46,12 @@
 	{...rest}
 >
 	{#if header}
-		<div class="flex items-center gap-2 border-b border-line px-4 py-3 max-sm:px-3.5">
+		<div
+			class={cn(
+				'flex items-center gap-2 border-b border-line px-4 py-3 max-sm:px-3.5',
+				headerClass
+			)}
+		>
 			{@render header()}
 		</div>
 	{:else if title}
