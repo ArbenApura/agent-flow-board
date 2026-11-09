@@ -140,7 +140,7 @@ describe('import-legacy', () => {
 		});
 		const s = importLegacy({ from: old, org: 'acme' });
 		expect(s.projects.skipped[0]?.next).toMatch(
-			/check approve --action register --target HAPRD.*--url https:\/\/demo.example.com --extra-hosts cdn.example.com/
+			/check approve --request --action register --target HAPRD.*--url https:\/\/demo.example.com --extra-hosts cdn.example.com/
 		);
 		expect(listRegistrations('acme')).toEqual([]);
 	});

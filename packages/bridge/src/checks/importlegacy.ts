@@ -148,7 +148,7 @@ function importProject(
 		const hosts = old.extraHosts?.length ? ` --extra-hosts ${old.extraHosts.join(',')}` : '';
 		return skip(
 			'a live site is registered only with a code from the owner',
-			`check approve --action register --target ${name}, then check project ${name} --org ${org} --board-project ${boardProject} --url ${old.url}${hosts} --approval <code>`
+			`check approve --request --action register --target ${name}, then check project ${name} --org ${org} --board-project ${boardProject} --url ${old.url}${hosts} --approval <code>`
 		);
 	}
 	if (!old.repo) return skip('the project file names neither a repo folder nor a live site');
@@ -159,7 +159,7 @@ function importProject(
 		const parent = dirname(folder);
 		return skip(
 			'its repo folder is not inside a folder the owner approved',
-			`check approve --action roots --target "${parent}", then check roots add "${parent}" --approval <code>, then import again`
+			`check approve --request --action roots --target "${parent}", then check roots add "${parent}" --approval <code>, then import again`
 		);
 	}
 	const input = {
@@ -286,7 +286,7 @@ export function importLegacy(opts: { from: string; org: string; dryRun?: boolean
 	for (const s of projects.skipped) if (s.next) todo.push(`${s.name}: ${s.next}`);
 	if (projects.registered.length || projects.unchanged.length) {
 		todo.push(
-			`Secrets are not moved (they are sealed with the old key). Import them again with an approval code: ${[...projects.registered, ...projects.unchanged].map((n) => `check approve --action secrets --target ${n}`).join('; ')}, then check secrets import ... --approval <code>.`
+			`Secrets are not moved (they are sealed with the old key). Import them again with an approval code: ${[...projects.registered, ...projects.unchanged].map((n) => `check approve --request --action secrets --target ${n}`).join('; ')}, then check secrets import ... --approval <code>.`
 		);
 		todo.push(
 			`Make the sign-ins again: ${[...projects.registered, ...projects.unchanged].map((n) => `check login ${n} --org ${org}`).join('; ')}.`

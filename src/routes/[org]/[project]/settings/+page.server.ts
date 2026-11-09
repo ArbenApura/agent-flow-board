@@ -1,9 +1,13 @@
 // -- DEP-TYPES -- //
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
+// -- DEP-MODULES -- //
+import { fail } from '@sveltejs/kit';
 // -- MODULES -- //
+import { approvalList, setAutoApprove } from '#lib/server/ops/approvals.js';
+import { OpError } from '#lib/server/ops/context.js';
 import { listRunners } from '#lib/server/ops/environments.js';
 import { getProject } from '#lib/server/ops/projects.js';
-import { childContext } from '#lib/server/web/ctx.js';
+import { childContext, orgContext } from '#lib/server/web/ctx.js';
 
 // -- FUNCTIONS -- //
 
@@ -11,9 +15,15 @@ import { childContext } from '#lib/server/web/ctx.js';
 export const load: PageServerLoad = async ({ params, parent, locals, depends }) => {
 	depends('afb:settings');
 	const { org, summary } = await parent();
-	if (!summary) return { project: null, usage: [], tools: [] };
+	if (!summary) return { project: null, usage: [], tools: [], agentAccess: null };
 	const ctx = await childContext(locals, org.id);
-	const [project, runners] = await Promise.all([getProject(ctx, params.project), listRunners(ctx)]);
+	const canManage = summary.caps.includes('manage');
+	const [project, runners, agentAccess] = await Promise.all([
+		getProject(ctx, params.project),
+		listRunners(ctx),
+		// This person's own switch and what their own agents did on their own; the list is empty for anyone who cannot manage
+		approvalList(ctx)
+	]);
 	return {
 		project: {
 			id: project.id,
@@ -31,7 +41,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends }) 
 		// How many items sit under each stream and scope, as this person may see them (private and trashed items are not counted)
 		usage: summary.areas.map((a) => ({ stream: a.stream, scope: a.scope, n: a.n })),
 		// The afb-checks tools that serve this project: only a name and whether it answered lately
-		tools: (summary.caps.includes('manage') ? runners : [])
+		tools: (canManage ? runners : [])
 			.filter((r) => r.kind === 'tool' && r.projects.includes(project.key))
 			.map((r) => ({
 				id: r.id,
@@ -41,6 +51,31 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends }) 
 				busy: r.busy,
 				lastSeenAt: r.lastSeenAt?.toISOString() ?? null
 			})),
-		canManage: summary.caps.includes('manage')
+		agentAccess: {
+			enabled: agentAccess.enabled,
+			since: agentAccess.since,
+			canManage: agentAccess.canManage,
+			history: agentAccess.history
+		},
+		canManage
 	};
+};
+
+export const actions: Actions = {
+	/** The person's own switch: only a signed-in person with manage changes it, never a token or an agent. */
+	autoApprove: async ({ request, locals, params, url }) => {
+		const { ctx } = await orgContext(locals, params.org, url.pathname);
+		const data = await request.formData();
+		try {
+			const done = await setAutoApprove(ctx, data.get('on') === 'true');
+			return { enabled: done.enabled };
+		} catch (e) {
+			if (e instanceof OpError)
+				return fail(e.code === 'FORBIDDEN' ? 403 : 400, {
+					message:
+						e.code === 'FORBIDDEN' ? 'You can no longer change this. Reload the page.' : e.message
+				});
+			throw e;
+		}
+	}
 };

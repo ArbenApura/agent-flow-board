@@ -198,9 +198,16 @@ describe('MCP server', () => {
 			'check_run',
 			'check_wait',
 			'runner_status',
+			'approval_list',
 			'tool_connection_approve'
 		])
 			expect(names).toContain(n);
+		// No deciding verb exists over MCP: only the owner on the board decides
+		expect(
+			names.filter(
+				(n) => /approval/.test(n) && n !== 'approval_list' && n !== 'tool_connection_approve'
+			)
+		).toEqual([]);
 		expect(
 			tools.every((t) => (t.description ?? '').length > 10 && (t.description ?? '').length < 330)
 		).toBe(true);

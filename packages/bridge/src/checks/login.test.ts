@@ -17,6 +17,7 @@ vi.mock('./store.js', () => ({
 // -- MODULES -- //
 import {
 	chooseState,
+	desktopProblem,
 	envNames,
 	keepRelated,
 	loginCommand,
@@ -26,7 +27,7 @@ import {
 } from './login.js';
 import { saveProfile } from './profiles.js';
 import { stateDirFor } from './paths.js';
-import type { LoginCtx, LoginTarget } from './login.js';
+import type { HeadedOutcome, LoginCtx, LoginTarget } from './login.js';
 import type { Registration } from './types.js';
 
 // -- CONSTANTS -- //
@@ -63,13 +64,14 @@ function setup(over: Partial<NonNullable<LoginCtx['deps']>> = {}) {
 		out: (l) => void outs.push(l),
 		json: false,
 		deps: {
-			isTTY: false,
+			desktop: () => null,
+			approval: { peek: (_t, c) => c === 'GOOD', consume: (_t, c) => c === 'GOOD' },
 			env: {},
 			loadRegistration: (org, name) => (org === 'acme' && name === 'HAPR-D' ? REG : null),
 			target: async () => target,
 			save: (...a) => void saved.push(a),
 			signIn: vi.fn(async () => STATE),
-			headed: vi.fn(async () => STATE),
+			headed: vi.fn(async (): Promise<HeadedOutcome> => ({ state: 'signed-in', storage: STATE })),
 			...over
 		}
 	};
@@ -157,19 +159,68 @@ describe('loginCommand --seeded', () => {
 });
 
 describe('loginCommand headed', () => {
-	it('is refused with one plain sentence when there is no interactive terminal, and opens nothing', async () => {
-		const t = setup({ isTTY: false });
-		expect(await loginCommand(['HAPR-D', '--org', 'acme'], t.ctx)).toBe(1);
-		expect(t.lines).toHaveLength(1);
-		expect(t.lines[0]).toMatch(/terminal/);
+	it('is refused with one plain sentence when there is no desktop to show a window on, and opens nothing', async () => {
+		const t = setup({ desktop: () => 'This process has no desktop to show a window on.' });
+		expect(await loginCommand(['HAPR-D', '--org', 'acme', '--approval', 'GOOD'], t.ctx)).toBe(1);
+		expect(t.lines).toEqual(['This process has no desktop to show a window on.']);
 		expect(t.ctx.deps?.headed).not.toHaveBeenCalled();
 	});
-	it('runs the headed login on a terminal and saves its state', async () => {
-		const t = setup({ isTTY: true });
-		expect(await loginCommand(['HAPR-D', '--org', 'acme'], t.ctx)).toBe(0);
-		expect(t.ctx.deps?.headed).toHaveBeenCalledTimes(1);
+	it('is refused without the owner approval, with the way to ask for it, and opens nothing', async () => {
+		const t = setup();
+		expect(await loginCommand(['HAPR-D', '--org', 'acme'], t.ctx)).toBe(1);
+		expect(await loginCommand(['HAPR-D', '--org', 'acme', '--approval', 'WRONG'], t.ctx)).toBe(1);
+		expect(t.lines[0]).toMatch(/check approve --request --action login --target acme\/HAPR-D/);
+		expect(t.ctx.deps?.headed).not.toHaveBeenCalled();
+	});
+	it('uses the approval up before the window opens, then saves the state', async () => {
+		const consume = vi.fn(() => true);
+		const t = setup({ approval: { peek: () => true, consume } });
+		expect(await loginCommand(['HAPR-D', '--org', 'acme', '--approval', 'GOOD'], t.ctx)).toBe(0);
+		expect(consume.mock.invocationCallOrder[0]).toBeLessThan(
+			vi.mocked(t.ctx.deps!.headed!).mock.invocationCallOrder[0]!
+		);
 		expect(t.ctx.deps?.signIn).not.toHaveBeenCalled();
 		expect(t.saved).toHaveLength(1);
+		expect(t.stopped()).toBe(1);
+	});
+	it('does not open a window when the code was used between the look and the use', async () => {
+		const t = setup({ approval: { peek: () => true, consume: () => false } });
+		expect(await loginCommand(['HAPR-D', '--org', 'acme', '--approval', 'GOOD'], t.ctx)).toBe(1);
+		expect(t.ctx.deps?.headed).not.toHaveBeenCalled();
+	});
+	it('ends with its own exit code when the window is closed (4) or the time runs out (5), and saves nothing', async () => {
+		const closed = setup({
+			headed: vi.fn(async (): Promise<HeadedOutcome> => ({ state: 'closed' }))
+		});
+		expect(await loginCommand(['HAPR-D', '--org', 'acme', '--approval', 'GOOD'], closed.ctx)).toBe(
+			4
+		);
+		const late = setup({
+			headed: vi.fn(async (): Promise<HeadedOutcome> => ({ state: 'timeout' }))
+		});
+		expect(
+			await loginCommand(
+				['HAPR-D', '--org', 'acme', '--approval', 'GOOD', '--timeout', '1'],
+				late.ctx
+			)
+		).toBe(5);
+		expect(closed.saved).toEqual([]);
+		expect(late.saved).toEqual([]);
+		expect(
+			await loginCommand(
+				['HAPR-D', '--org', 'acme', '--approval', 'GOOD', '--timeout', '99'],
+				setup().ctx
+			)
+		).toBe(1);
+	});
+	it('says a desktop exists only where one can show a window', () => {
+		expect(desktopProblem({ SESSIONNAME: 'Console' }, 'win32')).toBeNull();
+		expect(desktopProblem({}, 'win32')).toMatch(/no desktop/);
+		expect(desktopProblem({ DISPLAY: ':0' }, 'linux')).toBeNull();
+		expect(desktopProblem({ WAYLAND_DISPLAY: 'wayland-0' }, 'linux')).toBeNull();
+		expect(desktopProblem({}, 'linux')).toMatch(/no desktop/);
+		expect(desktopProblem({ SSH_CONNECTION: 'x' }, 'darwin')).toMatch(/no desktop/);
+		expect(desktopProblem({}, 'darwin')).toBeNull();
 	});
 });
 

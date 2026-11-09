@@ -101,6 +101,36 @@ export class RunnerBoard {
         const out = await this.call('POST', `/runs/${encodeURIComponent(runId)}/artifacts?${q}`, file.bytes, 'application/octet-stream');
         return out.attachmentId;
     }
+    // -- OWNER APPROVALS ASKED ON THE BOARD -- //
+    /** Files a request (one entry, or up to 20 as one batch). The board normalises each target and returns the rows and the page link. */
+    requestApprovals(input) {
+        return this.call('POST', '/approvals', JSON.stringify(input), 'application/json');
+    }
+    /** The state of requests of this machine. */
+    async pollApprovals(ids) {
+        return (await this.call('POST', '/approvals/poll', JSON.stringify({ ids }), 'application/json')).requests;
+    }
+    /** Withdraws waiting requests, so no card stays for an agent that gave up. */
+    cancelApprovals(ids) {
+        return this.call('POST', '/approvals/cancel', JSON.stringify({ ids }), 'application/json');
+    }
+    /** Claims approved decisions, once: the board answers only the rows that were approved, unexpired and not claimed. */
+    async claimApprovals(ids) {
+        return (await this.call('POST', '/approvals/claim', JSON.stringify({ ids }), 'application/json')).claimed;
+    }
+    // -- TEST ACCOUNT SIGN INS TYPED ON THE BOARD -- //
+    /** Publishes this machine's public sign in key (only this runner token may). */
+    publishSigninKey(input) {
+        return this.call('POST', '/signins/key', JSON.stringify(input), 'application/json');
+    }
+    /** Leases the waiting ciphertext of one registration for two minutes. */
+    leaseSignins(registration) {
+        return this.call('POST', '/signins/lease', JSON.stringify({ registration }), 'application/json');
+    }
+    /** Says the attempt is over; the board keeps pass or fail only and wipes the ciphertext. */
+    ackSignin(input) {
+        return this.call('POST', '/signins/ack', JSON.stringify(input), 'application/json');
+    }
     finish(runId, report) {
         return this.call('POST', `/runs/${encodeURIComponent(runId)}/finish`, JSON.stringify(report), 'application/json');
     }

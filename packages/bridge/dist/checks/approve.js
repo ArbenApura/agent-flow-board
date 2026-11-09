@@ -17,11 +17,15 @@ export const APPROVAL_ACTIONS = [
     'secrets',
     'adopt-env',
     'roots',
-    'pictures'
+    'pictures',
+    'login'
 ];
 /** A code is valid for ten minutes. */
 export const APPROVAL_TTL_MS = 10 * 60 * 1000;
+/** The most codes the file holds: the board's batch cap, so a whole batch is valid at once. */
 const MAX_CODES = 20;
+/** The decisions this module's own claim function returned. A decision that is not in here is never minted into a code. */
+const claimedDecisions = new WeakSet();
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 12;
 // -- FUNCTIONS -- //
@@ -121,13 +125,23 @@ function readEntries() {
         for (const e of list) {
             if (!e || typeof e !== 'object')
                 continue;
-            const { h, action, target, exp } = e;
+            const { h, action, target, exp, note } = e;
             if (typeof h === 'string' &&
                 typeof action === 'string' &&
                 isApprovalAction(action) &&
                 typeof target === 'string' &&
-                typeof exp === 'number')
-                out.push({ h, action, target, exp });
+                typeof exp === 'number') {
+                const n = note;
+                out.push({
+                    h,
+                    action,
+                    target,
+                    exp,
+                    ...(n && typeof n.by === 'string' && typeof n.at === 'string'
+                        ? { note: { by: n.by.slice(0, 80), at: n.at.slice(0, 40) } }
+                        : {})
+                });
+            }
         }
         return out;
     }
@@ -143,6 +157,34 @@ const writeEntries = (codes) => writeFileAtomic(approvalsFile(), JSON.stringify(
 export function mintApproval(action, target, opts) {
     if (!opts.isTTY)
         throw new Refusal('An approval code is made by the owner on an interactive terminal. This is not one, so no code was made.');
+    return mintCode(action, target, opts.now);
+}
+/**
+ * Makes a code from a board decision that this module's claim function returned. This is the only way besides a terminal: a decision that was not claimed through the
+ * board (a made-up object, a flag, a file) is refused. The code is for the decision's own action and target, and nothing else.
+ */
+export function mintFromDecision(claim, opts = {}) {
+    if (!claimedDecisions.has(claim))
+        throw new Refusal('An approval code is made from a decision the board gave, and this is not one.');
+    return mintCode(claim.action, claim.target, opts.now, {
+        by: claim.decidedBy,
+        at: claim.decidedAt
+    });
+}
+/** Claims the named approved decisions on the board (once) and marks what came back as claimed. A decision the board did not return is not here. */
+export async function claimBoardDecisions(board, ids) {
+    const got = await board.claimApprovals(ids);
+    const out = got.map((d) => ({ ...d }));
+    for (const d of out)
+        claimedDecisions.add(d);
+    return out;
+}
+/** The sentence for the owner's word when a code came from the board, or null when it came from a terminal. */
+export function boardSentence(note) {
+    return note ? `Approved by ${note.by} on the board at ${note.at}.` : null;
+}
+function mintCode(action, target, nowMs, note) {
+    const opts = { now: nowMs };
     if (!isApprovalAction(action))
         throw new Refusal(`"${action.slice(0, 30)}" is not an action (${APPROVAL_ACTIONS.join(', ')}).`);
     const now = opts.now ?? Date.now();
@@ -153,10 +195,21 @@ export function mintApproval(action, target, opts) {
     const exp = now + APPROVAL_TTL_MS;
     withLockSync('approvals', () => {
         const kept = readEntries().filter((e) => e.exp > now && !(e.action === action && e.target === norm));
-        kept.push({ h: macOf(action, norm, code), action, target: norm, exp });
+        kept.push({
+            h: macOf(action, norm, code),
+            action,
+            target: norm,
+            exp,
+            ...(note ? { note } : {})
+        });
         writeEntries(kept.slice(-MAX_CODES));
     });
-    appendAudit('approval minted', { action, target: norm, minutes: APPROVAL_TTL_MS / 60000 });
+    appendAudit('approval minted', {
+        action,
+        target: norm,
+        minutes: APPROVAL_TTL_MS / 60000,
+        ...(note ? { decided_via: 'board', decided_by: note.by } : {})
+    });
     return {
         code: `${code.slice(0, 4)}-${code.slice(4, 8)}-${code.slice(8)}`,
         expiresAt: new Date(exp).toISOString()
@@ -184,30 +237,38 @@ export function peekApproval(action, target, code, now = Date.now()) {
 }
 /** True once for a valid code of this action and target, and false for a wrong action, a wrong target, an expired, a used or an unknown code. */
 export function consumeApproval(action, target, code, now = Date.now()) {
+    return consumeApprovalNote(action, target, code, now).ok;
+}
+/** Like consumeApproval, and says who decided when the code came from the board (for the owner sentence and the audit line). */
+export function consumeApprovalNote(action, target, code, now = Date.now()) {
     if (!isApprovalAction(action))
-        return false;
+        return { ok: false };
     const plain = normaliseCode(code);
     if (!plain)
-        return false;
+        return { ok: false };
     let norm;
     try {
         norm = normaliseTarget(action, target);
     }
     catch {
-        return false;
+        return { ok: false };
     }
     const want = macOf(action, norm, plain);
-    let hit = false;
+    let found;
     withLockSync('approvals', () => {
         const all = readEntries();
         const live = all.filter((e) => e.exp > now);
-        const found = live.find((e) => e.action === action && sameMac(e.h, want));
-        hit = found !== undefined;
+        found = live.find((e) => e.action === action && sameMac(e.h, want));
         const rest = found ? live.filter((e) => e !== found) : live;
-        if (hit || rest.length !== all.length)
+        if (found || rest.length !== all.length)
             writeEntries(rest);
     });
+    const hit = found;
     if (hit)
-        appendAudit('approved with code', { action, target: norm });
-    return hit;
+        appendAudit('approved with code', {
+            action,
+            target: norm,
+            ...(hit.note ? { decided_via: 'board', decided_by: hit.note.by } : {})
+        });
+    return hit ? { ok: true, ...(hit.note ? { note: hit.note } : {}) } : { ok: false };
 }

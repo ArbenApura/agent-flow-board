@@ -40,6 +40,27 @@ export type RunReport = {
 	branch?: string;
 };
 
+export type ApprovalState = {
+	id: string;
+	batchId: string | null;
+	action: string;
+	target: string;
+	status: 'pending' | 'approved' | 'refused' | 'expired' | 'cancelled' | 'claimed';
+	expiresAt: string;
+};
+export type ApprovalRequested = {
+	batchId: string | null;
+	requests: ApprovalState[];
+	link: string | null;
+};
+export type ClaimedFromBoard = {
+	id: string;
+	action: string;
+	target: string;
+	decidedBy: string;
+	decidedAt: string;
+};
+
 // -- MODULES -- //
 import { TOOL_PROTOCOL } from './paths.js';
 
@@ -189,6 +210,94 @@ export class RunnerBoard {
 			'application/octet-stream'
 		);
 		return out.attachmentId;
+	}
+
+	// -- OWNER APPROVALS ASKED ON THE BOARD -- //
+
+	/** Files a request (one entry, or up to 20 as one batch). The board normalises each target and returns the rows and the page link. */
+	requestApprovals(input: {
+		requestId: string;
+		entries: { action: string; target: string }[];
+		why?: string;
+		project?: string;
+	}) {
+		return this.call<ApprovalRequested>(
+			'POST',
+			'/approvals',
+			JSON.stringify(input),
+			'application/json'
+		);
+	}
+
+	/** The state of requests of this machine. */
+	async pollApprovals(ids: string[]): Promise<ApprovalState[]> {
+		return (
+			await this.call<{ requests: ApprovalState[] }>(
+				'POST',
+				'/approvals/poll',
+				JSON.stringify({ ids }),
+				'application/json'
+			)
+		).requests;
+	}
+
+	/** Withdraws waiting requests, so no card stays for an agent that gave up. */
+	cancelApprovals(ids: string[]) {
+		return this.call<{ cancelled: number }>(
+			'POST',
+			'/approvals/cancel',
+			JSON.stringify({ ids }),
+			'application/json'
+		);
+	}
+
+	/** Claims approved decisions, once: the board answers only the rows that were approved, unexpired and not claimed. */
+	async claimApprovals(ids: string[]): Promise<ClaimedFromBoard[]> {
+		return (
+			await this.call<{ claimed: ClaimedFromBoard[] }>(
+				'POST',
+				'/approvals/claim',
+				JSON.stringify({ ids }),
+				'application/json'
+			)
+		).claimed;
+	}
+
+	// -- TEST ACCOUNT SIGN INS TYPED ON THE BOARD -- //
+
+	/** Publishes this machine's public sign in key (only this runner token may). */
+	publishSigninKey(input: { keyId: string; publicKey: string }) {
+		return this.call<{ changed: boolean; fingerprint: string }>(
+			'POST',
+			'/signins/key',
+			JSON.stringify(input),
+			'application/json'
+		);
+	}
+
+	/** Leases the waiting ciphertext of one registration for two minutes. */
+	leaseSignins(registration: string) {
+		return this.call<{
+			orgId: string;
+			runnerId: string;
+			signins: {
+				id: string;
+				registration: string;
+				keyId: string;
+				alg: string;
+				ciphertext: string;
+			}[];
+		}>('POST', '/signins/lease', JSON.stringify({ registration }), 'application/json');
+	}
+
+	/** Says the attempt is over; the board keeps pass or fail only and wipes the ciphertext. */
+	ackSignin(input: { id: string; result: 'pass' | 'fail' }) {
+		return this.call<{ acknowledged: number }>(
+			'POST',
+			'/signins/ack',
+			JSON.stringify(input),
+			'application/json'
+		);
 	}
 
 	finish(runId: string, report: RunReport) {

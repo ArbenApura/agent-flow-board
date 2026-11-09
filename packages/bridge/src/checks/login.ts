@@ -1,22 +1,25 @@
 // `check login <NAME> --org <slug> [--seeded]`: SAVING A SIGN-IN FOR A REGISTRATION'S SITE, AND THE RULES FOR USING ONE
 // --seeded signs in with a seeded account (AFB_CHECKS_<NAME>_EMAIL and _PASSWORD) or the recipe's test user, through the app's own form.
-// Without --seeded a person signs in by hand in a visible browser window: that needs an interactive terminal, and is refused without one.
-// This file is the ONE place in the bridge that reads a terminal, and only in waitForEnter, only after the TTY check.
+// Without --seeded a person signs in by hand in a visible browser window on their own desktop. It needs the owner's `login` approval (a code, from the board or a terminal),
+// used up before the window opens, and a desktop session to show the window on. The window is a fresh temporary browser profile with no debugging port, deleted afterwards,
+// and the bridge does not return what is typed into it to the agent. The wait ends when a new session cookie of the site appears, the window is closed, or the time runs out.
 // Nothing here starts a preview itself: the caller injects `target`, and the sign in function is injected too, so tests launch no browser.
 // A cookie, a password or a token is never printed.
 
 // -- DEP-MODULES -- //
-import { readFileSync } from 'node:fs';
-import { createInterface } from 'node:readline';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // -- TYPES -- //
 import type { Registration } from './types.js';
 import type { SavedProfile } from './profiles.js';
 // -- MODULES -- //
+import { consumeApproval, peekApproval } from './approve.js';
 import { loadPlaywright } from './browser.js';
 import { ORG_SLUG, registrationsDir } from './paths.js';
 import { expiryNote, loadProfileChecked, saveProfile } from './profiles.js';
 import { redact } from './redact.js';
+import { openSignin, type SigninBoard } from './signinKey.js';
 import { signInWithPassword } from './signin.js';
 
 // -- TYPES -- //
@@ -31,17 +34,32 @@ export type LoginTarget = {
 	hosts?: string[];
 	stop(): Promise<void>;
 };
+/** How the headed window ended. Each has its own exit code: 0 signed in, 4 the window was closed, 5 the time ran out. */
+export type HeadedOutcome =
+	{ state: 'signed-in'; storage: unknown } | { state: 'closed' } | { state: 'timeout' };
 export type LoginDeps = {
 	signIn: (baseUrl: string, account: Account) => Promise<unknown>;
-	/** The headed login: opens a window, waits for the person, returns the browser state. Tests inject a stub. */
-	headed: (target: LoginTarget, say: (line: string) => void) => Promise<unknown>;
-	isTTY: boolean;
+	/** The headed login: opens a window on the desktop, waits for the person, returns how it ended. Tests inject a stub. */
+	headed: (
+		target: LoginTarget,
+		say: (line: string) => void,
+		timeoutMs: number
+	) => Promise<HeadedOutcome>;
+	/** Null when this process can show a window to a person, else one plain sentence saying why not (a service, a remote shell). */
+	desktop: () => string | null;
+	/** The owner's login approval: checked first, used up before the window opens. */
+	approval: {
+		peek: (target: string, code: string) => boolean;
+		consume: (target: string, code: string) => boolean;
+	};
 	env: Record<string, string | undefined>;
 	loadRegistration: (org: string, name: string) => Registration | null;
 	target: (registration: Registration) => Promise<LoginTarget>;
 	save: (org: string, name: string, bindKey: string, state: unknown) => unknown;
 };
 export type LoginCtx = {
+	/** This machine's board, for a sign in typed on the board (--from-board). */
+	board?: () => SigninBoard;
 	log(line: string): void;
 	out(line: string): void;
 	json: boolean;
@@ -51,6 +69,8 @@ export type LoginCtx = {
 // -- CONSTANTS -- //
 
 const NAME = /^[A-Za-z0-9_-]{1,32}$/;
+/** The window waits this long for a sign in (minutes), unless --timeout says otherwise. */
+const DEFAULT_TIMEOUT_MINUTES = 5;
 
 // -- FUNCTIONS -- //
 
@@ -139,36 +159,74 @@ export function keepRelated(
 	};
 }
 
-/** The one terminal read of the bridge: waits for the person to press Enter. Used only by the headed login, after the TTY check. */
-function waitForEnter(question: string): Promise<void> {
-	return new Promise((resolve) => {
-		const rl = createInterface({ input: process.stdin, output: process.stdout });
-		rl.question(question, () => {
-			rl.close();
-			resolve();
-		});
-	});
+/**
+ * Whether this process can show a window to a person: null when it can. On Windows a service has no console session name; on Linux a desktop sets DISPLAY or WAYLAND_DISPLAY;
+ * on a Mac a shell opened over SSH is not the desktop. Otherwise one plain sentence says why a window cannot be shown.
+ */
+export function desktopProblem(
+	env: Record<string, string | undefined> = process.env,
+	platform: string = process.platform
+): string | null {
+	const none =
+		'This process has no desktop to show a window on (for example it runs as a service or over a remote shell). Run the login from a terminal opened on the computer itself.';
+	if (platform === 'win32') return env.SESSIONNAME ? null : none;
+	if (platform === 'darwin') return env.SSH_CONNECTION || env.SSH_TTY ? none : null;
+	return env.DISPLAY || env.WAYLAND_DISPLAY ? null : none;
 }
 
-/** The headed login: a visible browser the person drives, then Enter. Only cookies and origins of the site are kept. */
-async function headedLogin(target: LoginTarget, say: (line: string) => void): Promise<unknown> {
+/** A cookie is told apart by its name and domain, never by its value. */
+const cookieId = (c: unknown) => {
+	const k = c as { name?: string; domain?: string };
+	return `${k.domain ?? ''}|${k.name ?? ''}`;
+};
+
+/**
+ * The headed login: a visible browser in a fresh temporary profile (no debugging port, deleted afterwards). It ends when a session cookie of the site appears that was not there
+ * when the page loaded, when the window is closed, or when the time runs out. Only cookies and origins of the site are kept.
+ */
+async function headedLogin(
+	target: LoginTarget,
+	say: (line: string) => void,
+	timeoutMs: number
+): Promise<HeadedOutcome> {
 	const { chromium } = await loadPlaywright();
-	const browser = await chromium.launch({ headless: false });
+	const profile = mkdtempSync(join(tmpdir(), 'afb-login-'));
+	const hosts = [new URL(target.baseUrl).hostname, ...(target.hosts ?? [])];
+	let context: Awaited<ReturnType<typeof chromium.launchPersistentContext>> | null = null;
 	try {
-		const ctx = await browser.newContext({ baseURL: target.baseUrl, viewport: null });
-		const page = await ctx.newPage();
+		context = await chromium.launchPersistentContext(profile, {
+			headless: false,
+			viewport: null,
+			baseURL: target.baseUrl
+		});
+		let closed = false;
+		context.on('close', () => void (closed = true));
+		const page = context.pages()[0] ?? (await context.newPage());
 		await page.goto(target.baseUrl);
+		const before = new Set(keepRelated(await context.storageState(), hosts).cookies.map(cookieId));
 		say(
-			`A browser window is open on ${target.baseUrl}. Sign in there the way you normally do (a password or Google).`
+			`A browser window is open on ${target.baseUrl}. Sign in there the way you normally do (a password or Google). The bridge does not return what you type to your agent.`
 		);
-		say(
-			'When you can see you are signed in, come back here and press Enter. Do not close the window first.'
-		);
-		await waitForEnter('Press Enter when signed in... ');
-		const hosts = [new URL(target.baseUrl).hostname, ...(target.hosts ?? [])];
-		return keepRelated(await ctx.storageState(), hosts);
+		const deadline = Date.now() + timeoutMs;
+		while (!closed && Date.now() < deadline) {
+			await new Promise((r) => setTimeout(r, 1000));
+			if (closed) break;
+			let kept: { cookies: unknown[]; origins: unknown[] };
+			try {
+				kept = keepRelated(await context.storageState(), hosts);
+			} catch {
+				break;
+			}
+			if (kept.cookies.some((c) => !before.has(cookieId(c)))) {
+				// A short settle, so a sign in that sets several cookies is kept whole
+				await new Promise((r) => setTimeout(r, 2000));
+				return { state: 'signed-in', storage: keepRelated(await context.storageState(), hosts) };
+			}
+		}
+		return closed ? { state: 'closed' } : { state: 'timeout' };
 	} finally {
-		await browser.close().catch(() => undefined);
+		await context?.close().catch(() => undefined);
+		rmSync(profile, { recursive: true, force: true });
 	}
 }
 
@@ -205,7 +263,11 @@ export async function loginCommand(args: string[], ctx: LoginCtx): Promise<numbe
 	const deps: LoginDeps = {
 		signIn: (baseUrl, account) => signInWithPassword(baseUrl, account),
 		headed: headedLogin,
-		isTTY: Boolean(process.stdin.isTTY),
+		desktop: () => desktopProblem(),
+		approval: {
+			peek: (target, code) => peekApproval('login', target, code),
+			consume: (target, code) => consumeApproval('login', target, code)
+		},
 		env: process.env,
 		loadRegistration: loadRegistrationFile,
 		target: defaultTarget,
@@ -218,20 +280,40 @@ export async function loginCommand(args: string[], ctx: LoginCtx): Promise<numbe
 	const name = positional[0];
 	const org = flagValue(args, '--org');
 	const seeded = args.includes('--seeded');
+	// The sign in the owner typed on the board, encrypted to this machine: opened here in memory, never shown to the agent
+	const fromBoard = args.includes('--from-board');
 	if (!name || !org) {
-		say('Usage: check login <NAME> --org <slug> [--seeded]');
+		say('Usage: check login <NAME> --org <slug> [--seeded | --from-board | --approval <code>]');
 		return 1;
 	}
 	if (!NAME.test(name) || !ORG_SLUG.test(org)) {
 		say('The registration name or the organisation is not a plain name.');
 		return 1;
 	}
-	// A headed login waits for a person at a screen: without a terminal it would wait for ever, so it stops at once
-	if (!seeded && !deps.isTTY) {
-		say(
-			'Signing in by hand needs a person at a terminal (it opens a browser window and waits), so it is refused here. Use --seeded with AFB_CHECKS_<NAME>_EMAIL and AFB_CHECKS_<NAME>_PASSWORD set, or a registration whose recipe has a test user.'
-		);
+	// A headed login shows a window to a person: it needs the owner's login approval and a desktop to show it on, and stops at once without either
+	const approval = flagValue(args, '--approval');
+	const minutes = flagValue(args, '--timeout');
+	const timeoutMinutes = minutes === undefined ? DEFAULT_TIMEOUT_MINUTES : Number(minutes);
+	if (fromBoard && !ctx.board) {
+		say('Reading a sign in from the board needs the check command with --server and --org.');
 		return 1;
+	}
+	if (!seeded && !fromBoard) {
+		if (!Number.isFinite(timeoutMinutes) || timeoutMinutes < 1 || timeoutMinutes > 30) {
+			say('--timeout takes a number of minutes from 1 to 30.');
+			return 1;
+		}
+		const problem = deps.desktop();
+		if (problem) {
+			say(problem);
+			return 1;
+		}
+		if (!approval || !deps.approval.peek(`${org}/${name}`, approval)) {
+			say(
+				`Signing in by hand needs the owner's approval. Ask for it: agent-flow-board check approve --request --action login --target ${org}/${name}, then pass --approval <code>. Or use --seeded with AFB_CHECKS_<NAME>_EMAIL and AFB_CHECKS_<NAME>_PASSWORD set.`
+			);
+			return 1;
+		}
 	}
 	const registration = deps.loadRegistration(org, name);
 	if (!registration || registration.org !== org) {
@@ -244,7 +326,35 @@ export async function loginCommand(args: string[], ctx: LoginCtx): Promise<numbe
 		target = await deps.target(registration);
 		const bindKey = new URL(target.baseUrl).origin;
 		let state: unknown;
-		if (seeded) {
+		if (fromBoard && ctx.board) {
+			const board = ctx.board();
+			const leased = await board.leaseSignins(name);
+			const envelope = leased.signins.find(
+				(e) => e.registration.toLowerCase() === name.toLowerCase()
+			);
+			if (!envelope) {
+				say(
+					`No sign in is waiting on the board for ${name}. Run the login without --from-board to sign in in a window on this computer.`
+				);
+				return 1;
+			}
+			let account: Awaited<ReturnType<typeof openSignin>> | null = null;
+			try {
+				account = await openSignin(envelope, { orgId: leased.orgId, runnerId: leased.runnerId });
+				secrets.push(account.password);
+				state = await deps.signIn(target.baseUrl, account);
+			} catch (e) {
+				// Only pass or fail goes back to the board, and the message never holds what was typed
+				await board.ackSignin({ id: envelope.id, result: 'fail' }).catch(() => undefined);
+				say(
+					`That did not sign in. ${redact(e instanceof Error ? e.message : '', secrets).slice(0, 160)}`
+				);
+				return 1;
+			} finally {
+				if (account) account.password = '';
+			}
+			await board.ackSignin({ id: envelope.id, result: 'pass' }).catch(() => undefined);
+		} else if (seeded) {
 			const account = seededAccount(name, deps.env) ?? target.testUser ?? null;
 			if (!account) {
 				const n = envNames(name);
@@ -256,7 +366,21 @@ export async function loginCommand(args: string[], ctx: LoginCtx): Promise<numbe
 			secrets.push(account.password);
 			state = await deps.signIn(target.baseUrl, account);
 		} else {
-			state = await deps.headed(target, say);
+			// The approval is used up before the window opens, so a window never opens twice on one code
+			if (!deps.approval.consume(`${org}/${name}`, approval ?? '')) {
+				say('The owner code was used or ran out just now. Ask for a new one.');
+				return 1;
+			}
+			const outcome = await deps.headed(target, say, timeoutMinutes * 60_000);
+			if (outcome.state === 'closed') {
+				say('The window was closed before a sign in was seen, so nothing was saved.');
+				return 4;
+			}
+			if (outcome.state === 'timeout') {
+				say(`No sign in was seen within ${timeoutMinutes} minutes, so nothing was saved.`);
+				return 5;
+			}
+			state = outcome.storage;
 		}
 		const kept = state as { cookies?: unknown[]; origins?: unknown[] } | null;
 		if (!kept || (!(kept.cookies?.length ?? 0) && !(kept.origins?.length ?? 0))) {

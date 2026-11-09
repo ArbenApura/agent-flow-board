@@ -1,5 +1,5 @@
 // `check secrets import|list|forget`: THE COMMAND SIDE OF THE SEALED STORE (secrets.ts holds every rule)
-// Import needs the owner's approval code (check approve --action secrets --target <org>/<NAME>): an agent cannot mint one. Names only are ever printed.
+// Import needs the owner's approval code (check approve --request --action secrets --target <org>/<NAME>): an agent cannot mint one. Names only are ever printed.
 // -- MODULES -- //
 import { findRegistration } from './registry.js';
 import { forgetSecrets, importSecrets, listSecrets } from './secrets.js';
@@ -47,7 +47,7 @@ export async function secretsCommand(args, ctx) {
             if (!file || !keys)
                 throw new Error('Say --from <file> and --keys A,B.');
             if (!approval)
-                throw new Error(`Secrets are imported with the owner's approval code. The owner runs, in a terminal: agent-flow-board check approve --action secrets --target ${org}/${name}, then you pass --approval <code>.`);
+                throw new Error(`Secrets are imported with the owner's approval code. Ask the owner on the board: agent-flow-board check approve --request --action secrets --target ${org}/${name}, then you pass --approval <code>.`);
             const done = importSecrets({
                 org,
                 name,

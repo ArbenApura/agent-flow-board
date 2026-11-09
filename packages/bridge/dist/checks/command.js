@@ -9,7 +9,9 @@ import { dirname, relative, resolve } from 'node:path';
 import { bindFolder } from './bind.js';
 import { ensureBrowser } from './browser.js';
 import { connectChecks, loadRunnerToken, runnerAccount } from './connect.js';
-import { forgetConnection, recordConnection } from './connections.js';
+import { forgetConnection, listConnections, recordConnection } from './connections.js';
+import { RunnerBoard } from './board.js';
+import { publishSigninKey } from './signinKey.js';
 import { ORG_SLUG, scriptPath, scriptsDir } from './paths.js';
 import { pinFiles, resolveProjectConfig } from './recipe.js';
 import { runCheck } from './run.js';
@@ -30,7 +32,9 @@ export const CHECK_USAGE = [
     '  watch [--parallel N] [--once]   take queued runs from the boards this machine is connected to',
     '  run ... also takes [--registration NAME] [--file <script inside the scripts folder>] [--headed]',
     '  project <NAME> --org <slug> (--repo <dir> [--app-dir web] [--board-project KEY] [--recipe] | --url <address> [--extra-hosts a,b]) [--adopt-env --adopt-env-approval <code>] [--upload-pictures --pictures-approval <code>] [--approval <code>] | project list|forget|pin',
-    '  approve --action <roots|register|secrets|adopt-env|pictures> --target <name>   (the owner, on a terminal)  |  roots add|list|remove <dir> [--approval <code>]',
+    '  approve --request --action <roots|register|secrets|adopt-env|pictures|login> --target <name> [--why "<sentence>"] [--wait <minutes>]   (asks the owner on the board; no terminal)',
+    '  approve --request-many "<action>:<target>;<action>:<target>"  |  approve --resume <id,id> [--wait <minutes>]   (exit 3 = still waiting)',
+    '  approve --action <roots|register|secrets|adopt-env|pictures|login> --target <name>   (the owner, on a terminal)  |  roots add|list|remove <dir> [--approval <code>]',
     '  secrets import|list|forget --org <slug> --project <NAME> [--from <file> --keys A,B --test-ref <ref> --test-inbox <email> --owner-said "<sentence>" --allow-service-role --approval <code>]',
     '  login <NAME> --org <slug> --seeded  |  service install|uninstall|status [--no-start]  |  import-legacy --from <afb-checks folder> --org <slug> [--dry-run]',
     '  status [--json]  |  doctor [--fix] [--json]  |  clear [runs|profiles|auth|dbs|previews|all] [--all] [--yes]  |  setup  |  disconnect --server <url> --org <slug>'
@@ -97,6 +101,10 @@ export async function checkMain(ctx) {
                 out
             });
             recordConnection({ server: s, org: o, name: done.name });
+            // The sign in key of this machine goes to the board with the connection. A board that does not know it yet, or a failure, never stops a connect
+            const runnerToken = loadRunnerToken(ctx.store, s, o);
+            if (runnerToken)
+                await publishSigninKey(new RunnerBoard(s, runnerToken, ctx.fetch)).catch(() => undefined);
             return 0;
         }
         if (sub === 'disconnect') {
@@ -206,12 +214,56 @@ export async function checkMain(ctx) {
         // The registration, approval, sign in and service commands live in their own modules; each takes the arguments after its word
         if (sub === 'project')
             return await projectCommand(args.slice(1), { log, out, json });
-        if (sub === 'approve')
-            return await approveCommand(args.slice(1), { log, out, json });
+        if (sub === 'approve') {
+            // Asking on the board uses this machine's own runner connection; with one connection --server and --org may be left out
+            const only = listConnections();
+            const board = () => {
+                const s = flag('--server') ??
+                    process.env.AFB_SERVER ??
+                    (only.length === 1 ? only[0]?.server : undefined);
+                const o = flag('--org') ?? (only.length === 1 ? only[0]?.org : undefined);
+                if (!s || !o || !ORG_SLUG.test(o))
+                    throw new Error('Say which board: --server <url> --org <slug> (or connect this machine to one board only).');
+                const token = loadRunnerToken(ctx.store, s.replace(/\/$/, ''), o);
+                if (!token)
+                    throw new Error(`This machine is not connected to ${o} on ${s}. Run: agent-flow-board check connect --server ${s} --org ${o} --json`);
+                return new RunnerBoard(s, token, ctx.fetch);
+            };
+            // Ctrl-C or a kill withdraws the request, so no card is left on the board for an agent that is gone
+            const ac = new AbortController();
+            const stop = () => ac.abort();
+            process.once('SIGINT', stop);
+            process.once('SIGTERM', stop);
+            try {
+                return await approveCommand(args.slice(1), { log, out, json, board, signal: ac.signal });
+            }
+            finally {
+                process.off('SIGINT', stop);
+                process.off('SIGTERM', stop);
+            }
+        }
         if (sub === 'roots')
             return await rootsCommand(args.slice(1), { log, out, json });
-        if (sub === 'login')
-            return await loginCommand(args.slice(1), { log, out, json });
+        if (sub === 'login') {
+            const only = listConnections();
+            const board = () => {
+                const s = flag('--server') ??
+                    process.env.AFB_SERVER ??
+                    (only.length === 1 ? only[0]?.server : undefined);
+                const o = flag('--org') ?? (only.length === 1 ? only[0]?.org : undefined);
+                if (!s || !o || !ORG_SLUG.test(o))
+                    throw new Error('Say which board: --server <url> --org <slug>.');
+                const token = loadRunnerToken(ctx.store, s.replace(/\/$/, ''), o);
+                if (!token)
+                    throw new Error('This machine is not connected to that board. Run: agent-flow-board check connect --server ' +
+                        s +
+                        ' --org ' +
+                        o +
+                        ' --json');
+                return new RunnerBoard(s, token, ctx.fetch);
+            };
+            return await loginCommand(args.slice(1), { log, out, json, board });
+        }
         if (sub === 'service')
             return await serviceCommand(args.slice(1), { log, out, json });
         if (sub === 'secrets')

@@ -528,7 +528,7 @@ export function registerProject(
 		}
 		if (!rootHolding(repo))
 			throw new Refusal(
-				`${repo} is not inside a folder the owner approved. The owner approves its parent folder: check approve --action roots --target <folder>, then check roots add <folder> --approval <code>.`
+				`${repo} is not inside a folder the owner approved. The owner approves its parent folder: check approve --request --action roots --target <folder>, then check roots add <folder> --approval <code>.`
 			);
 		const elsewhere = repoHeldElsewhere(org, repo);
 		if (elsewhere)
@@ -567,16 +567,16 @@ export function registerProject(
 	if (needRegister && !approvals.register)
 		throw new Refusal(
 			reg.url
-				? `Registering a live site, or changing the site or its hosts, needs a code from the owner: check approve --action register --target ${registerTarget}, on an interactive terminal, then --approval <code>.`
-				: `Changing the folder or hosts of ${name}, which keeps an adopted .env or saved state, needs a code from the owner: check approve --action register --target ${registerTarget}, on an interactive terminal, then --approval <code>.`
+				? `Registering a live site, or changing the site or its hosts, needs a code from the owner: check approve --request --action register --target ${registerTarget}, then --approval <code>.`
+				: `Changing the folder or hosts of ${name}, which keeps an adopted .env or saved state, needs a code from the owner: check approve --request --action register --target ${registerTarget}, then --approval <code>.`
 		);
 	if (needAdopt && !approvals.adoptEnv)
 		throw new Refusal(
-			`Adopting the whole repo .env needs a code from the owner: check approve --action adopt-env --target ${name}, then --adopt-env-approval <code>.`
+			`Adopting the whole repo .env needs a code from the owner: check approve --request --action adopt-env --target ${name}, then --adopt-env-approval <code>.`
 		);
 	if (needPictures && !approvals.pictures)
 		throw new Refusal(
-			`Uploading pictures of a signed-in run needs a code from the owner: check approve --action pictures --target ${name}, then --pictures-approval <code>.`
+			`Uploading pictures of a signed-in run needs a code from the owner: check approve --request --action pictures --target ${name}, then --pictures-approval <code>.`
 		);
 	if (needRegister && !peekApproval('register', registerTarget, approvals.register ?? ''))
 		throw new Refusal('That approval code is wrong, used or expired. Nothing was changed.');

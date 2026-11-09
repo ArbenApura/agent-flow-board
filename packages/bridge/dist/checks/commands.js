@@ -7,14 +7,18 @@ import { isatty } from 'node:tty';
 import { APPROVAL_ACTIONS, Refusal, UsageError, isApprovalAction, mintApproval } from './approve.js';
 import { forgetRegistration, hasState, pinRegistration, pinState, readRegistrations, registerProject } from './registry.js';
 import { addRoot, listRoots, readRoots, removeRoot } from './roots.js';
+import { ASK_LIMIT, askOwner, parseEntries } from './askBoard.js';
 // -- CONSTANTS -- //
 const BOOLEAN_FLAGS = new Set([
     '--recipe',
     '--remove',
     '--adopt-env',
     '--upload-pictures',
+    '--request',
     '--json'
 ]);
+/** Most codes one `check approve --many` makes (the approvals file keeps 20). */
+const MANY_LIMIT = 15;
 // -- FUNCTIONS -- //
 function parse(args) {
     const pos = [];
@@ -168,16 +172,52 @@ export async function projectCommand(args, ctx) {
 }
 /**
  * `check approve --action <register|secrets|adopt-env|roots|pictures> --target <name or folder>`: the owner's single-use code. Refused without an interactive terminal.
+ * `check approve --many "<action>:<target>;<action>:<target>"` makes several codes in one call (at most 15) under the same rule.
  * `env.isTTY` is for the tests; the command itself passes the real flag of the terminal.
  */
 export async function approveCommand(args, ctx, env = {}) {
-    return guarded(ctx, () => {
+    return guarded(ctx, async () => {
         const p = parse(args);
+        const isTTY = env.isTTY ?? (isatty(0) && isatty(1));
+        // ASKING THE OWNER ON THE BOARD (no terminal): --request, --request-many or --resume
+        if (p.flags.has('--request') || p.flags.has('--request-many') || p.flags.has('--resume'))
+            return await requestOnBoard(p, ctx);
+        // MANY CODES IN ONE CALL
+        // Same rules as one code: a terminal only, one action and one target per code, single use, ten minutes. All entries are checked before any code is made.
+        const many = text(p, '--many');
+        if (many !== undefined) {
+            if (p.flags.has('--action') || p.flags.has('--target'))
+                throw new UsageError('Use --many on its own, or --action with --target.');
+            const entries = many
+                .split(';')
+                .map((e) => e.trim())
+                .filter(Boolean)
+                .map((e) => {
+                const at = e.indexOf(':');
+                const kind = at > 0 ? e.slice(0, at).trim() : '';
+                const target = at > 0 ? e.slice(at + 1).trim() : '';
+                if (!isApprovalAction(kind) || !target)
+                    throw new UsageError(`"${e.slice(0, 60)}" is not <action>:<target>. Actions: ${APPROVAL_ACTIONS.join(', ')}.`);
+                return { action: kind, target };
+            });
+            if (!entries.length)
+                throw new UsageError('--many needs at least one <action>:<target>.');
+            if (entries.length > MANY_LIMIT)
+                throw new UsageError(`--many makes at most ${MANY_LIMIT} codes at once.`);
+            const codes = entries.map((e) => {
+                const made = mintApproval(e.action, e.target, { isTTY });
+                return { action: e.action, target: e.target, code: made.code, expiresAt: made.expiresAt };
+            });
+            show(ctx, { codes }, [
+                ...codes.map((c) => `Approval code for ${c.action} on ${c.target}: ${c.code}`),
+                `Each works once and expires at ${codes[0]?.expiresAt ?? ''}. Give each to the command that asked for it, with --approval.`
+            ]);
+            return 0;
+        }
         const action = need(p, '--action');
         if (!isApprovalAction(action))
             throw new UsageError(`--action is one of ${APPROVAL_ACTIONS.join(', ')}.`);
         const target = need(p, '--target');
-        const isTTY = env.isTTY ?? (isatty(0) && isatty(1));
         const made = mintApproval(action, target, { isTTY });
         show(ctx, { action, target, code: made.code, expiresAt: made.expiresAt }, [
             `Approval code for ${action} on ${target}: ${made.code}`,
@@ -185,6 +225,62 @@ export async function approveCommand(args, ctx, env = {}) {
         ]);
         return 0;
     });
+}
+/**
+ * `check approve --request --action <x> --target <t> [--why "<sentence>"] [--wait <minutes>]`, `--request-many "<action>:<target>;..."` and `--resume <id,id>`.
+ * Files the request on the board, prints the page link, waits for the owner's click (default 10 minutes) and prints the codes. Exit 0 approved, 1 refused or expired,
+ * 2 could not ask, 3 still waiting (the ids to resume are printed).
+ */
+async function requestOnBoard(p, ctx) {
+    if (!ctx.board)
+        throw new UsageError('Asking on the board needs the check command with --server and --org.');
+    const many = text(p, '--request-many');
+    const resume = text(p, '--resume');
+    const minutes = text(p, '--wait') === undefined ? 10 : Number(text(p, '--wait'));
+    if (!Number.isInteger(minutes) || minutes < 0 || minutes > 60)
+        throw new UsageError('--wait takes a whole number of minutes from 0 to 60.');
+    let entries = [];
+    if (resume === undefined) {
+        if (many !== undefined) {
+            if (p.flags.has('--action') || p.flags.has('--target'))
+                throw new UsageError('Use --request-many on its own, or --request with --action and --target.');
+            entries = parseEntries(many);
+        }
+        else {
+            const action = need(p, '--action');
+            if (!isApprovalAction(action))
+                throw new UsageError(`--action is one of ${APPROVAL_ACTIONS.join(', ')}.`);
+            entries = [{ action, target: need(p, '--target') }];
+        }
+    }
+    const ids = resume
+        ?.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    if (ids &&
+        (!ids.length || ids.length > ASK_LIMIT || ids.some((i) => !/^[0-9a-f-]{36}$/i.test(i))))
+        throw new UsageError('--resume takes the ids that were printed, separated by commas.');
+    const done = await askOwner(ctx.board(), {
+        entries,
+        why: text(p, '--why'),
+        project: text(p, '--project'),
+        waitMinutes: minutes,
+        resume: ids,
+        say: (line) => ctx.log(line),
+        signal: ctx.signal
+    });
+    if (done.state === 'waiting') {
+        const list = done.ids.join(',');
+        show(ctx, { state: 'waiting', ids: done.ids, link: done.link, resume: list }, [
+            `Still waiting for the owner. Pick it up again with: agent-flow-board check approve --resume ${list} --wait 10`
+        ]);
+        return 3;
+    }
+    show(ctx, { state: 'approved', codes: done.codes }, [
+        ...done.codes.map((c) => `Approval code for ${c.action} on ${c.target}: ${c.code}`),
+        `Each works once and expires at ${done.codes[0]?.expiresAt ?? ''}. Give each to the command that asked for it, with --approval.`
+    ]);
+    return 0;
 }
 /** `check roots add <dir> --approval <code> | list | remove <dir> --approval <code>`. */
 export async function rootsCommand(args, ctx) {

@@ -11,6 +11,7 @@ import {
 	text,
 	timestamp,
 	unique,
+	uniqueIndex,
 	uuid
 } from 'drizzle-orm/pg-core';
 // -- MODULES -- //
@@ -299,9 +300,112 @@ export const runner = tenantTable(
 		 * A run that names a registration is taken only by a tool that lists it. Null for a runner that reports none (an older tool), which then takes only runs that name none.
 		 */
 		registrations: jsonb('registrations').$type<ToolRegistration[] | null>(),
+		/**
+		 * The public key a tool publishes so the board can encrypt a test account's sign in to this machine (AFB-20261108-1444). Only the tool's own runner token sets it.
+		 * The key id names the key pair; the public key is the base64url of its raw uncompressed P-256 point. Nothing private is ever stored here.
+		 */
+		signinKeyId: text('signin_key_id'),
+		signinPublicKey: text('signin_public_key'),
+		signinKeyChangedAt: timestamp('signin_key_changed_at', { withTimezone: true }),
 		...stamps()
 	},
 	(t) => [oneOf('runner_kind_chk', t.kind, ['local', 'hosted', 'tool'])]
+);
+
+// -- OWNER APPROVALS FROM THE BOARD (AFB-20261108-1444) -- //
+
+export const APPROVAL_ACTIONS = [
+	'register',
+	'secrets',
+	'adopt-env',
+	'roots',
+	'pictures',
+	'login'
+] as const;
+export const APPROVAL_STATUSES = [
+	'pending',
+	'approved',
+	'refused',
+	'expired',
+	'cancelled',
+	'claimed'
+] as const;
+
+/**
+ * A request an agent filed through the bridge for the owner to decide on the board. The action and the target are normalised by the server, never taken from
+ * the agent's words; `why` is the agent's own text and is shown only as a labelled quote. A request is decided once, claimed once, by the runner that asked.
+ */
+export const bridgeApproval = tenantTable(
+	'bridge_approval',
+	'org',
+	{
+		id: id(),
+		orgId: orgId(),
+		/** Display only; never used to decide who may decide. */
+		projectId: uuid('project_id'),
+		runnerId: uuid('runner_id')
+			.notNull()
+			.references(() => runner.id, { onDelete: 'cascade' }),
+		/** The bridge's own id for a retry of the same request (unique per runner). */
+		requestId: text('request_id').notNull(),
+		/** Assigned by the server when a request has several entries; the entries of one batch are fixed when it is filed. */
+		batchId: uuid('batch_id'),
+		action: text('action', { enum: APPROVAL_ACTIONS }).notNull(),
+		target: text('target').notNull(),
+		contentHash: text('content_hash').notNull(),
+		why: text('why'),
+		status: text('status', { enum: APPROVAL_STATUSES }).notNull().default('pending'),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		requestedBy: text('requested_by').references(() => user.id, { onDelete: 'set null' }),
+		decidedBy: text('decided_by').references(() => user.id, { onDelete: 'set null' }),
+		decidedAt: timestamp('decided_at', { withTimezone: true }),
+		decidedVia: text('decided_via', { enum: ['board', 'auto'] as const }),
+		claimedAt: timestamp('claimed_at', { withTimezone: true }),
+		claimedByRunner: uuid('claimed_by_runner'),
+		...stamps()
+	},
+	(t) => [
+		unique('bridge_approval_request_uq').on(t.runnerId, t.requestId),
+		index('bridge_approval_status_idx').on(t.status, t.expiresAt),
+		index('bridge_approval_batch_idx').on(t.batchId),
+		// One waiting request for one action and target on one machine, so a second ask is the same card
+		uniqueIndex('bridge_approval_pending_uq')
+			.on(t.runnerId, t.action, t.target)
+			.where(sql`${t.status} = 'pending'`),
+		oneOf('bridge_approval_action_chk', t.action, APPROVAL_ACTIONS),
+		oneOf('bridge_approval_status_chk', t.status, APPROVAL_STATUSES)
+	]
+);
+
+/**
+ * A test account's sign in, typed once on the board and encrypted in the browser to the public key of one tool machine. The server keeps ciphertext only: it never returns it
+ * to a page, an agent or a history, and the bridge fetches it as a short lease and acknowledges the attempt, which wipes the ciphertext. Bound to org, runner, registration and key id.
+ */
+export const bridgeSigninEnvelope = tenantTable(
+	'bridge_signin_envelope',
+	'org',
+	{
+		id: id(),
+		orgId: orgId(),
+		runnerId: uuid('runner_id')
+			.notNull()
+			.references(() => runner.id, { onDelete: 'cascade' }),
+		registration: text('registration').notNull(),
+		keyId: text('key_id').notNull(),
+		alg: text('alg').notNull(),
+		ciphertext: text('ciphertext').notNull(),
+		createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		leasedAt: timestamp('leased_at', { withTimezone: true }),
+		consumedAt: timestamp('consumed_at', { withTimezone: true }),
+		/** Only pass or fail, reported by the bridge after the attempt. */
+		result: text('result', { enum: ['pass', 'fail'] as const }),
+		...stamps()
+	},
+	(t) => [
+		unique('bridge_signin_envelope_uq').on(t.runnerId, t.registration),
+		index('bridge_signin_envelope_exp_idx').on(t.expiresAt)
+	]
 );
 
 export const environment = tenantTable(

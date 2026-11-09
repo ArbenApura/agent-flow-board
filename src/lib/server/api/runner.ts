@@ -28,6 +28,8 @@ import {
 	TOOL_PROTOCOL_HEADER,
 	TOOL_PROTOCOL_MIN
 } from '../ops/environments';
+import { cancelApprovals, claimApprovals, pollApprovals, requestApprovals } from '../ops/approvals';
+import { ackSignin, leaseSignins, publishSigninKey } from '../ops/signins';
 import { TOOL_REGISTRATIONS_HEADER, recordToolRegistrations } from '../ops/registrations';
 import { MAX_ATTACHMENT_BYTES } from '../ops/attachments';
 import { NO_STORE, errorResponse, fail } from './respond';
@@ -116,6 +118,20 @@ export async function handleRunnerApi(req: ApiRequest, deps: ApiDeps): Promise<A
 				? named.runIds.filter((x): x is string => typeof x === 'string')
 				: undefined;
 			return ok({ released: await releaseRunnerRuns(deps.handle, auth, runIds) });
+		}
+		// OWNER APPROVALS: the tool's own runner token only (a run key is refused above, a local or hosted runner inside each verb)
+		if (kind === 'approvals' && req.method === 'POST' && !action) {
+			if (id === undefined)
+				return ok(await requestApprovals(deps.handle, auth, deps.baseUrl, json(req) as never));
+			if (id === 'poll') return ok(await pollApprovals(deps.handle, auth, json(req) as never));
+			if (id === 'cancel') return ok(await cancelApprovals(deps.handle, auth, json(req) as never));
+			if (id === 'claim') return ok(await claimApprovals(deps.handle, auth, json(req) as never));
+		}
+		// TEST ACCOUNT SIGN INS: the tool's own runner token only. The ciphertext is leased here and never returned anywhere else
+		if (kind === 'signins' && req.method === 'POST' && !action) {
+			if (id === 'key') return ok(await publishSigninKey(deps.handle, auth, json(req) as never));
+			if (id === 'lease') return ok(await leaseSignins(deps.handle, auth, json(req) as never));
+			if (id === 'ack') return ok(await ackSignin(deps.handle, auth, json(req) as never));
 		}
 		if (req.body.byteLength > MAX_ATTACHMENT_BYTES + 1024)
 			return fail(413, 'INVALID', 'The upload is larger than 100 MB.');

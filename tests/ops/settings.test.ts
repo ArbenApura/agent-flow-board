@@ -137,14 +137,20 @@ describe('settings', () => {
 		// Limits alone
 		await updateOrgSettings(ctx(), { tokenMaxDays: 14, allowGuestInvites: false });
 		s = await getOrgSettings(ctx());
-		expect(s.settings).toEqual({ tokenMaxDays: 14, allowGuestInvites: false });
+		expect(s.settings).toEqual({
+			tokenMaxDays: 14,
+			allowGuestInvites: false
+		});
 		expect(s.accent).toBe('#e11d48');
 		// Back to the default palette, and an unchanged save says so
 		await updateOrgSettings(ctx(), { accent: null });
 		expect((await getOrgSettings(ctx())).accent).toBeNull();
 		expect((await updateOrgSettings(ctx(), { tokenMaxDays: 14 })).changed).toBe(false);
 		expect(settingsOf(null)).toEqual(DEFAULT_SETTINGS);
-		expect(settingsOf({ tokenMaxDays: 7 })).toEqual({ tokenMaxDays: 7, allowGuestInvites: true });
+		expect(settingsOf({ tokenMaxDays: 7 })).toEqual({
+			tokenMaxDays: 7,
+			allowGuestInvites: true
+		});
 	});
 
 	it('the org limits are enforced: token lifetime and guest invitations', async () => {

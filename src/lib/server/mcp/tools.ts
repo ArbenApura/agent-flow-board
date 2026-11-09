@@ -53,6 +53,7 @@ import {
 	waitForRun
 } from '../ops/checks';
 import { editorStatusInstall } from '../ops/editorStatus';
+import { approvalList } from '../ops/approvals';
 import { approveToolConnection } from '../ops/environments';
 import { readItemDoc } from '../ops/itemDocs';
 import { recordSteps } from '../ops/steps';
@@ -1521,6 +1522,26 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		},
 		{ readOnly: true },
 		async (a, { ctx }) => (await runnerStatus(ctx, a.project)) as never
+	);
+
+	tool(
+		'approval_list',
+		'Whether the person has turned on "let my agent handle approvals on its own", the link to the page where they do, and what their agent already did on its own. Read only: no agent can turn the switch on, only the person on the board. Needs read.',
+		{},
+		{ readOnly: true },
+		async (_a, { ctx }) => {
+			const v = await approvalList(ctx);
+			return {
+				enabled: v.enabled,
+				link: v.link,
+				recent: v.history.map((h) => ({
+					action: h.action,
+					target: h.target,
+					status: h.status,
+					at: h.at
+				}))
+			} as never;
+		}
 	);
 
 	tool(

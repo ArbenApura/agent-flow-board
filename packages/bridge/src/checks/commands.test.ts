@@ -58,6 +58,22 @@ describe('commands', () => {
 		).toBe(0);
 		expect(codeOf()).toBeTruthy();
 	});
+	it('approve --many makes several codes at once and only with a terminal', async () => {
+		const many = `roots:${work};register:HAPRA@app.example.com`;
+		expect(await approveCommand(['--many', many], ctx(), { isTTY: false })).toBe(1);
+		expect(log.join(' ')).toMatch(/interactive terminal/);
+		expect(await approveCommand(['--many', 'bogus:x'], ctx(), { isTTY: true })).toBe(2);
+		expect(await approveCommand(['--many', 'roots:'], ctx(), { isTTY: true })).toBe(2);
+		expect(
+			await approveCommand(['--many', many, '--action', 'roots'], ctx(), { isTTY: true })
+		).toBe(2);
+		out = [];
+		expect(await approveCommand(['--many', many], ctx(), { isTTY: true })).toBe(0);
+		expect(out.filter((l) => /: [A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(l))).toHaveLength(2);
+		// The first code works for its own folder, once
+		const first = /: ([A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4})$/m.exec(out[0] ?? '')?.[1] ?? '';
+		expect(await rootsCommand(['add', work, '--approval', first], ctx())).toBe(0);
+	});
 	it('walks through roots, project, list, pin and forget', async () => {
 		expect(await rootsCommand(['add', work], ctx())).toBe(1);
 		await approveCommand(['--action', 'roots', '--target', work], ctx(), { isTTY: true });

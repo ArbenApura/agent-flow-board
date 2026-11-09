@@ -33,7 +33,7 @@ export const orgSettingsInput = z.object({
 	tokenMaxDays: z.number().int().min(1).max(90).optional(),
 	allowGuestInvites: z.boolean().optional()
 });
-export const DEFAULT_SETTINGS: Required<OrgSettings> = {
+export const DEFAULT_SETTINGS: Required<Pick<OrgSettings, 'tokenMaxDays' | 'allowGuestInvites'>> = {
 	tokenMaxDays: 90,
 	allowGuestInvites: true
 };
@@ -41,11 +41,18 @@ export const DEFAULT_SETTINGS: Required<OrgSettings> = {
 // -- FUNCTIONS -- //
 
 /** The org's limits with their defaults filled in. */
-export const settingsOf = (s: OrgSettings | null | undefined): Required<OrgSettings> => {
+export const settingsOf = (
+	s: OrgSettings | null | undefined
+): Required<Pick<OrgSettings, 'tokenMaxDays' | 'allowGuestInvites'>> => {
 	const own: Record<string, unknown> = { ...(s ?? {}) };
 	// The day's trash clean up leaves its mark in the same record, and no page or token needs to see it
 	delete own.trashPurgedAt;
-	return { ...DEFAULT_SETTINGS, ...own } as Required<OrgSettings>;
+	// Who turned on the agent switch is private to each person; the map never leaves the server
+	delete own.autoApproveBy;
+	delete own.boardApprovals;
+	return { ...DEFAULT_SETTINGS, ...own } as Required<
+		Pick<OrgSettings, 'tokenMaxDays' | 'allowGuestInvites'>
+	>;
 };
 
 /** What the Organisation settings page needs. Readable by every member, changeable by admins and owners. */
@@ -64,6 +71,8 @@ export async function getOrgSettings(ctx: Ctx) {
 			paletteChecks: palette ? checkPalette(palette) : [],
 			paletteAdjusted: palette?.adjusted ?? false,
 			settings: settingsOf(o.settings),
+			// Only the caller's own switch, never the map of who else turned theirs on
+			autoApprove: Boolean(o.settings?.autoApproveBy?.[ctx.actor.userId]),
 			canManage: caps.includes('manage'),
 			version: o.version
 		};
@@ -93,7 +102,7 @@ export async function updateOrgSettings(ctx: Ctx, raw: z.input<typeof orgSetting
 				after.accent = next?.seed ?? null;
 			}
 		}
-		const limits: OrgSettings = { ...(o.settings ?? {}) };
+		const limits: OrgSettings = {};
 		if (
 			input.tokenMaxDays !== undefined &&
 			input.tokenMaxDays !== settingsOf(o.settings).tokenMaxDays
@@ -110,7 +119,9 @@ export async function updateOrgSettings(ctx: Ctx, raw: z.input<typeof orgSetting
 			after.allowGuestInvites = input.allowGuestInvites;
 			limits.allowGuestInvites = input.allowGuestInvites;
 		}
-		if ('tokenMaxDays' in after || 'allowGuestInvites' in after) set.settings = limits;
+		// Only the changed limits are merged into the stored object in the same statement, so a concurrent switch change (autoApproveBy) is never overwritten
+		if ('tokenMaxDays' in after || 'allowGuestInvites' in after)
+			set.settings = sql`coalesce(${org.settings}, '{}'::jsonb) || ${JSON.stringify(limits)}::jsonb`;
 		if (!Object.keys(set).length) return { changed: false };
 		await tx
 			.update(org)

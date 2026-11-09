@@ -31,7 +31,12 @@ import {
 
 const consume = vi.hoisted(() => vi.fn());
 const peek = vi.hoisted(() => vi.fn());
-vi.mock('./approve.js', () => ({ consumeApproval: consume, peekApproval: peek }));
+vi.mock('./approve.js', () => ({
+	consumeApproval: consume,
+	consumeApprovalNote: (a: string, t: string, c: string) => ({ ok: consume(a, t, c) as boolean }),
+	boardSentence: () => null,
+	peekApproval: peek
+}));
 
 // -- CONSTANTS -- //
 

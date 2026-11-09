@@ -267,6 +267,20 @@
       "when": 1794060250105,
       "tag": "0037_simple_mercury",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794178987239,
+      "tag": "0038_medical_black_bolt",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794179891892,
+      "tag": "0039_soft_killer_shrike",
+      "breakpoints": true
     }
   ]
 }

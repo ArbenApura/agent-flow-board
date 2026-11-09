@@ -139,7 +139,7 @@ export function addRoot(dir: string, approval: string | undefined): string {
 			);
 		if (!approval || !consumeApproval('roots', real, approval))
 			throw new Refusal(
-				`Adding a root needs a code from the owner: check approve --action roots --target "${real}", on an interactive terminal, then --approval <code>.`
+				`Adding a root needs a code from the owner: check approve --request --action roots --target "${real}", then --approval <code>.`
 			);
 		writeRoots([...roots, real]);
 		appendAudit('root added', { folder: real, count: roots.length + 1 });
@@ -156,7 +156,7 @@ export function removeRoot(dir: string, approval: string | undefined): string {
 		if (!hit) throw new Refusal(`${real} is not a root.`);
 		if (!approval || !consumeApproval('roots', real, approval))
 			throw new Refusal(
-				`Removing a root needs a code from the owner: check approve --action roots --target "${real}", on an interactive terminal, then --approval <code>.`
+				`Removing a root needs a code from the owner: check approve --request --action roots --target "${real}", then --approval <code>.`
 			);
 		writeRoots(roots.filter((r) => r !== hit));
 		appendAudit('root removed', { folder: hit, count: roots.length - 1 });

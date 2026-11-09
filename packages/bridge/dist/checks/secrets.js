@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 import { closeSync, fstatSync, lstatSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 // -- MODULES -- //
-import { consumeApproval, peekApproval } from './approve.js';
+import { boardSentence, consumeApprovalNote, peekApproval } from './approve.js';
 import { appendAudit } from './audit.js';
 import { withLockSync } from './lock.js';
 import { ORG_SLUG, ensureDir, isInside, stateDirFor } from './paths.js';
@@ -37,7 +37,7 @@ const refOf = (org, name) => {
 };
 const fileOf = (org, name) => join(stateDirFor(org, name), 'secrets.sealed');
 const lockOf = (ref) => `secrets-${createHash('sha256').update(ref.toLowerCase()).digest('hex').slice(0, 20)}`;
-const helpOf = (ref) => `agent-flow-board check secrets import --project ${ref.split('/')[1] ?? ''} --org ${ref.split('/')[0] ?? ''} --from <env file in the repo> --keys <NAME,NAME> --test-ref <supabase project ref> --approval <code from check approve --action secrets --target ${ref}> (mail settings: --keys POSTMARK_SERVER_TOKEN,POSTMARK_FROM_EMAIL,POSTMARK_MESSAGE_STREAM --test-inbox <the one inbox a preview may mail> --owner-said "<says the token is a test token>")`;
+const helpOf = (ref) => `agent-flow-board check secrets import --project ${ref.split('/')[1] ?? ''} --org ${ref.split('/')[0] ?? ''} --from <env file in the repo> --keys <NAME,NAME> --test-ref <supabase project ref> --approval <code from check approve --request --action secrets --target ${ref}> (mail settings: --keys POSTMARK_SERVER_TOKEN,POSTMARK_FROM_EMAIL,POSTMARK_MESSAGE_STREAM --test-inbox <the one inbox a preview may mail> --owner-said "<says the token is a test token>")`;
 /** NAME=value lines of an env file. `export ` and one pair of quotes are allowed; a value that opens a quote it does not close on the same line is refused (names the variable). */
 export function parseImportEnv(text) {
     const out = new Map();
@@ -183,7 +183,7 @@ export function importSecrets(input) {
         throw new Error(`${fileName} is not inside the repo folder of ${ref}.`);
     // -- THE OWNER'S APPROVAL -- //
     if (!input.approval || !peekApproval(SECRETS_ACTION, ref, input.approval))
-        throw new Error(`The owner has not approved this import. Run \`agent-flow-board check approve --action secrets --target ${ref}\` in a terminal and pass the code with --approval.`);
+        throw new Error(`The owner has not approved this import. Run \`agent-flow-board check approve --request --action secrets --target ${ref}\` and pass the code with --approval.`);
     // -- THE READ: ONE HANDLE FOR THE CHECKS AND THE READ, A FILE WITH A SECOND NAME REFUSED -- //
     let text;
     const fd = openSync(resolved, 'r');
@@ -244,10 +244,12 @@ export function importSecrets(input) {
         entries[k] = { v, service: svc };
     }
     // -- THE CODE IS USED LAST -- //
-    if (!consumeApproval(SECRETS_ACTION, ref, input.approval ?? ''))
+    const used = consumeApprovalNote(SECRETS_ACTION, ref, input.approval ?? '');
+    if (!used.ok)
         throw new Error('The owner code was used or expired just now, so nothing was imported. The code is spent: ask the owner for a new one.');
     // -- THE WRITE, UNDER A LOCK -- //
-    const statement = String(input.ownerSaid ?? '').slice(0, 300);
+    // A code that came from the board carries who approved it and when; that fills the owner sentence when none was given
+    const statement = String(input.ownerSaid ?? boardSentence(used.note) ?? '').slice(0, 300);
     withLockSync(lockOf(ref), () => {
         const before = readStoreSafe(input.org, input.name);
         // Values of an earlier import stay, unless they belong to another Supabase project (mail values do not depend on one)

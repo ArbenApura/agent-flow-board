@@ -1,7 +1,7 @@
 {
 	"bundle": {
-		"version": "1.1.20",
-		"releasedAt": "2026-11-08"
+		"version": "1.1.22",
+		"releasedAt": "2026-11-09"
 	},
 	"skills": {
 		"flow": {
@@ -115,7 +115,7 @@
 			]
 		},
 		"flow-check": {
-			"version": "1.1.13",
+			"version": "1.1.15",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -180,6 +180,14 @@
 				{
 					"version": "1.1.13",
 					"hash": "6db9bd9cdc523f3c787ac13e5c72b2be4254925b8df78c6d41b28160ed4ee56d"
+				},
+				{
+					"version": "1.1.14",
+					"hash": "3d955430f5d11d8e276a8128f4b9bc17b2a8dd69c83c711b3d92152dd4114932"
+				},
+				{
+					"version": "1.1.15",
+					"hash": "dfd35e94a3b48f97885a8f8021a9b1c8cfc34036fc1792269f02b979fc00b27d"
 				}
 			]
 		},
@@ -318,6 +326,40 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.1.22",
+			"date": "2026-11-09",
+			"notes": [
+				"flow-check 1.1.15: a person turns on the switch Let my agent handle approvals on its own once and check approve --request is then approved at once, with no card and no click; with it off the agent tells the owner once and stops. A sign in to a site is a window on the owner own computer, with whatever the site asks for."
+			],
+			"skills": {
+				"flow": "1.1.14",
+				"flow-audit": "1.1.3",
+				"flow-check": "1.1.15",
+				"flow-critic": "1.1.4",
+				"flow-interview": "1.1.4",
+				"flow-mockup": "1.0.2",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
+		{
+			"version": "1.1.21",
+			"date": "2026-11-09",
+			"notes": [
+				"flow-check 1.1.14: the owner approves on the board with one click (check approve --request, --request-many, --resume), a test account sign in is typed once on the board and encrypted to the machine (check login --from-board), and the headed login needs a login approval and a desktop instead of a terminal. The terminal path stays as the fallback."
+			],
+			"skills": {
+				"flow": "1.1.14",
+				"flow-audit": "1.1.3",
+				"flow-check": "1.1.14",
+				"flow-critic": "1.1.4",
+				"flow-interview": "1.1.4",
+				"flow-mockup": "1.0.2",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
 		{
 			"version": "1.1.20",
 			"date": "2026-11-08",

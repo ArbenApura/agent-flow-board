@@ -8,6 +8,7 @@ import { existsSync, lstatSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { basename, join } from 'node:path';
 // -- MODULES -- //
 import { verifyAudit } from './audit.js';
+import { localFingerprint } from './signinKey.js';
 import { machineTotals } from './broker.js';
 import { listBrowserMarkers, sweepBrowserMarkers } from './browserpool.js';
 import { ensureBrowser, playwrightRuntimeDir } from './browser.js';
@@ -379,7 +380,7 @@ export async function runDoctor(ctx, opts, deps = {}) {
                 if (!existsSync(r.repo))
                     found(`${id}: the repo folder is not there any more.`, `Run: agent-flow-board check project forget ${r.name} --org ${r.org} --remove, then register it again.`);
                 else if (!rootHolding(r.repo))
-                    found(`${id}: the repo is not inside a folder the owner approved.`, 'Ask the owner: check approve --action roots --target <parent folder>, then check roots add <folder> --approval <code>.');
+                    found(`${id}: the repo is not inside a folder the owner approved.`, 'Ask the owner: check approve --request --action roots --target <parent folder>, then check roots add <folder> --approval <code>.');
                 else {
                     const pin = pinState(r);
                     if (pin === 'changed') {
@@ -534,6 +535,11 @@ export async function healthCommand(args, ctx, deps = {}) {
             `Slots: ${s.slots ? `${s.slots.busy} of ${s.slots.slots} busy` : 'unknown'}`,
             `Service: ${s.service ? s.service.state : 'not installed'}`,
             `Connections: ${s.connections.map((c) => `${c.org}@${c.server}${c.connected === false ? ' (no token)' : ''}`).join(', ') || 'none'}`,
+            ...(localFingerprint()
+                ? [
+                    `Sign-in key: ${localFingerprint()} (compare with the code on the board before typing a password there)`
+                ]
+                : []),
             `Audit chain: ${s.audit.ok ? 'ok' : 'BROKEN'} (${s.audit.lines} lines)`,
             ...s.problems.map((p) => `Problem: ${p.problem} Next: ${p.next}`),
             s.problems.length ? '' : 'Nothing is wrong.'
