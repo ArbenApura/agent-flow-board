@@ -130,9 +130,13 @@ export function checkLength(label: string, text: string | undefined, max: number
 function warningsFor(bytes: Uint8Array, kit: LoadedKit | null): string[] {
 	const html = new TextDecoder().decode(bytes.subarray(0, LINT_BYTES));
 	const warnings = lintMockupHtml(html, kit?.facts);
+	if (bytes.byteLength > LINT_BYTES)
+		warnings.push(
+			`The page is larger than ${LINT_BYTES / 1_000_000} MB, so only its first ${LINT_BYTES / 1_000_000} MB was checked for what will not render. The rest was saved but not checked.`
+		);
 	if (wantsKit(html) && !kit)
 		warnings.push(
-			`This page starts with ${KIT_MARKER}, but the project has no colours and fonts yet, so the board adds nothing. Ask for the kit to be made first, or embed the fonts and icons in the page.`
+			`This page starts with ${KIT_MARKER}, but the project has no stylesheet and fonts saved yet, so the board adds nothing. Ask for the kit to be made first, or embed the fonts in the page.`
 		);
 	else if (wantsKit(html) && kit && kit.head === null)
 		warnings.push(

@@ -201,7 +201,7 @@ export async function pushMockup(o: PushOptions): Promise<PushResult> {
 	};
 }
 
-/** Uploads the project's kit file (colours, fonts, icons) by path, the same way. The warnings are printed and never change the exit code. */
+/** Uploads the project's kit file (its built stylesheet and fonts) by path, the same way. The warnings are printed and never change the exit code. */
 export async function pushKit(o: KitPushOptions): Promise<KitPushResult> {
 	if (!o.token)
 		throw new Error('Not signed in. Run: agent-flow-board login --server <url> --org <slug>');

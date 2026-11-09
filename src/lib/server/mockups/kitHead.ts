@@ -1,4 +1,4 @@
-// THE PROJECT KIT'S HEAD AND HOW IT REACHES A MOCKUP: A MOCKUP CARRIES ONLY A MARKER, THE BOARD PUTS THE KIT'S TOKENS, FONTS AND ICONS IN WHEN IT SERVES THE PAGE
+// THE PROJECT KIT'S HEAD AND HOW IT REACHES A MOCKUP: A MOCKUP CARRIES ONLY A MARKER, THE BOARD PUTS THE PROJECT'S STYLESHEET AND FONTS IN WHEN IT SERVES THE PAGE
 
 // -- TYPES -- //
 import type { Storage } from '../adapters/storage';
@@ -40,8 +40,14 @@ export const wantsKit = (html: string): boolean => html.includes(KIT_MARKER);
 
 /** The page with the marker replaced by the kit head, or removed when there is no head. A page without the marker is returned as it is. */
 export function injectKitHead(html: string, head: string | null): string {
-	if (!html.includes(KIT_MARKER)) return html;
-	return html.split(KIT_MARKER).join(head ?? '');
+	const at = html.indexOf(KIT_MARKER);
+	if (at === -1) return html;
+	// Only the first marker takes the head, so a stylesheet of several MB is never repeated; a later marker is removed
+	const rest = html
+		.slice(at + KIT_MARKER.length)
+		.split(KIT_MARKER)
+		.join('');
+	return html.slice(0, at) + (head ?? '') + rest;
 }
 
 /** Forgets every kit read so far. For tests. */
@@ -69,7 +75,9 @@ export async function loadKit(
 	const bytes = await storage.get(row.key);
 	if (!bytes) return null;
 	const text = new TextDecoder().decode(bytes);
-	const entry = { head: kitHeadOf(text), facts: kitFacts(text) };
+	// The facts are read from the head alone, so a kit of several MB is not scanned twice on a cold load
+	const head = kitHeadOf(text);
+	const entry = { head, facts: kitFacts(head ?? text) };
 	if (cache.size >= CACHE_LIMIT) cache.clear();
 	cache.set(row.id, entry);
 	return { id: row.id, ...entry };

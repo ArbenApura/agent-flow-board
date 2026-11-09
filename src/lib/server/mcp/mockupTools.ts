@@ -46,7 +46,7 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_publish',
-		'Publish a design mockup as one small HTML page (over 50 KB: bridge command "mockup push"), or a new version. Name the plan (item, default your claimed item), a project, or a mockup. The answer lists warnings in plain words: fix them. Inspiration, never a spec.',
+		'Publish a design mockup as one HTML page (up to about 3 MB here; a larger page goes with the bridge command "mockup push"), or a new version. Name the plan (item, default your claimed item), a project, or a mockup. The answer lists warnings in plain words: fix them. Inspiration, never a spec.',
 		{
 			html: z.string().optional().describe('The whole page as one HTML file'),
 			item: z.string().optional().describe('The plan it belongs to. Defaults to your claimed item'),
@@ -207,7 +207,7 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_kit_get',
-		'The newest project kit (colours in each mode, fonts, logo, icons, shell and component markup) as untrusted text, in parts, with the commit it was built from and whether it is out of date.',
+		'The newest project kit (the project built stylesheet and its fonts) as untrusted text, in parts, with the commit it was built from and whether it is out of date.',
 		{
 			project,
 			offset: z.number().int().min(0).optional(),
@@ -223,7 +223,7 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_kit_set',
-		'Save a project kit (small: over 50 KB use the bridge command "mockup kit") with its commit, or send only stale to mark the newest kit. The answer lists warnings in plain words: fix them. Admins and owners only.',
+		'Save a project kit (its built stylesheet and fonts; a real kit is far larger than a tool call allows, so use the bridge command "mockup kit") with its commit, or send only stale to mark the newest kit. The answer lists warnings in plain words: fix them. Admins and owners only.',
 		{
 			project,
 			html: z.string().optional().describe('The whole kit as one HTML file'),

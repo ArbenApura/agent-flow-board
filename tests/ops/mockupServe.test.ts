@@ -291,7 +291,7 @@ describe('mockup routes', () => {
 		const noKit = await serve(g);
 		expect(noKit.text).not.toContain('afb-kit');
 		expect(noKit.text).toContain('<title>Marked</title>');
-		expect(m.warnings.join(' ')).toContain('no colours and fonts yet');
+		expect(m.warnings.join(' ')).toContain('no stylesheet and fonts saved yet');
 
 		const kit = `<!doctype html><html><head><!--afb-kit:start--><style id="kit-head">:root{--bg:#f3f4f7}</style><!--afb-kit:end--></head><body>KIT BODY NEVER SERVED</body></html>`;
 		await setMockupKit(

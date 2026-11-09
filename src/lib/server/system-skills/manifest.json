@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.3.1",
+		"version": "1.4.0",
 		"releasedAt": "2026-11-09"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.16",
+			"version": "1.1.17",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -90,6 +90,10 @@
 				{
 					"version": "1.1.16",
 					"hash": "ecd09914a4f892da35f757c39d653e2805ac4deb8b72b76b30584a3d86befabd"
+				},
+				{
+					"version": "1.1.17",
+					"hash": "3eeffbef8db6f10973fa40ad5ac5d10636176e6891a536b8e7bec2873ba41c6d"
 				}
 			]
 		},
@@ -282,7 +286,7 @@
 			]
 		},
 		"flow-mockup": {
-			"version": "1.1.1",
+			"version": "1.2.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -303,6 +307,10 @@
 				{
 					"version": "1.1.1",
 					"hash": "1e29b3284e9a45dee27e8d022c5a970cc5a41d982ec56dcfff658f5463b96bf2"
+				},
+				{
+					"version": "1.2.0",
+					"hash": "2ff8a9f42ae591815a91a3fa6903645d357e260cf0993d8644da87e63c2d7978"
 				}
 			]
 		},
@@ -358,6 +366,25 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.4.0",
+			"date": "2026-11-09",
+			"notes": [
+				"flow-mockup 1.2.0: a mockup is the project's own markup and classes over the project's own built stylesheet, for any framework. The kit is that stylesheet plus the project's fonts (and an icon font when it uses one), embedded once; the icon sprite is gone, icons are copied as inline vector markup per use. The skill gives a decision order for finding the stylesheet (the project's build, or hand written token CSS when there is no static CSS), how to assemble it (data: fonts, no other url()), how to wire the board's mode control through window.afbSet, and how to compile classes the kit lacks with the project's own Tailwind. The 10 KB and 50 KB guidance is gone: the cap is 50 MB. starter.md is class based.",
+				"The board's check follows: it scans 8 MB, accepts an icon font embedded by the kit, warns about files loaded by a relative address and reads oklch colours; a kit no longer needs an icon sprite.",
+				"flow 1.1.17: the mockup line of step 6a names the kit as the project's stylesheet and fonts."
+			],
+			"skills": {
+				"flow": "1.1.17",
+				"flow-audit": "1.1.4",
+				"flow-check": "1.2.1",
+				"flow-critic": "1.1.5",
+				"flow-interview": "1.1.4",
+				"flow-mockup": "1.2.0",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
 		{
 			"version": "1.3.1",
 			"date": "2026-11-09",

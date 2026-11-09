@@ -98,6 +98,33 @@ describe('lintMockupHtml', () => {
 		expect(lintMockupHtml(page)).toEqual([]);
 		expect(lintMockupHtml(`<style>body{font-family:var(--font-sans)}</style>`, kit)).toEqual([]);
 	});
+	it('accepts an icon font the kit embeds, and warns about files a stylesheet loads by a relative address', () => {
+		const iconKit = kitFacts(
+			`<!--afb-kit:start--><style>@font-face{font-family:'Phosphor';src:${FONT}}:root{--a:#fff}</style><!--afb-kit:end-->`
+		);
+		const page = `<style>.i{font-family:'Phosphor'}</style><i class="ph ph-house"></i>`;
+		expect(lintMockupHtml(page, iconKit)).toEqual([]);
+		expect(lintMockupHtml(page).join(' ')).toContain('icon font');
+		const rel = lintMockupHtml(
+			`<style>@font-face{font-family:'X';src:url(/fonts/x.woff2)}.a{background:url(./a.png)}.b{fill:url(#g)}.c{src:url(data:font/woff2;base64,AAAA)}</style>`
+		).join(' ');
+		expect(rel).toContain('2 files are loaded by a relative address');
+		// A percent-encoded fragment inside an encoded SVG data address is not a file
+		expect(
+			lintMockupHtml(
+				`<style>.a{background:url("data:image/svg+xml,%3csvg fill='url(%23a)'%3e")}</style>`
+			)
+		).toEqual([]);
+	});
+	it('reads oklch colours into the kit palette', () => {
+		const facts = kitFacts(
+			`<!--afb-kit:start--><style>:root{--c:oklch(0.62 0.19 259)}</style><!--afb-kit:end-->`
+		);
+		expect(facts.palette.has('oklch(0.620.19259)')).toBe(true);
+		expect(lintMockupHtml('<style>.a{color:oklch(0.5 0.1 10)}</style>', facts).join(' ')).toContain(
+			'1 colour is'
+		);
+	});
 	it('warns about emoji and symbols used as icons, but not about a trade mark or code', () => {
 		expect(
 			lintMockupHtml('<button>⚙ Settings</button><span>✓ Saved</span><b>🔥</b>').join(' ')
@@ -109,7 +136,7 @@ describe('lintMockupHtml', () => {
 		const w = lintMockupHtml(page, kit);
 		expect(w).toHaveLength(1);
 		expect(w[0]).toContain('3 colours are');
-		expect(w[0]).toContain('var(--accent)');
+		expect(w[0]).toContain("project's own classes or colour tokens");
 		expect(lintMockupHtml(page)).toEqual([]);
 	});
 	it('has no warning for the starter page the skill ships, so the starter cannot drift into warnings', () => {
@@ -140,7 +167,11 @@ describe('lintMockupHtml', () => {
 			'src="' + ' '.repeat(1_900_000),
 			'<script '.repeat(250_000),
 			'<style>'.repeat(280_000) + '<svg ' + '<svg '.repeat(100_000),
-			'class="' + 'fa '.repeat(400_000)
+			'class="' + 'fa '.repeat(400_000),
+			// Past the 8 MB scan cap, and the worst case of the relative address check
+			'url(' + ' '.repeat(11) + '#',
+			('url(' + ' '.repeat(11) + '#').repeat(300_000),
+			'<style>' + '.a{background:url(a.png)}'.repeat(350_000)
 		];
 		for (const h of hostile) {
 			const start = Date.now();
@@ -160,11 +191,14 @@ describe('lintKitHtml', () => {
 		const byAddress = `<style>@font-face{font-family:'Poppins';src:url(https://fonts.example/p.woff2)}</style>`;
 		expect(lintKitHtml(byAddress).join('\n')).toContain('loaded by address');
 	});
-	it('warns when there are no icons, one colour mode only or no marked head', () => {
+	it('needs no icon sprite, and warns about one colour mode only or no marked head', () => {
 		const bare = `<style>@font-face{font-family:'P';src:${FONT}}:root{--a:#fff}</style>`;
 		const w = lintKitHtml(bare).join('\n');
-		expect(w).toContain('has no icons');
+		expect(w).not.toContain('icon');
 		expect(w).toContain('one colour mode only');
+		expect(
+			lintKitHtml(`${bare}<style>[data-bs-theme=dark]{--a:#000}</style>`).join('\n')
+		).not.toContain('one colour mode only');
 		expect(w).toContain('<!--afb-kit:start-->');
 	});
 	it('stays fast and never throws on a hostile kit', () => {

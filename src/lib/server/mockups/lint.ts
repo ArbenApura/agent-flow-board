@@ -14,7 +14,9 @@ export type KitFacts = {
 // -- CONSTANTS -- //
 
 /** Only this much of a page is read, after long data: addresses are cut short, so a huge or hostile page stays fast. */
-const MAX_READ = 2_000_000;
+const MAX_READ = 8_000_000;
+/** The page is cut here before anything else, so the work on a huge page stays bounded. The callers cut at the same 8 MB and say so in their warning. */
+const PRE_SLICE = 16_000_000;
 const MAX_BLOCKS = 300;
 const MARKER_START = '<!--afb-kit:start-->';
 const MARKER_END = '<!--afb-kit:end-->';
@@ -54,7 +56,7 @@ function shrink(html: string): string {
 	// Long runs of whitespace become one space: the patterns below put whitespace next to optional quotes, and a run of thousands
 	// of spaces would otherwise be tried at every split
 	return html
-		.slice(0, MAX_READ * 8)
+		.slice(0, PRE_SLICE)
 		.replace(/data:[^"')\s]{64,}/g, 'data:x')
 		.replace(/\s{12,}/g, ' ')
 		.slice(0, MAX_READ);
@@ -141,6 +143,9 @@ function coloursIn(css: string): string[] {
 	}
 	for (const m of css.matchAll(/\b(?:rgba?|hsla?)\(\s*[\d.%\s,/-]{3,40}\)/gi))
 		found.push(m[0].toLowerCase().replace(/\s+/g, ''));
+	// Newer colour functions, which a Tailwind 4 stylesheet writes for its palette
+	for (const m of css.matchAll(/\b(?:oklch|oklab|lch|lab)\(\s*[\d.%\s/-]{3,40}\)/gi))
+		found.push(m[0].toLowerCase().replace(/\s+/g, ''));
 	return found;
 }
 
@@ -201,6 +206,23 @@ function networkWarnings(text: string): string[] {
 	});
 }
 
+/** Files a stylesheet loads by a relative or root-relative address. The sandbox has no network and no files, so none of them ever loads. */
+function relativeUrlWarnings(text: string): string[] {
+	const found: string[] = [];
+	for (const m of text.matchAll(
+		/url\(\s{0,12}["']?\s{0,12}(?!data:|#|%23|&(?:quot|#)|https?:|\/\/|var\()([^"')\s]{1,200})/gi
+	)) {
+		// Printable ASCII only, so a name in another script is never echoed into the stored answer
+		if (!/^[\x21-\x7e]+$/.test(m[1])) continue;
+		found.push(m[1]);
+		if (found.length >= 500) break;
+	}
+	if (!found.length) return [];
+	return [
+		`${plural(found.length, 'file is', 'files are')} loaded by a relative address (like ${clean(found[0], 60)}), which the sandbox cannot load, so it shows as the system font or nothing. Embed it as a data: address, or remove the rule.`
+	];
+}
+
 /** The page without its script, style and svg blocks, cut with a few forward searches so the work grows with the page. */
 function withoutBlocks(html: string, tag: string): string {
 	// Lowercase letters of the alphabet only, so the text keeps its length and the positions stay true
@@ -247,7 +269,7 @@ function symbolWarning(html: string): string | null {
 		.slice(0, 4)
 		.map((c) => `U+${(c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}`)
 		.join(' ');
-	return `${plural(hits.length, 'emoji or symbol character', 'emoji or symbol characters')} (${sample}) ${hits.length === 1 ? 'stands' : 'stand'} in for an icon. Use the project's icons as inline vector images from the kit's icon sprite instead.`;
+	return `${plural(hits.length, 'emoji or symbol character', 'emoji or symbol characters')} (${sample}) ${hits.length === 1 ? 'stands' : 'stand'} in for an icon. Use the project's own icons instead, copied as inline vector images (SVG).`;
 }
 
 // A control the page draws for the person to switch the colour mode, by what the page calls it
@@ -281,11 +303,18 @@ function ownToolsWarnings(text: string): string[] {
 export function lintMockupHtml(html: string, kit?: KitFacts | null): string[] {
 	try {
 		const text = shrink(html);
-		const warnings: string[] = [...networkWarnings(text)];
+		const warnings: string[] = [...networkWarnings(text), ...relativeUrlWarnings(text)];
 		const css = cssOf(text);
 		const { embedded } = embeddedFamilies(text + css);
 		const used = familiesUsed(css);
-		const iconFonts = used.filter((f) => ICON_FONT.test(f) && !embedded.includes(f.toLowerCase()));
+		// An icon font the kit embeds counts as embedded too, so a mockup that uses it is not told to draw vectors
+		const kitIconFont = !!kit?.families.some((f) => ICON_FONT.test(f));
+		const iconFonts = used.filter(
+			(f) =>
+				ICON_FONT.test(f) &&
+				!embedded.includes(f.toLowerCase()) &&
+				!kit?.families.includes(f.toLowerCase())
+		);
 		if (iconFonts.length)
 			warnings.push(
 				`The page uses the icon font ${iconFonts
@@ -293,11 +322,11 @@ export function lintMockupHtml(html: string, kit?: KitFacts | null): string[] {
 					.map((f) => clean(f, 60))
 					.join(
 						', '
-					)} with no font file embedded behind it, so its icons show as empty boxes or nothing. Draw the icons as inline vector images from the kit's icon sprite.`
+					)} with no font file embedded behind it, so its icons show as empty boxes or nothing. Copy the project's icons as inline vector images (SVG), or embed the icon font file once in the kit.`
 			);
-		else if (ICON_CLASS.test(text) && !embedded.some((f) => ICON_FONT.test(f)))
+		else if (ICON_CLASS.test(text) && !kitIconFont && !embedded.some((f) => ICON_FONT.test(f)))
 			warnings.push(
-				"The page uses icon font classes (like fa-home or material-icons) with no icon font embedded, so the icons will not show. Draw them as inline vector images from the kit's icon sprite."
+				'The page uses icon font classes (like fa-home or material-icons) with no icon font embedded, so the icons will not show. Copy the project icons as inline vector images (SVG), or embed the icon font file once in the kit.'
 			);
 		if (kit && kit.families.length) {
 			const allowed = new Set([...kit.families, ...embedded]);
@@ -322,7 +351,7 @@ export function lintMockupHtml(html: string, kit?: KitFacts | null): string[] {
 			const own = unique(coloursIn(css)).filter((c) => !kit.palette.has(c));
 			if (own.length)
 				warnings.push(
-					`${plural(own.length, 'colour is', 'colours are')} written as a literal value that is not one of the project's colours (like ${clean(own[0], 30)}). Use the kit's colour tokens, such as var(--accent).`
+					`${plural(own.length, 'colour is', 'colours are')} written as a literal value that is not one of the project's colours (like ${clean(own[0], 30)}). Use the project's own classes or colour tokens instead.`
 				);
 		}
 		return warnings;
@@ -335,7 +364,7 @@ export function lintMockupHtml(html: string, kit?: KitFacts | null): string[] {
 export function lintKitHtml(html: string): string[] {
 	try {
 		const text = shrink(html);
-		const warnings: string[] = [...networkWarnings(text)];
+		const warnings: string[] = [...networkWarnings(text), ...relativeUrlWarnings(text)];
 		const css = cssOf(text);
 		const { embedded, byAddress } = embeddedFamilies(text + css);
 		if (embedded.length === 0)
@@ -349,12 +378,8 @@ export function lintKitHtml(html: string): string[] {
 							)}) are loaded by address, not embedded. Embed the real font files as data: addresses under the same family names.`
 					: "The kit embeds no font file, so mockups fall back to the system font. Embed the project's real font files as data: addresses."
 			);
-		if (!/<symbol\b/i.test(text) && !/<svg\b/i.test(text))
-			warnings.push(
-				"The kit has no icons. Add the project's real icon set as inline vector images or one icon sprite, so mockups never draw lookalikes."
-			);
 		const dark =
-			/\[data-(?:mode|theme)\s*=\s*["']?dark|\.dark\b|prefers-color-scheme\s*:\s*dark|color-scheme\s*:\s*dark/i;
+			/\[data-(?:mode|theme|bs-theme)\s*=\s*["']?dark|\.dark\b|prefers-color-scheme\s*:\s*dark|color-scheme\s*:\s*dark/i;
 		if (!dark.test(text))
 			warnings.push(
 				'The kit defines one colour mode only. Add the dark mode (or the mode the product has), so a mockup can show both.'
@@ -362,7 +387,7 @@ export function lintKitHtml(html: string): string[] {
 		const start = text.indexOf(MARKER_START);
 		if (start === -1 || text.indexOf(MARKER_END) <= start)
 			warnings.push(
-				`The kit has no head between ${MARKER_START} and ${MARKER_END}. Put the colour tokens, the embedded fonts and the icon sprite between them, so the board can add them to every mockup.`
+				`The kit has no head between ${MARKER_START} and ${MARKER_END}. Put the project's stylesheet and its embedded fonts between them, so the board can add them to every mockup.`
 			);
 		return warnings;
 	} catch {

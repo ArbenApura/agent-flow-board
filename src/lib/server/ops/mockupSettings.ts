@@ -1,4 +1,4 @@
-// THE PROJECT KIT OF DESIGN MOCKUPS: COLOURS, FONTS, LOGO AND ICONS AS ONE HTML FILE (AFB-20261107-0346)
+// THE PROJECT KIT OF DESIGN MOCKUPS: THE PROJECT'S OWN BUILT STYLESHEET AND ITS FONTS AS ONE HTML FILE (AFB-20261107-0346, AFB-20261109-1345)
 // The mockup settings (style prompt, page templates, devices and modes) are gone (AFB-20261107-1337). Only the kit stays, with no
 // screen of its own: the agent builds it from the repo and saves it here. Admins and owners write, and everyone who can see the
 // project reads. The kit text is returned marked untrusted, because other people wrote it.
@@ -131,7 +131,14 @@ export async function setMockupKit(ctx: Ctx, raw: z.input<typeof kitInput>, byte
 					stale: false,
 					checksum: createHash('sha256').update(bytes).digest('hex'),
 					// The check never blocks the save and is never stored: it tells the tool what will not render in a mockup
-					warnings: lintKitHtml(new TextDecoder().decode(bytes.subarray(0, 8_000_000)))
+					warnings: [
+						...lintKitHtml(new TextDecoder().decode(bytes.subarray(0, 8_000_000))),
+						...(bytes.byteLength > 8_000_000
+							? [
+									'The kit is larger than 8 MB, so only its first 8 MB was checked for what will not render. Put the @font-face rules and the colour tokens first.'
+								]
+							: [])
+					]
 				};
 			})
 		)
