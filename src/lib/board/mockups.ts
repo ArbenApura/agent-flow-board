@@ -200,6 +200,115 @@ export function parsePinKey(data: unknown, from: unknown, frame: unknown): PinKe
 	return m && (m.key === 'c' || m.key === 'Escape') ? m.key : null;
 }
 
+// -- WHAT A MOCKUP OFFERS (AFB-20261109-0604) -- //
+
+const CONFIG_KEY = /^[a-z0-9][a-z0-9-]{0,23}$/;
+export const MAX_CONFIG_SCREENS = 12;
+export const MAX_CONFIG_OPTIONS = 6;
+export const MAX_CONFIG_VALUES = 12;
+/** The key of the screen list in a choice. An option may not use it. */
+export const SCREEN_OPTION = 'screen';
+
+export type ConfigValue = { value: string; label: string };
+export type ConfigOption = { key: string; label: string; values: ConfigValue[] };
+/** What a mockup declared: its own screens (steps of a flow) and the options a person may switch (a mode, a brand, a role). */
+export type FrameConfig = { screens: ConfigValue[]; options: ConfigOption[] };
+
+/** A label: printable text only, trimmed, 1 to 32 characters. */
+const labelOf = (v: unknown): string | null => {
+	if (typeof v !== 'string') return null;
+	const t = [...v]
+		.filter((c) => c >= ' ' && c !== '\u007f')
+		.join('')
+		.trim();
+	return t.length >= 1 && t.length <= 32 ? t : null;
+};
+
+/** A list of [key, label] pairs with unique keys, or null when anything is off or there are more than `max`. */
+function valuesOf(raw: unknown, max: number): ConfigValue[] | null {
+	if (!Array.isArray(raw) || raw.length > max) return null;
+	const seen = new Set<string>();
+	const out: ConfigValue[] = [];
+	for (const p of raw) {
+		if (!Array.isArray(p) || p.length !== 2) return null;
+		const [value, label] = p as [unknown, unknown];
+		const text = labelOf(label);
+		if (typeof value !== 'string' || !CONFIG_KEY.test(value) || !text || seen.has(value))
+			return null;
+		seen.add(value);
+		out.push({ value, label: text });
+	}
+	return out;
+}
+
+/**
+ * The message a mockup sends once, after it loads: the screens and options it declared and the value each has now. Anything that is
+ * not exactly in shape (too many, a bad key, a duplicate, an option with fewer than two values) makes a whole option or the whole
+ * message refused, so a page can never put more than the limits on the board's toolbar. A current value that is not declared is
+ * the first one.
+ */
+export function parseConfigMessage(
+	data: unknown,
+	from: unknown,
+	frame: unknown
+): { config: FrameConfig; current: Record<string, string> } | null {
+	const m = messageFrom(data, from, frame, 'afb-config', 'config,current,type');
+	if (!m || !m.config || typeof m.config !== 'object' || Array.isArray(m.config)) return null;
+	const raw = m.config as Record<string, unknown>;
+	if (Object.keys(raw).sort().join(',') !== 'options,screens') return null;
+	const screens = valuesOf(raw.screens, MAX_CONFIG_SCREENS);
+	if (!screens || !Array.isArray(raw.options) || raw.options.length > MAX_CONFIG_OPTIONS)
+		return null;
+	const options: ConfigOption[] = [];
+	const seen = new Set<string>();
+	for (const o of raw.options) {
+		if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
+		const r = o as Record<string, unknown>;
+		const label = labelOf(r.label);
+		const values = valuesOf(r.values, MAX_CONFIG_VALUES);
+		if (Object.keys(r).sort().join(',') !== 'key,label,values') return null;
+		if (typeof r.key !== 'string' || !CONFIG_KEY.test(r.key) || r.key === SCREEN_OPTION)
+			return null;
+		if (!label || !values || values.length < 2 || seen.has(r.key)) return null;
+		seen.add(r.key);
+		options.push({ key: r.key, label, values });
+	}
+	const given =
+		m.current && typeof m.current === 'object' && !Array.isArray(m.current)
+			? (m.current as Record<string, unknown>)
+			: {};
+	const current: Record<string, string> = {};
+	for (const o of options)
+		current[o.key] = o.values.some((v) => v.value === given[o.key])
+			? (given[o.key] as string)
+			: o.values[0].value;
+	if (screens.length)
+		current[SCREEN_OPTION] = screens.some((v) => v.value === given[SCREEN_OPTION])
+			? (given[SCREEN_OPTION] as string)
+			: screens[0].value;
+	return { config: { screens, options }, current };
+}
+
+/** The choice the board sends a mockup: an option key (or `screen`) and one of its values. The frame checks both against what the page declared. */
+export const setMessage = (key: string, value: string) => ({ type: 'afb-set', key, value });
+
+/** The message a mockup sends when the person presses [ or ] on it: one screen back or forward. */
+export function parseStepMessage(
+	data: unknown,
+	from: unknown,
+	frame: unknown
+): 'prev' | 'next' | null {
+	const m = messageFrom(data, from, frame, 'afb-step', 'dir,type');
+	return m && (m.dir === 'prev' || m.dir === 'next') ? m.dir : null;
+}
+
+/** The value of a choice that the mockup declares, or the one it started with. Used to apply what the address or the browser remembered. */
+export function validChoice(config: FrameConfig, key: string, value: unknown): string | null {
+	const list =
+		key === SCREEN_OPTION ? config.screens : config.options.find((o) => o.key === key)?.values;
+	return list?.some((v) => v.value === value) ? (value as string) : null;
+}
+
 /** A colour the frame may be given: exactly #rrggbb, anything else is null and the frame uses its own fallback. */
 export const frameColour = (v: string | null | undefined): string | null => {
 	const t = (v ?? '').trim();

@@ -39,7 +39,9 @@ export async function itemMockups(
 	ctx: Ctx,
 	projectKey: string,
 	itemRef: string,
-	withPreview: boolean
+	withPreview: boolean,
+	/** The mockup the address asked for (?m=). A wrong or foreign id shows the newest one. */
+	chosen: string | null = null
 ): Promise<ItemMockups> {
 	const { mockups } = await listMockups(ctx, { project: projectKey, item: itemRef });
 	const list = mockups.map((m) => ({
@@ -53,16 +55,17 @@ export async function itemMockups(
 		publicLinkOn: m.publicLinkOn
 	}));
 	if (!withPreview || list.length === 0) return { list, open: null };
-	const first = list[0];
+	// Only a mockup of this plan can be chosen: the id is looked up in the plan's own list
+	const shown = list.find((m) => m.id === chosen) ?? list[0];
 	const [detail, grant] = await Promise.all([
-		getMockup(ctx, first.id),
-		mockupFileGrant(ctx, first.id)
+		getMockup(ctx, shown.id),
+		mockupFileGrant(ctx, shown.id)
 	]);
 	return {
 		list,
 		open: {
-			id: first.id,
-			version: first.currentVersion,
+			id: shown.id,
+			version: shown.currentVersion,
 			src: memberMockupUrl(grant),
 			screens: ALL_SCREENS,
 			notes: detail.notes

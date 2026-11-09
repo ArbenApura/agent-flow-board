@@ -250,6 +250,30 @@ function symbolWarning(html: string): string | null {
 	return `${plural(hits.length, 'emoji or symbol character', 'emoji or symbol characters')} (${sample}) ${hits.length === 1 ? 'stands' : 'stand'} in for an icon. Use the project's icons as inline vector images from the kit's icon sprite instead.`;
 }
 
+// A control the page draws for the person to switch the colour mode, by what the page calls it
+const OWN_MODE_SWITCH =
+	/\b(?:id|class|aria-label|title)\s*=\s*["'][^"']{0,200}?(?:(?:theme|mode|dark|colou?r)[-_ ]?(?:toggle|switch(?:er)?)|(?:toggle|switch)[-_ ]?(?:theme|mode|dark)|light (?:and|or|\/) dark)/i;
+// A bar or row of the page's own screens or states, by what the page calls it
+const OWN_SCREEN_ROW =
+	/\bclass\s*=\s*["'][^"']{0,200}?\b(?:screen|state|step|view)[-_]?(?:switch(?:er)?|pills?|picker|nav(?:igation)?|tabs|selector)\b/i;
+const DECLARES_CONFIG = /<meta\b[^>]{0,300}\bname\s*=\s*["']afb-config["']/i;
+const DECLARES_SCREENS =
+	/\bafb-config\b[^>]{0,3000}?(?:&quot;|")screens(?:&quot;|")\s*:\s*\[\s*\[/i;
+
+/** Tools the page draws that the board draws around it: a colour mode switch, and a row of its own screens when none are declared. */
+function ownToolsWarnings(text: string): string[] {
+	const out: string[] = [];
+	if (OWN_MODE_SWITCH.test(text))
+		out.push(
+			'The page draws its own colour mode switch. The board draws the controls around the page: declare the modes the app has in <meta name="afb-config"> (and none when the app has one), and remove the switch from the page.'
+		);
+	if (OWN_SCREEN_ROW.test(text) && !(DECLARES_CONFIG.test(text) && DECLARES_SCREENS.test(text)))
+		out.push(
+			'The page draws its own row of screens or steps over the design. Declare them in <meta name="afb-config"> (screens) so the board shows them on its own toolbar, and remove the row from the page. A step list that is part of the product itself can stay.'
+		);
+	return out;
+}
+
 /**
  * The warnings for a mockup page, in plain words. With the project's kit facts it also checks the fonts and colours against the
  * kit. An empty list means nothing was found. This never throws.
@@ -293,6 +317,7 @@ export function lintMockupHtml(html: string, kit?: KitFacts | null): string[] {
 		}
 		const symbols = symbolWarning(text);
 		if (symbols) warnings.push(symbols);
+		warnings.push(...ownToolsWarnings(text));
 		if (kit && kit.palette.size) {
 			const own = unique(coloursIn(css)).filter((c) => !kit.palette.has(c));
 			if (own.length)

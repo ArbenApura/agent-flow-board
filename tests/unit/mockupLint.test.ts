@@ -27,6 +27,32 @@ body{font-family:'Poppins',sans-serif;background:var(--bg);color:var(--ink)}
 
 // -- FUNCTIONS -- //
 
+describe('tools of the viewer drawn inside a page', () => {
+	const page = (body: string, head = '') =>
+		`<!doctype html><html><head><!--afb-kit-->${head}</head><body>${body}</body></html>`;
+
+	it('warns about a colour mode switch the page draws, however it is named', () => {
+		for (const body of [
+			'<button id="theme-toggle">x</button>',
+			'<button class="mode-switch">x</button>',
+			'<button aria-label="Switch between light and dark">x</button>'
+		]) {
+			const got = lintMockupHtml(page(body));
+			expect(got.some((w) => w.includes('colour mode switch'))).toBe(true);
+		}
+	});
+	it('warns about a row of the screens of the mockup when none are declared', () => {
+		const got = lintMockupHtml(page('<div class="screen-switcher"></div>'));
+		expect(got.some((w) => w.includes('row of screens'))).toBe(true);
+	});
+	it('stays quiet when the screens are declared, and for an ordinary page', () => {
+		const declared =
+			'<meta name="afb-config" content=\'{"screens":[["a","A"],["b","B"]],"options":[]}\'>';
+		expect(lintMockupHtml(page('<div class="screen-switcher"></div>', declared))).toEqual([]);
+		expect(lintMockupHtml(page('<nav class="tabs"><button>One</button></nav>'))).toEqual([]);
+	});
+});
+
 describe('lintMockupHtml', () => {
 	const kit = kitFacts(KIT);
 	it('has no warning for a clean page that uses the kit', () => {

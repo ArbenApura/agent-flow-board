@@ -2,26 +2,44 @@
 	// -- DEP-TYPES -- //
 	import type { Component, Snippet } from 'svelte';
 	// -- TYPES -- //
-	import type { FramePin, PinKey, PinMessage, PinPoint, ScreenKey } from '#lib/board/mockups.js';
+	import type {
+		FramePin,
+		FrameConfig,
+		PinKey,
+		PinMessage,
+		PinPoint,
+		ScreenKey
+	} from '#lib/board/mockups.js';
+	// -- ENVS -- //
+	import { replaceState } from '$app/navigation';
+	import { page } from '$app/state';
 	// -- DEP-MODULES -- //
 	import { untrack } from 'svelte';
 	// -- MODULES -- //
 	import { effectiveDevice, fitScale, showsSwitch } from '#lib/board/frames.js';
 	import {
 		SCREEN_LABEL,
+		SCREEN_OPTION,
 		boxPlace,
 		focusMessage,
 		frameColour,
 		isReadyMessage,
+		parseConfigMessage,
 		parsePinClick,
 		parsePinKey,
 		parsePinMessage,
 		parsePinMove,
-		pinMessages
+		parseStepMessage,
+		pinMessages,
+		setMessage,
+		validChoice
 	} from '#lib/board/mockups.js';
 	import { fileKey } from '#lib/board/thumbLoad.js';
 	import DeviceFrame from '#lib/board/DeviceFrame.svelte';
+	import MockupScreenStrip from '#lib/board/MockupScreenStrip.svelte';
+	import Select from '#lib/ui/Select.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
+	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
 	import Laptop from '@lucide/svelte/icons/laptop';
 	import Monitor from '@lucide/svelte/icons/monitor';
@@ -39,6 +57,7 @@
 		draft = null,
 		picked = $bindable(),
 		focus = null,
+		sticky = false,
 		ondevice,
 		onpin,
 		onmove,
@@ -62,13 +81,15 @@
 		picked?: ScreenKey;
 		/** Asks the mockup to scroll a pin into view and pulse it. A new `seq` asks again for the same pin. */
 		focus?: { id: string; seq: number } | null;
+		/** Keeps the toolbar under the top bar while the page scrolls. The card around it must not clip. */
+		sticky?: boolean;
 		/** Tells the page which device is really on show, so it can pick the pins of that device. */
 		ondevice?: (device: ScreenKey) => void;
 		onpin?: (pin: PinMessage) => void;
 		onmove?: (point: PinPoint) => void;
 		onpinclick?: (id: string) => void;
 		onkey?: (key: PinKey) => void;
-		/** Buttons on the right of the device switch. */
+		/** Buttons on the right of the toolbar. */
 		toolbar?: Snippet;
 		/** The comment box. It is drawn on the stage beside the pin being placed. */
 		composer?: Snippet;
@@ -101,6 +122,10 @@
 	/** Where the comment box sits on the stage, in pixels. */
 	let anchor = $state<{ left: number; top: number } | null>(null);
 	let boxHeight = $state(200);
+	/** What the mockup on show declared (its screens and options), null until it has said so or when it declares nothing. */
+	let config = $state<FrameConfig | null>(null);
+	/** The value on show for each option and for the screen list. */
+	let choices = $state<Record<string, string>>({});
 	/** The last click or drag point, so the box can be placed again when its height or the stage changes. */
 	let lastPoint: PinPoint | null = null;
 
@@ -135,10 +160,91 @@
 		);
 	}
 
+	/** What the address and the browser remember for this mockup: the address wins. Values are checked against what the mockup declared before use. */
+	function remembered(): Record<string, string> {
+		const out: Record<string, string> = {};
+		try {
+			const raw = localStorage.getItem(`afb:mockup-choices:${shownKey}`);
+			const saved: unknown = raw ? JSON.parse(raw) : null;
+			if (saved && typeof saved === 'object')
+				for (const [k, v] of Object.entries(saved)) if (typeof v === 'string') out[k] = v;
+		} catch {
+			// Browser storage can be blocked: the choices then start from the mockup's own values
+		}
+		for (const [k, v] of page.url.searchParams) if (k.startsWith('o-')) out[k.slice(2)] = v;
+		return out;
+	}
+
+	function remember() {
+		try {
+			localStorage.setItem(`afb:mockup-choices:${shownKey}`, JSON.stringify(choices));
+		} catch {
+			// Not being able to remember is not an error
+		}
+		try {
+			const url = new URL(page.url.href);
+			for (const k of [...url.searchParams.keys()])
+				if (k.startsWith('o-')) url.searchParams.delete(k);
+			for (const [k, v] of Object.entries(choices)) url.searchParams.set(`o-${k}`, v);
+			replaceState(url, page.state);
+		} catch {
+			// The router may not be ready yet: the choice still shows, it is only not in the address
+		}
+	}
+
+	/** A choice from the toolbar, the strip or a key: sent to the frame, which checks it against what the page declared. */
+	function choose(key: string, value: string) {
+		if (!config || validChoice(config, key, value) === null) return;
+		choices = { ...choices, [key]: value };
+		send(setMessage(key, value));
+		remember();
+	}
+
+	function stepScreen(dir: 'prev' | 'next') {
+		const list = config?.screens ?? [];
+		if (list.length < 2) return;
+		const at = list.findIndex((s) => s.value === choices[SCREEN_OPTION]);
+		const to = list[Math.min(list.length - 1, Math.max(0, at + (dir === 'next' ? 1 : -1)))];
+		choose(SCREEN_OPTION, to.value);
+	}
+
+	/** The page said what it offers: show it, and put back what the address or the browser remembered. */
+	function applyConfig(got: { config: FrameConfig; current: Record<string, string> }) {
+		const saved = remembered();
+		const next = { ...got.current };
+		for (const key of Object.keys(next)) {
+			const v = validChoice(got.config, key, saved[key]);
+			if (v && v !== next[key]) {
+				next[key] = v;
+				send(setMessage(key, v));
+			}
+		}
+		config = got.config;
+		choices = next;
+	}
+
+	function onKeydown(e: KeyboardEvent) {
+		if ((e.key !== '[' && e.key !== ']') || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+		const target = e.target as HTMLElement | null;
+		if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+		if (document.querySelector('[aria-modal="true"]')) return;
+		stepScreen(e.key === '[' ? 'prev' : 'next');
+	}
+
 	function onMessage(e: MessageEvent) {
 		const win = frame?.contentWindow;
 		if (isReadyMessage(e.data, e.source, win)) {
 			readyCount += 1;
+			return;
+		}
+		const offered = parseConfigMessage(e.data, e.source, win);
+		if (offered) {
+			applyConfig(offered);
+			return;
+		}
+		const dir = parseStepMessage(e.data, e.source, win);
+		if (dir) {
+			stepScreen(dir);
 			return;
 		}
 		const pin = parsePinMessage(e.data, e.source, win);
@@ -180,6 +286,9 @@
 		void shownSrc;
 		void frame;
 		readyCount = 0;
+		// ...and to say again what it offers
+		config = null;
+		choices = {};
 	});
 
 	// Pins, the pin being placed and the pin mode go to the frame on every ready message and on every change, so a frame that loads
@@ -262,31 +371,65 @@
 	});
 </script>
 
-<svelte:window onmessage={onMessage} />
+<svelte:window onmessage={onMessage} onkeydown={onKeydown} />
 
-<!-- THE PREVIEW: A DEVICE SWITCH AND THE MOCKUP IN A SANDBOXED FRAME, DRAWN INSIDE A DEVICE. THE WHOLE DEVICE SHOWS, AND THE MOCKUP SCROLLS INSIDE ITS SCREEN ONLY -->
-<div class="flex flex-col gap-3" data-testid="mockup-preview">
-	<div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-		{#if showsSwitch(screens)}
-			<div
-				bind:this={switchRow}
-				class="max-w-full [scrollbar-width:none]! overflow-x-auto overflow-y-hidden overscroll-x-contain [&::-webkit-scrollbar]:hidden"
-			>
-				<SegmentedControl
-					label="Device"
-					value={device}
-					{options}
-					onchange={(v) => (picked = v as ScreenKey)}
-				/>
-			</div>
-		{/if}
-		{#if toolbar}
-			<div class="ml-auto flex flex-wrap items-center gap-2">{@render toolbar()}</div>
+<!-- THE PREVIEW: ONE TOOLBAR OF THE BOARD (DEVICE, THE OPTIONS THE MOCKUP DECLARED, COMMENTS, THE SCREENS) AND THE MOCKUP IN A SANDBOXED FRAME, DRAWN INSIDE A DEVICE. THE WHOLE DEVICE SHOWS, AND THE MOCKUP SCROLLS INSIDE ITS SCREEN ONLY -->
+<div class="flex flex-col" data-testid="mockup-preview">
+	<div
+		class={cn(
+			'flex flex-col gap-3 rounded-t-lg border border-line bg-surface p-3',
+			sticky && 'sticky top-[65px] z-20 md:top-[73px]'
+		)}
+		data-testid="mockup-toolbar"
+	>
+		<div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+			{#if showsSwitch(screens)}
+				<div
+					bind:this={switchRow}
+					class="max-w-full [scrollbar-width:none]! overflow-x-auto overflow-y-hidden overscroll-x-contain [&::-webkit-scrollbar]:hidden"
+				>
+					<SegmentedControl
+						label="Device"
+						value={device}
+						{options}
+						onchange={(v) => (picked = v as ScreenKey)}
+					/>
+				</div>
+			{/if}
+			<!-- ONE CONTROL FOR EACH OPTION THE MOCKUP DECLARED. A MOCKUP THAT DECLARED NOTHING SHOWS NONE -->
+			{#each config?.options ?? [] as o (o.key)}
+				{#if o.values.length <= 3}
+					<SegmentedControl
+						label={o.label}
+						value={choices[o.key]}
+						options={o.values}
+						onchange={(v) => choose(o.key, v)}
+					/>
+				{:else}
+					<Select
+						label={o.label}
+						prefix={o.label}
+						value={choices[o.key]}
+						options={o.values}
+						onchange={(v) => choose(o.key, v)}
+					/>
+				{/if}
+			{/each}
+			{#if toolbar}
+				<div class="ml-auto flex flex-wrap items-center gap-2">{@render toolbar()}</div>
+			{/if}
+		</div>
+		{#if config && config.screens.length > 1}
+			<MockupScreenStrip
+				screens={config.screens}
+				value={choices[SCREEN_OPTION] ?? config.screens[0].value}
+				onpick={(v) => choose(SCREEN_OPTION, v)}
+			/>
 		{/if}
 	</div>
 	<div
 		bind:this={stage}
-		class="relative isolate min-h-60 overflow-hidden rounded-lg border border-line bg-raised p-6 max-sm:p-3"
+		class="relative isolate min-h-60 overflow-hidden rounded-b-lg border border-t-0 border-line bg-raised p-6 max-sm:p-3"
 	>
 		{#if available > 0}
 			<DeviceFrame screen={device} {title} {scale} {zoomable}>

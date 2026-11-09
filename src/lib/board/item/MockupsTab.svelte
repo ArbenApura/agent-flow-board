@@ -8,10 +8,12 @@
 	import { mockupPrompt, screensOf } from '#lib/board/mockups.js';
 	import { ago } from '#lib/board/status.js';
 	import MockupPreview from '#lib/board/MockupPreview.svelte';
+	import MockupThumb from '#lib/board/MockupThumb.svelte';
 	import TabCard from '#lib/board/item/TabCard.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
+	import { cn } from '#lib/ui/cn.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
 	import Copy from '@lucide/svelte/icons/copy';
@@ -21,15 +23,22 @@
 
 	let { detail, env, mockups }: { detail: ItemView; env: TabEnv; mockups: ItemMockups } = $props();
 
+	// -- STATES -- //
+
+	let chipRow = $state<HTMLElement>();
+
 	// -- REACTIVE STATES -- //
 
 	const base = $derived(`/${env.org}/${page.params.project ?? detail.project.key}`);
 	const open = $derived(mockups.open);
-	const first = $derived(mockups.list[0]);
-	const others = $derived(mockups.list.slice(1));
+	// The mockup on show: the one the preview was loaded for, otherwise the newest
+	const current = $derived(mockups.list.find((m) => m.id === open?.id) ?? mockups.list[0]);
 	const screens = $derived(screensOf(open?.screens));
 
 	// -- FUNCTIONS -- //
+
+	/** The address of the tab with one mockup chosen. It keeps nothing of the last choices, which belong to the other mockup. */
+	const hrefOf = (id: string) => `${page.url.pathname}?tab=mockups&m=${id}`;
 
 	async function copyPrompt() {
 		try {
@@ -41,11 +50,27 @@
 			toast.error('The prompt could not be copied. Select it and copy by hand.');
 		}
 	}
+
+	// -- REACTIVE STATEMENTS -- //
+
+	// The mockup on show slides to the centre of the chip row, which scrolls sideways on a phone
+	$effect(() => {
+		void current?.id;
+		const row = chipRow;
+		const active = row?.querySelector<HTMLElement>('[aria-current="true"]');
+		if (!row || !active) return;
+		const left =
+			active.getBoundingClientRect().left -
+			row.getBoundingClientRect().left +
+			row.scrollLeft -
+			(row.clientWidth - active.offsetWidth) / 2;
+		row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+	});
 </script>
 
 <!-- THE MOCKUPS TAB OF A PLAN: THE PREVIEW OF ITS MOCKUP, AND WHAT TO KEEP AND WHAT IS FREE. A MOCKUP IS INSPIRATION, NEVER THE SPEC -->
 <div class="flex flex-col gap-4" data-testid="mockups-tab">
-	{#if !first}
+	{#if !current}
 		<div class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
 			<EmptyState
 				kind="files"
@@ -64,18 +89,52 @@
 	{:else}
 		<TabCard title="Preview">
 			{#snippet meta()}
-				<Badge tone="success">v{first.currentVersion}</Badge>
-				{#if first.publicLinkOn}<Badge tone="info">Public link on</Badge>{/if}
-				<span class="text-xs text-muted">{ago(first.updatedAt)}</span>
+				<Badge tone="success">v{current.currentVersion}</Badge>
+				{#if current.publicLinkOn}<Badge tone="info">Public link on</Badge>{/if}
+				<span class="text-xs text-muted">{ago(current.updatedAt)}</span>
 			{/snippet}
 			{#snippet actions()}
-				<Button href={`${base}/mockups/${first.id}`} data-testid="open-viewer">
+				<Button href={`${base}/mockups/${current.id}`} data-testid="open-viewer">
 					<ExternalLink size={16} /> Open the viewer
 				</Button>
 			{/snippet}
+
+			<!-- ONE CHIP FOR EACH MOCKUP OF THE PLAN, ONLY WHEN THERE ARE TWO OR MORE. EACH IS A LINK, SO THE ADDRESS AND THE BACK BUTTON FOLLOW THE CHOICE -->
+			{#if mockups.list.length > 1}
+				<nav
+					bind:this={chipRow}
+					aria-label="Mockups of this plan"
+					class="flex [scrollbar-width:none]! gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-line p-3 max-sm:p-2.5 [&::-webkit-scrollbar]:hidden"
+					data-testid="mockup-switcher"
+				>
+					{#each mockups.list as m (m.id)}
+						{@const on = m.id === current.id}
+						<a
+							href={hrefOf(m.id)}
+							data-sveltekit-noscroll
+							aria-current={on ? 'true' : undefined}
+							class={cn(
+								'flex min-h-14 max-w-72 shrink-0 cursor-pointer items-center gap-2.5 rounded-lg border p-1.5 pr-3.5 text-left focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+								on ? 'border-accent bg-accent-soft' : 'border-line bg-surface hover:bg-raised'
+							)}
+						>
+							<span class="w-16 shrink-0"
+								><MockupThumb id={m.id} src={m.thumb} live={m.live} /></span
+							>
+							<span class="flex min-w-0 flex-col">
+								<span
+									class={cn('truncate text-sm font-semibold', on ? 'text-accent-text' : 'text-ink')}
+									>{m.title}</span
+								>
+								<span class="font-mono text-xs text-muted">v{m.currentVersion}</span>
+							</span>
+						</a>
+					{/each}
+				</nav>
+			{/if}
 			<div class="p-4 max-sm:p-3.5">
 				{#if open}
-					<MockupPreview src={open.src} {screens} title={first.title} />
+					<MockupPreview src={open.src} {screens} title={current.title} />
 				{:else}
 					<p class="text-sm text-muted">Loading the preview...</p>
 				{/if}
@@ -117,22 +176,5 @@
 				{/if}
 			</div>
 		</TabCard>
-
-		{#if others.length}
-			<TabCard title="Other mockups of this plan">
-				<ul>
-					{#each others as m (m.id)}
-						<li class="border-b border-line last:border-b-0">
-							<a
-								href={`${base}/mockups/${m.id}`}
-								class="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-2 text-sm text-ink hover:bg-raised"
-								><span class="min-w-0 flex-1 truncate">{m.title}</span>
-								<span class="font-mono text-xs text-muted">v{m.currentVersion}</span></a
-							>
-						</li>
-					{/each}
-				</ul>
-			</TabCard>
-		{/if}
 	{/if}
 </div>

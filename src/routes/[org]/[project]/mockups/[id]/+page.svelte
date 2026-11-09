@@ -23,10 +23,13 @@
 	import Notice from '#lib/ui/Notice.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
+	import Select from '#lib/ui/Select.svelte';
 	import TextArea from '#lib/ui/TextArea.svelte';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
+	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import History from '@lucide/svelte/icons/history';
 	import Link from '@lucide/svelte/icons/link';
 	import MessageSquare from '@lucide/svelte/icons/message-square';
@@ -69,6 +72,13 @@
 	const m = $derived(data.detail.mockup);
 	const newest = $derived(m.currentVersion);
 	const viewing = $derived(data.version);
+	const siblings = $derived(data.siblings);
+	const place = $derived(
+		Math.max(
+			0,
+			siblings.findIndex((s) => s.id === m.id)
+		)
+	);
 	const canWrite = $derived(data.detail.canWrite);
 	const canManage = $derived(data.detail.canManage);
 	const blocked = $derived(m.visibility === 'private');
@@ -362,6 +372,40 @@
 		{/snippet}
 	</PageHeader>
 
+	<!-- THE OTHER MOCKUPS OF THIS PLAN: PREVIOUS AND NEXT GO ROUND, AND THE LIST NAMES EACH ONE -->
+	{#if siblings.length > 1}
+		<nav
+			class="flex flex-wrap items-center gap-2"
+			aria-label="Mockups of this plan"
+			data-testid="mockup-siblings"
+		>
+			<a
+				href={`${base}/mockups/${siblings[(place - 1 + siblings.length) % siblings.length].id}`}
+				aria-label="Previous mockup of this plan"
+				class="inline-flex size-10 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent max-sm:size-11"
+				><ChevronLeft size={16} aria-hidden="true" /></a
+			>
+			<Select
+				label="Mockups of this plan"
+				value={m.id}
+				options={siblings.map((s) => ({
+					value: s.id,
+					label: s.title,
+					hint: `v${s.currentVersion}`
+				}))}
+				onchange={(id) => void goto(`${base}/mockups/${id}`)}
+				triggerClass="w-72 max-w-full"
+			/>
+			<a
+				href={`${base}/mockups/${siblings[(place + 1) % siblings.length].id}`}
+				aria-label="Next mockup of this plan"
+				class="inline-flex size-10 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent max-sm:size-11"
+				><ChevronRight size={16} aria-hidden="true" /></a
+			>
+			<span class="text-sm text-muted">Mockup {place + 1} of {siblings.length}</span>
+		</nav>
+	{/if}
+
 	<Notice tone="info" data-testid="reference-notice">
 		A mockup is inspiration, never the spec. The build follows the project's real components and
 		design rules first.
@@ -384,7 +428,8 @@
 		</Notice>
 	{/if}
 
-	<Card>
+	<!-- THE CARD MUST NOT CLIP, OR THE TOOLBAR CANNOT STAY UNDER THE TOP BAR WHILE THE PAGE SCROLLS -->
+	<Card class="overflow-visible">
 		{#snippet header()}
 			<div class="min-w-0 flex-1">
 				<h2 class="flex items-center gap-2 text-lg leading-6 font-semibold">
@@ -402,6 +447,7 @@
 			{pinMode}
 			draft={draft ? { x: draft.x, y: draft.y } : null}
 			bind:picked
+			sticky
 			{focus}
 			ondevice={(d) => (device = d)}
 			onpin={placed}

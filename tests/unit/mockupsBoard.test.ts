@@ -11,18 +11,23 @@ import {
 	inPinFilter,
 	isReadyMessage,
 	onDevice,
+	parseConfigMessage,
 	parsePinClick,
 	parsePinKey,
 	parsePinMessage,
 	parsePinMove,
+	parseStepMessage,
 	pinMessages,
 	pinsOf,
 	readFilters,
 	scaleFor,
 	scopeCounts,
 	screensOf,
+	setMessage,
+	validChoice,
 	type PinRow
 } from '../../src/lib/board/mockups';
+import { PIN_SCRIPT } from '../../src/lib/server/mockups/pinScript';
 
 // -- FUNCTIONS -- //
 
@@ -269,5 +274,98 @@ describe('where the comment box goes', () => {
 		);
 		expect(at.left).toBeGreaterThanOrEqual(8);
 		expect(at.left).toBeLessThanOrEqual(320 - 304 - 8 + 8);
+	});
+});
+
+describe('what a mockup offers (afb-config)', () => {
+	const frame = {};
+	const config = {
+		screens: [
+			['opening', 'Opening'],
+			['reading', 'Reading']
+		],
+		options: [
+			{
+				key: 'brand',
+				label: 'Brand',
+				values: [
+					['main', 'Main brand'],
+					['partner', 'Partner brand']
+				]
+			}
+		]
+	};
+	const ok = { type: 'afb-config', config, current: { brand: 'partner', screen: 'reading' } };
+
+	it('accepts exactly the agreed shape from the preview frame', () => {
+		const got = parseConfigMessage(ok, frame, frame);
+		expect(got?.config.screens).toEqual([
+			{ value: 'opening', label: 'Opening' },
+			{ value: 'reading', label: 'Reading' }
+		]);
+		expect(got?.config.options[0].values[1]).toEqual({ value: 'partner', label: 'Partner brand' });
+		expect(got?.current).toEqual({ brand: 'partner', screen: 'reading' });
+	});
+	it('starts at the first value when the current one is not declared', () => {
+		const got = parseConfigMessage({ ...ok, current: { brand: 'x', screen: 'y' } }, frame, frame);
+		expect(got?.current).toEqual({ brand: 'main', screen: 'opening' });
+	});
+	it('refuses another window, extra keys and a wrong type', () => {
+		expect(parseConfigMessage(ok, {}, frame)).toBeNull();
+		expect(parseConfigMessage({ ...ok, extra: 1 }, frame, frame)).toBeNull();
+		expect(parseConfigMessage({ ...ok, type: 'afb-conf' }, frame, frame)).toBeNull();
+		expect(parseConfigMessage({ ...ok, config: { ...config, more: 1 } }, frame, frame)).toBeNull();
+	});
+	it('refuses too many screens, options or values, bad keys, long labels, duplicates and a single value', () => {
+		const many = (n: number) => Array.from({ length: n }, (_, i) => [`k${i}`, `L${i}`]);
+		const opt = (over: object) => ({ key: 'brand', label: 'Brand', values: many(2), ...over });
+		const bad = (c: object) =>
+			parseConfigMessage({ ...ok, config: { ...config, ...c } }, frame, frame);
+		expect(bad({ screens: many(13) })).toBeNull();
+		expect(bad({ screens: [['Bad Key', 'x']] })).toBeNull();
+		expect(bad({ screens: [['a', 'x'.repeat(33)]] })).toBeNull();
+		expect(
+			bad({
+				screens: [
+					['a', 'x'],
+					['a', 'y']
+				]
+			})
+		).toBeNull();
+		expect(bad({ options: Array.from({ length: 7 }, (_, i) => opt({ key: `o${i}` })) })).toBeNull();
+		expect(bad({ options: [opt({ values: many(13) })] })).toBeNull();
+		expect(bad({ options: [opt({ values: many(1) })] })).toBeNull();
+		expect(bad({ options: [opt({ key: 'screen' })] })).toBeNull();
+		expect(bad({ options: [opt({ key: 'A' })] })).toBeNull();
+		expect(bad({ options: [opt({}), opt({})] })).toBeNull();
+	});
+	it('accepts a mockup that declares nothing', () => {
+		const got = parseConfigMessage(
+			{ type: 'afb-config', config: { screens: [], options: [] }, current: {} },
+			frame,
+			frame
+		);
+		expect(got).toEqual({ config: { screens: [], options: [] }, current: {} });
+	});
+	it('reads the step message and sends a choice', () => {
+		expect(parseStepMessage({ type: 'afb-step', dir: 'next' }, frame, frame)).toBe('next');
+		expect(parseStepMessage({ type: 'afb-step', dir: 'up' }, frame, frame)).toBeNull();
+		expect(parseStepMessage({ type: 'afb-step', dir: 'prev' }, {}, frame)).toBeNull();
+		expect(setMessage('brand', 'partner')).toEqual({
+			type: 'afb-set',
+			key: 'brand',
+			value: 'partner'
+		});
+	});
+	it('only takes a choice the mockup declared', () => {
+		const c = parseConfigMessage(ok, frame, frame)!.config;
+		expect(validChoice(c, 'brand', 'partner')).toBe('partner');
+		expect(validChoice(c, 'brand', 'nope')).toBeNull();
+		expect(validChoice(c, 'screen', 'reading')).toBe('reading');
+		expect(validChoice(c, 'role', 'admin')).toBeNull();
+	});
+	it('keeps the frame script valid JavaScript', () => {
+		const inner = PIN_SCRIPT.replace(/^<script>/, '').replace(/<\/script>$/, '');
+		expect(() => new Function(inner)).not.toThrow();
 	});
 });

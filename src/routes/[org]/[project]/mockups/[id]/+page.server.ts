@@ -5,7 +5,7 @@ import { error } from '@sveltejs/kit';
 import { ALL_SCREENS } from '#lib/board/mockups.js';
 import { OpError } from '#lib/server/ops/context.js';
 import { listMockupPins } from '#lib/server/ops/mockupPins.js';
-import { getMockup, mockupFileGrant } from '#lib/server/ops/mockups.js';
+import { getMockup, listMockups, mockupFileGrant } from '#lib/server/ops/mockups.js';
 import { childContext, pageError } from '#lib/server/web/ctx.js';
 import { memberMockupUrl } from '#lib/server/web/mockupLinks.js';
 
@@ -32,8 +32,15 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 			listMockupPins(ctx, params.id),
 			mockupFileGrant(ctx, params.id, { version })
 		]);
+		// The other mockups of the same plan, for the switch in the header. A mockup with no plan has none
+		const siblings = detail.plan
+			? (await listMockups(ctx, { project: params.project, item: detail.plan.ref })).mockups.map(
+					(s) => ({ id: s.id, title: s.title, currentVersion: s.currentVersion })
+				)
+			: [];
 		return {
 			detail,
+			siblings,
 			version,
 			pins: pins.pins,
 			screens: ALL_SCREENS,
