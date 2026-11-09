@@ -20,16 +20,34 @@ import {
 	pinMessages,
 	pinsOf,
 	readFilters,
+	roundIndex,
 	scaleFor,
 	scopeCounts,
 	screensOf,
 	setMessage,
+	switchIsPicker,
 	validChoice,
 	type PinRow
 } from '../../src/lib/board/mockups';
 import { PIN_SCRIPT } from '../../src/lib/server/mockups/pinScript';
 
 // -- FUNCTIONS -- //
+
+describe('the switch between the mockups of a plan', () => {
+	it('is a row of chips up to five mockups and one picker from six, and always a picker on a phone', () => {
+		expect(switchIsPicker(2, false)).toBe(false);
+		expect(switchIsPicker(5, false)).toBe(false);
+		expect(switchIsPicker(6, false)).toBe(true);
+		expect(switchIsPicker(2, true)).toBe(true);
+	});
+
+	it('goes round at both ends', () => {
+		expect(roundIndex(0, -1, 4)).toBe(3);
+		expect(roundIndex(3, 1, 4)).toBe(0);
+		expect(roundIndex(1, 1, 4)).toBe(2);
+		expect(roundIndex(0, 1, 0)).toBe(0);
+	});
+});
 
 describe('pin messages', () => {
 	const frame = {};

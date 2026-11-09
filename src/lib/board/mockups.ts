@@ -74,8 +74,20 @@ export const SCOPE_LABEL: Record<MockupScope, string> = {
 };
 export const VIEWS: MockupView[] = ['cards', 'list'];
 export const VIEW_LABEL: Record<MockupView, string> = { cards: 'Cards', list: 'List' };
+/** From this many mockups on a plan the switch between them is one picker instead of a row of chips. */
+export const PICKER_FROM = 6;
 
 // -- FUNCTIONS -- //
+
+/** True when the switch between a plan's mockups is one picker: a phone always, a desktop from six mockups on. */
+export const switchIsPicker = (count: number, phone: boolean): boolean =>
+	phone || count >= PICKER_FROM;
+
+/** The place before or after `index` in a list of `length`, going round at both ends. An empty list stays at 0. */
+export function roundIndex(index: number, step: number, length: number): number {
+	if (length <= 0) return 0;
+	return (((index + step) % length) + length) % length;
+}
 
 export const isScreen = (v: unknown): v is ScreenKey => typeof v === 'string' && v in SCREEN_WIDTH;
 

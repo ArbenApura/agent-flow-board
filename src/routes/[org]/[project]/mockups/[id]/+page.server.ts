@@ -8,6 +8,7 @@ import { listMockupPins } from '#lib/server/ops/mockupPins.js';
 import { getMockup, listMockups, mockupFileGrant } from '#lib/server/ops/mockups.js';
 import { childContext, pageError } from '#lib/server/web/ctx.js';
 import { memberMockupUrl } from '#lib/server/web/mockupLinks.js';
+import { cardThumb } from '#lib/server/web/mockupThumbs.js';
 
 // -- FUNCTIONS -- //
 
@@ -35,7 +36,12 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 		// The other mockups of the same plan, for the switch in the header. A mockup with no plan has none
 		const siblings = detail.plan
 			? (await listMockups(ctx, { project: params.project, item: detail.plan.ref })).mockups.map(
-					(s) => ({ id: s.id, title: s.title, currentVersion: s.currentVersion })
+					(s) => ({
+						id: s.id,
+						title: s.title,
+						currentVersion: s.currentVersion,
+						...cardThumb(org.id, s)
+					})
 				)
 			: [];
 		return {
