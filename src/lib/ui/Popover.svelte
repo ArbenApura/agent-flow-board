@@ -21,6 +21,7 @@
 		role = 'dialog',
 		label,
 		offset,
+		anchorClass,
 		class: extra
 	}: {
 		open?: boolean;
@@ -33,6 +34,8 @@
 		label?: string;
 		/** Gap in px between the control and the panel. Defaults to the shared position gap. */
 		offset?: number;
+		/** Sizes the span that holds the control, for a control that must fill its slot and shrink inside it. */
+		anchorClass?: string;
 		class?: string;
 	} = $props();
 
@@ -128,7 +131,7 @@
 	});
 </script>
 
-<span bind:this={anchor} class="inline-flex">
+<span bind:this={anchor} class={cn('inline-flex', anchorClass)}>
 	{@render trigger({
 		props: {
 			'aria-haspopup': role === 'dialog' ? 'dialog' : role,

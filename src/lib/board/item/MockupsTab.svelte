@@ -134,7 +134,7 @@
 			{/if}
 			<div class="p-4 max-sm:p-3.5">
 				{#if open}
-					<MockupPreview src={open.src} {screens} title={current.title} />
+					<MockupPreview src={open.src} {screens} title={current.title} flush />
 				{:else}
 					<p class="text-sm text-muted">Loading the preview...</p>
 				{/if}

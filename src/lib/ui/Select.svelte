@@ -32,6 +32,7 @@
 		onchange,
 		icon: Icon,
 		prefix,
+		fill = false,
 		triggerClass,
 		class: extra
 	}: {
@@ -48,6 +49,8 @@
 		icon?: Component<{ size?: number; class?: string }>;
 		/** Muted text before the chosen value, for a toolbar select that has no label of its own ("Sort"). */
 		prefix?: string;
+		/** Fills the room it is given and shrinks inside it: a long choice is cut with an ellipsis and never pushes a neighbour. */
+		fill?: boolean;
 		/** Sizes the trigger itself, for example a fixed width in a toolbar. */
 		triggerClass?: string;
 		class?: string;
@@ -108,6 +111,7 @@
 	matchWidth
 	role="listbox"
 	{label}
+	anchorClass={fill ? 'flex w-full min-w-0' : undefined}
 	class={cn('p-1', extra)}
 >
 	{#snippet trigger({ props, toggle })}
@@ -122,6 +126,7 @@
 				'flex h-10 w-full min-w-40 cursor-pointer items-center justify-between gap-2 rounded-lg border bg-surface px-3 text-left text-sm shadow-[var(--elev-1)] transition-[border-color,box-shadow] duration-150 focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent-soft focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 max-sm:h-11',
 				invalid ? 'border-danger' : 'border-line',
 				selected ? 'text-ink' : 'text-muted',
+				fill && 'min-w-0',
 				triggerClass
 			)}
 		>

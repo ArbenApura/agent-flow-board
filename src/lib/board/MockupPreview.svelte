@@ -58,6 +58,7 @@
 		picked = $bindable(),
 		focus = null,
 		sticky = false,
+		flush = false,
 		ondevice,
 		onpin,
 		onmove,
@@ -83,6 +84,8 @@
 		focus?: { id: string; seq: number } | null;
 		/** Keeps the toolbar under the top bar while the page scrolls. The card around it must not clip. */
 		sticky?: boolean;
+		/** On a phone the preview runs to the edges of its card, cancelling the card's 14 px padding. The parent must be a padded card body. */
+		flush?: boolean;
 		/** Tells the page which device is really on show, so it can pick the pins of that device. */
 		ondevice?: (device: ScreenKey) => void;
 		onpin?: (pin: PinMessage) => void;
@@ -374,40 +377,45 @@
 <svelte:window onmessage={onMessage} onkeydown={onKeydown} />
 
 <!-- THE PREVIEW: ONE TOOLBAR OF THE BOARD (DEVICE, THE OPTIONS THE MOCKUP DECLARED, COMMENTS, THE SCREENS) AND THE MOCKUP IN A SANDBOXED FRAME, DRAWN INSIDE A DEVICE. THE WHOLE DEVICE SHOWS, AND THE MOCKUP SCROLLS INSIDE ITS SCREEN ONLY -->
-<div class="flex flex-col" data-testid="mockup-preview">
+<div class={cn('flex flex-col', flush && 'max-sm:-m-3.5')} data-testid="mockup-preview">
+	<!-- ON A PHONE ALL ROWS SHARE THE SAME LEFT AND RIGHT EDGES: THE DEVICE SWITCH FILLS THE ROOM LEFT OF THE COMMENT BUTTONS, AND EVERY OPTION AND THE SCREEN STRIP RUN FULL WIDTH ON A ROW OF THEIR OWN -->
 	<div
 		class={cn(
-			'flex flex-col gap-3 rounded-t-lg border border-line bg-surface p-3',
+			'flex flex-wrap items-center gap-2 rounded-t-lg border border-line bg-surface p-3 sm:gap-3',
+			flush && 'max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0',
 			sticky && 'sticky top-[65px] z-20 md:top-[73px]'
 		)}
 		data-testid="mockup-toolbar"
 	>
-		<div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-			{#if showsSwitch(screens)}
-				<div
-					bind:this={switchRow}
-					class="max-w-full [scrollbar-width:none]! overflow-x-auto overflow-y-hidden overscroll-x-contain [&::-webkit-scrollbar]:hidden"
-				>
-					<SegmentedControl
-						label="Device"
-						value={device}
-						{options}
-						compactOnPhone
-						onchange={(v) => (picked = v as ScreenKey)}
-					/>
-				</div>
-			{/if}
-			<!-- ONE CONTROL FOR EACH OPTION THE MOCKUP DECLARED. A MOCKUP THAT DECLARED NOTHING SHOWS NONE -->
-			{#each config?.options ?? [] as o (o.key)}
+		{#if showsSwitch(screens)}
+			<div
+				bind:this={switchRow}
+				class="max-w-full [scrollbar-width:none]! overflow-x-auto overflow-y-hidden overscroll-x-contain max-sm:min-w-0 max-sm:flex-1 [&::-webkit-scrollbar]:hidden"
+			>
+				<SegmentedControl
+					label="Device"
+					value={device}
+					{options}
+					compactOnPhone
+					class="max-sm:flex max-sm:w-full max-sm:[&>button]:min-w-0 max-sm:[&>button]:flex-1"
+					onchange={(v) => (picked = v as ScreenKey)}
+				/>
+			</div>
+		{/if}
+		<!-- ONE CONTROL FOR EACH OPTION THE MOCKUP DECLARED. A MOCKUP THAT DECLARED NOTHING SHOWS NONE -->
+		{#each config?.options ?? [] as o (o.key)}
+			<div class="max-sm:order-3 max-sm:basis-full">
 				{#if o.values.length <= 3}
 					<SegmentedControl
 						label={o.label}
 						value={choices[o.key]}
 						options={o.values}
+						class="max-sm:flex max-sm:w-full max-sm:[&>button]:flex-1"
 						onchange={(v) => choose(o.key, v)}
 					/>
 				{:else}
 					<Select
+						fill
 						label={o.label}
 						prefix={o.label}
 						value={choices[o.key]}
@@ -415,13 +423,14 @@
 						onchange={(v) => choose(o.key, v)}
 					/>
 				{/if}
-			{/each}
-			{#if toolbar}
-				<div class="ml-auto flex flex-wrap items-center gap-2">{@render toolbar()}</div>
-			{/if}
-		</div>
+			</div>
+		{/each}
+		{#if toolbar}
+			<div class="ml-auto flex items-center gap-2 max-sm:order-2">{@render toolbar()}</div>
+		{/if}
 		{#if config && config.screens.length > 1}
 			<MockupScreenStrip
+				class="basis-full max-sm:order-4"
 				screens={config.screens}
 				value={choices[SCREEN_OPTION] ?? config.screens[0].value}
 				onpick={(v) => choose(SCREEN_OPTION, v)}
@@ -430,7 +439,10 @@
 	</div>
 	<div
 		bind:this={stage}
-		class="relative isolate min-h-60 overflow-hidden rounded-b-lg border border-t-0 border-line bg-raised p-6 max-sm:p-3"
+		class={cn(
+			'relative isolate min-h-60 overflow-hidden rounded-b-lg border border-t-0 border-line bg-raised p-6 max-sm:p-3',
+			flush && 'max-sm:rounded-b-xl max-sm:border-0'
+		)}
 	>
 		{#if available > 0}
 			<DeviceFrame screen={device} {title} {scale} {zoomable}>

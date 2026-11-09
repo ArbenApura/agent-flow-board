@@ -90,7 +90,7 @@
 		'max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:max-h-[78dvh] max-md:rounded-b-none',
 		open
 			? 'visible translate-x-0 translate-y-0'
-			: 'max-md:translate-y-[calc(100%-64px)] md:invisible md:translate-x-[calc(100%+24px)] max-md:[&_[data-sheet-body]]:invisible'
+			: 'invisible max-md:translate-y-full md:translate-x-[calc(100%+24px)]'
 	)}
 >
 	<!-- THE HEADER. ON A PHONE THE WHOLE ROW IS ONE BUTTON THAT OPENS AND CLOSES THE SHEET -->
@@ -118,7 +118,7 @@
 			variant="subtle"
 			iconOnly
 			aria-label="Close the comments"
-			class="relative max-md:hidden"
+			class="relative"
 			onclick={onclose}
 		>
 			<X size={16} />

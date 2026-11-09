@@ -25,6 +25,7 @@
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import TextArea from '#lib/ui/TextArea.svelte';
+	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
@@ -374,21 +375,23 @@
 
 	<!-- THE OTHER MOCKUPS OF THIS PLAN: PREVIOUS AND NEXT GO ROUND, AND THE LIST NAMES EACH ONE -->
 	{#if siblings.length > 1}
+		<!-- ONE JOINED GROUP, PREVIOUS | LIST | NEXT. THE LIST TAKES THE ROOM BETWEEN THE ARROWS AND CUTS A LONG TITLE, SO NOTHING RUNS UNDER ANOTHER CONTROL -->
 		<nav
-			class="flex items-center gap-2"
+			class="flex h-10 max-w-[560px] items-stretch rounded-lg border border-line bg-surface shadow-[var(--elev-1)] max-sm:h-11"
 			aria-label="Mockups of this plan"
 			data-testid="mockup-siblings"
 		>
 			<a
 				href={`${base}/mockups/${siblings[(place - 1 + siblings.length) % siblings.length].id}`}
 				aria-label="Previous mockup of this plan"
-				class="inline-flex size-10 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent max-sm:size-11"
-				><ChevronLeft size={16} aria-hidden="true" /></a
+				class="inline-flex w-10 shrink-0 cursor-pointer items-center justify-center rounded-l-lg text-ink hover:bg-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent max-sm:w-11"
+				><ChevronLeft size={20} aria-hidden="true" /></a
 			>
-			<!-- THE LIST TAKES THE ROOM BETWEEN THE TWO ARROWS ON A PHONE -->
-			<div class="min-w-0 flex-1 sm:flex-none">
+			<div class="min-w-0 flex-1">
 				<Select
+					fill
 					label="Mockups of this plan"
+					prefix={`${place + 1}/${siblings.length}`}
 					value={m.id}
 					options={siblings.map((s) => ({
 						value: s.id,
@@ -396,22 +399,22 @@
 						hint: `v${s.currentVersion}`
 					}))}
 					onchange={(id) => void goto(`${base}/mockups/${id}`)}
-					triggerClass="w-full min-w-0 sm:w-72"
+					triggerClass="h-full rounded-none border-0 border-x border-line shadow-none focus-visible:ring-inset max-sm:h-full"
 				/>
 			</div>
 			<a
 				href={`${base}/mockups/${siblings[(place + 1) % siblings.length].id}`}
 				aria-label="Next mockup of this plan"
-				class="inline-flex size-10 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent max-sm:size-11"
-				><ChevronRight size={16} aria-hidden="true" /></a
+				class="inline-flex w-10 shrink-0 cursor-pointer items-center justify-center rounded-r-lg text-ink hover:bg-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent max-sm:w-11"
+				><ChevronRight size={20} aria-hidden="true" /></a
 			>
-			<span class="text-sm text-muted max-sm:hidden">Mockup {place + 1} of {siblings.length}</span>
 		</nav>
 	{/if}
 
 	<Notice tone="info" data-testid="reference-notice">
-		A mockup is inspiration, never the spec. The build follows the project's real components and
-		design rules first.
+		A mockup is inspiration, never the spec.<span class="max-sm:hidden">
+			The build follows the project's real components and design rules first.</span
+		>
 		{#if m.publicLinkOn}
 			<Badge tone="info" class="ml-1">Public link on</Badge>
 		{/if}
@@ -439,7 +442,10 @@
 					Preview
 					<Badge tone={viewing === newest ? 'success' : 'neutral'}>v{viewing}</Badge>
 				</h2>
-				<p class="text-xs text-muted">Sandboxed: it cannot reach the board or your sign in.</p>
+				<p class="text-xs text-muted max-sm:hidden">
+					Sandboxed: it cannot reach the board or your sign in.
+				</p>
+				<p class="text-xs text-muted sm:hidden">Sandboxed preview.</p>
 			</div>
 		{/snippet}
 		<MockupPreview
@@ -451,6 +457,7 @@
 			draft={draft ? { x: draft.x, y: draft.y } : null}
 			bind:picked
 			sticky
+			flush
 			{focus}
 			ondevice={(d) => (device = d)}
 			onpin={placed}
@@ -465,11 +472,20 @@
 					aria-expanded={drawerOpen}
 					aria-controls="mockup-comments"
 					data-testid="comments-button"
-					aria-label="Comments"
-					class={drawerOpen ? 'border-accent! bg-accent-soft! text-accent-text!' : ''}
+					aria-label={`Comments, ${openCount} open`}
+					class={cn(
+						'max-lg:w-10 max-lg:overflow-visible max-lg:px-0 max-sm:w-11',
+						drawerOpen && 'border-accent! bg-accent-soft! text-accent-text!'
+					)}
 				>
-					<MessageSquare size={16} /> <span class="max-sm:hidden">Comments</span>
-					<Badge tone="accent" class="px-2">{openCount}</Badge>
+					<MessageSquare size={20} />
+					<span class="max-lg:hidden">Comments</span>
+					<!-- BELOW 1024 PX THE COUNT IS A SMALL BADGE ON THE ICON, SO THE BUTTON STAYS 40 OR 44 PX WIDE -->
+					<Badge
+						tone="accent"
+						class="px-2 max-lg:absolute max-lg:-top-1.5 max-lg:-right-1.5 max-lg:box-content max-lg:min-w-4 max-lg:justify-center max-lg:border-2 max-lg:border-surface max-lg:px-1 max-lg:leading-4"
+						>{openCount}</Badge
+					>
 				</Button>
 				{#if canWrite}
 					<Button
@@ -478,12 +494,15 @@
 						aria-pressed={pinMode}
 						data-testid="add-pin"
 						aria-label={pinMode ? 'Placing a comment' : 'Add a comment'}
-						class={pinMode ? 'border-accent! bg-accent-soft! text-accent-text!' : ''}
+						class={cn(
+							'max-lg:w-10 max-lg:px-0 max-sm:w-11',
+							pinMode && 'border-accent! bg-accent-soft! text-accent-text!'
+						)}
 					>
-						<MessageSquarePlus size={16} />
-						<span class="max-sm:hidden">{pinMode ? 'Placing a comment' : 'Add a comment'}</span>
+						<MessageSquarePlus size={20} />
+						<span class="max-lg:hidden">{pinMode ? 'Placing a comment' : 'Add a comment'}</span>
 						<kbd
-							class="rounded border border-line bg-surface px-1.5 font-mono text-badge text-muted max-sm:hidden"
+							class="rounded border border-line bg-surface px-1.5 font-mono text-badge text-muted max-lg:hidden"
 							>C</kbd
 						>
 					</Button>
