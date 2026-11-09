@@ -6,7 +6,7 @@ What the starter gives you:
 
 - **the kit marker** `<!--afb-kit-->` in the head. The board puts the kit's head there when it serves the page: the colour tokens of every mode, the embedded font files and the icon sprite. The page therefore embeds no font and no icon itself, and uses only the kit's tokens (`var(--bg)` and the others), the kit's font families (`var(--font-sans)`, `var(--font-mono)`, or the project's own names) and the kit's icons (`<svg class="ic"><use href="#i-name"/></svg>`, where `i-name` is a symbol id of the kit's sprite);
 - a shell (side navigation, top bar, page header, one card) that folds to a single column on a narrow width, so the board's device switch (wide, laptop, tablet and phone) shows each layout. The board draws the device around it, so the page never draws a browser window or a phone;
-- a theme switch inside the page that flips the same attribute the kit uses, so both modes can be looked at;
+- a `<meta name="afb-config">` tag with a screen list and a mode option as examples (delete what the app does not have: an app with one colour mode declares no mode). The page draws no switch of its own: the board draws the controls and the page reads the choice from the attribute the kit uses on the root element, or from `window.afbSet(key, value)`;
 - states to copy: a row list, an empty state and a message line.
 
 To look at the page yourself, make a temporary copy in which the marker is replaced by the text between the kit's `<!--afb-kit:start-->` and `<!--afb-kit:end-->`. Publish the file with the marker.
@@ -22,6 +22,7 @@ Delete what the plan does not need, and add the states the plan names.
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PLACEHOLDER: the screen this mockup shows</title>
+<meta name="afb-config" content='{"options":[{"key":"mode","label":"Mode","values":[["light","Light"],["dark","Dark"]]}]}'>
 <!--afb-kit-->
 <style>
 /* EVERY COLOUR, FONT AND ICON COMES FROM THE KIT. NO LITERAL COLOUR AND NO FONT NAME OF YOUR OWN HERE */
@@ -71,7 +72,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 	<div class="main">
 		<header class="bar">
 			<span>PLACEHOLDER: breadcrumb</span>
-			<button class="btn" type="button" id="mode" aria-label="Switch between light and dark"><svg class="ic"><use href="#i-PLACEHOLDER-mode-icon"/></svg></button>
 		</header>
 		<main class="page">
 			<div class="head">
@@ -92,11 +92,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 	</div>
 </div>
 <script>
-// The attribute and its two values are the kit's: change them here if the kit names its modes differently
-document.getElementById('mode').addEventListener('click', function () {
-	var root = document.documentElement;
-	root.setAttribute('data-mode', root.getAttribute('data-mode') === 'dark' ? 'light' : 'dark');
-});
+// The board writes each choice as data-<key> on the root element (data-mode="dark"), and the kit's tokens follow it.
+// Only an option that needs more than an attribute defines this hook, and the board calls it instead of writing the attribute
+// window.afbSet = function (key, value) { /* change the page for this choice */ };
 </script>
 </body>
 </html>

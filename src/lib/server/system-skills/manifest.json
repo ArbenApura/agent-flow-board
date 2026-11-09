@@ -1,6 +1,6 @@
 {
 	"bundle": {
-		"version": "1.2.1",
+		"version": "1.3.0",
 		"releasedAt": "2026-11-09"
 	},
 	"skills": {
@@ -270,7 +270,7 @@
 			]
 		},
 		"flow-mockup": {
-			"version": "1.0.2",
+			"version": "1.1.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -283,6 +283,10 @@
 				{
 					"version": "1.0.2",
 					"hash": "ee9c5bde660f684388c5775aad79d4db7e5e2ae674b852f830daa7933b5172f8"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "c8fc311c6d69b383eb7688474fb68d11d9483196aa1178fe5f24f3bf270d8a44"
 				}
 			]
 		},
@@ -338,6 +342,23 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.3.0",
+			"date": "2026-11-09",
+			"notes": [
+				"flow-mockup 1.1.0: a mockup draws no tools of its own (no theme or device switch, screen pills, step bar or settings). It declares its screens and options (a colour mode only when the app has more than one, a brand, a role, a language) in one afb-config tag, and the board draws the controls and writes each choice as an attribute on the root element or calls window.afbSet."
+			],
+			"skills": {
+				"flow": "1.1.15",
+				"flow-audit": "1.1.3",
+				"flow-check": "1.2.1",
+				"flow-critic": "1.1.4",
+				"flow-interview": "1.1.4",
+				"flow-mockup": "1.1.0",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
 		{
 			"version": "1.2.1",
 			"date": "2026-11-09",
