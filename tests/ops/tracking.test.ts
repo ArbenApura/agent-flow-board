@@ -677,6 +677,19 @@ describe('tracking', () => {
 		expect(cleared.firstUnrecordedEditAt).toBeNull();
 		expect(await run(person(), (tx) => trackingNotes(tx, idA, new Date()))).toEqual([]);
 
+		// A progress log line with no step change is a record too: it clears the count and the Not recorded badge, as the Stop hook says it may
+		await edit('nudge-conversation-a');
+		await edit('nudge-conversation-a');
+		expect((await sessionRow(idA)).codeEditsSinceRecord).toBe(2);
+		expect((await sessionRow(idA)).firstUnrecordedEditAt).not.toBeNull();
+		await recordSteps(agent('member', idB, 'antigravity'), {
+			item: it.ref,
+			log: 'Built the sign in and checked it locally.'
+		});
+		const logged = await sessionRow(idA);
+		expect(logged).toMatchObject({ codeEditsSinceRecord: 0, nudgedLevel: 0 });
+		expect(logged.firstUnrecordedEditAt).toBeNull();
+
 		// The time rule: one edit, 11 minutes after the first unrecorded one
 		const timed = it;
 		const idT = await hookSession('nudge-conversation-t', timed.ref);

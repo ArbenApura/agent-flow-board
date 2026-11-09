@@ -256,7 +256,8 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 			const claim = await afterRecord(tx, ctx, it, {
 				finishedPhases,
 				nextPhase,
-				changedAny: changed.length > 0
+				// A progress log line is a record too: the Stop hook accepts "one log line saying what changed", so the unrecorded edit count and its badge clear the same way
+				changedAny: changed.length > 0 || Boolean(input.log)
 			});
 			const [fresh] = await tx
 				.select({ version: item.version })
