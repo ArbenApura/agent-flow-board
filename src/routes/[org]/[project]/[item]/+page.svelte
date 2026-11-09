@@ -622,9 +622,10 @@
 		{/if}
 
 		<!-- THE TAB BAR. A CARD THE SAME WIDTH AS THE HEADER ABOVE IT, STICKING JUST UNDER THE TOP BAR (56 PX PLUS ITS LINE, 64 PX PLUS ITS LINE FROM MD) WITH A GAP. THE GAP IS FILLED WITH THE PAGE COLOUR SO SCROLLED TEXT DOES NOT SHOW THROUGH THE TRANSLUCENT TOP BAR -->
+		<!-- A MATCHING STRIP UNDER THE BAR (AFTER:) KEEPS THE 8 PX BELOW IT CLEAN TOO, WHERE THE STICKY BLOCKS OF A TAB STOP (131 PX). BOTH STRIPS ARE 9 PX SO THEY ALSO COVER THE BAR'S 1 PX BORDER -->
 		<nav
 			aria-label="Item sections"
-			class="sticky top-[65px] z-20 rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-1)] before:pointer-events-none before:absolute before:inset-x-0 before:-top-2 before:h-2 before:bg-[var(--bg)] md:top-[73px]"
+			class="sticky top-[65px] z-20 rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-1)] before:pointer-events-none before:absolute before:inset-x-0 before:-top-[9px] before:h-[9px] before:bg-[var(--bg)] after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-[9px] after:h-[9px] after:bg-[var(--bg)] md:top-[73px]"
 		>
 			<!-- THE ROW SCROLLS SIDEWAYS ON A PHONE. A FADE OF THE SURFACE SHOWS AT THE EDGE WHERE IT CONTINUES -->
 			<div class="group/fade relative">

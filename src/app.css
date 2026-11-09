@@ -213,7 +213,9 @@ body {
 	font-size: 20px;
 }
 .md h2 {
-	font-size: 17px;
+	/* 18 OVER 28 IS THE SCALE'S text-lg, SO A HEADING INSIDE A SECTION STANDS OUT FROM THE 15 PX TEXT AROUND IT */
+	font-size: 18px;
+	line-height: 28px;
 }
 .md h3,
 .md h4 {

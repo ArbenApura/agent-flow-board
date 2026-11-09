@@ -15,12 +15,21 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
+	import ChevronsDownUp from '@lucide/svelte/icons/chevrons-down-up';
+	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Plus from '@lucide/svelte/icons/plus';
 
 	// -- REQUIRED PROPS -- //
 
 	let { detail, env }: { detail: ItemView; env: TabEnv } = $props();
+
+	// -- CONSTANTS -- //
+
+	// The line the sticky blocks stop at, in pixels from the top of the window: the tab bar ends at 123 and keeps 8 below it
+	const STICKY = 131;
+	// A heading jumped to rests 8 px under that line (its scroll margin is the same 139 px), so it is the current one from there
+	const HEADING_LINE = STICKY + 8;
 
 	// -- STATES -- //
 
@@ -38,8 +47,33 @@
 	let collapsedBy = $state<Record<string, boolean>>({});
 	/** The section last jumped to, so its chip can slide to the middle of the row. */
 	let activeId = $state('');
+	/** The headings (h2 and h3) of every open section, read from the rendered cards, by section id. */
+	let sectionHeadings = $state<Record<string, { text: string; level: number }[]>>({});
+	/** The open section whose card crosses the sticky line, and the last of its headings above that line. */
+	let currentSection = $state('');
+	let activeIndex = $state(-1);
+	/** The heading elements behind sectionHeadings, for the scroll position and the jump. Not reactive. */
+	let headingEls: Record<string, HTMLElement[]> = {};
+	let frame = 0;
+	let settleTimer: ReturnType<typeof setTimeout> | undefined;
+
+	// -- REACTIVE STATES -- //
+
+	const outlineItems = $derived(sectionHeadings[currentSection] ?? []);
 
 	// -- REACTIVE STATEMENTS -- //
+
+	// The outline follows the text and what is open: after a reload of the sections or a stored collapse restored by a card, the headings are read again from the rendered cards
+	$effect(() => {
+		void detail.sections.map((s) => s.html);
+		void detail.sections.map((s) => collapsedBy[s.id]);
+		void tick().then(collect);
+	});
+
+	$effect(() => () => {
+		cancelAnimationFrame(frame);
+		clearTimeout(settleTimer);
+	});
 
 	// On a phone the chip of the section just jumped to slides to the middle of its row, with the row's own scroll so the page never moves
 	$effect(() => {
@@ -57,6 +91,75 @@
 
 	// -- FUNCTIONS -- //
 
+	const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	/** Reads the h2 and h3 headings of every open card, then places the sticky line among them. */
+	function collect() {
+		headingEls = {};
+		const found: Record<string, { text: string; level: number }[]> = {};
+		for (const s of detail.sections) {
+			if (collapsedBy[s.id]) continue;
+			const els = [
+				...(document
+					.getElementById(`doc-${s.id}`)
+					?.querySelectorAll<HTMLElement>('.md :is(h2, h3)') ?? [])
+			].filter((el) => (el.textContent ?? '').trim() !== '');
+			if (els.length === 0) continue;
+			headingEls[s.id] = els;
+			found[s.id] = els.map((el) => ({
+				text: (el.textContent ?? '').trim(),
+				level: el.tagName === 'H3' ? 3 : 2
+			}));
+		}
+		sectionHeadings = found;
+		measure();
+		// A card opens and closes over 200 ms, so the positions settle after this read: measure again then
+		clearTimeout(settleTimer);
+		settleTimer = setTimeout(schedule, 220);
+	}
+
+	/** The last open card that starts above the sticky line is the current section, and the last heading above the line is the current heading. */
+	function measure() {
+		let section = '';
+		for (const s of detail.sections) {
+			if (collapsedBy[s.id]) continue;
+			const el = document.getElementById(`doc-${s.id}`);
+			if (!el) continue;
+			if (!section || el.getBoundingClientRect().top <= STICKY + 1) section = s.id;
+		}
+		currentSection = section;
+		const els = headingEls[section] ?? [];
+		let index = -1;
+		els.forEach((h, i) => {
+			if (h.getBoundingClientRect().top <= HEADING_LINE + 1) index = i;
+		});
+		// At the very bottom of a short page the last headings can never reach the line, so the last one counts
+		const bottom = innerHeight + scrollY >= document.documentElement.scrollHeight - 2;
+		if (bottom && els.length > 0 && index >= 0) index = els.length - 1;
+		activeIndex = index;
+	}
+
+	/** One measure for each frame while the page scrolls or resizes. */
+	function schedule() {
+		if (frame) return;
+		frame = requestAnimationFrame(() => {
+			frame = 0;
+			measure();
+		});
+	}
+
+	function jumpHeading(index: number) {
+		headingEls[currentSection]?.[index]?.scrollIntoView({
+			block: 'start',
+			behavior: reduced() ? 'auto' : 'smooth'
+		});
+	}
+
+	/** Opens or closes every section card. Like a jump, this is not stored as the person's own choice. */
+	function setAll(open: boolean) {
+		for (const s of detail.sections) collapsedBy[s.id] = !open;
+	}
+
 	/** Opens the section if it is closed, then scrolls to it. */
 	async function jump(id: string) {
 		activeId = id;
@@ -64,7 +167,7 @@
 		await tick();
 		document.getElementById(`doc-${id}`)?.scrollIntoView({
 			block: 'start',
-			behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+			behavior: reduced() ? 'auto' : 'smooth'
 		});
 	}
 
@@ -136,12 +239,42 @@
 	}
 </script>
 
-<div class="flex flex-col gap-4" data-testid="docs-tab">
-	{#if env.canWrite}
-		<div>
-			<Button size="sm" onclick={() => edit(null)} data-testid="add-section"
-				><Plus size={14} /> Add a section</Button
-			>
+<!-- THE OUTLINE AND THE CURRENT SECTION FOLLOW THE SCROLL POSITION -->
+<svelte:window onscroll={schedule} onresize={schedule} />
+
+<div class="flex flex-col gap-6" data-testid="docs-tab">
+	<!-- ADD A SECTION NEEDS WRITE ACCESS, OPENING AND CLOSING THE CARDS IS FOR EVERYONE WHEN THERE ARE TWO OR MORE -->
+	{#if env.canWrite || detail.sections.length > 1}
+		<div class="flex flex-wrap items-center gap-2">
+			{#if env.canWrite}
+				<Button size="sm" onclick={() => edit(null)} data-testid="add-section"
+					><Plus size={14} /> Add a section</Button
+				>
+			{/if}
+			{#if detail.sections.length > 1}
+				<Button
+					size="sm"
+					variant="ghost"
+					class="max-sm:w-11 max-sm:px-0"
+					aria-label="Expand all"
+					onclick={() => setAll(true)}
+					data-testid="expand-all"
+					><ChevronsUpDown size={14} aria-hidden="true" /><span class="max-sm:sr-only"
+						>Expand all</span
+					></Button
+				>
+				<Button
+					size="sm"
+					variant="ghost"
+					class="max-sm:w-11 max-sm:px-0"
+					aria-label="Collapse all"
+					onclick={() => setAll(false)}
+					data-testid="collapse-all"
+					><ChevronsDownUp size={14} aria-hidden="true" /><span class="max-sm:sr-only"
+						>Collapse all</span
+					></Button
+				>
+			{/if}
 		</div>
 	{/if}
 	{#if detail.sections.length === 0}
@@ -185,13 +318,13 @@
 	<div
 		class={cn(
 			detail.sections.length > 1 &&
-				'lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:items-start lg:gap-8'
+				'lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:items-start lg:gap-6 xl:grid-cols-[200px_minmax(0,736px)_minmax(220px,1fr)]'
 		)}
 	>
 		{#if detail.sections.length > 1}
 			<nav
 				aria-label="Contents"
-				class="sticky top-32 hidden max-h-[calc(100dvh-9rem)] overflow-y-auto rounded-xl border border-line bg-surface p-2 shadow-[var(--elev-1)] lg:block"
+				class="sticky top-[131px] hidden max-h-[calc(100dvh-147px)] overflow-y-auto rounded-xl border border-line bg-surface p-2 shadow-[var(--elev-1)] lg:block"
 			>
 				<ul class="flex flex-col gap-0.5">
 					{#each detail.sections as s (s.id)}
@@ -222,7 +355,7 @@
 					bind:collapsed={() => collapsedBy[s.id] ?? false, (v) => (collapsedBy[s.id] = v)}
 					role="region"
 					aria-label={s.title}
-					class="scroll-mt-32"
+					class="scroll-mt-[131px]"
 				>
 					{#snippet heading()}{s.title}{/snippet}
 					{#snippet actions()}
@@ -232,13 +365,39 @@
 							>
 						{/if}
 					{/snippet}
-					<div class="md p-4 max-sm:p-3.5">
+					<div class="md p-4 max-sm:p-3.5 [&_:is(h2,h3)]:scroll-mt-[139px]">
 						<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised Markdown from the server -->
 						{@html s.html}
 					</div>
 				</TabCard>
 			{/each}
 		</div>
+		<!-- ON THIS PAGE: THE HEADINGS OF THE SECTION UNDER THE STICKY LINE, FROM XL UP. THE ENTRIES ARE READ FROM THE RENDERED CARD, SO THEY ARE BUTTONS AND NOT ANCHORS -->
+		{#if detail.sections.length > 1 && outlineItems.length > 0}
+			<nav aria-label="On this page" class="sticky top-[131px] hidden self-start xl:block">
+				<p class="mb-2 pl-3 text-sm font-semibold">On this page</p>
+				<ul class="border-l border-line">
+					{#each outlineItems as h, i (`${i}:${h.text}`)}
+						<li>
+							<button
+								type="button"
+								aria-current={activeIndex === i ? 'location' : undefined}
+								onclick={() => jumpHeading(i)}
+								class={cn(
+									'-ml-px block min-h-8 w-full cursor-pointer border-l-2 py-1.5 pr-2 text-left text-sm break-words hover:text-ink',
+									h.level === 3 ? 'pl-6' : 'pl-3',
+									activeIndex === i
+										? 'border-accent font-medium text-ink'
+										: 'border-transparent text-muted'
+								)}
+							>
+								{h.text}
+							</button>
+						</li>
+					{/each}
+				</ul>
+			</nav>
+		{/if}
 	</div>
 </div>
 
