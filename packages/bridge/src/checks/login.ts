@@ -12,12 +12,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // -- TYPES -- //
 import type { Registration } from './types.js';
-import type { SavedProfile } from './profiles.js';
+import type { ProfileMeta, SavedProfile } from './profiles.js';
 // -- MODULES -- //
 import { consumeApproval, peekApproval } from './approve.js';
+import { appendAudit } from './audit.js';
 import { loadPlaywright } from './browser.js';
 import { ORG_SLUG, registrationsDir } from './paths.js';
-import { expiryNote, loadProfileChecked, saveProfile } from './profiles.js';
+import {
+	assertProfileName,
+	bindBaseFor,
+	DEFAULT_PROFILE,
+	expiryNote,
+	loadProfileChecked,
+	profileKey,
+	saveProfile
+} from './profiles.js';
 import { redact } from './redact.js';
 import { openSignin, type SigninBoard } from './signinKey.js';
 import { signInWithPassword } from './signin.js';
@@ -32,6 +41,14 @@ export type LoginTarget = {
 	testUser?: Account | null;
 	/** Hosts that belong to the site (cookies of these are kept by the headed login). */
 	hosts?: string[];
+	/** A repo preview's window may reach this machine's preview and the hosts above only: a link or a redirect to any other address is stopped. A live site's window is open (Google, two-factor). */
+	restrictHosts?: boolean;
+	/** The sealed test project the preview talks to (its hosts as one key), or null when it has none. */
+	sealedHost?: string | null;
+	/** The preview runs on a throwaway database: a saved sign-in would not exist in the next run, so no login is made. */
+	throwawayDatabase?: boolean;
+	/** The preview sends its sign-in mail to this one test inbox only: the owner pastes the link from there into the terminal. */
+	mail?: { inbox: string } | null;
 	stop(): Promise<void>;
 };
 /** How the headed window ended. Each has its own exit code: 0 signed in, 4 the window was closed, 5 the time ran out. */
@@ -43,8 +60,13 @@ export type LoginDeps = {
 	headed: (
 		target: LoginTarget,
 		say: (line: string) => void,
-		timeoutMs: number
+		timeoutMs: number,
+		ask: (prompt: string) => Promise<string>
 	) => Promise<HeadedOutcome>;
+	/** Reads one line the owner types or pastes in the terminal (the sign-in link of a mail login, or Enter). Tests inject a stub. */
+	ask: (prompt: string) => Promise<string>;
+	/** One line in the audit log: names only, never a value. */
+	audit: (action: string, detail: Record<string, string | number | boolean>) => void;
 	/** Null when this process can show a window to a person, else one plain sentence saying why not (a service, a remote shell). */
 	desktop: () => string | null;
 	/** The owner's login approval: checked first, used up before the window opens. */
@@ -54,8 +76,8 @@ export type LoginDeps = {
 	};
 	env: Record<string, string | undefined>;
 	loadRegistration: (org: string, name: string) => Registration | null;
-	target: (registration: Registration) => Promise<LoginTarget>;
-	save: (org: string, name: string, bindKey: string, state: unknown) => unknown;
+	target: (registration: Registration, say: (line: string) => void) => Promise<LoginTarget>;
+	save: (org: string, name: string, bindKey: string, state: unknown, meta?: ProfileMeta) => unknown;
 };
 export type LoginCtx = {
 	/** This machine's board, for a sign in typed on the board (--from-board). */
@@ -181,17 +203,86 @@ const cookieId = (c: unknown) => {
 };
 
 /**
- * The headed login: a visible browser in a fresh temporary profile (no debugging port, deleted afterwards). It ends when a session cookie of the site appears that was not there
- * when the page loaded, when the window is closed, or when the time runs out. Only cookies and origins of the site are kept.
+ * The hosts a repo preview's window may reach: the preview itself WITH its port (another service on this machine, such as a dev server, is not the preview) and the sealed test
+ * project's hosts. A request or link is compared by its `host` (name and port).
+ */
+export function allowedHosts(target: Pick<LoginTarget, 'baseUrl' | 'hosts'>): string[] {
+	return [new URL(target.baseUrl).host, ...(target.hosts ?? [])].map((h) => h.toLowerCase());
+}
+
+/**
+ * Why a pasted sign-in link must not be opened, or null when it may be: it has to be a web address on the preview or one of its sealed hosts. The link is a one-time
+ * credential written by someone else's mail, so it is never printed, and nothing else is followed.
+ */
+export function linkProblem(link: string, allowed: string[]): string | null {
+	let u: URL;
+	try {
+		u = new URL(link.trim());
+	} catch {
+		return 'That is not a web address. Paste the whole sign-in link from the test inbox, or press Enter when you are signed in.';
+	}
+	if (u.protocol !== 'http:' && u.protocol !== 'https:')
+		return 'Only a web address can be opened. Paste the sign-in link from the test inbox.';
+	if (!allowed.includes(u.host.toLowerCase()))
+		return 'That link points to an address that is not this preview or its test project, so it was not opened.';
+	return null;
+}
+
+/** Reads one line from the owner's terminal. A window that waits for a pasted link needs a person at a terminal. */
+async function askLine(prompt: string): Promise<string> {
+	if (!process.stdin.isTTY)
+		throw new Error(
+			'This sign-in waits for a link pasted into the terminal, so it needs to run in a terminal the owner can type in.'
+		);
+	const { createInterface } = await import('node:readline/promises');
+	const rl = createInterface({ input: process.stdin, output: process.stdout });
+	try {
+		return await rl.question(prompt);
+	} finally {
+		rl.close();
+	}
+}
+
+/** Waits for the owner's line, but only until the deadline or until the window is closed (`closedWindow` resolves). */
+async function askUntil(
+	ask: (prompt: string) => Promise<string>,
+	prompt: string,
+	deadline: number,
+	closedWindow: Promise<null>
+): Promise<string | null> {
+	const left = deadline - Date.now();
+	if (left <= 0) return null;
+	let timer: NodeJS.Timeout | undefined;
+	try {
+		return await Promise.race([
+			ask(prompt),
+			closedWindow,
+			new Promise<null>((resolve) => {
+				timer = setTimeout(() => resolve(null), left);
+			})
+		]);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
+}
+
+/**
+ * The headed login: a visible browser in a fresh temporary profile (no debugging port, deleted afterwards). Only cookies and origins of the site are kept.
+ * A live site's window ends when a session cookie of the site appears that was not there when the page loaded, when the window is closed, or when the time runs out.
+ * A repo preview's window can reach only the preview and its sealed test project. When the preview sends its sign-in mail to one test inbox (`target.mail`), the owner asks
+ * for the link in the window, copies it from that inbox and pastes it into the terminal; the window then ends on the owner's Enter, never on the first cookie (asking for the
+ * link already sets one).
  */
 async function headedLogin(
 	target: LoginTarget,
 	say: (line: string) => void,
-	timeoutMs: number
+	timeoutMs: number,
+	ask: (prompt: string) => Promise<string> = askLine
 ): Promise<HeadedOutcome> {
 	const { chromium } = await loadPlaywright();
 	const profile = mkdtempSync(join(tmpdir(), 'afb-login-'));
 	const hosts = [new URL(target.baseUrl).hostname, ...(target.hosts ?? [])];
+	const allowed = allowedHosts(target);
 	let context: Awaited<ReturnType<typeof chromium.launchPersistentContext>> | null = null;
 	try {
 		context = await chromium.launchPersistentContext(profile, {
@@ -200,13 +291,75 @@ async function headedLogin(
 			baseURL: target.baseUrl
 		});
 		let closed = false;
-		context.on('close', () => void (closed = true));
+		// Resolves when the window is closed, so a wait for the owner's line ends at once and the preview is stopped
+		const closedWindow = new Promise<null>((resolve) => {
+			context?.on('close', () => {
+				closed = true;
+				resolve(null);
+			});
+		});
+		// A repo preview holds a live session of the test project: nothing outside the preview and that project may be reached from this window
+		if (target.restrictHosts)
+			await context.route('**/*', (route) => {
+				const u = route.request().url();
+				if (u.startsWith('data:') || u.startsWith('blob:') || u === 'about:blank')
+					return route.continue();
+				try {
+					return allowed.includes(new URL(u).host.toLowerCase()) ? route.continue() : route.abort();
+				} catch {
+					return route.abort();
+				}
+			});
 		const page = context.pages()[0] ?? (await context.newPage());
 		await page.goto(target.baseUrl);
-		const before = new Set(keepRelated(await context.storageState(), hosts).cookies.map(cookieId));
+		const beforeState = keepRelated(await context.storageState(), hosts);
+		const before = new Set(beforeState.cookies.map(cookieId));
 		say(
 			`A browser window is open on ${target.baseUrl}. Sign in there the way you normally do (a password or Google). The bridge does not return what you type to your agent.`
 		);
+		if (target.mail) {
+			say(
+				`This preview sends mail only to ${target.mail.inbox}. Ask for a sign-in link in the window with any address, open that inbox, copy the link and paste it here. When you can see you are signed in, press Enter with nothing pasted. Do not close the window first.`
+			);
+			const mailDeadline = Date.now() + timeoutMs;
+			while (!closed && Date.now() < mailDeadline) {
+				const line = await askUntil(
+					ask,
+					'Paste the sign-in link, or press Enter when you are signed in... ',
+					mailDeadline,
+					closedWindow
+				);
+				if (line === null) break;
+				if (closed) break;
+				if (line.trim()) {
+					const problem = linkProblem(line, allowed);
+					if (problem) {
+						say(problem);
+						continue;
+					}
+					await page
+						.goto(line.trim())
+						.catch(() => say('The window could not open the link (it may have expired).'));
+					say('The link was opened in the window.');
+					continue;
+				}
+				let kept: { cookies: unknown[]; origins: unknown[] };
+				try {
+					kept = keepRelated(await context.storageState(), hosts);
+				} catch {
+					break;
+				}
+				const gained =
+					kept.cookies.some((c) => !before.has(cookieId(c))) ||
+					kept.origins.length > beforeState.origins.length;
+				if (!gained) {
+					say('Nothing is signed in yet. Open the link in the window first, then press Enter.');
+					continue;
+				}
+				return { state: 'signed-in', storage: kept };
+			}
+			return closed ? { state: 'closed' } : { state: 'timeout' };
+		}
 		const deadline = Date.now() + timeoutMs;
 		while (!closed && Date.now() < deadline) {
 			await new Promise((r) => setTimeout(r, 1000));
@@ -240,12 +393,15 @@ function loadRegistrationFile(org: string, name: string): Registration | null {
 	}
 }
 
-/** The default target: only a live site needs no preview. A repo registration needs the caller to start its preview. */
-async function defaultTarget(registration: Registration): Promise<LoginTarget> {
-	if (!registration.url)
-		throw new Error(
-			`${registration.name} is built from a repo, so its sign-in needs a preview. Start one through the run command.`
-		);
+/** The default target: a live site is its own address; a repo registration is its own preview, started like a run starts it. */
+async function defaultTarget(
+	registration: Registration,
+	say: (line: string) => void
+): Promise<LoginTarget> {
+	if (!registration.url) {
+		const { repoLoginTarget } = await import('./loginPreview.js');
+		return repoLoginTarget(registration, say);
+	}
 	return {
 		baseUrl: registration.url,
 		hosts: registration.extraHosts ?? [],
@@ -272,10 +428,18 @@ export async function loginCommand(args: string[], ctx: LoginCtx): Promise<numbe
 		loadRegistration: loadRegistrationFile,
 		target: defaultTarget,
 		save: saveProfile,
+		ask: askLine,
+		audit: (action, detail) => {
+			try {
+				appendAudit(action, detail);
+			} catch {
+				/* The audit log is best effort here: a login is never refused for it */
+			}
+		},
 		...ctx.deps
 	};
 	const say = (line: string) => ctx.log(line);
-	const flags = new Set(['--org']);
+	const flags = new Set(['--org', '--as', '--approval', '--timeout']);
 	const positional = args.filter((a, i) => !a.startsWith('--') && !flags.has(args[i - 1] ?? ''));
 	const name = positional[0];
 	const org = flagValue(args, '--org');
@@ -283,11 +447,21 @@ export async function loginCommand(args: string[], ctx: LoginCtx): Promise<numbe
 	// The sign in the owner typed on the board, encrypted to this machine: opened here in memory, never shown to the agent
 	const fromBoard = args.includes('--from-board');
 	if (!name || !org) {
-		say('Usage: check login <NAME> --org <slug> [--seeded | --from-board | --approval <code>]');
+		say(
+			'Usage: check login <NAME> --org <slug> [--as <profile>] [--seeded | --from-board | --approval <code>]'
+		);
 		return 1;
 	}
 	if (!NAME.test(name) || !ORG_SLUG.test(org)) {
 		say('The registration name or the organisation is not a plain name.');
+		return 1;
+	}
+	// A second sign-in of the same registration (a role to prove, for example read-only) is a named profile
+	let profile: string;
+	try {
+		profile = assertProfileName(flagValue(args, '--as') ?? DEFAULT_PROFILE);
+	} catch (e) {
+		say(e instanceof Error ? e.message : 'That is not a profile name.');
 		return 1;
 	}
 	// A headed login shows a window to a person: it needs the owner's login approval and a desktop to show it on, and stops at once without either
@@ -323,8 +497,21 @@ export async function loginCommand(args: string[], ctx: LoginCtx): Promise<numbe
 	let target: LoginTarget | null = null;
 	const secrets: string[] = [];
 	try {
-		target = await deps.target(registration);
-		const bindKey = new URL(target.baseUrl).origin;
+		target = await deps.target(registration, say);
+		// A repo registration's sign-in is bound to the loopback and its sealed test project, never to the port of this preview
+		if (registration.repo && target.throwawayDatabase) {
+			say(
+				`The preview of ${name} runs on a throwaway database, so a saved sign-in would not exist in the next run. A recipe test user signs in by itself on every run; to keep a person's sign-in, seal the registration's test project first (check secrets import).`
+			);
+			return 1;
+		}
+		if (registration.repo && (seeded || fromBoard) && !target.sealedHost) {
+			say(
+				`A seeded sign-in on ${name} needs the registration's sealed test project, so the password is never typed into a preview that talks to another database. Seal it first (check secrets import).`
+			);
+			return 1;
+		}
+		const bindKey = profileKey(bindBaseFor(registration, new URL(target.baseUrl).origin), profile);
 		let state: unknown;
 		if (fromBoard && ctx.board) {
 			const board = ctx.board();
@@ -371,7 +558,7 @@ export async function loginCommand(args: string[], ctx: LoginCtx): Promise<numbe
 				say('The owner code was used or ran out just now. Ask for a new one.');
 				return 1;
 			}
-			const outcome = await deps.headed(target, say, timeoutMinutes * 60_000);
+			const outcome = await deps.headed(target, say, timeoutMinutes * 60_000, deps.ask);
 			if (outcome.state === 'closed') {
 				say('The window was closed before a sign in was seen, so nothing was saved.');
 				return 4;
@@ -387,10 +574,19 @@ export async function loginCommand(args: string[], ctx: LoginCtx): Promise<numbe
 			say('Nothing was saved because the browser holds no sign-in for this address.');
 			return 1;
 		}
-		deps.save(org, name, bindKey, state);
-		say(`Saved the sign-in for ${org}/${name} on ${bindKey}. It stays on this machine, sealed.`);
+		deps.save(org, name, bindKey, state, {
+			profile,
+			sealedHost: registration.repo ? (target.sealedHost ?? null) : null
+		});
+		deps.audit('login saved', { registration: `${org}/${name}`, profile });
+		const shown = registration.repo ? `${bindKey} (${name})` : bindKey;
+		say(
+			`Saved the sign-in${profile === DEFAULT_PROFILE ? '' : ` "${profile}"`} for ${org}/${name} on ${shown}. It stays on this machine, sealed.`
+		);
 		if (ctx.json)
-			ctx.out(JSON.stringify({ saved: true, registration: `${org}/${name}`, site: bindKey }));
+			ctx.out(
+				JSON.stringify({ saved: true, registration: `${org}/${name}`, profile, site: bindKey })
+			);
 		return 0;
 	} catch (e) {
 		say(redact(e instanceof Error ? e.message : String(e), secrets));

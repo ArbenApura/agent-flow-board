@@ -50,13 +50,14 @@ export const CHECK_USAGE = [
 	'  pull <item> <key> --server <url> --org <slug> [--accept-hash <sha256>]   read the board copy of a script; accept it by hash',
 	'  bind --org <slug> --project <KEY> [--dir <repo>]   remember the folder of a board project for "check watch"',
 	'  watch [--parallel N] [--once]   take queued runs from the boards this machine is connected to',
-	'  run ... also takes [--registration NAME] [--file <script inside the scripts folder>] [--headed]',
+	'  run ... also takes [--registration NAME] [--profile NAME] [--file <script inside the scripts folder>] [--headed] [--local]   (--local runs here with no board call: no --server, no connection, any key such as D2 or WHO)',
 	'  project <NAME> --org <slug> (--repo <dir> [--app-dir web] [--board-project KEY] [--recipe] | --url <address> [--extra-hosts a,b]) [--adopt-env --adopt-env-approval <code>] [--upload-pictures --pictures-approval <code>] [--approval <code>] | project list|forget|pin',
 	'  approve --request --action <roots|register|secrets|adopt-env|pictures|login> --target <name> [--why "<sentence>"] [--wait <minutes>]   (asks the owner on the board; no terminal)',
 	'  approve --request-many "<action>:<target>;<action>:<target>"  |  approve --resume <id,id> [--wait <minutes>]   (exit 3 = still waiting)',
 	'  approve --action <roots|register|secrets|adopt-env|pictures|login> --target <name>   (the owner, on a terminal)  |  roots add|list|remove <dir> [--approval <code>]',
 	'  secrets import|list|forget --org <slug> --project <NAME> [--from <file> --keys A,B --test-ref <ref> --test-inbox <email> --owner-said "<sentence>" --allow-service-role --approval <code>]',
-	'  login <NAME> --org <slug> --seeded  |  service install|uninstall|status [--no-start]  |  import-legacy --from <afb-checks folder> --org <slug> [--dry-run]',
+	'  login <NAME> --org <slug> [--as <profile>] [--seeded | --approval <code>] [--timeout <minutes>]   (a repo registration signs in on its own preview; --as saves a second sign-in, for example a read-only role)',
+	'  service install|uninstall|status [--no-start]  |  import-legacy --from <afb-checks folder> --org <slug> [--dry-run]',
 	'  status [--json]  |  doctor [--fix] [--json]  |  clear [runs|profiles|auth|dbs|previews|all] [--all] [--yes]  |  setup  |  disconnect --server <url> --org <slug>'
 ].join('\n');
 
@@ -138,8 +139,22 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 		}
 		if (sub === 'run') {
 			// `--file <script>` names a script inside the scripts folder (<org>/<item>/<key>.mjs) instead of the item and the key
-			let item = args[1];
-			let key = args[2];
+			// The item and the key are the first two words that are not flags or flag values, so a switch such as `--local` or `--org x` may stand before them
+			const valueFlags = new Set([
+				'--org',
+				'--server',
+				'--registration',
+				'--profile',
+				'--file',
+				'--step',
+				'--run',
+				'--dir'
+			]);
+			const words = args
+				.slice(1)
+				.filter((a, i, all) => !a.startsWith('--') && !valueFlags.has(all[i - 1] ?? ''));
+			let item = words[0];
+			let key = words[1];
 			let fileOrg: string | null = null;
 			const fileFlag = flag('--file');
 			if (fileFlag) {
@@ -157,29 +172,42 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 				throw new Error(
 					'Usage: agent-flow-board check run <item> <key> --server <url> --org <slug> (or --file <script>)'
 				);
-			const s = server();
+			// `--local` runs the script here with no board call at all: no server, no connection, no token, no run on the board
+			const localRun = has('--local');
+			if (localRun && (flag('--run') || flag('--step') || flag('--server')))
+				throw new Error(
+					'--local runs here with no board, so it takes no --run, --step or --server (nothing is asked for, closed or reported).'
+				);
 			const o = org();
 			// The folder of a script names its organisation: a script of one organisation is never run as another's
 			if (fileOrg !== null && fileOrg !== o)
 				throw new Error(
 					`--file is a script of the organisation ${fileOrg.slice(0, 40)}, but --org says ${o}. Use the same organisation in both.`
 				);
-			const token = loadRunnerToken(ctx.store, s, o);
-			if (!token)
-				throw new Error(
-					`This machine is not connected to ${o} on ${s}. Run: agent-flow-board check connect --server ${s} --org ${o} --json`
-				);
+			let s = '';
+			let token = '';
+			if (!localRun) {
+				s = server();
+				const held = loadRunnerToken(ctx.store, s, o);
+				if (!held)
+					throw new Error(
+						`This machine is not connected to ${o} on ${s}. Run: agent-flow-board check connect --server ${s} --org ${o} --json`
+					);
+				token = held;
+			}
 			const outcome = await runCheck({
+				mode: localRun ? 'local' : 'board',
 				server: s,
 				org: o,
 				item,
 				key,
 				dir: resolve(flag('--dir') ?? process.cwd()),
 				step: flag('--step'),
-				runId: flag('--run'),
+				runId: localRun ? undefined : flag('--run'),
 				registration: flag('--registration'),
+				profile: flag('--profile'),
 				runnerToken: token,
-				personalToken: ctx.personalToken(s, o),
+				personalToken: localRun ? null : ctx.personalToken(s, o),
 				fetch: ctx.fetch,
 				log,
 				headed: has('--headed')

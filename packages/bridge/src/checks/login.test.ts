@@ -70,6 +70,8 @@ function setup(over: Partial<NonNullable<LoginCtx['deps']>> = {}) {
 			loadRegistration: (org, name) => (org === 'acme' && name === 'HAPR-D' ? REG : null),
 			target: async () => target,
 			save: (...a) => void saved.push(a),
+			audit: () => undefined,
+			ask: async () => '',
 			signIn: vi.fn(async () => STATE),
 			headed: vi.fn(async (): Promise<HeadedOutcome> => ({ state: 'signed-in', storage: STATE })),
 			...over
@@ -104,7 +106,15 @@ describe('loginCommand --seeded', () => {
 			email: 'me@x.co',
 			password: 'super-secret-pw'
 		});
-		expect(t.saved).toEqual([['acme', 'HAPR-D', 'https://demo.example.com', STATE]]);
+		expect(t.saved).toEqual([
+			[
+				'acme',
+				'HAPR-D',
+				'https://demo.example.com',
+				STATE,
+				{ profile: 'default', sealedHost: null }
+			]
+		]);
 		const printed = [...t.lines, ...t.outs].join('\n');
 		expect(printed).not.toContain('super-secret-pw');
 		expect(printed).not.toContain('cookie-secret-value');

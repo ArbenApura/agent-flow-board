@@ -572,6 +572,7 @@ export async function startPreview(cfg, opts) {
         secrets,
         note: notes.join(' '),
         extraHosts: sealedHosts,
+        ...(cfg.needsDatabase ? { throwawayDatabase: true } : {}),
         ...(mailInbox ? { mail: { inbox: mailInbox, log: mailLog, port } } : {})
     };
 }

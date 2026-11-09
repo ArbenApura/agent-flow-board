@@ -68,6 +68,10 @@ const DAY_MS = 86_400_000;
 export const newRunId = (): string =>
 	'r' + Date.now().toString(36) + randomBytes(3).toString('hex');
 
+/** The id of a run made by `check run --local`: it names no board run, and a board run's id never starts with this. */
+export const newLocalRunId = (): string =>
+	'local-' + Date.now().toString(36) + randomBytes(3).toString('hex');
+
 const noop = () => {};
 
 /** Writes a file whole: a temporary file renamed into place, so a reader never sees half of it. */

@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { recordConnection } from './connections.js';
 import { runnerAccount } from './connect.js';
 import { machineLock } from './lock.js';
+import { saveRegistration } from './registry.js';
 import { watchChecks } from './watch.js';
 import { fileStore } from '../tokenStore.js';
 
@@ -68,11 +69,15 @@ describe('check watch', () => {
 	});
 
 	const board = () => {
-		const calls: { path: string; body: string }[] = [];
+		const calls: { path: string; body: string; headers: Record<string, string> }[] = [];
 		let handed = false;
 		const fetchImpl = async (input: string, init?: RequestInit) => {
 			const path = input.split('/runner')[1] ?? input;
-			calls.push({ path, body: String(init?.body ?? '') });
+			calls.push({
+				path,
+				body: String(init?.body ?? ''),
+				headers: { ...(init?.headers as Record<string, string> | undefined) }
+			});
 			if (path === '/peek') return Response.json({ waiting: handed ? 0 : 1 });
 			if (path === '/claim') {
 				const out = Response.json({ job: handed ? null : job });
@@ -103,6 +108,42 @@ describe('check watch', () => {
 		const report = JSON.parse(finish?.body ?? '{}');
 		expect(report.result).toBe('error');
 		expect(report.reason).toMatch(/no folder for AFB/);
+	});
+
+	it('tells the board its registrations on the idle peek, so a run that names one is not refused as an old tool', async () => {
+		const store = fileStore(home);
+		store.set(runnerAccount(SERVER, 'arbenger'), 'afx_runner');
+		recordConnection({ server: SERVER, org: 'arbenger', name: 'PC agent-flow-board' });
+		const repo = mkdtempSync(join(tmpdir(), 'afb-watch-repo-'));
+		try {
+			saveRegistration({
+				org: 'arbenger',
+				name: 'WEB',
+				boardProject: 'AFB',
+				repo,
+				recipe: false,
+				database: 'none',
+				adoptEnv: false,
+				uploadSignedInPictures: false,
+				createdAt: new Date().toISOString()
+			});
+			const b = board();
+			await watchChecks({
+				store,
+				fetch: b.fetchImpl,
+				log: () => undefined,
+				parallel: 1,
+				once: true,
+				signal: new AbortController().signal
+			});
+			const peek = b.calls.find((c) => c.path === '/peek');
+			const header = peek?.headers['x-afb-tool-registrations'];
+			expect(header).toBeTruthy();
+			const list = JSON.parse(Buffer.from(header ?? '', 'base64url').toString('utf8'));
+			expect(list).toEqual([expect.objectContaining({ p: 'AFB', n: 'WEB' })]);
+		} finally {
+			rmSync(repo, { recursive: true, force: true });
+		}
 	});
 
 	it('refuses a second worker on the same machine, and lets the next one in after the first ends', async () => {

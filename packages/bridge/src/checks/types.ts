@@ -87,6 +87,8 @@ export type Preview = {
 	extraHosts?: string[];
 	/** Set when the mail guard fenced this run: the one test inbox, the guard's log and the preview port. */
 	mail?: { inbox: string; log: string; port: number };
+	/** True when this preview runs on a throwaway database made for the run: a saved sign-in does not survive it, so none is used or made. */
+	throwawayDatabase?: boolean;
 };
 
 /** The job handed to the sandboxed child that runs one check script. Written to the child's stdin. */

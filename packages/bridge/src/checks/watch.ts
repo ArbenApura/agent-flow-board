@@ -25,7 +25,7 @@ import { machineLock } from './lock.js';
 import { checksHome } from './paths.js';
 import { renameRetry } from './fsretry.js';
 import { readRegistrations } from './registry.js';
-import { runCheck } from './run.js';
+import { auditHeaders, registrationsHeaderFor, runCheck } from './run.js';
 import { createScheduler } from './scheduler.js';
 import { sweepOrphans } from './scope.js';
 
@@ -156,8 +156,11 @@ export async function watchChecks(o: WatchOptions): Promise<number> {
 						const key = `${c.server}|${c.org}`;
 						const fingerprint = token.slice(-8);
 						known.set(key, fingerprint);
+						// The idle worker tells the board its registrations and audit head too: without them the board takes the bridge for an old tool and refuses a run that names a registration
 						const board = new RunnerBoard(c.server, token, o.fetch, () => ({
-							'x-afb-tool-slots': `${machineTotals().slots}:${machineTotals().busy}`
+							'x-afb-tool-slots': `${machineTotals().slots}:${machineTotals().busy}`,
+							...auditHeaders(),
+							...registrationsHeaderFor(c.org)
 						}));
 						return [
 							{

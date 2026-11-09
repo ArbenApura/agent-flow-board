@@ -20,13 +20,32 @@ export type SavedProfile = {
 	savedAt: string;
 	/** The browser state: cookies and origins. Never printed. */
 	state: unknown;
+	/** The profile name ('default' when none was given). */
+	profile?: string;
+	/** The sealed test project host the sign-in was made on, for a repo registration. A run with another host does not use it. */
+	sealedHost?: string | null;
 };
 /** What a listing shows: no cookie and no value, only which site and when. */
-export type ProfileEntry = { file: string; bindKey: string; savedAt: string };
+export type ProfileEntry = {
+	file: string;
+	bindKey: string;
+	savedAt: string;
+	profile: string;
+	sealedHost: string | null;
+};
+/** What is saved beside the state: the profile name and the sealed host the sign-in belongs to. */
+export type ProfileMeta = { profile?: string; sealedHost?: string | null };
 
 // -- CONSTANTS -- //
 
 const NAME = /^[A-Za-z0-9_-]{1,32}$/;
+/** The profile every registration has when none is named. Its file name and seal are the ones saved sign-ins always had. */
+export const DEFAULT_PROFILE = 'default';
+/** A named profile: lower case letters, digits and dashes, so it can never reach a file path. */
+export const PROFILE_NAME = /^[a-z0-9-]{1,32}$/;
+/** A repo registration's sign-in is bound to this machine's loopback, not to a preview port (the port changes on every run). */
+export const LOOPBACK_BIND = '127.0.0.1';
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
 const FILE = /^[0-9a-f]{16}\.enc$/;
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -47,18 +66,76 @@ export const fileNameFor = (bindKey: string): string =>
 	`${createHash('sha256').update(bindKey).digest('hex').slice(0, 16)}.enc`;
 const aadFor = (org: string, name: string, bindKey: string) => `profile:${org}/${name}:${bindKey}`;
 
+/** Throws one plain sentence when a profile name is not 'default' or a plain lower case name. */
+export function assertProfileName(profile: string): string {
+	if (profile === DEFAULT_PROFILE || PROFILE_NAME.test(profile)) return profile;
+	throw new Error(
+		'A profile name is 1 to 32 lower case letters, digits or dashes, for example read-only.'
+	);
+}
+
+/** The key a sign-in is stored under: the site (or the loopback) for the default profile, with the profile name added for a named one. */
+export function profileKey(base: string, profile?: string): string {
+	const p = profile ? assertProfileName(profile) : DEFAULT_PROFILE;
+	return p === DEFAULT_PROFILE ? base : `${base}#${p}`;
+}
+
+/** What a repo registration's sign-in binds to (the loopback, never a port) and a live site's (its origin). */
+export function bindBaseFor(registration: { repo?: string | null }, origin: string): string {
+	return registration.repo ? LOOPBACK_BIND : origin;
+}
+
+/**
+ * A saved browser state with every loopback origin of its local storage moved to the preview this run started: the port of a preview changes on every run,
+ * and a session kept in local storage belongs to the origin it was made on. Cookies carry no port and are left as they are.
+ */
+export function retargetOrigins(state: unknown, baseUrl: string): unknown {
+	const s = state as { cookies?: unknown[]; origins?: { origin?: string }[] } | null;
+	if (!s || !Array.isArray(s.origins)) return state;
+	const target = new URL(baseUrl).origin;
+	return {
+		...s,
+		origins: s.origins.map((o) => {
+			try {
+				return LOOPBACK_HOSTS.has(new URL(String(o.origin)).hostname)
+					? { ...o, origin: target }
+					: o;
+			} catch {
+				return o;
+			}
+		})
+	};
+}
+
 /** Saves (replaces) the sign-in of one registration and site. Returns the file name, not the path. */
-export function saveProfile(org: string, name: string, bindKey: string, state: unknown): string {
+export function saveProfile(
+	org: string,
+	name: string,
+	bindKey: string,
+	state: unknown,
+	meta: ProfileMeta = {}
+): string {
 	if (!bindKey) throw new Error('A saved sign-in needs the address of the site.');
 	const dir = ensureDir(profilesDir(org, name));
 	const file = fileNameFor(bindKey);
-	const profile: SavedProfile = { bindKey, savedAt: new Date().toISOString(), state };
+	const profileName = meta.profile ? assertProfileName(meta.profile) : DEFAULT_PROFILE;
+	const profile: SavedProfile = {
+		bindKey,
+		savedAt: new Date().toISOString(),
+		state,
+		profile: profileName,
+		sealedHost: meta.sealedHost ?? null
+	};
 	const blob = seal(aadFor(org, name, bindKey), enc.encode(JSON.stringify(profile)));
 	const tmp = join(dir, `${file}.${process.pid}.tmp`);
 	writeFileSync(tmp, blob, { mode: 0o600 });
 	renameRetry(tmp, join(dir, file));
-	// The address is not a secret: a plain index lets a listing name the site without opening the sealed file
-	writeFileSync(indexPath(org, name, file), JSON.stringify({ bindKey }), { mode: 0o600 });
+	// The address, the profile name and the sealed host are not secrets: a plain index lets a listing name them without opening the sealed file
+	writeFileSync(
+		indexPath(org, name, file),
+		JSON.stringify({ bindKey, profile: profileName, sealedHost: meta.sealedHost ?? null }),
+		{ mode: 0o600 }
+	);
 	return file;
 }
 
@@ -103,17 +180,38 @@ export function listProfiles(org: string, name: string): ProfileEntry[] {
 	const out: ProfileEntry[] = [];
 	for (const file of readdirSync(dir).filter((f) => FILE.test(f))) {
 		let bindKey = '(unknown)';
+		let profile = DEFAULT_PROFILE;
+		let sealedHost: string | null = null;
 		try {
-			bindKey = String(
-				(JSON.parse(readFileSync(indexPath(org, name, file), 'utf8')) as { bindKey?: string })
-					.bindKey ?? bindKey
-			);
+			const index = JSON.parse(readFileSync(indexPath(org, name, file), 'utf8')) as {
+				bindKey?: string;
+				profile?: string;
+				sealedHost?: string | null;
+			};
+			bindKey = String(index.bindKey ?? bindKey);
+			profile = String(index.profile ?? DEFAULT_PROFILE);
+			sealedHost = index.sealedHost ?? null;
 		} catch {
 			/* No index: the file is still listed */
 		}
-		out.push({ file, bindKey, savedAt: statSync(join(dir, file)).mtime.toISOString() });
+		out.push({
+			file,
+			bindKey,
+			savedAt: statSync(join(dir, file)).mtime.toISOString(),
+			profile,
+			sealedHost
+		});
 	}
 	return out;
+}
+
+/** Removes every saved sign-in of one profile of a registration (the default when none is named). Returns how many went. */
+export function removeProfilesNamed(org: string, name: string, profile?: string): number {
+	const wanted = profile ? assertProfileName(profile) : DEFAULT_PROFILE;
+	let removed = 0;
+	for (const entry of listProfiles(org, name))
+		if (entry.profile === wanted && removeProfile(org, name, entry.file)) removed++;
+	return removed;
 }
 
 const indexPath = (org: string, name: string, file: string) =>

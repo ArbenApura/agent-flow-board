@@ -20,6 +20,13 @@ import {
 	readRegistrations,
 	registerProject
 } from './registry.js';
+import { appendAudit } from './audit.js';
+import {
+	assertProfileName,
+	DEFAULT_PROFILE,
+	listProfiles,
+	removeProfilesNamed
+} from './profiles.js';
 import { addRoot, listRoots, readRoots, removeRoot } from './roots.js';
 import { ASK_LIMIT, askOwner, parseEntries, type AskBoard } from './askBoard.js';
 
@@ -105,7 +112,7 @@ const show = (ctx: CommandContext, value: unknown, lines: string[]) => {
 export const PROJECT_USAGE = [
 	'  project <NAME> --org <slug> --repo <dir> [--app-dir web] [--board-project KEY] [--recipe] [--extra-hosts a,b]',
 	'  project <NAME> --org <slug> --url https://site [--board-project KEY] [--extra-hosts a,b] --approval <code>',
-	'  project list [--org <slug>]  |  project forget <NAME> --org <slug> [--remove]  |  project pin <NAME> --org <slug>'
+	'  project list [--org <slug>]  |  project forget <NAME> --org <slug> [--remove | --profile <name>]  |  project pin <NAME> --org <slug>  |  project profiles <NAME> --org <slug>'
 ].join('\n');
 
 /** `check project ...`: register, list, forget or pin a registration. */
@@ -140,6 +147,38 @@ export async function projectCommand(args: string[], ctx: CommandContext): Promi
 				...problems
 			]);
 			return problems.length ? 1 : 0;
+		}
+		if (sub === 'profiles') {
+			const name = p.pos[1];
+			if (!name) throw new UsageError('profiles needs a registration name.');
+			const entries = listProfiles(need(p, '--org'), name).map((e) => ({
+				profile: e.profile,
+				savedAt: e.savedAt,
+				site: e.bindKey.replace(/#.*$/, ''),
+				testProject: e.sealedHost
+			}));
+			show(c, { registration: name, profiles: entries }, [
+				...entries.map(
+					(e) =>
+						`${e.profile}  saved ${e.savedAt}  on ${e.site}${e.testProject ? `  test project ${e.testProject}` : ''}`
+				),
+				...(entries.length ? [] : [`${name} has no saved sign-ins.`])
+			]);
+			return 0;
+		}
+		if (sub === 'forget' && text(p, '--profile') !== undefined) {
+			const name = p.pos[1];
+			if (!name) throw new UsageError('forget needs a registration name.');
+			const profile = assertProfileName(text(p, '--profile') as string);
+			const removed = removeProfilesNamed(need(p, '--org'), name, profile);
+			if (removed)
+				appendAudit('login forgotten', { registration: `${need(p, '--org')}/${name}`, profile });
+			show(c, { registration: name, profile, removed }, [
+				removed
+					? `Removed the saved sign-in "${profile}" of ${name}.`
+					: `${name} has no saved sign-in "${profile === DEFAULT_PROFILE ? DEFAULT_PROFILE : profile}".`
+			]);
+			return 0;
 		}
 		if (sub === 'forget') {
 			const name = p.pos[1];

@@ -21,7 +21,7 @@ import { closePoolIfIdle } from './dbpool.js';
 import { lintCheck } from './guard.js';
 import { assertName, ORG_SLUG, runsDir, scriptPath, scriptsDir } from './paths.js';
 import { liveSiteGuardOptions } from './live.js';
-import { pictureUploadAllowed, savedStateFor } from './login.js';
+import { pictureUploadAllowed } from './login.js';
 import { startPreview } from './preview.js';
 import { redact } from './redact.js';
 import { pinFiles, resolveProjectConfig } from './recipe.js';
@@ -32,15 +32,23 @@ import {
 	pinState,
 	readRegistrations
 } from './registry.js';
-import { registrationHeader, routeRun } from './routing.js';
+import { profileHeader, registrationHeader, routeRun } from './routing.js';
+import { chooseSignin, sealedKey } from './signinChoice.js';
 import { registrationsHeader, sanitiseReport, withBranch } from './wire.js';
 import { runCheckInSandbox } from './sandbox.js';
-import { installSignalHandlers, RunScope, sweepOrphans } from './scope.js';
+import { installSignalHandlers, newLocalRunId, RunScope, sweepOrphans } from './scope.js';
 import { signInWithPassword, stateNeedles } from './signin.js';
+import { LocalSink, type BoardLike } from './localSink.js';
+import { lockHolderPid } from './lock.js';
 
 // -- TYPES -- //
 
 export type RunOptions = {
+	/**
+	 * 'board' (the default) asks the board for the run and reports to it. 'local' runs the script with the same sandbox, preview, sign-in and guard rails and makes NO board call:
+	 * it needs no connection, no token and no server (the three fields below are empty and never used), and it needs the registration by name.
+	 */
+	mode?: 'board' | 'local';
 	server: string;
 	org: string;
 	item: string;
@@ -55,6 +63,8 @@ export type RunOptions = {
 	signal?: AbortSignal;
 	/** The registration to use, when the run and the check name none (`--registration`). */
 	registration?: string;
+	/** The saved sign-in to open with (`--profile`). A script may ask for one with "// afb-profile: NAME"; otherwise the default profile is used. */
+	profile?: string;
 	/** A run the agent already asked for (check_run through MCP). Without it the run is requested here. */
 	runId?: string;
 	/** A run `check watch` already claimed with the next-run call. Without it the run is claimed here by its id. */
@@ -112,7 +122,7 @@ function auditSafely(
 }
 
 /** The registrations of this organisation, for the board to route a run that names one (at most 16, refreshed by every call). */
-function registrationsHeaderFor(org: string): Record<string, string> {
+export function registrationsHeaderFor(org: string): Record<string, string> {
 	try {
 		const value = registrationsHeader(org, listRegistrations(org).map(withBranch));
 		return value ? { 'x-afb-tool-registrations': value } : {};
@@ -175,7 +185,7 @@ export function configForRun(
 	};
 }
 
-function auditHeaders(): Record<string, string> {
+export function auditHeaders(): Record<string, string> {
 	try {
 		const v = verifyAudit();
 		return v.ok ? { 'x-afb-tool-audit': `${v.lines}:${v.head}` } : {};
@@ -232,8 +242,38 @@ function pickShots(steps: ChildResult['steps']) {
 		: wanted;
 }
 
+/**
+ * The registration of a local run, read straight from the registry: the one `--registration` names, else the one the script's header names. There is no board project and no
+ * job to route by, so a missing name is refused with the list, and the folder of the current directory is never taken in its place. A changed pin stops the run (a board run
+ * that `check watch` takes does the same); a local run never pins or binds a folder by itself.
+ */
+export function configForLocal(
+	o: Pick<RunOptions, 'org' | 'registration'>,
+	source: string
+): { cfg: ProjectConfig; registration: Registration; scriptRegistration: string | null } {
+	const scriptRegistration = registrationHeader(source);
+	const wanted = o.registration ?? scriptRegistration;
+	const mine = listRegistrations(o.org);
+	const list = mine.map((r) => r.name).join(', ');
+	if (!wanted)
+		throw new Error(
+			`A local run needs the registration: pass --registration NAME or put "// afb-registration: NAME" in the script. Registrations of ${o.org}: ${list || 'none'}.`
+		);
+	const registration = mine.find((r) => r.name.toLowerCase() === wanted.toLowerCase());
+	if (!registration)
+		throw new Error(
+			`There is no registration ${wanted.slice(0, 40)} in ${o.org}. Registrations of ${o.org}: ${list || 'none'}.`
+		);
+	if (registration.repo && pinState(registration) !== 'ok')
+		throw new Error(
+			`The files that decide what runs in ${registration.name} changed since they were approved. Approve them again: agent-flow-board check project pin ${registration.name} --org ${o.org}`
+		);
+	return { cfg: configFor(registration), registration, scriptRegistration };
+}
+
 /** Runs one check end to end. Never throws: every failure is an outcome with a plain message. */
 export async function runCheck(o: RunOptions): Promise<RunOutcome> {
+	const local = o.mode === 'local';
 	let lastStop = '';
 	let finished = false;
 	const stop = (message: string, runId: string | null = null): RunOutcome => {
@@ -241,7 +281,9 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 		return { exitCode: 2, runId, resultPath: null, message };
 	};
 	let runId: string | null = null;
-	let board: RunnerBoard | null = null;
+	// The registration of this run once it is known: an error report names it too, so the board keeps the real reason instead of "the tool reported none"
+	let runRegistration: string | undefined;
+	let board: BoardLike | null = null;
 	let scope: RunScope | null = null;
 	let beat: ReturnType<typeof setInterval> | null = null;
 	let uninstall: () => void = () => undefined;
@@ -273,28 +315,37 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 				`This check uses ${unsafe.join(', ')}, which a check has no business doing, so it was not run. Rewrite it.`
 			);
 		// -- THE RUN -- //
-		board = new RunnerBoard(o.server, o.runnerToken, o.fetch, () => ({
-			'x-afb-tool-slots': slotsHeader(),
-			...auditHeaders(),
-			...registrationsHeaderFor(o.org)
-		}));
+		// A local run has a stand-in for the board that does nothing and has no address: no call can reach a network on any path of the run
+		board = local
+			? new LocalSink()
+			: new RunnerBoard(o.server, o.runnerToken, o.fetch, () => ({
+					'x-afb-tool-slots': slotsHeader(),
+					...auditHeaders(),
+					...registrationsHeaderFor(o.org)
+				}));
 		await sweepOrphans(o.log);
-		runId = o.claimed?.id ?? o.runId ?? (await requestRunOnBoard(o));
-		const job: CheckJob | null = o.claimed ?? (await board.claim(runId));
-		if (!job)
-			return stop(
-				`The board did not give this machine the run ${runId}. It is not queued for this machine, or this machine does not serve that project (check connect --project), or another tool took it.`,
-				runId
-			);
-		claimed = true;
-		auditSafely(o.log, 'run-claimed', { run: runId });
-		if (job.item.ref !== o.item || job.check.key !== o.key) {
-			await board.release([runId]).catch(() => undefined);
-			claimed = false;
-			return stop(
-				`The run ${runId} is for ${job.item.ref} ${job.check.key}, not ${o.item} ${o.key}, so it was given back.`,
-				runId
-			);
+		let job: CheckJob | null = null;
+		if (local) {
+			runId = newLocalRunId();
+			auditSafely(o.log, 'run-local-started', { run: runId, check: `${o.item}/${o.key}` });
+		} else {
+			runId = o.claimed?.id ?? o.runId ?? (await requestRunOnBoard(o));
+			job = o.claimed ?? (await board.claim(runId));
+			if (!job)
+				return stop(
+					`The board did not give this machine the run ${runId}. It is not queued for this machine, or this machine does not serve that project (check connect --project), or another tool took it.`,
+					runId
+				);
+			claimed = true;
+			auditSafely(o.log, 'run-claimed', { run: runId });
+			if (job.item.ref !== o.item || job.check.key !== o.key) {
+				await board.release([runId]).catch(() => undefined);
+				claimed = false;
+				return stop(
+					`The run ${runId} is for ${job.item.ref} ${job.check.key}, not ${o.item} ${o.key}, so it was given back.`,
+					runId
+				);
+			}
 		}
 		const thisBoard = board;
 		const thisRun = runId;
@@ -334,14 +385,36 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 			});
 		// -- WHICH REGISTRATION, AND A PLACE ON THIS MACHINE -- //
 		// A registration the board or the script names is chosen here, never guessed; a refusal ends the run with its code and the list
-		const routed = configForRun(o, job, source, o.log, Boolean(o.claimed));
+		const routed = job
+			? configForRun(o, job, source, o.log, Boolean(o.claimed))
+			: configForLocal(o, source);
 		const cfg = routed.cfg;
 		const registration = routed.registration;
+		runRegistration = registration?.name;
+		// The saved sign-in this run needs: --profile, else the script's "// afb-profile:" line, else the default. A named one that cannot be used ends the run before anything is built
+		const wantedProfile = o.profile ?? profileHeader(source) ?? undefined;
+		const signinNamed = Boolean(o.profile) || Boolean(wantedProfile) || Boolean(o.registration);
+		if (registration && wantedProfile) {
+			const early = chooseSignin({
+				org: o.org,
+				registration,
+				scriptRegistration: routed.scriptRegistration,
+				profile: wantedProfile,
+				named: true,
+				previewBaseUrl: registration.url ?? 'http://127.0.0.1',
+				sealedHost: undefined
+			});
+			if (early.failure) throw new Error(early.failure);
+		}
 		// The heartbeat already runs, so a run that waits for a slot, the preflight or another run's build keeps beating and never looks stuck to the board
 		// (a scheduled run already holds its slot)
 		if (!o.scheduled)
 			slot = await acquireSlot(
-				{ runId, kind: 'check', registration: registration?.name ?? job.project.key },
+				{
+					runId,
+					kind: local ? 'local' : 'check',
+					registration: registration?.name ?? job?.project.key ?? 'local'
+				},
 				{ signal: abort.signal }
 			);
 		await ensureBrowser(o.log);
@@ -359,17 +432,20 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 		// Only a sign in the owner SAVED counts for the picture rule: the recipe's test user belongs to a throwaway preview and holds nothing worth hiding
 		let usedSavedSignIn = false;
 		if (registration) {
-			const saved = savedStateFor({
+			const choice = chooseSignin({
 				org: o.org,
-				registration: registration.name,
+				registration,
 				scriptRegistration: routed.scriptRegistration,
-				bindKey: new URL(preview.baseUrl).origin
+				profile: wantedProfile,
+				named: signinNamed,
+				previewBaseUrl: preview.baseUrl,
+				sealedHost: sealedKey(preview.extraHosts),
+				throwawayDatabase: preview.throwawayDatabase
 			});
-			if (saved) {
-				state = saved.profile?.state ?? null;
-				usedSavedSignIn = state !== null;
-				if (saved.note) o.log(saved.note);
-			}
+			if (choice.failure) throw new Error(choice.failure);
+			state = choice.state;
+			usedSavedSignIn = state !== null;
+			if (choice.note) o.log(choice.note);
 		}
 		if (!state && preview.testUser) {
 			o.log(`Signing in as ${preview.testUser.email.replace(/^(.).*(@.*)$/, '$1***$2')}...`);
@@ -420,7 +496,8 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 			if (!schedulerOwns()) {
 				await board.finish(runId, {
 					result: 'error',
-					reason: reasonFor(`The check did not finish. ${why}`)
+					reason: reasonFor(`The check did not finish. ${why}`),
+					registration: runRegistration
 				});
 				finished = true;
 				claimed = false;
@@ -434,9 +511,10 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 			registration ?? { uploadSignedInPictures: false },
 			usedSavedSignIn
 		);
-		if (!uploadPictures)
+		if (local) o.log(`The pictures stay on this machine, in ${join(runDir, 'shots')}.`);
+		else if (!uploadPictures)
 			o.log('The pictures of a signed in run are not uploaded for this registration.');
-		for (const s of uploadPictures ? pickShots(ran.result.steps) : []) {
+		for (const s of uploadPictures && !local ? pickShots(ran.result.steps) : []) {
 			if (!s.shot) continue;
 			// The child wrote this file, so it is only read when it is a plain JPEG inside the shots folder (never a link it planted to a key file)
 			const read = readPlainFile(join(runDir, 'shots'), s.shot, {
@@ -488,11 +566,16 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 		await board.finish(runId, report);
 		finished = true;
 		claimed = false;
-		auditSafely(o.log, 'run-finished', { run: runId, result: result.result });
+		auditSafely(o.log, local ? 'run-local-finished' : 'run-finished', {
+			run: runId,
+			result: result.result
+		});
+		const resultFile = join(runDir, 'result.json');
 		return {
 			exitCode: result.result === 'pass' ? 0 : 1,
 			runId,
-			resultPath: join(runDir, 'result.json'),
+			// The last line `RESULT <path>` is printed only when the file is there
+			resultPath: existsSync(resultFile) ? resultFile : null,
 			message:
 				result.result === 'pass'
 					? 'The check passed.'
@@ -504,7 +587,11 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 		// Nothing that reaches the board is unredacted: not a build log tail, not the message of an error
 		if (board && runId && claimed && !schedulerOwns()) {
 			await board
-				.finish(runId, { result: 'error', reason: reasonFor(reason) })
+				.finish(runId, {
+					result: 'error',
+					reason: reasonFor(reason),
+					registration: runRegistration
+				})
 				.catch(() => undefined);
 			finished = true;
 		}
@@ -520,7 +607,9 @@ export async function runCheck(o: RunOptions): Promise<RunOutcome> {
 		} catch {
 			/* A slot that cannot be released is cleared by its stale heartbeat */
 		}
-		if (!o.claimed) await closePoolIfIdle().catch(() => undefined);
+		// A local run never removes the pool a running worker keeps warm for its board runs
+		const workerRuns = local && lockHolderPid('machine-watch') !== null;
+		if (!o.claimed && !workerRuns) await closePoolIfIdle().catch(() => undefined);
 		// A run that `check watch` already claimed must never be left running when this ends early (no script, a changed folder, a refusal)
 		if (o.claimed && !finished && !schedulerOwns()) {
 			const b = board ?? new RunnerBoard(o.server, o.runnerToken, o.fetch);

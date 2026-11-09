@@ -41,6 +41,19 @@ export function registrationHeader(source: string): string | null {
 	return null;
 }
 
+const PROFILE_HEADER = /^\s*\/\/\s*afb-profile:\s*([a-z0-9-]{1,32})\s*$/;
+
+/** The saved sign-in a check script asks for in a "// afb-profile: NAME" line among its first 12 lines (same rule as the registration), or null. */
+export function profileHeader(source: string): string | null {
+	for (const line of String(source ?? '')
+		.split(/\r?\n/)
+		.slice(0, HEADER_LINES)) {
+		const m = PROFILE_HEADER.exec(line);
+		if (m?.[1]) return m[1];
+	}
+	return null;
+}
+
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 /**
