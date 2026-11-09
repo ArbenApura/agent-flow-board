@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.1.22",
+		"version": "1.2.1",
 		"releasedAt": "2026-11-09"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.14",
+			"version": "1.1.15",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -82,6 +82,10 @@
 				{
 					"version": "1.1.14",
 					"hash": "2c6c5acd44bc45abbbe777b675d43a3e539999e9d783009602ad3faf0f788048"
+				},
+				{
+					"version": "1.1.15",
+					"hash": "86476e1cb2901b26f2616e40bdf1c73302755cabec3e591b0210eb4a673c23f4"
 				}
 			]
 		},
@@ -115,7 +119,7 @@
 			]
 		},
 		"flow-check": {
-			"version": "1.1.15",
+			"version": "1.2.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -188,6 +192,14 @@
 				{
 					"version": "1.1.15",
 					"hash": "dfd35e94a3b48f97885a8f8021a9b1c8cfc34036fc1792269f02b979fc00b27d"
+				},
+				{
+					"version": "1.2.0",
+					"hash": "35a2b9b14b867bc567cca26f6b2c492c38ecabeb24ea6a579e6cc3b304977e63"
+				},
+				{
+					"version": "1.2.1",
+					"hash": "4db17383962841d5a38f8a2c46c49f605670e9405d4d975d73f8f3130bd385b0"
 				}
 			]
 		},
@@ -326,6 +338,41 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.2.1",
+			"date": "2026-11-09",
+			"notes": [
+				"flow-check 1.2.1: sign in on a repo registration (the registration's own preview, mail-link paste, bound to the loopback and the sealed test project, not to a port), named profiles for role proofs (--as, --profile, // afb-profile:, project profiles), and `check run --local` for scripts with no board run (any key, no connection)."
+			],
+			"skills": {
+				"flow": "1.1.15",
+				"flow-audit": "1.1.3",
+				"flow-check": "1.2.1",
+				"flow-critic": "1.1.4",
+				"flow-interview": "1.1.4",
+				"flow-mockup": "1.0.2",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
+		{
+			"version": "1.2.0",
+			"date": "2026-11-09",
+			"notes": [
+				"flow-check 1.2.0: bridge only. The standalone afb-checks folder is retired; the skill now covers checks through agent-flow-board check (doctor, connect, run, registrations, approvals, sign-ins, import-legacy) and no longer tells an agent to run node afb-checks.mjs.",
+				"flow 1.1.15: names a check registration instead of an afb-checks registration."
+			],
+			"skills": {
+				"flow": "1.1.15",
+				"flow-audit": "1.1.3",
+				"flow-check": "1.2.0",
+				"flow-critic": "1.1.4",
+				"flow-interview": "1.1.4",
+				"flow-mockup": "1.0.2",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
 		{
 			"version": "1.1.22",
 			"date": "2026-11-09",

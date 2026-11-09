@@ -133,7 +133,7 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			pattern: /The write path and the dialog that closes first/
 		},
 		{ rule: 'stop for a shared database, a server or a live site', pattern: /live site/ },
-		{ rule: 'the afb-checks tool', pattern: /afb-checks/ }
+		{ rule: 'the bridge check commands', pattern: /agent-flow-board check/ }
 	]
 };
 
