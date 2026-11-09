@@ -3,7 +3,6 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	// -- MODULES -- //
 	import { roundIndex, switchIsPicker } from '#lib/board/mockups.js';
-	import MockupThumb from '#lib/board/MockupThumb.svelte';
 	import Popover from '#lib/ui/Popover.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	// -- DEP-COMPONENTS -- //
@@ -20,7 +19,7 @@
 		hrefOf
 	}: {
 		/** The mockups of one plan, in the order the plan lists them. Every id is unique. */
-		items: { id: string; title: string; currentVersion: number; thumb: string; live: boolean }[];
+		items: { id: string; title: string; currentVersion: number }[];
 		/** The id of the mockup on show. */
 		current: string;
 		/** The address of one mockup of the list. Every control here is a link, so the address and the back button follow the choice. */
@@ -106,13 +105,10 @@
 						aria-label="Mockups of this plan"
 						data-testid="mockup-picker"
 						class={cn(
-							'flex h-12 w-full min-w-0 cursor-pointer items-center gap-3 rounded-xl border bg-surface py-1.5 pr-3.5 pl-2.5 text-left text-[15px] font-medium shadow-[var(--elev-1)] transition-[border-color] duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent max-sm:h-[52px] max-sm:gap-2.5 max-sm:pr-3 max-sm:pl-2',
+							'flex h-14 w-full min-w-0 cursor-pointer items-center gap-3 rounded-lg border bg-surface py-1.5 pr-3.5 pl-4 text-left text-[15px] font-medium shadow-[var(--elev-1)] transition-[border-color] duration-150 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent max-sm:pr-3 max-sm:pl-3.5',
 							open ? 'border-accent' : 'border-line'
 						)}
 					>
-						<span class="w-9 shrink-0"
-							><MockupThumb id={`${here.id}:picker`} src={here.thumb} live={here.live} /></span
-						>
 						<span
 							class="min-w-0 flex-1 truncate text-ink max-sm:line-clamp-2 max-sm:leading-5 max-sm:whitespace-normal"
 							>{here.title}</span
@@ -130,13 +126,10 @@
 							aria-current={on ? 'page' : undefined}
 							onclick={close}
 							class={cn(
-								'flex min-h-12 cursor-pointer items-center gap-3 rounded-lg py-1.5 pr-3 pl-2 text-[15px] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent max-sm:min-h-14',
+								'flex min-h-12 cursor-pointer items-center gap-3 rounded-md py-1.5 pr-3 pl-3 text-[15px] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent max-sm:min-h-14',
 								on ? 'bg-accent-soft font-semibold text-accent-text' : 'text-ink hover:bg-raised'
 							)}
 						>
-							<span class="w-9 shrink-0"
-								><MockupThumb id={`${m.id}:list`} src={m.thumb} live={m.live} /></span
-							>
 							<span
 								class="min-w-0 flex-1 truncate max-sm:line-clamp-2 max-sm:leading-5 max-sm:whitespace-normal"
 								>{m.title}</span
@@ -155,7 +148,7 @@
 			bind:this={track}
 			onscroll={measure}
 			class={cn(
-				'flex min-w-0 flex-1 [scrollbar-width:none]! gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl border border-line bg-raised p-1 [&::-webkit-scrollbar]:hidden',
+				'flex h-14 min-w-0 flex-1 [scrollbar-width:none]! gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-lg border border-line bg-raised p-1 [&::-webkit-scrollbar]:hidden',
 				// THE FADE IS A MASK, WHICH READS ONLY THE ALPHA OF THE TOKEN, SO IT CANNOT CARRY A COLOUR. TWO EDGE STOPS, ONE OR BOTH
 				fadeLeft &&
 					fadeRight &&
@@ -175,13 +168,12 @@
 					data-sveltekit-noscroll
 					aria-current={on ? 'page' : undefined}
 					class={cn(
-						'flex h-10 max-w-[380px] shrink-0 cursor-pointer items-center gap-2.5 rounded-lg py-0 pr-3 pl-1.5 text-[15px] font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent',
+						'flex h-full max-w-[420px] shrink-0 cursor-pointer items-center gap-3 rounded-md px-4 text-[15px] font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent',
 						on
 							? 'bg-surface text-ink shadow-[0_0_0_1px_var(--line),var(--elev-1)]'
 							: 'text-muted hover:bg-surface/55 hover:text-ink'
 					)}
 				>
-					<span class="w-8 shrink-0"><MockupThumb id={m.id} src={m.thumb} live={m.live} /></span>
 					<span class="min-w-0 truncate">{m.title}</span>
 					<span class={cn('shrink-0 font-mono text-xs', on ? 'text-accent-text' : 'text-muted')}
 						>v{m.currentVersion}</span
@@ -197,20 +189,20 @@
 			>Mockup {place + 1} of {items.length}</span
 		>
 		<div
-			class="inline-flex h-12 overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--elev-1)] max-sm:h-[52px]"
+			class="inline-flex h-14 overflow-hidden rounded-lg border border-line bg-surface shadow-[var(--elev-1)]"
 		>
 			<a
 				href={hrefOf(previous.id)}
 				data-sveltekit-noscroll
 				aria-label="Previous mockup of this plan"
-				class="grid w-11 cursor-pointer place-items-center text-ink hover:bg-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+				class="grid w-12 cursor-pointer place-items-center text-ink hover:bg-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
 				><ChevronLeft size={20} aria-hidden="true" /></a
 			>
 			<a
 				href={hrefOf(next.id)}
 				data-sveltekit-noscroll
 				aria-label="Next mockup of this plan"
-				class="grid w-11 cursor-pointer place-items-center border-l border-line text-ink hover:bg-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+				class="grid w-12 cursor-pointer place-items-center border-l border-line text-ink hover:bg-raised focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
 				><ChevronRight size={20} aria-hidden="true" /></a
 			>
 		</div>
