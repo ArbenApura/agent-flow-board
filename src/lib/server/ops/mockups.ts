@@ -12,7 +12,7 @@ import { z } from 'zod';
 // -- MODULES -- //
 import { appendEvent } from '../db/events';
 import { syncMockupsOfItem } from '../db/mockupSync';
-import { item, mockup, mockupVersion, project, user } from '../db/schema';
+import { item, mockup, mockupPin, mockupVersion, project, user } from '../db/schema';
 import { KIT_MARKER, loadKit, wantsKit, type LoadedKit } from '../mockups/kitHead';
 import { mockupKey } from '../mockups/keys';
 import { lintMockupHtml } from '../mockups/lint';
@@ -487,6 +487,100 @@ export async function listMockups(ctx: Ctx, raw: z.input<typeof listInput>) {
 			})
 		};
 	});
+}
+
+// -- THE MOCKUP OF A CLAIMED PLAN -- //
+
+/** The fixed line a claim reply carries when the plan has a mockup. Server text only: no mockup text is ever put in it. */
+export const MOCKUP_RULE =
+	'This plan has a mockup. Before any visible code in a phase that touches a screen, fetch it with mockup_get (notes and open pins first), build from it with the project real components first, and write a "Mockup read" line for the phase in the design-brief section. Never skip it and never design your own screen in its place.';
+
+const CLAIM_MOCKUPS_MAX = 5;
+const CLAIM_TITLE_CHARS = 120;
+
+/**
+ * What a claim reply says about the plan's mockups (AFB-20261109-1314): `{}` when the plan has none, the list and the
+ * rule when it has, and `mockupsUnavailable` when the lookup failed. It never throws, because the claim already
+ * happened and a lookup problem must not turn it into an error.
+ */
+export async function claimMockups(
+	ctx: Ctx,
+	itemRef: string
+): Promise<
+	| Record<string, never>
+	| { mockupsUnavailable: true }
+	| {
+			mockups: {
+				id: string;
+				title: string;
+				currentVersion: number;
+				openPins: number;
+				untrusted: true;
+			}[];
+			moreMockups?: number;
+			mockupRule: string;
+	  }
+> {
+	try {
+		// A savepoint inside the open call transaction: a database error here rolls back only this lookup, so the claim's own
+		// transaction is not left aborted
+		return await run(ctx, (outer) =>
+			outer.transaction(async (sp) => {
+				const tx = sp as unknown as Tx;
+				const plan = await findItem(tx, ctx, itemRef);
+				await requireCap(tx, ctx, 'read', plan.projectId);
+				const rows = await tx
+					.select()
+					.from(mockup)
+					.where(
+						and(eq(mockup.itemId, plan.id), eq(mockup.orgId, ctx.orgId), isNull(mockup.trashedAt))
+					)
+					.orderBy(desc(mockup.updatedAt));
+				const visible = rows.filter((m) => canSeeMockup(m, ctx.actor.userId, plan));
+				if (!visible.length) return {};
+				const shown = visible.slice(0, CLAIM_MOCKUPS_MAX);
+				// One grouped query: the open pins of each mockup's current version
+				const pins = await tx
+					.select({
+						mockupId: mockupPin.mockupId,
+						version: mockupPin.versionNumber,
+						n: sql<number>`count(*)::int`
+					})
+					.from(mockupPin)
+					.where(
+						and(
+							inArray(
+								mockupPin.mockupId,
+								shown.map((m) => m.id)
+							),
+							isNull(mockupPin.resolvedAt)
+						)
+					)
+					.groupBy(mockupPin.mockupId, mockupPin.versionNumber);
+				const open = new Map(pins.map((p) => [`${p.mockupId}:${p.version}`, p.n]));
+				return {
+					mockups: shown.map((m) => ({
+						id: m.id,
+						title:
+							m.title.length > CLAIM_TITLE_CHARS
+								? `${m.title.slice(0, CLAIM_TITLE_CHARS)}...`
+								: m.title,
+						currentVersion: m.currentVersion,
+						openPins: open.get(`${m.id}:${m.currentVersion}`) ?? 0,
+						untrusted: true as const
+					})),
+					...(visible.length > shown.length ? { moreMockups: visible.length - shown.length } : {}),
+					mockupRule: MOCKUP_RULE
+				};
+			})
+		);
+	} catch (e) {
+		// A caller who may not see the plan or its project has no mockups to be told about
+		if (e instanceof OpError && (e.code === 'FORBIDDEN' || e.code === 'NOT_FOUND')) return {};
+		// Anything else is a real fault: say so in the reply and in the log, and let the claim stand
+		console.error('claimMockups failed', e instanceof Error ? e.message : 'unknown error');
+		return { mockupsUnavailable: true };
+	}
 }
 
 /** Copies an earlier version on top as the newest one. The old file stays, and the copy owns its own bytes. */

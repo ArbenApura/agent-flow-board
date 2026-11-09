@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.3.0",
+		"version": "1.3.1",
 		"releasedAt": "2026-11-09"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.15",
+			"version": "1.1.16",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -86,11 +86,15 @@
 				{
 					"version": "1.1.15",
 					"hash": "86476e1cb2901b26f2616e40bdf1c73302755cabec3e591b0210eb4a673c23f4"
+				},
+				{
+					"version": "1.1.16",
+					"hash": "ecd09914a4f892da35f757c39d653e2805ac4deb8b72b76b30584a3d86befabd"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.1.3",
+			"version": "1.1.4",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -115,6 +119,10 @@
 				{
 					"version": "1.1.3",
 					"hash": "3a27a03a3e751d8787d28fbedf73a4f883529cc76138b3ba78ddc24425e92561"
+				},
+				{
+					"version": "1.1.4",
+					"hash": "b1f44c4ed331274089a4f56b256755eb23623efe82d188012220f7d4665b2417"
 				}
 			]
 		},
@@ -204,7 +212,7 @@
 			]
 		},
 		"flow-critic": {
-			"version": "1.1.4",
+			"version": "1.1.5",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -233,6 +241,10 @@
 				{
 					"version": "1.1.4",
 					"hash": "7f562183e8759bfa25fd3d8d767e688a954004fd86ff91ba94519b7d64097438"
+				},
+				{
+					"version": "1.1.5",
+					"hash": "6d3509c1685186d24c04bc049fe96ad3011dc3c8428cfa22a3102d5a9204d01a"
 				}
 			]
 		},
@@ -270,7 +282,7 @@
 			]
 		},
 		"flow-mockup": {
-			"version": "1.1.0",
+			"version": "1.1.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -287,6 +299,10 @@
 				{
 					"version": "1.1.0",
 					"hash": "c8fc311c6d69b383eb7688474fb68d11d9483196aa1178fe5f24f3bf270d8a44"
+				},
+				{
+					"version": "1.1.1",
+					"hash": "1e29b3284e9a45dee27e8d022c5a970cc5a41d982ec56dcfff658f5463b96bf2"
 				}
 			]
 		},
@@ -342,6 +358,24 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.3.1",
+			"date": "2026-11-09",
+			"notes": [
+				"flow 1.1.16 and flow-mockup 1.1.1: fetching the plan's mockup is mandatory. A build reads it with mockup_get before any visible code in every phase that touches a screen (a plan has one when work_start returns mockups or mockup_list names one, also in the lite flow and when it was linked after approval) and writes a Mockup read line in the design-brief for the phase. An agent never skips it or designs its own screen in its place. Reading it is never a stop and never extra scope; making a mockup still needs the user's yes.",
+				"flow-critic 1.1.5 and flow-audit 1.1.4: the critic flags a missing or outdated Mockup read line and code that differs from the Keep notes without a reason; the audit reopens a step that changed screen files with no line for its phase."
+			],
+			"skills": {
+				"flow": "1.1.16",
+				"flow-audit": "1.1.4",
+				"flow-check": "1.2.1",
+				"flow-critic": "1.1.5",
+				"flow-interview": "1.1.4",
+				"flow-mockup": "1.1.1",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
 		{
 			"version": "1.3.0",
 			"date": "2026-11-09",

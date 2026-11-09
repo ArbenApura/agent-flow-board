@@ -15,6 +15,7 @@ import { addAttachment } from '../ops/attachments';
 import { OpError, run } from '../ops/context';
 import { createTask, listTasks, updateTask } from '../ops/docs';
 import { createItem, getItem } from '../ops/items';
+import { claimMockups } from '../ops/mockups';
 import { listProjects } from '../ops/projects';
 import { recordSteps } from '../ops/steps';
 import { setStatus } from '../ops/status';
@@ -400,7 +401,9 @@ export function registerCompat({ tool }: ToolBuilder) {
 			return {
 				claim: { item: r.item?.ref, phase: r.phase },
 				displayTitle: r.displayTitle,
-				nextOpen: r.nextOpen
+				nextOpen: r.nextOpen,
+				// The plan's mockups and the rule to read them (AFB-20261109-1314)
+				...(r.item ? await claimMockups(c, r.item.ref) : {})
 			};
 		}
 	);

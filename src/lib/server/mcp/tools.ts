@@ -27,6 +27,7 @@ import {
 } from '../ops/docs';
 import { addAttachment } from '../ops/attachments';
 import { closeLiteItem, createLiteItem, liteInput } from '../ops/lite';
+import { claimMockups } from '../ops/mockups';
 import { recordCallTiming } from './timing';
 import { slowCallsInput, slowestCalls } from '../ops/timing';
 import { OpError, fingerprintOf, run, runCall, subRequest } from '../ops/context';
@@ -482,6 +483,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				item: c.item?.ref,
 				phase: c.phase,
 				nextOpen: c.nextOpen,
+				// The plan's mockups and the rule to read them (AFB-20261109-1314)
+				...(c.item ? await claimMockups(ctx, c.item.ref) : {}),
 				...notice
 			};
 		}
@@ -489,13 +492,18 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'work_start',
-		'Claim an item (and a phase) before you edit anything. Returns the session title and the next open steps. Call it for the item the user names.',
+		'Claim an item (and a phase) before you edit anything. Returns the session title, the next open steps and, when the plan has a mockup, its mockups and a rule to fetch it with mockup_get before any visible code. Call it for the item the user names.',
 		{ item: itemName, phase: z.string().optional() },
 		{ session: true },
 		async (a, { ctx }) => {
 			const c = await claim(ctx, ctx.actor.sessionId ?? a.sessionId!, a.item, a.phase);
 			const d = await getItem(ctx, a.item);
-			return { displayTitle: c.displayTitle, phase: c.phase, ...summarize(d) };
+			return {
+				displayTitle: c.displayTitle,
+				phase: c.phase,
+				...summarize(d),
+				...(await claimMockups(ctx, d.item.ref))
+			};
 		}
 	);
 

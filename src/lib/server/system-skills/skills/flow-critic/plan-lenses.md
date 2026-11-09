@@ -143,6 +143,7 @@ Whatever the topic, when the plan adds or changes a screen, one subagent also ch
 - [ ] **The inspiration is real**
   Do the similar screens and components the brief names exist at those paths, and does what it says it copies match their code? A false one is a `HIGH`.
 - [ ] **The mockup question was handled**
+  A plan that already has a mockup must not tell the build to skip it or to design its own screen: that is a `HIGH`. A mockup is read in every phase that touches a screen (`/flow` step 3a), and the plan may not make that optional.
   A plan may record the mockup answer as a `settled` decision, and a mockup on the board is linked from `design-brief`. A mockup made without a recorded yes, a mockup written as a counted step or a file in the repo, a mockup asked on its own turn instead of in the single approval question, or a mockup treated as a spec or as something to approve is a `MEDIUM`. A plan with no recorded answer is fine when it was written where `/flow` step 6a does not apply (no visible change, or a repo rulebook that forbids mockups), and is a `MEDIUM` when that step applied.
 - [ ] **Names its sibling pages**
   Does the spec name 1 to 3 sibling pages the new screen is copied from, level by level? Missing is a `MEDIUM`.
