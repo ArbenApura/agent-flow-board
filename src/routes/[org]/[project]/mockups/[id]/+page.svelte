@@ -375,7 +375,7 @@
 	<!-- THE OTHER MOCKUPS OF THIS PLAN: PREVIOUS AND NEXT GO ROUND, AND THE LIST NAMES EACH ONE -->
 	{#if siblings.length > 1}
 		<nav
-			class="flex flex-wrap items-center gap-2"
+			class="flex items-center gap-2"
 			aria-label="Mockups of this plan"
 			data-testid="mockup-siblings"
 		>
@@ -385,24 +385,27 @@
 				class="inline-flex size-10 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent max-sm:size-11"
 				><ChevronLeft size={16} aria-hidden="true" /></a
 			>
-			<Select
-				label="Mockups of this plan"
-				value={m.id}
-				options={siblings.map((s) => ({
-					value: s.id,
-					label: s.title,
-					hint: `v${s.currentVersion}`
-				}))}
-				onchange={(id) => void goto(`${base}/mockups/${id}`)}
-				triggerClass="w-72 max-w-full"
-			/>
+			<!-- THE LIST TAKES THE ROOM BETWEEN THE TWO ARROWS ON A PHONE -->
+			<div class="min-w-0 flex-1 sm:flex-none">
+				<Select
+					label="Mockups of this plan"
+					value={m.id}
+					options={siblings.map((s) => ({
+						value: s.id,
+						label: s.title,
+						hint: `v${s.currentVersion}`
+					}))}
+					onchange={(id) => void goto(`${base}/mockups/${id}`)}
+					triggerClass="w-full min-w-0 sm:w-72"
+				/>
+			</div>
 			<a
 				href={`${base}/mockups/${siblings[(place + 1) % siblings.length].id}`}
 				aria-label="Next mockup of this plan"
 				class="inline-flex size-10 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent max-sm:size-11"
 				><ChevronRight size={16} aria-hidden="true" /></a
 			>
-			<span class="text-sm text-muted">Mockup {place + 1} of {siblings.length}</span>
+			<span class="text-sm text-muted max-sm:hidden">Mockup {place + 1} of {siblings.length}</span>
 		</nav>
 	{/if}
 
@@ -462,9 +465,10 @@
 					aria-expanded={drawerOpen}
 					aria-controls="mockup-comments"
 					data-testid="comments-button"
+					aria-label="Comments"
 					class={drawerOpen ? 'border-accent! bg-accent-soft! text-accent-text!' : ''}
 				>
-					<MessageSquare size={16} /> Comments
+					<MessageSquare size={16} /> <span class="max-sm:hidden">Comments</span>
 					<Badge tone="accent" class="px-2">{openCount}</Badge>
 				</Button>
 				{#if canWrite}
@@ -473,10 +477,11 @@
 						onclick={() => (pinMode = !pinMode)}
 						aria-pressed={pinMode}
 						data-testid="add-pin"
+						aria-label={pinMode ? 'Placing a comment' : 'Add a comment'}
 						class={pinMode ? 'border-accent! bg-accent-soft! text-accent-text!' : ''}
 					>
 						<MessageSquarePlus size={16} />
-						{pinMode ? 'Placing a comment' : 'Add a comment'}
+						<span class="max-sm:hidden">{pinMode ? 'Placing a comment' : 'Add a comment'}</span>
 						<kbd
 							class="rounded border border-line bg-surface px-1.5 font-mono text-badge text-muted max-sm:hidden"
 							>C</kbd

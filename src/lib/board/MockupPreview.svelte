@@ -392,6 +392,7 @@
 						label="Device"
 						value={device}
 						{options}
+						compactOnPhone
 						onchange={(v) => (picked = v as ScreenKey)}
 					/>
 				</div>

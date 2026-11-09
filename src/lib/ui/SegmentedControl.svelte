@@ -20,6 +20,7 @@
 		value = $bindable(),
 		label,
 		onchange,
+		compactOnPhone = false,
 		class: extra
 	}: {
 		options: Option[];
@@ -27,6 +28,8 @@
 		/** Names the group for screen readers. */
 		label: string;
 		onchange?: (value: string) => void;
+		/** On a phone an option that has an icon shows the icon only, so a long row fits. The label stays for screen readers. */
+		compactOnPhone?: boolean;
 		class?: string;
 	} = $props();
 
@@ -74,6 +77,7 @@
 			onkeydown={(e) => onKey(e, i)}
 			class={cn(
 				'inline-flex h-full min-w-16 cursor-pointer items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
+				compactOnPhone && opt.icon && 'max-sm:min-w-11 max-sm:px-2',
 				value === opt.value
 					? 'bg-surface text-ink shadow-[0_0_0_1px_var(--line)]'
 					: 'text-muted hover:text-ink'
@@ -83,7 +87,7 @@
 				{@const Icon = opt.icon}
 				<Icon size={16} class="shrink-0" aria-hidden="true" />
 			{/if}
-			{opt.label}
+			<span class={compactOnPhone && opt.icon ? 'max-sm:sr-only' : ''}>{opt.label}</span>
 		</button>
 	{/each}
 </div>
