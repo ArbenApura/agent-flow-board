@@ -931,11 +931,10 @@ export function toolAgentAction(
 			action: 'connect',
 			why: 'No afb-checks tool is connected to this project.',
 			steps: [
-				`With the bridge installed (agent-flow-board) no tool folder is needed: agent-flow-board check connect --server ${server} --org ${org} --json, then agent-flow-board check doctor --fix --json. The steps below are for the standalone afb-checks folder.`,
-				`On the machine that runs the tool, start in the background: node afb-checks.mjs connect --server ${server} --org ${org} --json (one tool serves every organisation: this adds ${org} next to the others and never replaces one, so never add --force for it)`,
+				`On the machine that runs the tool, with the bridge installed (agent-flow-board), start in the background: agent-flow-board check connect --server ${server} --org ${org} --json (one machine serves every organisation: this adds ${org} next to the others and never replaces one, so never add --force for it)`,
 				'Read its first output line. It holds userCode and verifier.',
 				'Call tool_connection_approve with both. Only a code that tool started is accepted.',
-				'When the tool prints its connected line, run: node afb-checks.mjs doctor --fix --json (it starts the worker), then call runner_status again.'
+				'When the tool prints its connected line, run: agent-flow-board check doctor --fix --json (it starts the worker), then call runner_status again.'
 			]
 		};
 	if (state === 'repair')
@@ -943,7 +942,7 @@ export function toolAgentAction(
 			action: 'repair',
 			why: 'The tool is connected but is not running or cannot reach this board.',
 			steps: [
-				'On the machine that runs the tool, run: node afb-checks.mjs doctor --fix --json',
+				'On the machine that runs the tool, run: agent-flow-board check doctor --fix --json',
 				'If it lists a problem with a next step, do that step (for a stale board address it names the connect command).',
 				'Call runner_status again.'
 			]
@@ -1392,8 +1391,10 @@ export async function finishCheckRun(
 	const leaked = report.log ? findSecret(report.log, needles) : null;
 	const log = report.log && !leaked ? maskSecrets(report.log, needles).slice(-LOG_KEEP) : null;
 	// A run that was asked for a registration is accepted only from that registration: a tool that ran another one (or did not say) cannot close a step
+	// (an error report closes nothing, so it keeps its own reason even when the tool stopped before it knew its registration)
 	const wrongRegistration =
 		held.registration !== null &&
+		report.result !== 'error' &&
 		report.registration?.toLowerCase() !== held.registration.toLowerCase();
 	const result = leaked || wrongRegistration ? 'error' : report.result;
 	const reason = leaked

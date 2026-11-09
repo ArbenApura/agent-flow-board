@@ -251,6 +251,25 @@ describe('several registrations for one board project', () => {
 		expect(wrong.ticked).toEqual([]);
 		const view = (await itemChecks(as('member'), item.ref)).checks[0].runs[0];
 		expect(view.reason).toMatch(/asked for the registration HAPRM, but the tool reported HAPR/);
+		// An error report closes nothing, so it keeps its own reason even when the tool stopped before it knew its registration
+		await requestRun(as('member'), {
+			item: item.ref,
+			key: 'M1',
+			registration: 'HAPRM',
+			step: '1.1'
+		});
+		const failing = (await claimCheckJob(db, auth, services))!;
+		const early = await finishCheckRun(
+			db,
+			auth,
+			failing.id,
+			{ result: 'error', reason: 'The build failed (exit 1).' },
+			services
+		);
+		expect(early.result).toBe('error');
+		expect(early.ticked).toEqual([]);
+		const earlyView = (await itemChecks(as('member'), item.ref)).checks[0].runs[0];
+		expect(earlyView.reason).toMatch(/The build failed/);
 		// The right one passes, the step closes, and the run shows the registration, folder and branch
 		await requestRun(as('member'), {
 			item: item.ref,

@@ -1417,7 +1417,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				.nullable()
 				.optional()
 				.describe(
-					'The afb-checks registration (repo folder) this check runs in, when the project has several. Leave it out to keep the saved one; null clears it'
+					'The check registration (repo folder) this check runs in, when the project has several. Leave it out to keep the saved one; null clears it'
 				),
 			coveredPaths: z
 				.array(z.string().min(1).max(200))
@@ -1466,7 +1466,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				.regex(/^[A-Za-z0-9_-]{1,32}$/)
 				.optional()
 				.describe(
-					'The afb-checks registration (repo folder) for this run. Needed when the project has several and the check names none; runner_status lists them'
+					'The check registration (repo folder) for this run. Needed when the project has several and the check names none; runner_status lists them'
 				),
 			wait: z
 				.number()
@@ -1513,7 +1513,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'runner_status',
-		'Is an afb-checks tool online to take runs? Per project: online, last seen, kind, runs held and one plain line on what to do when it is offline. Never shows a token or a name.',
+		'Is a check runner (the bridge) online to take runs? Per project: online, last seen, kind, runs held and one plain line on what to do when it is offline. Never shows a token or a name.',
 		{
 			project: z
 				.string()

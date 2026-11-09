@@ -133,7 +133,7 @@ export async function registrationFit(
 			ok: false,
 			choices: all.length ? all : null,
 			reason: old
-				? `The afb-checks tool that is online is too old to run a named registration (${wanted}). Your agent upgrades it: node afb-checks.mjs upgrade <a folder with a newer template>.`
+				? `The afb-checks tool that is online is too old to run a named registration (${wanted}). Your agent upgrades it: npm install -g @agent-flow-board/bridge@latest, then agent-flow-board check doctor --fix --json.`
 				: `No online afb-checks tool holds the registration ${wanted} for ${projectKey}.${all.length ? ` It holds: ${all.join(', ')}.` : ''}`
 		};
 	}

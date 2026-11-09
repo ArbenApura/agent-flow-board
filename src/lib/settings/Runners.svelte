@@ -116,7 +116,7 @@
 	icon={Server}
 	{group}
 	title="Connected tools"
-	text="The afb-checks tools that answer browser checks and UI shots for this organisation. Your agents connect the tool and keep it running; nothing to type here."
+	text="The machines that answer browser checks and UI shots for this organisation, through the agent-flow-board bridge. Your agents connect the machine and keep it running; nothing to type here."
 >
 	{#if runners.length === 0}
 		<div class="text-sm text-muted">

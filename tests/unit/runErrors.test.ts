@@ -92,7 +92,7 @@ const CORPUS: { result: string; reason: string; code: string }[] = [
 	{
 		result: 'error',
 		reason:
-			'This afb-checks is too old for this board. Run: node afb-checks.mjs upgrade <a folder with a newer template>.',
+			'This afb-checks is too old for this board. To upgrade, run: npm install -g @agent-flow-board/bridge@latest, then agent-flow-board check doctor --fix --json.',
 		code: 'TOOL_OUTDATED'
 	}
 ];

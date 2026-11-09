@@ -62,7 +62,7 @@ export async function handleRunnerApi(req: ApiRequest, deps: ApiDeps): Promise<A
 			return fail(
 				426,
 				'UPGRADE_REQUIRED',
-				'This afb-checks is too old for this board. Run: node afb-checks.mjs upgrade <a folder with a newer template>.'
+				'This afb-checks is too old for this board. To upgrade, run: npm install -g @agent-flow-board/bridge@latest, then agent-flow-board check doctor --fix --json.'
 			);
 		// The head of the tool's audit chain, kept so a log that was cut or rewritten on the machine shows on the board
 		// This note must never stop a run: a failure to record it is only logged

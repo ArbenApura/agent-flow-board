@@ -513,7 +513,7 @@ describe('checks an agent drives alone', () => {
 		expect(on.projects[0].agentAction).toBeNull();
 		expect(off.projects[0].agentAction).toMatchObject({ action: 'repair' });
 		expect(off.projects[0].agentAction?.steps.join('\n')).toContain(
-			'node afb-checks.mjs doctor --fix --json'
+			'agent-flow-board check doctor --fix --json'
 		);
 		expect(off).toHaveProperty('board');
 		// A token limited to another project sees none of this org's projects, and cannot ask for one by name

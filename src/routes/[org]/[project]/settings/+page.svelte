@@ -197,7 +197,7 @@
 
 				<Switch
 					label="This project is a web app"
-					hint="Web apps can run browser checks and UI shots through the afb-checks tool."
+					hint="Web apps can run browser checks and UI shots through the agent-flow-board bridge."
 					bind:checked={webApp}
 					disabled={!can}
 				/>
