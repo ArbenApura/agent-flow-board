@@ -12,7 +12,6 @@
 	import { ApiError, api, deletePicture, newKey, putPicture } from '#lib/board/api.js';
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
 	import AgentAccess from '#lib/settings/AgentAccess.svelte';
-	import BrowserChecks from '#lib/settings/BrowserChecks.svelte';
 	import { canon, createFollower } from '#lib/settings/follow.js';
 	import {
 		savedStreams,
@@ -284,8 +283,6 @@
 					/>
 				</Section>
 			{/if}
-
-			<BrowserChecks webApp={p.webApp} tools={data.tools} />
 
 			<Section
 				id="trash"
