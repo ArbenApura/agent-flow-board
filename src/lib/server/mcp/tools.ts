@@ -520,7 +520,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'lite_new',
-		'Lite flow for a plan of 1 to 3 steps: creates the item with its steps, spec and settled decisions in one call. A longer plan is refused; use item_new. You still ask for approval before building.',
+		'Lite flow for a plan of 1 to 3 steps: creates the item with its steps, spec and settled decisions in one call. A longer plan is refused; use item_new. You still hand the plan over and wait for the user to say go before building.',
 		{
 			project: z.string(),
 			title: z.string().min(3),

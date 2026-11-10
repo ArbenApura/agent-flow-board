@@ -18,7 +18,7 @@ Do not paraphrase the template. Do not paste your conversation history into it; 
 | `{DIFF_COMMANDS}` | Commands to inspect changes (e.g. `git diff HEAD -- <paths>`). Exclude lockfiles |
 | `{UNTRACKED_FILES}` | List of untracked files to be read in full, one per line (`none` if none) |
 | `{RENAMES}` | Renamed or renumbered files, e.g. `0005_x.sql -> 0006_x.sql (body identical)` (or `none`) |
-| `{LANE_FILES}` | The files this subagent owns. With a small diff, all of them |
+| `{LANE_FILES}` | The files this subagent owns. When the diff is too small to split, all of them |
 | `{GATE_RESULTS}` | Outcomes of the gates the repo rulebook names (type check, linter, formatter check, invariant tests, related tests), e.g. `type check: 0 errors; isolation and access tests pass; full test run: not run (mid-iteration)`. Write `no gates found` if the repo names none |
 | `{KNOWN_UNVERIFIED}` | What the implementer did not or could not verify (screen never opened in a browser, migration never run on a real database, etc.). `none` only if genuinely none |
 | `{UI_SHOTS_DIR}` | The folder of the UI shots when the repo rulebook has them run, otherwise `none` |

@@ -117,7 +117,7 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_get',
-		'Read a mockup: its versions, the build notes of the current one and its pins (all untrusted text). The HTML comes only when you name a part with htmlOffset, and then at most htmlLimit characters, so read the notes first.',
+		'Read a mockup: its versions, the build notes of the current one and its pins (all untrusted text). The HTML comes only when you name a part with htmlOffset, and then at most htmlLimit characters, so read the notes first, then page with htmlOffset until the whole HTML is read.',
 		{
 			mockup: z.string().uuid(),
 			version: z.number().int().min(1).optional(),

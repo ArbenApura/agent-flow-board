@@ -65,6 +65,9 @@ describe('workflow text', () => {
 		expect(body).toContain('Code mode: read code-template, code-lenses and checklists');
 		expect(body).toContain('offset');
 		expect(body).toContain('Do not dispatch any subagent until the files for your mode are read');
+		// AFB-20261110-2305: the critic has no size gate, three subagents by default
+		expect(body).not.toContain('small diff, 3 otherwise');
+		expect(body).toContain('3 subagents by default');
 		// The note must send the model to workflow_get, never to a tool that no longer exists
 		expect(body.slice(note, body.indexOf('# Flow Critic'))).not.toContain('skill_get');
 	});

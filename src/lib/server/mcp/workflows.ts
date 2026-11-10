@@ -39,7 +39,7 @@ const CRITIC_NOTE = `\n\n> **First action, before you choose a mode or dispatch 
 > - Code mode: read code-template, code-lenses and checklists.
 > - Mockup mode (only on the user's word): read mockup-lenses.
 > - Every reply is served in parts of 12000 characters. When a reply has a next value, call again with offset set to it, and read to the end (the critic text and the longer files come in several parts). A file you read only in part gives you a partial lens list.
-> - Do not dispatch any subagent until the files for your mode are read in full. Then follow the subagent count and dispatch rules below (1 subagent for a small diff, 3 otherwise).`;
+> - Do not dispatch any subagent until the files for your mode are read in full. Then follow the subagent count and dispatch rules below (3 subagents by default whatever the size, the number the user asks for otherwise; never skipped for a small plan).`;
 
 export const WORKFLOW_FILE_NAMES = [
 	'checklists',

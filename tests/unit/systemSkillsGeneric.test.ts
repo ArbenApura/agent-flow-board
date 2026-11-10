@@ -52,8 +52,8 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'a design gap is a reason to stop', pattern: /\(5\) a visible design choice/ },
 		{ rule: 'ask before any mockup', pattern: /Never make one without a yes/ },
 		{
-			rule: 'the mockup offer is a line of the one approval question, on every harness',
-			pattern: /the same question carries one more line: also draw a design mockup/
+			rule: 'the mockup offer is a line of the hand-over, on every harness',
+			pattern: /add one more line: a design mockup can also be drawn on the board/
 		},
 		{
 			rule: 'a mockup is inspiration and never the spec',
@@ -83,7 +83,37 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		},
 		{ rule: 'a renewed session is used from then on', pattern: /sessionRenewed: true/ },
 		// AFB-20261110-1448: the rules that keep a run moving
-		{ rule: 'the approval is asked once', pattern: /The approval is asked once/ },
+		{ rule: 'a go is given once', pattern: /A go is given once/ },
+		// AFB-20261110-2305: the plan ends at a plain hand-over and waits for a go
+		{
+			rule: 'the plan ends with a plain-text hand-over and asks no question',
+			pattern: /Ask no question/
+		},
+		{ rule: 'the harness question tool is named and forbidden', pattern: /`AskUserQuestion`/ },
+		{
+			rule: 'the turn ends at the hand-over until a later message says to build',
+			pattern: /until the user sends a later message/
+		},
+		{
+			rule: 'the request words are never a go',
+			pattern: /"fix", "add", "make"\) are never a go/
+		},
+		{
+			rule: 'a bare ok or yes is only an acknowledgement',
+			pattern: /a bare "ok" or "yes" is only an acknowledgement/
+		},
+		{
+			rule: 'the hand-over is a stop reason',
+			pattern: /\(6\) the plan was just written and no later message/
+		},
+		{
+			rule: 'the mockup HTML is read in full, never only the notes',
+			pattern: /read the actual mockup HTML in full/
+		},
+		{
+			rule: 'the end-of-build review is never skipped for a small item',
+			pattern: /at the end of every item, whatever its size/
+		},
 		{
 			rule: 'naming the mockup skill with flow is the yes',
 			pattern: /Naming `\/flow-mockup` together with `\/flow`[^\n]*is the yes/
@@ -110,7 +140,13 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'checks the design brief', pattern: /Has a sourced design brief/ },
 		{ rule: 'checks the build against the design', pattern: /An unapproved difference is/ },
 		{ rule: 'mockup mode runs only on the user word', pattern: /runs only on the user's word/ },
-		{ rule: 'a mockup shell must be the app own', pattern: /The shell is the app's own/ }
+		{ rule: 'a mockup shell must be the app own', pattern: /The shell is the app's own/ },
+		// AFB-20261110-2305: no size gate, three subagents by default
+		{
+			rule: 'no review is skipped for being small',
+			pattern: /No review is skipped for being small/
+		},
+		{ rule: 'three subagents by default', pattern: /\*\*3 subagents by default\*\*/ }
 	],
 	'flow-verify': [
 		{ rule: 'tests after a merge before a push', pattern: /After a merge, a pull or a rebase/ },
@@ -216,6 +252,18 @@ describe('the shipped skills keep their safety rules', () => {
 			expect(missing, name).toEqual([]);
 		});
 	}
+});
+
+describe('the shipped skills no longer ask an approval question', () => {
+	it('names no approval question or approval answer and no 3-steps skip or small-diff gate', () => {
+		const hits: string[] = [];
+		for (const [name, files] of Object.entries(sourceFiles()))
+			for (const file of files)
+				for (const { n, line } of unmarkedLines(file.text))
+					if (/approval (question|answer)|3 steps or fewer|1 subagent for a small diff/i.test(line))
+						hits.push(`${name}/${file.path}:${n}`);
+		expect(hits).toEqual([]);
+	});
 });
 
 describe('the skill descriptions', () => {

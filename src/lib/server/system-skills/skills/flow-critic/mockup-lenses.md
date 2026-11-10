@@ -100,7 +100,7 @@ Your sole directive is to find where the mockup differs from the real product, b
 
 ## The lenses
 
-Six lenses. One subagent takes all of them for a mockup of one screen; with three subagents they are split M1 + M2, M3 + M4 and M5 + M6; a user who asks for more gets one lens each.
+Six lenses. By default three subagents split them M1 + M2, M3 + M4 and M5 + M6 (one subagent takes all of them only when the user asks for one); a user who asks for more gets one lens each.
 
 ### Lens M1 - Shell and layout fidelity
 - [ ] **The shell is the app's own.** Compare the mockup's frame with `{SHELL_SOURCES}` element by element: the same nesting, the same order, the same class strings, the same landmarks and attributes. A wrapper that is missing, a class that differs or a part that was redrawn is a finding; a frame that is the starter's placeholder is a `BLOCKER`.

@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.5.1",
-		"releasedAt": "2026-11-10"
+		"version": "1.6.0",
+		"releasedAt": "2026-11-11"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.2.1",
+			"version": "1.3.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -102,6 +102,10 @@
 				{
 					"version": "1.2.1",
 					"hash": "00509eb934300429cd41b9e07325adc73b9cda616fadda8be845035ef7b853dc"
+				},
+				{
+					"version": "1.3.0",
+					"hash": "4f74f8487877531d211b7d0aeb79f80ffffc2453f4163e6bb97fd4abfcf28407"
 				}
 			]
 		},
@@ -232,7 +236,7 @@
 			]
 		},
 		"flow-critic": {
-			"version": "1.2.1",
+			"version": "1.3.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -273,11 +277,15 @@
 				{
 					"version": "1.2.1",
 					"hash": "8ab7a565c4baf65fecdaf1df73a2a619ebd21de89bc96a876a2ae3817ee5b658"
+				},
+				{
+					"version": "1.3.0",
+					"hash": "ee87f7dfa3969d81a8bdb00d15b932d47b14e9a1f54f9bbfef5ffffe6a08a5fb"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.1.5",
+			"version": "1.1.6",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -310,11 +318,15 @@
 				{
 					"version": "1.1.5",
 					"hash": "cfcad49e04e1bf02132deee75414f12b775c75f1347c0a59a9e3012634644889"
+				},
+				{
+					"version": "1.1.6",
+					"hash": "70dc877cb373a4332f87bc36287cd9934ef19670aa134c3a5886228f13f2c4aa"
 				}
 			]
 		},
 		"flow-mockup": {
-			"version": "1.3.0",
+			"version": "1.3.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -343,6 +355,10 @@
 				{
 					"version": "1.3.0",
 					"hash": "8d652994ca15bb58ac9b1038a0434aed2d4e5a40fbc25c8bbdf5a7838415df6d"
+				},
+				{
+					"version": "1.3.1",
+					"hash": "55a028be386e3389f8073fe1429ff61c8551ad3e243bcccad1c4ca5f5037b464"
 				}
 			]
 		},
@@ -402,6 +418,26 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.6.0",
+			"date": "2026-11-11",
+			"notes": [
+				"flow 1.3.0: a plan ends at a plain-text hand-over. After the plan is written the agent asks no question and never calls the harness question tool, runs no review and starts no work until the user sends a later message that says to build in their own words (go, proceed, build, implement, do all phases). The words of the request that started the plan are never a go, and a bare ok or yes is only an acknowledgement. Open design choices and open questions are written in the hand-over as lines marked not built until you answer. The hand-over is a sixth reason to stop. The mockup offer is a line of the hand-over. When the plan has a mockup the build reads the actual mockup HTML in full and follows it strictly, never only the notes. The end-of-build code review runs for every item, a lite item too.",
+				"flow-critic 1.3.0: no review is skipped for being small. Plan mode runs on a plan of any size, and the critic dispatches 3 subagents by default in plan, code and mockup mode, or the number the user asks for. A critic run on its own ends with its report and the same plain options, never a question or the start of a build.",
+				"flow-interview 1.1.6: the interview ends with the same plain options as the flow hand-over and carries on into the build only when the message that started it also said build.",
+				"flow-mockup 1.3.1: the offer in the flow hand-over replaces the question, and the Mockup read line says the HTML was read in full."
+			],
+			"skills": {
+				"flow": "1.3.0",
+				"flow-audit": "1.1.5",
+				"flow-check": "1.2.2",
+				"flow-critic": "1.3.0",
+				"flow-interview": "1.1.6",
+				"flow-mockup": "1.3.1",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.3"
+			}
+		},
 		{
 			"version": "1.5.1",
 			"date": "2026-11-10",

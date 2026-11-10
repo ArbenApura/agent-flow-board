@@ -248,7 +248,7 @@ export function buildCreatePrompt(input: {
 		return kind === 'plan' ? `/flow new ${key}: ${idea}` : `/flow-task ${key}: ${idea}`;
 	}
 	return kind === 'plan'
-		? `Use the ${SERVER} flow workflow, workflow_get flow, to plan a new item in project ${key}. Call session_start first and wait for my approval before any code. The idea: ${idea}`
+		? `Use the ${SERVER} flow workflow, workflow_get flow, to plan a new item in project ${key}. Call session_start first and hand the plan over and wait for my go before any code. The idea: ${idea}`
 		: `Use the ${SERVER} flow-task workflow, workflow_get flow-task, to record tasks in project ${key}. Call session_start first and do not start the work. The request: ${idea}`;
 }
 

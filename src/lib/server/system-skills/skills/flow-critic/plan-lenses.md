@@ -1,6 +1,6 @@
 # Plan Critic Review Lenses
 
-This document defines the inspection checklists for plan reviews across different subagent configurations (1 subagent for a small review, 3 for a large one, or 5 subagents deep dive). Plans live on Agent Flow Board and reach the critic as pasted text; the code they describe is the repo you are working in. Some items only apply to certain stacks. Each of those carries an "Applies when ..." line: if the trigger is false for this repo, mark the item "not applicable" with that reason instead of raising a finding. A line marked (example) shows what the item looks like in one stack; read it as an illustration, and use the repo rulebook (CLAUDE.md, AGENTS.md, README) for the real names.
+This document defines the inspection checklists for plan reviews across different subagent configurations (3 subagents by default, 1 only when the user asks for it, or 5 subagents deep dive). Plans live on Agent Flow Board and reach the critic as pasted text; the code they describe is the repo you are working in. Some items only apply to certain stacks. Each of those carries an "Applies when ..." line: if the trigger is false for this repo, mark the item "not applicable" with that reason instead of raising a finding. A line marked (example) shows what the item looks like in one stack; read it as an illustration, and use the repo rulebook (CLAUDE.md, AGENTS.md, README) for the real names.
 
 ---
 
@@ -117,7 +117,7 @@ The lead runs `related_plans` for the plan's idea and pastes the digests of the 
 
 ## 1-Subagent Fast Pass Configuration
 
-When 1 subagent is requested, the subagent evaluates the plan across all three core areas above, plus the Project Safety checklist (and the Design Fit checklist when the plan has a visible change), in a single unified adversarial sweep.
+Only when the user asks for 1 subagent, the subagent evaluates the plan across all three core areas above, plus the Project Safety checklist (and the Design Fit checklist when the plan has a visible change), in a single unified adversarial sweep.
 
 ---
 
@@ -144,7 +144,7 @@ Whatever the topic, when the plan adds or changes a screen, one subagent also ch
   Do the similar screens and components the brief names exist at those paths, and does what it says it copies match their code? A false one is a `HIGH`.
 - [ ] **The mockup question was handled**
   A plan that already has a mockup must not tell the build to skip it or to design its own screen: that is a `HIGH`. A mockup is read in every phase that touches a screen (`/flow` step 3a), and the plan may not make that optional.
-  A plan may record the mockup answer as a `settled` decision, and a mockup on the board is linked from `design-brief`. A mockup made without a recorded yes, a mockup written as a counted step or a file in the repo, a mockup asked on its own turn instead of in the single approval question, or a mockup treated as a spec or as something to approve is a `MEDIUM`. A plan with no recorded answer is fine when it was written where `/flow` step 6a does not apply (no visible change, or a repo rulebook that forbids mockups), and is a `MEDIUM` when that step applied.
+  A plan may record the mockup answer as a `settled` decision, and a mockup on the board is linked from `design-brief`. A mockup made without a recorded yes, a mockup written as a counted step or a file in the repo, a mockup asked on its own turn instead of as a line of the hand-over, or a mockup treated as a spec or as something to approve is a `MEDIUM`. A plan with no recorded answer is fine when it was written where `/flow` step 6a does not apply (no visible change, or a repo rulebook that forbids mockups) and while its hand-over still lists the mockup option (nothing is recorded until the user answers); it is a `MEDIUM` only when the user answered, or a build started, with no recorded decision.
 - [ ] **Names its sibling pages**
   Does the spec name 1 to 3 sibling pages the new screen is copied from, level by level? Missing is a `MEDIUM`.
 - [ ] **Sizes from the scale**
