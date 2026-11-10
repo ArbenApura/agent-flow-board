@@ -32,7 +32,7 @@ import { listEvents } from './history';
 import { pinnedProjectIds } from './pins';
 import { canSeeItem, getItem } from './items';
 import { findProject, visibleItemSql } from './resolve';
-import { NUDGE_MINUTES, QUIET_RELEASE_MINUTES, RUNNING_WINDOW_MINUTES } from './tracking';
+import { BADGE_MINUTES, QUIET_RELEASE_MINUTES, RUNNING_WINDOW_MINUTES } from './tracking';
 
 // -- CONSTANTS -- //
 
@@ -59,7 +59,7 @@ async function runningIn(
 			// Minutes since the first unrecorded edit, only while the item still has an open step and it is past the nudge time
 			staleMinutes: sql<
 				number | null
-			>`case when ${session.firstUnrecordedEditAt} < now() - make_interval(mins => ${NUDGE_MINUTES}) and exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open') then floor(extract(epoch from now() - ${session.firstUnrecordedEditAt}) / 60)::int else null end`
+			>`case when ${session.firstUnrecordedEditAt} < now() - make_interval(mins => ${BADGE_MINUTES}) and exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open') then floor(extract(epoch from now() - ${session.firstUnrecordedEditAt}) / 60)::int else null end`
 		})
 		.from(session)
 		.innerJoin(item, eq(item.id, session.claimedItemId))

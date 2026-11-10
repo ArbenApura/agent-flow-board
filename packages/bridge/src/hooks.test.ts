@@ -125,6 +125,17 @@ describe('the Claude Code adapter', () => {
 			hookSpecificOutput: { hookEventName: 'UserPromptSubmit', sessionTitle: 'T: CKT-1' }
 		});
 		expect(claude.toOutput('prompt', {})).toEqual({});
+		// The reminder to record steps rides a prompt as context, with or without a title
+		expect(claude.toOutput('prompt', { nudge: 'Record steps' })).toEqual({
+			hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: 'Record steps' }
+		});
+		expect(claude.toOutput('prompt', { title: 'T: CKT-1', nudge: 'Record steps' })).toEqual({
+			hookSpecificOutput: {
+				hookEventName: 'UserPromptSubmit',
+				sessionTitle: 'T: CKT-1',
+				additionalContext: 'Record steps'
+			}
+		});
 		expect(claude.toOutput('closing', { ask: 'Closing CKT-2' })).toEqual({
 			hookSpecificOutput: {
 				hookEventName: 'PreToolUse',
@@ -295,7 +306,16 @@ describe('the progress first nudge', () => {
 			hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: nudge.nudge }
 		});
 		expect(claude.toOutput('tool', {})).toEqual({});
-		expect(claude.toOutput('prompt', nudge)).toEqual({});
+		// A prompt repeats it as context too, so it is read at the start of the next turn
+		expect(claude.toOutput('prompt', nudge)).toEqual({
+			hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: nudge.nudge }
+		});
+		expect(claude.toOutput('stop', nudge)).toEqual({});
+	});
+	it('Gemini gets it on BeforeAgent as context', () => {
+		expect(gemini.toOutput('prompt', nudge)).toEqual({
+			hookSpecificOutput: { hookEventName: 'BeforeAgent', additionalContext: nudge.nudge }
+		});
 	});
 	it('Gemini gets it as AfterTool context, and never a block', () => {
 		expect(gemini.toOutput('tool', nudge)).toEqual({

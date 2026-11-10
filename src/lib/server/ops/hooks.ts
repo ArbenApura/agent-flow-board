@@ -168,6 +168,20 @@ async function openStepsReminder(
 	return `${mine.ref} still has open steps (next: ${open.join(', ')}). Carry on with the next one, unless you are waiting for the user's answer. When the work is finished, call work_stop so the Running badge clears.`;
 }
 
+/**
+ * Said at the start of every turn to a session that has edits no step_done covers, while its item has an open step. A nudge only
+ * rides an edit, so an agent that ignored it, or that stopped editing, would otherwise carry the unrecorded work into the next turn
+ * until the Not recorded badge shows (AFB-20261110-0353). It reads the state and never consumes it, so it repeats each turn until recorded.
+ */
+async function unrecordedNote(ctx: Ctx, s: typeof session.$inferSelect): Promise<string | null> {
+	if (s.codeEditsSinceRecord < 1 || !s.claimedItemId) return null;
+	const mine = await claimedItem(ctx, s);
+	if (!mine || (CLOSING_STATUSES as string[]).includes(mine.status)) return null;
+	const open = await openStepKeys(ctx, mine.id, null, 3);
+	if (!open.length) return null;
+	return `${staleProgressNote(mine.ref, s.codeEditsSinceRecord)} Steps still open: ${open.join(', ')}.`;
+}
+
 /** The board brief: what is open, and the three rules that matter at the start of work. */
 async function brief(ctx: Ctx, s: typeof session.$inferSelect): Promise<string> {
 	const rows = await run(ctx, async (tx) => {
@@ -324,8 +338,8 @@ async function handleEvent(
 		return { context, ...(title ? { title } : {}), ...(notice ? { notice } : {}) };
 	}
 	if (input.event === 'prompt') {
-		const title = await titleFor(ctx, s);
-		return title ? { title } : {};
+		const [title, nudge] = await Promise.all([titleFor(ctx, s), unrecordedNote(ctx, s)]);
+		return { ...(title ? { title } : {}), ...(nudge ? { nudge } : {}) };
 	}
 	if (input.event === 'tool') {
 		// A failed call and a read are heartbeats and nothing more. A subagent's edit counts for the session (its work is the

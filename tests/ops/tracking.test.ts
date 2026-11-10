@@ -60,15 +60,15 @@ describe('small helpers', () => {
 
 describe('nudge levels', () => {
 	const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000);
-	it('rise with every 6 edits and every 10 minutes, and never go down', () => {
+	it('rise with every 3 edits and every 5 minutes, and never go down', () => {
 		expect(nudgeLevel(0, null)).toBe(0);
-		expect(nudgeLevel(5, at(2))).toBe(0);
-		expect(nudgeLevel(6, at(2))).toBe(1);
-		expect(nudgeLevel(12, at(2))).toBe(2);
-		// A slow start does not use up the 6 edit nudge: 10 minutes is level 1, 20 is level 2
-		expect(nudgeLevel(1, at(11))).toBe(1);
-		expect(nudgeLevel(6, at(11))).toBe(1);
-		expect(nudgeLevel(7, at(21))).toBe(2);
+		expect(nudgeLevel(2, at(2))).toBe(0);
+		expect(nudgeLevel(3, at(2))).toBe(1);
+		expect(nudgeLevel(6, at(2))).toBe(2);
+		// A slow start does not use up the 3 edit nudge: 5 minutes is level 1, 10 is level 2
+		expect(nudgeLevel(1, at(6))).toBe(1);
+		expect(nudgeLevel(3, at(6))).toBe(1);
+		expect(nudgeLevel(4, at(11))).toBe(2);
 	});
 });
 
@@ -634,7 +634,7 @@ describe('tracking', () => {
 		expect(again.events[3].detail).toBe('moved to another item');
 	});
 
-	it('progress first: a nudge at 6 edits, once per level, from the time rule too, and reset by a recorded step of any session', async () => {
+	it('progress first: a nudge at 3 edits, once per level, from the time rule too, and reset by a recorded step of any session', async () => {
 		const hookCtx = () => w.ctx('member', { kind: 'agent', tool: 'claude-code' });
 		const hookSession = async (externalId: string, itemRef: string | null) => {
 			await handleHook(hookCtx(), { tool: 'claude-code', externalId, event: 'start' });
@@ -653,17 +653,17 @@ describe('tracking', () => {
 			});
 		const it = await newItem('Nudged');
 		const idA = await hookSession('nudge-conversation-a', it.ref);
-		// Five edits say nothing, the sixth nudges, and the next five stay quiet
-		for (let i = 0; i < 5; i++) expect(await edit('nudge-conversation-a')).toEqual({});
-		const sixth = await edit('nudge-conversation-a');
-		expect(sixth.nudge).toContain(it.ref);
-		expect(sixth.nudge).toContain('6 code edits');
-		for (let i = 0; i < 5; i++) expect(await edit('nudge-conversation-a')).toEqual({});
-		// Every further 6 edits earn one more level
-		expect((await edit('nudge-conversation-a')).nudge).toContain('12 code edits');
+		// Two edits say nothing, the third nudges, and the next two stay quiet
+		for (let i = 0; i < 2; i++) expect(await edit('nudge-conversation-a')).toEqual({});
+		const third = await edit('nudge-conversation-a');
+		expect(third.nudge).toContain(it.ref);
+		expect(third.nudge).toContain('3 code edits');
+		for (let i = 0; i < 2; i++) expect(await edit('nudge-conversation-a')).toEqual({});
+		// Every further 3 edits earn one more level
+		expect((await edit('nudge-conversation-a')).nudge).toContain('6 code edits');
 		// The reply line of a board tool says it too, and does not consume anything
 		const notes = await run(person(), (tx) => trackingNotes(tx, idA, new Date()));
-		expect(notes.join(' ')).toContain(`12 code edits on ${it.ref} since the last step_done`);
+		expect(notes.join(' ')).toContain(`6 code edits on ${it.ref} since the last step_done`);
 		expect(await run(person(), (tx) => trackingNotes(tx, idA, new Date()))).toEqual(notes);
 		// A step recorded by another session of the same item clears this session's count
 		const idB = await newSession('antigravity');
@@ -698,6 +698,15 @@ describe('tracking', () => {
 			`update session set first_unrecorded_edit_at = now() - interval '11 minutes' where id = '${idT}'`
 		);
 		expect((await edit('nudge-conversation-t')).nudge).toContain(timed.ref);
+
+		// A new prompt repeats the reminder while edits are unrecorded, whatever the edit count, and does not consume it
+		await hookSession('nudge-conversation-q', it.ref);
+		const prompt = (externalId: string) =>
+			handleHook(hookCtx(), { tool: 'claude-code', externalId, event: 'prompt' });
+		expect((await prompt('nudge-conversation-q')).nudge).toBeUndefined();
+		await edit('nudge-conversation-q');
+		expect((await prompt('nudge-conversation-q')).nudge).toContain('1 code edit on');
+		expect((await prompt('nudge-conversation-q')).nudge).toContain('Steps still open');
 
 		// No claim and no open step mean no nudge
 		await hookSession('nudge-conversation-n', null);

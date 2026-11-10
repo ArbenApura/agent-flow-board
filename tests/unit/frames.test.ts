@@ -79,17 +79,24 @@ describe('devices a project offers', () => {
 
 describe('which device is shown', () => {
 	const all = offeredDevices(null);
-	it('starts on the laptop, or the first device when there is no laptop', () => {
-		expect(firstDevice(all, 1200)).toBe('laptop');
-		expect(firstDevice(['wide', 'tablet'], 1200)).toBe('wide');
+	it('starts on the widest device that fits at 60 percent or more: wide, laptop, tablet, phone', () => {
+		expect(firstDevice(all, 1200)).toBe('wide');
+		expect(firstDevice(all, 900)).toBe('laptop');
+		expect(firstDevice(all, 600)).toBe('tablet');
+		expect(firstDevice(all, 520)).toBe('tablet');
+		expect(firstDevice(all, 500)).toBe('phone');
+	});
+	it('skips a device the project does not offer', () => {
+		expect(firstDevice(['laptop', 'phone'], 1500)).toBe('laptop');
+		expect(firstDevice(['tablet', 'phone'], 1500)).toBe('tablet');
+		expect(firstDevice(['laptop', 'tablet'], 600)).toBe('tablet');
 	});
 	it('starts on the phone on a stage narrower than 480', () => {
 		expect(firstDevice(all, 479)).toBe('phone');
-		expect(firstDevice(all, 480)).toBe('laptop');
 		expect(firstDevice(['laptop'], 300)).toBe('laptop');
 	});
 	it('does not treat an unknown stage width as narrow', () => {
-		expect(firstDevice(all, 0)).toBe('laptop');
+		expect(firstDevice(all, 0)).toBe('wide');
 	});
 	it('keeps the pick while it is offered and never draws a device the project turned off', () => {
 		expect(effectiveDevice('tablet', all, 1200)).toBe('tablet');

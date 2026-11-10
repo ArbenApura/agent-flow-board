@@ -81,11 +81,21 @@ export const offeredDevices = (saved: string[] | null | undefined): ScreenKey[] 
 /** True when the project offers more than one device, so a switch is worth showing. */
 export const showsSwitch = (offered: ScreenKey[]): boolean => offered.length > 1;
 
-/** The device shown first: the phone on a narrow stage, otherwise the laptop, otherwise the first one offered. */
+/** The smallest a frame is drawn by default: below this the mockup is too small to read, so the next device down is shown. */
+export const MIN_DEFAULT_SCALE = 0.6;
+/** The order a device is tried in: the widest first, the phone last. */
+const DEFAULT_ORDER: ScreenKey[] = ['wide', 'laptop', 'tablet', 'phone'];
+
+/**
+ * The device shown first: the widest one offered that fits the stage without shrinking below 60 percent (wide, then laptop, then
+ * tablet, then phone). An unknown stage width starts on the widest, and a stage with room for none shows the smallest offered.
+ */
 export function firstDevice(offered: ScreenKey[], available: number): ScreenKey {
-	const list = offered.length ? offered : ALL_SCREENS;
-	if (available > 0 && available < NARROW_STAGE && list.includes('phone')) return 'phone';
-	return list.includes('laptop') ? 'laptop' : list[0];
+	const list = DEFAULT_ORDER.filter((s) => (offered.length ? offered : ALL_SCREENS).includes(s));
+	if (!list.length) return ALL_SCREENS[0];
+	if (!(available > 0)) return list[0];
+	if (available < NARROW_STAGE && list.includes('phone')) return 'phone';
+	return list.find((s) => fitScale(available, s) >= MIN_DEFAULT_SCALE) ?? list[list.length - 1];
 }
 
 /** The device to draw: the person's pick while the project still offers it, otherwise the first one. Never an effect, so no wrong frame is drawn first. */

@@ -94,8 +94,15 @@ export const claude: Adapter = {
 				// The one line for the person (an older editor status mod), shown once as the conversation starts
 				...(a.notice ? { systemMessage: a.notice } : {})
 			};
-		if (event === 'prompt' && a.title)
-			return { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', sessionTitle: a.title } };
+		if (event === 'prompt' && (a.title || a.nudge))
+			return {
+				hookSpecificOutput: {
+					hookEventName: 'UserPromptSubmit',
+					...(a.title ? { sessionTitle: a.title } : {}),
+					// The reminder to record unrecorded steps, read by the agent with the person's prompt
+					...(a.nudge ? { additionalContext: a.nudge } : {})
+				}
+			};
 		// The nudge rides back from PostToolUse as context the agent reads before its next step
 		if (event === 'tool' && a.nudge)
 			return { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: a.nudge } };
@@ -193,6 +200,9 @@ export const gemini: Adapter = {
 			return {
 				hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: a.context ?? '' }
 			};
+		// Not captured on a real install: BeforeAgent takes additionalContext in the documented protocol
+		if (event === 'prompt' && a.nudge)
+			return { hookSpecificOutput: { hookEventName: 'BeforeAgent', additionalContext: a.nudge } };
 		// Not captured on a real install: AfterTool takes additionalContext in the documented protocol
 		if (event === 'tool' && a.nudge)
 			return { hookSpecificOutput: { hookEventName: 'AfterTool', additionalContext: a.nudge } };

@@ -34,9 +34,11 @@ export const RENEW_SECONDS = 60;
 export const RUNNING_WINDOW_MINUTES = 120;
 /** A busy session that recorded nothing for this long is reminded in its next reply. */
 export const QUIET_RECORD_MINUTES = 45;
-/** Progress first: this many code edits without a recorded step, or this many minutes since the first, earn a nudge. */
-export const NUDGE_EDITS = 6;
-export const NUDGE_MINUTES = 10;
+/** Progress first: this many code edits without a recorded step, or this many minutes since the first, earn a nudge (AFB-20261110-0353: sooner, so agents record before the badge shows). */
+export const NUDGE_EDITS = 3;
+export const NUDGE_MINUTES = 5;
+/** The Not recorded badge shows only after this long, so a nudge always comes first. */
+export const BADGE_MINUTES = 10;
 /** A second session of one person and tool takes over an item's claim, and a finished item shows idle, after this quiet time. */
 export const QUIET_RELEASE_MINUTES = 10;
 export const CLOSING_STATUSES: Closing[] = ['COMPLETED', 'REMOVED'];
@@ -335,7 +337,7 @@ export async function claimsIn(tx: Tx, projectId: string, since?: Date) {
 			// Minutes of finished work left unrecorded, only past the nudge time and while the item has an open step
 			staleMinutes: sql<
 				number | null
-			>`case when ${session.firstUnrecordedEditAt} < now() - make_interval(mins => ${NUDGE_MINUTES}) and exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open') then floor(extract(epoch from now() - ${session.firstUnrecordedEditAt}) / 60)::int else null end`
+			>`case when ${session.firstUnrecordedEditAt} < now() - make_interval(mins => ${BADGE_MINUTES}) and exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open') then floor(extract(epoch from now() - ${session.firstUnrecordedEditAt}) / 60)::int else null end`
 		})
 		.from(session)
 		.innerJoin(item, eq(item.id, session.claimedItemId))

@@ -187,8 +187,11 @@ describe('mockup routes', () => {
 		expect(ok.headers.get('referrer-policy')).toBe('no-referrer');
 		const html = await ok.text();
 		expect(html).toContain('<h1>Hello</h1>');
-		// The public view never carries the pin script
+		// The public view never carries the pin script, but it does carry the read only options script, so the board can draw the options
 		expect(html).not.toContain('afb-mockup-pin');
+		expect(html).not.toContain('afb-pin-click');
+		expect(html).toContain('afb-config');
+		expect(html).toContain('afb-mockup-ready');
 		const shot = await servePublicMockup(deps(), on.token!, undefined, true);
 		expect(shot.headers.get('content-type')).toBe('image/png');
 		expect(none.headers.get('referrer-policy')).toBe('no-referrer');

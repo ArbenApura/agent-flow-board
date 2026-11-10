@@ -13,7 +13,7 @@ import { ALL_SCREENS } from '../../board/mockups';
 import { item, mockup, mockupVersion, project, user } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { injectKitHead, loadKit, wantsKit } from './kitHead';
-import { PIN_SCRIPT } from './pinScript';
+import { PIN_SCRIPT, PUBLIC_SCRIPT } from './pinScript';
 
 // -- TYPES -- //
 
@@ -61,6 +61,12 @@ const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 export function injectPinScript(html: string): string {
 	const at = html.toLowerCase().lastIndexOf('</body>');
 	return at === -1 ? html + PIN_SCRIPT : html.slice(0, at) + PIN_SCRIPT + html.slice(at);
+}
+
+/** Adds the read only script of a public link, in the same place as the pin script. It carries the options and screens, never the pins. */
+export function injectPublicScript(html: string): string {
+	const at = html.toLowerCase().lastIndexOf('</body>');
+	return at === -1 ? html + PUBLIC_SCRIPT : html.slice(0, at) + PUBLIC_SCRIPT + html.slice(at);
 }
 
 /** Every header the mockup routes send, on every answer. */
@@ -311,7 +317,7 @@ export async function findPublicMockup(
 	});
 }
 
-/** The page of a public link, sandboxed and without the pin script. The same plain page answers every kind of failure. */
+/** The page of a public link, sandboxed, with the read only options script and without the pin script. The same plain page answers every kind of failure. */
 export async function servePublicMockup(
 	deps: Deps,
 	token: string,
@@ -329,7 +335,9 @@ export async function servePublicMockup(
 			return mockupResponse({ status: 200, body: bytes, type: 'image/png', extra: referrer });
 		return mockupResponse({
 			status: 200,
-			body: await withKit(deps, found.orgId, found.projectId, new TextDecoder().decode(bytes)),
+			body: injectPublicScript(
+				await withKit(deps, found.orgId, found.projectId, new TextDecoder().decode(bytes))
+			),
 			type: 'text/html; charset=utf-8',
 			extra: referrer
 		});

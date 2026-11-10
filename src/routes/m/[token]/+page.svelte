@@ -20,7 +20,7 @@
 	// -- REACTIVE STATES -- //
 
 	const screens = $derived(data.available ? screensOf(data.screens) : []);
-	// The file is served by its own route, sandboxed, and never carries the pin script
+	// The file is served by its own route, sandboxed, and carries only the read only options script, never the pin script
 	const src = $derived(`/m/${page.params.token}/file`);
 </script>
 

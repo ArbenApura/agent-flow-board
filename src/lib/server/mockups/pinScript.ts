@@ -9,6 +9,77 @@
 
 // -- CONSTANTS -- //
 
+// The part both scripts share: reading what the page declares, and applying a choice from the board. Needs KEY, cfg, sendConfig and again()
+const CONFIG_JS = `// WHAT THE PAGE OFFERS: its screens and its options, read once from <meta name="afb-config"> and reported to the board, which draws the controls
+function pairs(a,max){
+ var r=[];
+ if(!Array.isArray(a))return r;
+ a.slice(0,max).forEach(function(p){
+  if(Array.isArray(p)&&typeof p[0]==='string'&&typeof p[1]==='string'&&KEY.test(p[0]))r.push([p[0],p[1].slice(0,32)])
+ });
+ return r
+}
+function has(list,v){return list.some(function(p){return p[0]===v})}
+function setup(){
+ var m=document.querySelector('meta[name="afb-config"]'),c;
+ if(!m)return;
+ try{c=JSON.parse(m.getAttribute('content')||'')}catch(_){return}
+ if(!c||typeof c!=='object')return;
+ var seen={},root=document.documentElement,current={};
+ cfg={screens:pairs(c.screens,12),options:[]};
+ if(Array.isArray(c.options))c.options.slice(0,6).forEach(function(o){
+  if(!o||typeof o.key!=='string'||!KEY.test(o.key)||o.key==='screen'||seen[o.key]||typeof o.label!=='string')return;
+  var v=pairs(o.values,12);
+  if(v.length<2)return;
+  seen[o.key]=1;
+  cfg.options.push({key:o.key,label:o.label.slice(0,32),values:v})
+ });
+ cfg.options.forEach(function(o){
+  var a=root.getAttribute('data-'+o.key);
+  current[o.key]=a&&has(o.values,a)?a:o.values[0][0]
+ });
+ if(cfg.screens.length>1){
+  var s=root.getAttribute('data-screen');
+  current.screen=s&&has(cfg.screens,s)?s:cfg.screens[0][0]
+ }
+ sendConfig=function(){parent.postMessage({type:'afb-config',config:cfg,current:current},'*')}
+}
+// The board asks for one choice: the key and value must be ones the page declared. A page with its own hook gets called, any other page gets the attribute
+function choose(key,value){
+ if(!cfg)return;
+ var list=key==='screen'?cfg.screens:null;
+ if(!list)cfg.options.forEach(function(o){if(o.key===key)list=o.values});
+ if(!list||!has(list,value))return;
+ try{
+  if(typeof window.afbSet==='function')window.afbSet(key,value);
+  else document.documentElement.setAttribute('data-'+key,value)
+ }catch(_){}
+ again()
+}`;
+
+/**
+ * The script of a public link (AFB-20261110-0353). The same options and screens as a member sees, and nothing else: no pins, no
+ * click or drag reports, no focus. It only reports the page's own declared config and applies a choice the board sends back.
+ */
+export const PUBLIC_SCRIPT = `<script>(function(){
+var KEY=/^[a-z0-9][a-z0-9-]{0,23}$/,cfg=null,sendConfig=function(){};
+function again(){}
+${CONFIG_JS}
+addEventListener('message',function(e){
+ if(e.source!==parent)return;
+ var d=e.data;
+ if(!d||typeof d!=='object')return;
+ if(d.type==='afb-set'&&typeof d.key==='string'&&typeof d.value==='string'&&KEY.test(d.key)&&KEY.test(d.value))choose(d.key,d.value)
+});
+document.addEventListener('keydown',function(e){
+ if(e.metaKey||e.ctrlKey||e.altKey||e.repeat)return;
+ var t=e.target,typing=t&&t.closest&&t.closest('input,textarea,select,[contenteditable="true"]');
+ if(typing)return;
+ if(e.key==='['||e.key===']')parent.postMessage({type:'afb-step',dir:e.key==='['?'prev':'next'},'*')
+});
+addEventListener('load',function(){setup();parent.postMessage({type:'afb-mockup-ready'},'*');sendConfig()})
+})()</script>`;
+
 export const PIN_SCRIPT = `<script>(function(){
 var on=false,pins=[],draft=null,accent=null,ink=null,reduced=false,layer=null,draftEl=null,frame=0,dragging=false;
 var KEY=/^[a-z0-9][a-z0-9-]{0,23}$/,cfg=null,sendConfig=function(){};
@@ -97,52 +168,7 @@ function focusPin(id){
  if(el.animate&&!reduced)el.animate([{boxShadow:'0 0 0 0 '+c},{boxShadow:'0 0 0 18px transparent'}],{duration:800,iterations:2});
  else{el.style.outline='3px solid '+c;setTimeout(function(){el.style.outline=''},1500)}
 }
-// WHAT THE PAGE OFFERS: its screens and its options, read once from <meta name="afb-config"> and reported to the board, which draws the controls
-function pairs(a,max){
- var r=[];
- if(!Array.isArray(a))return r;
- a.slice(0,max).forEach(function(p){
-  if(Array.isArray(p)&&typeof p[0]==='string'&&typeof p[1]==='string'&&KEY.test(p[0]))r.push([p[0],p[1].slice(0,32)])
- });
- return r
-}
-function has(list,v){return list.some(function(p){return p[0]===v})}
-function setup(){
- var m=document.querySelector('meta[name="afb-config"]'),c;
- if(!m)return;
- try{c=JSON.parse(m.getAttribute('content')||'')}catch(_){return}
- if(!c||typeof c!=='object')return;
- var seen={},root=document.documentElement,current={};
- cfg={screens:pairs(c.screens,12),options:[]};
- if(Array.isArray(c.options))c.options.slice(0,6).forEach(function(o){
-  if(!o||typeof o.key!=='string'||!KEY.test(o.key)||o.key==='screen'||seen[o.key]||typeof o.label!=='string')return;
-  var v=pairs(o.values,12);
-  if(v.length<2)return;
-  seen[o.key]=1;
-  cfg.options.push({key:o.key,label:o.label.slice(0,32),values:v})
- });
- cfg.options.forEach(function(o){
-  var a=root.getAttribute('data-'+o.key);
-  current[o.key]=a&&has(o.values,a)?a:o.values[0][0]
- });
- if(cfg.screens.length>1){
-  var s=root.getAttribute('data-screen');
-  current.screen=s&&has(cfg.screens,s)?s:cfg.screens[0][0]
- }
- sendConfig=function(){parent.postMessage({type:'afb-config',config:cfg,current:current},'*')}
-}
-// The board asks for one choice: the key and value must be ones the page declared. A page with its own hook gets called, any other page gets the attribute
-function choose(key,value){
- if(!cfg)return;
- var list=key==='screen'?cfg.screens:null;
- if(!list)cfg.options.forEach(function(o){if(o.key===key)list=o.values});
- if(!list||!has(list,value))return;
- try{
-  if(typeof window.afbSet==='function')window.afbSet(key,value);
-  else document.documentElement.setAttribute('data-'+key,value)
- }catch(_){}
- again()
-}
+${CONFIG_JS}
 addEventListener('message',function(e){
  if(e.source!==parent)return;
  var d=e.data;

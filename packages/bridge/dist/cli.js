@@ -10,7 +10,7 @@
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
 // agent-flow-board check connect|run|pull|bind|watch|status|doctor|clear|setup|disconnect   browser checks on this machine (see check usage)
 // agent-flow-board mockup push <file.html> --server <url> --org <slug> --item <ref>   upload one mockup file (never queued)
-// agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key>   upload the project's kit (colours, fonts, icons)
+// agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key>   upload the project's kit (its built stylesheet and fonts)
 // -- DEP-MODULES -- //
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
