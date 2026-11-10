@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.4.0",
-		"releasedAt": "2026-11-09"
+		"version": "1.5.0",
+		"releasedAt": "2026-11-10"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.1.17",
+			"version": "1.2.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -94,11 +94,15 @@
 				{
 					"version": "1.1.17",
 					"hash": "3eeffbef8db6f10973fa40ad5ac5d10636176e6891a536b8e7bec2873ba41c6d"
+				},
+				{
+					"version": "1.2.0",
+					"hash": "ea0d6d01044b2c467f014ff603f2388086fc638f97d1e243a6749b1a6cccb81b"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.1.4",
+			"version": "1.1.5",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -127,11 +131,15 @@
 				{
 					"version": "1.1.4",
 					"hash": "b1f44c4ed331274089a4f56b256755eb23623efe82d188012220f7d4665b2417"
+				},
+				{
+					"version": "1.1.5",
+					"hash": "39652b18cfc60295752357a5b7f2a84e5faaacdb6fbeb56636bc2c16063d4e8b"
 				}
 			]
 		},
 		"flow-check": {
-			"version": "1.2.1",
+			"version": "1.2.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -212,11 +220,15 @@
 				{
 					"version": "1.2.1",
 					"hash": "4db17383962841d5a38f8a2c46c49f605670e9405d4d975d73f8f3130bd385b0"
+				},
+				{
+					"version": "1.2.2",
+					"hash": "fbe33aa5211f06ed57f4f26faa7f93ff95bd3f47b3ecc705a66b56443d5439a3"
 				}
 			]
 		},
 		"flow-critic": {
-			"version": "1.1.5",
+			"version": "1.2.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -249,11 +261,15 @@
 				{
 					"version": "1.1.5",
 					"hash": "6d3509c1685186d24c04bc049fe96ad3011dc3c8428cfa22a3102d5a9204d01a"
+				},
+				{
+					"version": "1.2.0",
+					"hash": "35748257d2a3632b29e739d4fdda8139e45611bd50e4e4bd77c550344b72abda"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.1.4",
+			"version": "1.1.5",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -282,11 +298,15 @@
 				{
 					"version": "1.1.4",
 					"hash": "f8363a5fa9557d1c7e9e56b0bd25d3a631713a4d5ce177467614e76c2a049a91"
+				},
+				{
+					"version": "1.1.5",
+					"hash": "cfcad49e04e1bf02132deee75414f12b775c75f1347c0a59a9e3012634644889"
 				}
 			]
 		},
 		"flow-mockup": {
-			"version": "1.2.0",
+			"version": "1.3.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -311,6 +331,10 @@
 				{
 					"version": "1.2.0",
 					"hash": "2ff8a9f42ae591815a91a3fa6903645d357e260cf0993d8644da87e63c2d7978"
+				},
+				{
+					"version": "1.3.0",
+					"hash": "8d652994ca15bb58ac9b1038a0434aed2d4e5a40fbc25c8bbdf5a7838415df6d"
 				}
 			]
 		},
@@ -366,6 +390,27 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.5.0",
+			"date": "2026-11-10",
+			"notes": [
+				"flow 1.2.0: the approval is asked once and covers the plan, the chosen reviews, the mockup line and every phase. Naming /flow-mockup together with /flow (or asking for a mockup in your own words) is the yes: the mockup is drawn at once and the work carries on with no second question. A build instruction with no word about a mockup means no mockup and no stop. Before any question the agent looks for the answer in the code, the rulebook, the decisions and the session, and what is left is asked in one batch. A step that records a fix inside the approved scope is added without asking and named in the final message; new scope waits for a yes and never stops the build. A permission given once is not asked again, and the agent runs every command it can run itself. The agent reuses the session id the hooks gave it. The nudge text matches the server: 3 edits or 5 minutes, on the next tool call, with the open step keys.",
+				"flow-mockup 1.3.0: the shell is the app's own root layout, copied from the rendered page or the layout source and never drawn (new section 2a); the starter's shell is only a placeholder. Before publishing, the frame, the type and the surfaces are measured against the real screen, a polish pass runs on every state, and a Fidelity line goes into the notes. Called with /flow it asks nothing and hands back.",
+				"flow-critic 1.2.0: a mockup mode, only on the user's word (critique the mockup, or /flow-critic named with /flow-mockup). The lead takes the pictures and measurements, critics attack the mockup against the real product with six lenses (new file mockup-lenses.md), and confirmed findings are published as a new version of the same mockup.",
+				"flow-check 1.2.2: call approval_list first; with the owner's switch on, never send the owner to a terminal. Approval targets are spelled exactly (login and secrets take <org>/<NAME>). The agent runs check login itself and the owner only signs in. The worker is started with check service install or check watch, because doctor does not start it. A check the user asked for gets its manual check without a second question.",
+				"flow-interview 1.1.5 and flow-audit 1.1.5: an interview that was the answer to the approval question (interview, then build) carries on into the build; the audit adds a replacement step the plan's goal needs without asking and lists new scope in its report."
+			],
+			"skills": {
+				"flow": "1.2.0",
+				"flow-audit": "1.1.5",
+				"flow-check": "1.2.2",
+				"flow-critic": "1.2.0",
+				"flow-interview": "1.1.5",
+				"flow-mockup": "1.3.0",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.2"
+			}
+		},
 		{
 			"version": "1.4.0",
 			"date": "2026-11-09",

@@ -522,7 +522,7 @@ export async function runDoctor(
 				else if (!rootHolding(r.repo))
 					found(
 						`${id}: the repo is not inside a folder the owner approved.`,
-						'Ask the owner: check approve --request --action roots --target <parent folder>, then check roots add <folder> --approval <code>.'
+						'Run: agent-flow-board check approve --request --action roots --target <parent folder>, then check roots add <parent folder> --approval <code>.'
 					);
 				else {
 					const pin = pinState(r);

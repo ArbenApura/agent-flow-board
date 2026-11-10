@@ -85,4 +85,4 @@ Write answers to the board as you go, not at the end. **One decision per `item_u
 
 ## Step 5 - Close
 
-Report in chat, briefly: what changed in the plan as a short list with the item link, the questions left open and who has to answer them, and whether the plan changed enough that `/flow-critic` should run again (it should when answers changed data, access, tenancy or phases). Then stop. Building starts only when the user approves the plan (`/flow` section 3).
+Report in chat, briefly: what changed in the plan as a short list with the item link, the questions left open and who has to answer them, and whether the plan changed enough that `/flow-critic` should run again (it should when answers changed data, access, tenancy or phases). Then stop, unless the interview was the user's answer to the `/flow` approval question (option b, interview then build) or their message also said build: then carry on into the build in the same turn, with no second approval. In every other case building starts only when the user approves the plan (`/flow` section 3).

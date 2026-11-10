@@ -342,48 +342,69 @@ async function handleEvent(
 		return { ...(title ? { title } : {}), ...(nudge ? { nudge } : {}) };
 	}
 	if (input.event === 'tool') {
-		// A failed call and a read are heartbeats and nothing more. A subagent's edit counts for the session (its work is the
+		// A failed call is a heartbeat and nothing more. A subagent's edit counts for the session (its work is the
 		// session's work) but never sends a nudge, because the subagent cannot record a step.
 		const a = input.action;
 		if (input.failed || !a) return {};
-		const codeChange =
-			(a.kind === 'edit' && isCodeFile(a.file)) || (a.kind === 'shell' && commits(a.command));
-		if (!codeChange) return {};
-		// One atomic update counts the edit, so two hooks running at once never lose a count
-		const [counted] = await run(ctx, (tx) =>
-			tx
-				.update(session)
-				.set({
-					codeTouchedAt: sql`now()`,
-					codeEditsSinceRecord: sql`${session.codeEditsSinceRecord} + 1`,
-					firstUnrecordedEditAt: sql`coalesce(${session.firstUnrecordedEditAt}, now())`
-				})
-				.where(eq(session.id, s.id))
-				.returning({
-					edits: session.codeEditsSinceRecord,
-					firstAt: session.firstUnrecordedEditAt,
-					level: session.nudgedLevel
-				})
-		);
-		if (!counted || input.subagent) return {};
+		const edited = a.kind === 'edit' && isCodeFile(a.file);
+		// The counts as the session row holds them: a call that edits nothing still hears a nudge that is due (AFB-20261110-1448)
+		let counted: { edits: number; firstAt: Date | null; level: number } | undefined = {
+			edits: s.codeEditsSinceRecord,
+			firstAt: s.firstUnrecordedEditAt,
+			level: s.nudgedLevel
+		};
+		if (edited) {
+			// One atomic update counts the edit, so two hooks running at once never lose a count
+			[counted] = await run(ctx, (tx) =>
+				tx
+					.update(session)
+					.set({
+						codeTouchedAt: sql`now()`,
+						codeEditsSinceRecord: sql`${session.codeEditsSinceRecord} + 1`,
+						firstUnrecordedEditAt: sql`coalesce(${session.firstUnrecordedEditAt}, now())`
+					})
+					.where(eq(session.id, s.id))
+					.returning({
+						edits: session.codeEditsSinceRecord,
+						firstAt: session.firstUnrecordedEditAt,
+						level: session.nudgedLevel
+					})
+			);
+		} else if (a.kind === 'shell' && commits(a.command)) {
+			// A commit is a code change for the Stop reminder, but it is no unrecorded edit: the usual commit after the last
+			// step_done must not start the Not recorded clock
+			await run(ctx, (tx) =>
+				tx
+					.update(session)
+					.set({ codeTouchedAt: sql`now()` })
+					.where(eq(session.id, s.id))
+			);
+		}
+		// Any call of the main agent delivers a nudge that is due: after a subagent's edits, after edits a script made, or when
+		// the time rule passed while nothing was being edited
+		// A board tool's own reply already carries the line (trackingNotes), so its hook stays quiet
+		if (!counted || input.subagent || (a.kind === 'board' && !edited)) return {};
 		const level = nudgeLevel(counted.edits, counted.firstAt);
 		if (level < 1 || level <= counted.level) return {};
 		const mine = await claimedItem(ctx, s);
 		if (!mine || (CLOSING_STATUSES as string[]).includes(mine.status)) return {};
-		const openSteps = await run(ctx, async (tx) => {
-			const [row] = await tx
-				.select({ n: sql<number>`count(*)::int` })
-				.from(step)
-				.where(and(eq(step.itemId, mine.id), eq(step.state, 'open')));
-			return row?.n ?? 0;
-		});
-		if (!openSteps) return {};
+		// The steps of the claimed phase first, as the badge counts them; a claim on a finished phase names what is open elsewhere
+		let open = await openStepKeys(ctx, mine.id, s.claimedPhase, 3);
+		if (!open.length && s.claimedPhase) open = await openStepKeys(ctx, mine.id, null, 3);
+		if (!open.length) return {};
 		// Taking the level is one conditional update, so only one of several parallel hooks sends the nudge
 		const taken = await run(ctx, (tx) =>
 			tx
 				.update(session)
 				.set({ nudgedLevel: level })
-				.where(and(eq(session.id, s.id), sql`${session.nudgedLevel} < ${level}`))
+				// Still unrecorded: a step_done that landed since the row was read cleared the count, and then nothing is said
+				.where(
+					and(
+						eq(session.id, s.id),
+						sql`${session.nudgedLevel} < ${level}`,
+						sql`${session.codeEditsSinceRecord} > 0`
+					)
+				)
 				.returning({ id: session.id })
 		);
 		if (!taken.length) return {};
@@ -397,7 +418,10 @@ async function handleEvent(
 				detail: `${counted.edits} edits, level ${level}`
 			})
 		);
-		return { nudge: staleProgressNote(mine.ref, counted.edits) };
+		// The keys say which steps to record; a session in the middle of one long step is told it may carry on
+		return {
+			nudge: `${staleProgressNote(mine.ref, counted.edits)} Steps still open: ${open.join(', ')}. If none is finished yet, carry on and record the moment one is.`
+		};
 	}
 	if (input.event === 'closing') {
 		const targets = (input.closing ?? []).filter((c) =>
@@ -416,7 +440,19 @@ async function handleEvent(
 		return {};
 	}
 	// stop: one reminder per code change, never twice for the same one
-	if (input.stopActive) return {};
+	if (input.stopActive) {
+		// The turn ends after a reminder was already answered. Nothing is said twice, but a turn that ends with edits no record
+		// covers is noted, so the Not recorded badge can tell a session that left work from one still working
+		// Only after an earlier reminder: a first Stop that some other hook continued still earns its own reminder later
+		if (s.codeEditsSinceRecord > 0 && s.claimedItemId && s.remindedAt)
+			await run(ctx, (tx) =>
+				tx
+					.update(session)
+					.set({ remindedAt: sql`now()` })
+					.where(eq(session.id, s.id))
+			);
+		return {};
+	}
 	const mine = await claimedItem(ctx, s);
 	const changed =
 		!!s.codeTouchedAt && !(s.remindedAt && s.codeTouchedAt.getTime() <= s.remindedAt.getTime());

@@ -5,7 +5,7 @@ The starter page for `flow-mockup`. Copy the fenced block into a file in a tempo
 What the starter gives you:
 
 - **the kit marker** `<!--afb-kit-->` in the head. The board puts the kit's head there when it serves the page: the project's built stylesheet and its embedded fonts. The page carries no stylesheet, font or icon of its own, so it stays small whatever its detail.
-- a shell (side navigation, top bar, page header, a card with rows, an empty state and a message line) that folds to one column on a narrow width, so the board's device switch shows each layout. The board draws the device frame; the page never draws a browser window or a phone.
+- a placeholder shell (side navigation, top bar, page header, a card with rows, an empty state and a message line) that folds to one column on a narrow width, so the board's device switch shows each layout. **It only marks where the shell goes: replace all of it with the app's own root layout, copied as the skill's section 2a says, before anything else. The placeholder shell is never published.** The board draws the device frame; the page never draws a browser window or a phone.
 - a `<meta name="afb-config">` tag with a mode option as an example (delete what the app does not have: an app with one colour mode declares no mode, and a page with one screen declares no screens). The page draws no switch of its own.
 - a place for the classes the kit lacks (section 3 of the skill): a `<style>` after the marker, in the same layer as the kit.
 

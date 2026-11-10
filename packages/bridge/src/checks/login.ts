@@ -484,7 +484,9 @@ export async function loginCommand(args: string[], ctx: LoginCtx): Promise<numbe
 		}
 		if (!approval || !deps.approval.peek(`${org}/${name}`, approval)) {
 			say(
-				`Signing in by hand needs the owner's approval. Ask for it: agent-flow-board check approve --request --action login --target ${org}/${name}, then pass --approval <code>. Or use --seeded with AFB_CHECKS_<NAME>_EMAIL and AFB_CHECKS_<NAME>_PASSWORD set.`
+				approval
+					? `That code is not a login approval for ${org}/${name}: a code works once, for 10 minutes, and only for the exact target it was asked for. Ask for a new one: agent-flow-board check approve --request --action login --target ${org}/${name}, then pass --approval <code>.`
+					: `Signing in by hand needs the owner's approval. Ask for it: agent-flow-board check approve --request --action login --target ${org}/${name}, then pass --approval <code>. Or use --seeded with AFB_CHECKS_<NAME>_EMAIL and AFB_CHECKS_<NAME>_PASSWORD set.`
 			);
 			return 1;
 		}
@@ -553,6 +555,14 @@ export async function loginCommand(args: string[], ctx: LoginCtx): Promise<numbe
 			secrets.push(account.password);
 			state = await deps.signIn(target.baseUrl, account);
 		} else {
+			// A mailed-link sign-in reads the pasted link from a terminal. Without one the window could never finish, so say it
+			// before the code is used up: the same code still works when the owner runs the command
+			if (target.mail && deps.ask === askLine && !process.stdin.isTTY) {
+				say(
+					`${name} signs in by a mailed link, which the owner pastes into a terminal. This is not a terminal a person can type in, so nothing was opened and the code was not used. The owner runs this one command in their own terminal within the code's 10 minutes: agent-flow-board check login ${name} --org ${org} --approval <code>.`
+				);
+				return 1;
+			}
 			// The approval is used up before the window opens, so a window never opens twice on one code
 			if (!deps.approval.consume(`${org}/${name}`, approval ?? '')) {
 				say('The owner code was used or ran out just now. Ask for a new one.');

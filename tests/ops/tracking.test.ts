@@ -658,6 +658,8 @@ describe('tracking', () => {
 		const third = await edit('nudge-conversation-a');
 		expect(third.nudge).toContain(it.ref);
 		expect(third.nudge).toContain('3 code edits');
+		// The nudge names the steps to record
+		expect(third.nudge).toContain('Steps still open: 1.1');
 		for (let i = 0; i < 2; i++) expect(await edit('nudge-conversation-a')).toEqual({});
 		// Every further 3 edits earn one more level
 		expect((await edit('nudge-conversation-a')).nudge).toContain('6 code edits');
@@ -724,6 +726,66 @@ describe('tracking', () => {
 		await claim(agent('member', idM), idM, second.ref, '1');
 		expect(await sessionRow(idM)).toMatchObject({ codeEditsSinceRecord: 0, nudgedLevel: 0 });
 
+		// A subagent's edits send no nudge themselves, and the main agent hears it on its next call of any kind, once
+		const idS = await hookSession('nudge-conversation-s', it.ref);
+		for (let i = 0; i < 4; i++)
+			expect(
+				await handleHook(hookCtx(), {
+					tool: 'claude-code',
+					externalId: 'nudge-conversation-s',
+					event: 'tool',
+					subagent: true,
+					action: { kind: 'edit', file: 'src/a.ts' }
+				})
+			).toEqual({});
+		const read = () =>
+			handleHook(hookCtx(), {
+				tool: 'claude-code',
+				externalId: 'nudge-conversation-s',
+				event: 'tool',
+				action: { kind: 'read' }
+			});
+		expect((await read()).nudge).toContain('4 code edits');
+		expect(await read()).toEqual({});
+		// A commit is a code change for the Stop reminder, never an unrecorded edit
+		const beforeCommit = await sessionRow(idS);
+		await handleHook(hookCtx(), {
+			tool: 'claude-code',
+			externalId: 'nudge-conversation-s',
+			event: 'tool',
+			action: { kind: 'shell', command: 'git commit -m "x"' }
+		});
+		expect((await sessionRow(idS)).codeEditsSinceRecord).toBe(beforeCommit.codeEditsSinceRecord);
+		// On a clean session a commit touches the code time and starts no unrecorded clock
+		const idK = await hookSession('nudge-conversation-k', it.ref);
+		await handleHook(hookCtx(), {
+			tool: 'claude-code',
+			externalId: 'nudge-conversation-k',
+			event: 'tool',
+			action: { kind: 'shell', command: 'git commit -m "x"' }
+		});
+		const committed = await sessionRow(idK);
+		expect(committed.codeTouchedAt).not.toBeNull();
+		expect(committed).toMatchObject({ codeEditsSinceRecord: 0, firstUnrecordedEditAt: null });
+		// After one reminder, a turn that ends while the tool is already continuing says nothing more, but it is noted when
+		// later edits are unrecorded, so the badge sees the work that was left
+		const stopK = (stopActive: boolean) =>
+			handleHook(hookCtx(), {
+				tool: 'claude-code',
+				externalId: 'nudge-conversation-k',
+				event: 'stop',
+				stopActive
+			});
+		await edit('nudge-conversation-k');
+		expect(await stopK(true)).toEqual({});
+		expect((await sessionRow(idK)).remindedAt).toBeNull();
+		expect((await stopK(false)).block).toContain('Code changed after the last record');
+		const reminded = (await sessionRow(idK)).remindedAt!;
+		await new Promise((r) => setTimeout(r, 15));
+		await edit('nudge-conversation-k');
+		expect(await stopK(true)).toEqual({});
+		expect((await sessionRow(idK)).remindedAt!.getTime()).toBeGreaterThan(reminded.getTime());
+
 		// Two edits at once count twice
 		const idP = await hookSession('nudge-conversation-p', it.ref);
 		await Promise.all([edit('nudge-conversation-p'), edit('nudge-conversation-p')]);
@@ -776,10 +838,43 @@ describe('tracking', () => {
 			`update session set code_edits_since_record = 2, first_unrecorded_edit_at = now() - interval '4 minutes' where id = '${id}'`
 		);
 		expect(await flag()).toBeNull();
+		// A session that is still working shows no flag, however long its step takes (AFB-20261110-1448)
 		await db.admin.exec(
-			`update session set first_unrecorded_edit_at = now() - interval '14 minutes' where id = '${id}'`
+			`update session set first_unrecorded_edit_at = now() - interval '14 minutes', last_seen_at = now() where id = '${id}'`
+		);
+		expect(await flag()).toBeNull();
+		// A Stop reminder from before these edits does not count, and one just given leaves the grace time to record
+		await db.admin.exec(
+			`update session set reminded_at = now() - interval '20 minutes' where id = '${id}'`
+		);
+		expect(await flag()).toBeNull();
+		await db.admin.exec(`update session set reminded_at = now() where id = '${id}'`);
+		expect(await flag()).toBeNull();
+		// The turn ended on the reminder and nothing was recorded: the work was left unrecorded
+		await db.admin.exec(
+			`update session set reminded_at = now() - interval '3 minutes' where id = '${id}'`
 		);
 		expect(await flag()).toBeGreaterThanOrEqual(13);
+		// A session that edited a moment ago is working again, so the flag waits
+		await db.admin.exec(`update session set code_touched_at = now() where id = '${id}'`);
+		expect(await flag()).toBeNull();
+		await db.admin.exec(
+			`update session set code_touched_at = now() - interval '3 minutes' where id = '${id}'`
+		);
+		expect(await flag()).toBeGreaterThanOrEqual(13);
+		// Open steps of another phase only do not mark a session whose own phase is finished
+		await db.admin.exec(`update session set claimed_phase = '9' where id = '${id}'`);
+		expect(await flag()).toBeNull();
+		await db.admin.exec(`update session set claimed_phase = '1' where id = '${id}'`);
+		// A session that went quiet with unrecorded edits is marked without any reminder
+		await db.admin.exec(
+			`update session set reminded_at = null, last_seen_at = now() - interval '11 minutes' where id = '${id}'`
+		);
+		expect(await flag()).toBeGreaterThanOrEqual(13);
+		// The session is back: the rest of this test runs on a live one, marked by its ended turn
+		await db.admin.exec(
+			`update session set last_seen_at = now(), reminded_at = now() - interval '3 minutes' where id = '${id}'`
+		);
 		// The health panel lists it as unrecorded work
 		const health = await projectHealth(person('admin'), w.projectKey);
 		expect(health.staleClaims.find((c) => c.itemRef === it.ref)).toMatchObject({

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // -- MODULES -- //
-import { ASK_LIMIT, askOwner, parseEntries, type AskBoard } from './askBoard.js';
+import { ASK_LIMIT, askOwner, parseEntries, targetFor, type AskBoard } from './askBoard.js';
 import { consumeApproval, consumeApprovalNote, mintFromDecision, peekApproval } from './approve.js';
 import { BoardError } from './board.js';
 import { approveCommand } from './commands.js';
@@ -294,10 +294,31 @@ describe('asking the owner on the board', () => {
 		).rejects.toThrow(/older.*terminal/s);
 		await expect(
 			askOwner(mk(new BoardError(403, 'FORBIDDEN', 'Approvals on the board are off.')), one)
-		).rejects.toThrow(/off.*terminal/s);
-		await expect(askOwner(mk(new TypeError('fetch failed')), one)).rejects.toThrow(
-			/could not be reached.*terminal/s
+		).rejects.toThrow(/^Approvals on the board are off\.$/);
+		// Only a board too old to approve leaves the terminal path: every other refusal is the agent's to act on
+		const said = (e: unknown) =>
+			askOwner(mk(e), one).then(
+				() => '',
+				(err: unknown) => (err instanceof Error ? err.message : String(err))
+			);
+		const off = await said(
+			new BoardError(403, 'FORBIDDEN', 'Turn the switch on under Settings, Agent access.')
 		);
+		expect(off).toMatch(/Agent access\. Tell the owner this once/);
+		const unreachable = await said(new TypeError('fetch failed'));
+		expect(unreachable).toMatch(/could not be reached.*not a step for the owner/s);
+		const refused = await said(new BoardError(401, 'UNAUTHORIZED', 'Bad token.'));
+		expect(refused).toMatch(/check connect/);
+		for (const text of [off, unreachable, refused]) expect(text).not.toMatch(/terminal/);
+	});
+
+	it('gives a login or secrets target its organisation, and leaves the other targets as written', () => {
+		expect(targetFor('login', 'hapra', 'mangoman')).toBe('mangoman/hapra');
+		expect(targetFor('secrets', 'HAPRM', 'acme')).toBe('acme/HAPRM');
+		expect(targetFor('login', 'mangoman/hapra', 'mangoman')).toBe('mangoman/hapra');
+		expect(targetFor('login', 'hapra')).toBe('hapra');
+		expect(targetFor('register', 'hapra', 'mangoman')).toBe('hapra');
+		expect(targetFor('adopt-env', 'hapra', 'mangoman')).toBe('hapra');
 	});
 
 	it('the command: exit 0 with codes, exit 3 when still waiting, and the terminal path still needs a terminal', async () => {

@@ -934,7 +934,7 @@ export function toolAgentAction(
 				`On the machine that runs the tool, with the bridge installed (agent-flow-board), start in the background: agent-flow-board check connect --server ${server} --org ${org} --json (one machine serves every organisation: this adds ${org} next to the others and never replaces one, so never add --force for it)`,
 				'Read its first output line. It holds userCode and verifier.',
 				'Call tool_connection_approve with both. Only a code that tool started is accepted.',
-				'When the tool prints its connected line, run: agent-flow-board check doctor --fix --json (it starts the worker), then call runner_status again.'
+				'When the tool prints its connected line, start the worker yourself. On Windows: agent-flow-board check service install (it starts now and at every sign-in). On macOS or Linux: start agent-flow-board check watch in the background. Then run agent-flow-board check doctor --fix --json and call runner_status again. Doctor repairs, it does not start the worker.'
 			]
 		};
 	if (state === 'repair')
@@ -944,6 +944,7 @@ export function toolAgentAction(
 			steps: [
 				'On the machine that runs the tool, run: agent-flow-board check doctor --fix --json',
 				'If it lists a problem with a next step, do that step (for a stale board address it names the connect command).',
+				'Doctor does not start a worker that is not running. Start it yourself: on Windows agent-flow-board check service install (or check service status when it is installed), on macOS or Linux agent-flow-board check watch in the background.',
 				'Call runner_status again.'
 			]
 		};

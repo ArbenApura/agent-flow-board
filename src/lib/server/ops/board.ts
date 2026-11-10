@@ -32,7 +32,7 @@ import { listEvents } from './history';
 import { pinnedProjectIds } from './pins';
 import { canSeeItem, getItem } from './items';
 import { findProject, visibleItemSql } from './resolve';
-import { BADGE_MINUTES, QUIET_RELEASE_MINUTES, RUNNING_WINDOW_MINUTES } from './tracking';
+import { QUIET_RELEASE_MINUTES, RUNNING_WINDOW_MINUTES, staleMinutesSql } from './tracking';
 
 // -- CONSTANTS -- //
 
@@ -56,10 +56,9 @@ async function runningIn(
 			startedAt: session.createdAt,
 			lastSeenAt: session.lastSeenAt,
 			reviewIdle: sql<boolean>`(${item.status} = 'IN REVIEW' and ${session.lastSeenAt} < now() - make_interval(mins => ${QUIET_RELEASE_MINUTES}) and not exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open'))`,
-			// Minutes since the first unrecorded edit, only while the item still has an open step and it is past the nudge time
-			staleMinutes: sql<
-				number | null
-			>`case when ${session.firstUnrecordedEditAt} < now() - make_interval(mins => ${BADGE_MINUTES}) and exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open') then floor(extract(epoch from now() - ${session.firstUnrecordedEditAt}) / 60)::int else null end`
+			// Minutes since the first unrecorded edit, only once the session left it unrecorded (its turn ended or it went quiet)
+			// and while its phase still has an open step: the one rule in tracking.ts
+			staleMinutes: staleMinutesSql()
 		})
 		.from(session)
 		.innerJoin(item, eq(item.id, session.claimedItemId))

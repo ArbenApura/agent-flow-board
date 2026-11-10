@@ -9,7 +9,7 @@ import type { Ctx } from './context';
 // -- DEP-MODULES -- //
 import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { check, checkRun, item, session, step } from '../db/schema';
+import { check, checkRun, item, phase, session, step } from '../db/schema';
 import { notifyChange } from '../realtime/notify';
 import { OpError } from './context';
 
@@ -37,8 +37,15 @@ export const QUIET_RECORD_MINUTES = 45;
 /** Progress first: this many code edits without a recorded step, or this many minutes since the first, earn a nudge (AFB-20261110-0353: sooner, so agents record before the badge shows). */
 export const NUDGE_EDITS = 3;
 export const NUDGE_MINUTES = 5;
-/** The Not recorded badge shows only after this long, so a nudge always comes first. */
+/**
+ * The Not recorded badge means a session LEFT edits unrecorded, never that a step is taking long (AFB-20261110-1448). It shows
+ * when the session's turn ended on the Stop reminder and nothing was recorded within the grace time, or when the session has
+ * been quiet for BADGE_MINUTES with unrecorded edits. A session that is still working (a long step, a long turn) shows none,
+ * and neither does one that edited within the grace time. Known gaps: a tool with no Stop hook is seen only by the quiet rule,
+ * and one command that runs longer than BADGE_MINUTES with no other call looks quiet until it returns.
+ */
 export const BADGE_MINUTES = 10;
+export const BADGE_GRACE_MINUTES = 2;
 /** A second session of one person and tool takes over an item's claim, and a finished item shows idle, after this quiet time. */
 export const QUIET_RELEASE_MINUTES = 10;
 export const CLOSING_STATUSES: Closing[] = ['COMPLETED', 'REMOVED'];
@@ -60,13 +67,23 @@ export async function renewSession(tx: Tx, sessionId: string): Promise<void> {
 }
 
 /**
- * How far a session is behind on recording: 0 is fine, 1 starts at the first threshold (6 edits, or 10 minutes since the first
- * unrecorded edit), and every further 6 edits or 10 minutes is one more level, so a nudge repeats but never on every edit.
+ * Minutes of work a session left unrecorded, or null: the one rule behind the Not recorded badge, for a query that joins
+ * `session` to its claimed `item`. Only steps of the claimed phase count when the claim names one, so open steps of a later
+ * phase never mark a session that finished its own.
+ */
+export const staleMinutesSql = () =>
+	sql<
+		number | null
+	>`case when ${session.firstUnrecordedEditAt} is not null and ((${session.remindedAt} >= ${session.firstUnrecordedEditAt} and ${session.remindedAt} < now() - make_interval(mins => ${BADGE_GRACE_MINUTES}) and coalesce(${session.codeTouchedAt}, ${session.firstUnrecordedEditAt}) < now() - make_interval(mins => ${BADGE_GRACE_MINUTES})) or ${session.lastSeenAt} < now() - make_interval(mins => ${BADGE_MINUTES})) and exists (select 1 from ${step} inner join ${phase} on ${phase.id} = ${step.phaseId} where ${step.itemId} = ${item.id} and ${step.state} = 'open' and (${session.claimedPhase} is null or ${phase.key} = ${session.claimedPhase})) then floor(extract(epoch from now() - ${session.firstUnrecordedEditAt}) / 60)::int else null end`;
+
+/**
+ * How far a session is behind on recording: 0 is fine, 1 starts at the first threshold (NUDGE_EDITS edits, or NUDGE_MINUTES
+ * minutes since the first unrecorded edit), and every further threshold is one more level, so a nudge repeats but never on every edit.
  */
 export function nudgeLevel(edits: number, firstEditAt: Date | null, now = new Date()): number {
 	if (edits <= 0) return 0;
 	const byCount = Math.floor(edits / NUDGE_EDITS);
-	// Every further 10 minutes without a record is one more level too, so a slow start does not use up the 6 edit nudge
+	// Every further NUDGE_MINUTES without a record is one more level too, so a slow start does not use up the edit count nudge
 	const byTime = firstEditAt
 		? Math.floor((now.getTime() - firstEditAt.getTime()) / (NUDGE_MINUTES * 60_000))
 		: 0;
@@ -170,7 +187,8 @@ export async function requireCloseConfirmation(
 
 /**
  * After steps were recorded: the claim moves to the next phase with an open step when its phase finished, the session notes
- * that it recorded, and commits of the item count as recorded. Returns the claim as it now stands, or null with no session.
+ * that it recorded. Returns the claim as it now stands, or null with no session. (A commit is no unrecorded edit: hooks.ts
+ * counts it as a code change for the Stop reminder only.)
  */
 export async function afterRecord(
 	tx: Tx,
@@ -334,10 +352,8 @@ export async function claimsIn(tx: Tx, projectId: string, since?: Date) {
 			itemId: item.id,
 			ref: item.ref,
 			status: item.status,
-			// Minutes of finished work left unrecorded, only past the nudge time and while the item has an open step
-			staleMinutes: sql<
-				number | null
-			>`case when ${session.firstUnrecordedEditAt} < now() - make_interval(mins => ${BADGE_MINUTES}) and exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open') then floor(extract(epoch from now() - ${session.firstUnrecordedEditAt}) / 60)::int else null end`
+			// Minutes of work left unrecorded: the turn ended or the session went quiet, and its phase still has an open step
+			staleMinutes: staleMinutesSql()
 		})
 		.from(session)
 		.innerJoin(item, eq(item.id, session.claimedItemId))

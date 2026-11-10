@@ -68,17 +68,21 @@ describe('agent approvals, end to end', () => {
 		return new Response(JSON.stringify(res.body), { status: res.status });
 	};
 
-	it('with the switch off the agent gets one plain sentence and the terminal fallback', async () => {
+	it('with the switch off the agent gets one plain sentence to pass on, and no terminal command for the owner', async () => {
 		const tool = await registerToolRunner(as('admin'), { name: 'E2E off' });
 		const board = new RunnerBoard('http://board.test', tool.token, wire() as never);
-		await expect(
-			askOwner(board, {
-				entries: [{ action: 'roots', target: home }],
-				waitMinutes: 0,
-				pollMs: 1,
-				say: () => undefined
-			})
-		).rejects.toThrow(/Agent access.*terminal/s);
+		const refusal = await askOwner(board, {
+			entries: [{ action: 'roots', target: home }],
+			waitMinutes: 0,
+			pollMs: 1,
+			say: () => undefined
+		}).then(
+			() => '',
+			(e: unknown) => (e instanceof Error ? e.message : String(e))
+		);
+		expect(refusal).toMatch(/Agent access.*Tell the owner this once/s);
+		// The owner is never sent to a terminal while the board can approve (AFB-20261110-1448)
+		expect(refusal).not.toMatch(/terminal/);
 	});
 
 	it('request, instant approval, claim, mint and use: a batch yields exactly its codes, each once, and the owner is never asked', async () => {

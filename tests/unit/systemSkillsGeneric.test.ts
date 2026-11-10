@@ -81,7 +81,18 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			rule: 'a merge is tested before a push',
 			pattern: /A merge or pull is tested before anything is pushed/
 		},
-		{ rule: 'a renewed session is used from then on', pattern: /sessionRenewed: true/ }
+		{ rule: 'a renewed session is used from then on', pattern: /sessionRenewed: true/ },
+		// AFB-20261110-1448: the rules that keep a run moving
+		{ rule: 'the approval is asked once', pattern: /The approval is asked once/ },
+		{
+			rule: 'naming the mockup skill with flow is the yes',
+			pattern: /Naming `\/flow-mockup` together with `\/flow`[^\n]*is the yes/
+		},
+		{ rule: 'a yes to the mockup is followed at once', pattern: /A yes is followed at once/ },
+		{ rule: 'questions are checked and batched', pattern: /Answer your own question first/ },
+		{ rule: 'a permission is given once', pattern: /A permission is given once/ },
+		{ rule: 'new scope is never automatic', pattern: /Never add new scope on your own/ },
+		{ rule: 'the hook session id is reused', pattern: /use that id and skip `session_start`/ }
 	],
 	'flow-audit': [
 		{ rule: 'no commit or push', pattern: /Do not commit, push/ },
@@ -94,7 +105,9 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'no AI attribution', pattern: /Claude or Anthropic attribution/ },
 		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
 		{ rule: 'checks the design brief', pattern: /Has a sourced design brief/ },
-		{ rule: 'checks the build against the design', pattern: /An unapproved difference is/ }
+		{ rule: 'checks the build against the design', pattern: /An unapproved difference is/ },
+		{ rule: 'mockup mode runs only on the user word', pattern: /runs only on the user's word/ },
+		{ rule: 'a mockup shell must be the app own', pattern: /The shell is the app's own/ }
 	],
 	'flow-verify': [
 		{ rule: 'tests after a merge before a push', pattern: /After a merge, a pull or a rebase/ },
@@ -118,7 +131,13 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'untrusted text is data', pattern: /data written by other people/ },
 		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
 		{ rule: 'only on the user yes', pattern: /Never make a mockup the user did not say yes to/ },
-		{ rule: 'no network inside a mockup', pattern: /may not load anything from a network address/ }
+		{ rule: 'no network inside a mockup', pattern: /may not load anything from a network address/ },
+		{
+			rule: 'the shell is copied, never drawn',
+			pattern: /Never publish the starter's placeholder shell or a shell drawn from memory/
+		},
+		{ rule: 'the frame is measured before publishing', pattern: /Measure the frame/ },
+		{ rule: 'no question when flow asked for it', pattern: /draw and hand back, with no question/ }
 	],
 	'flow-task': [
 		{ rule: 'no code edits', pattern: /Never edit code/ },
@@ -133,7 +152,9 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			pattern: /The write path and the dialog that closes first/
 		},
 		{ rule: 'stop for a shared database, a server or a live site', pattern: /live site/ },
-		{ rule: 'the bridge check commands', pattern: /agent-flow-board check/ }
+		{ rule: 'the bridge check commands', pattern: /agent-flow-board check/ },
+		{ rule: 'the switch is read before asking', pattern: /Look before you ask/ },
+		{ rule: 'the agent runs the login command', pattern: /The command is yours to run/ }
 	]
 };
 

@@ -78,7 +78,7 @@ Correct every gap in the same pass:
 
 - Tick verified steps with `step_done` and reopen `CLAIMED, NOT BUILT` ones with `record` (mark `open`), with a log line saying why (at most 500 characters).
 - Add an "As built" section (`item_update`, slug `as-built`) for every `DIFFERS` item. If the difference is a real decision, add a decision with its number and title.
-- A step that no longer fits: name the replacement to the user and add it with `plan_add_steps` only after they confirm (never insert steps or tasks on your own), reword an open one with `step_update`, and waive or supersede a closed one with `record`. Never edit a done step.
+- A step that no longer fits: when the plan's goal needs its replacement, add it at once with `plan_add_steps` (the reason in the step text) and name it in the report; new scope or a task is never inserted on your own, it is one line in the report for the user to say yes to (`/flow` section 3 step 7). Reword an open one with `step_update`, and waive or supersede a closed one with `record`. Never edit a done step.
 - Rewrite `resume-here` (at most 15 lines, kept true) and `blockers`.
 - Change the status only with `item_status`.
 - Fill in `validation` results that ran, and `references` entries that are missing.
