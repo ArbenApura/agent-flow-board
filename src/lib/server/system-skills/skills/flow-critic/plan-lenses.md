@@ -89,8 +89,8 @@ Whatever the topic, one subagent (usually Subagent 2, or whichever owns operatio
 - [ ] **Git and Package Rules**
   Does the plan avoid commits and pushes without the user's word, avoid creating or switching branches unless told, follow the package manager the repo rulebook names, and never delete `node_modules`, `.git` or other tooling folders?
   (example) Yarn 4 only, no `package-lock.json` or `pnpm-lock.yaml`.
-- [ ] **The Gates Are Counted Steps**
-  Does each phase end with the gate commands the repo rulebook names (type check, lint, format check, related tests, and the full suite at the end of the phase), each as a counted step? Do browser checks run against a build preview, never the dev server, if the rulebook says so? If no rulebook names the gates, the plan says "no gates found" and asks instead of inventing commands.
+- [ ] **The Gates Run Once, At The End**
+  Does the plan end with one counted step for the full gates the repo rulebook names (the whole-project type check or build and the full test suite)? A plan that repeats the whole-project gates in every phase, or lists each gate as its own step, is a `MEDIUM`: the fast gate (formatter, linter, related tests on the changed files) is part of each step's own work and is never a step, and an earlier full run is justified only after a shared type, schema or config change. Do browser checks run against a build preview, never the dev server, if the rulebook says so? If no rulebook names the gates, the plan says "no gates found" and asks instead of inventing commands.
   (example) `yarn check`, `yarn eslint`, `yarn prettier --check`, `yarn vitest run`, and the full `yarn test`; checks against `yarn build && yarn preview`.
 - [ ] **Protected Surfaces**
   Does the plan edit an applied migration, hand-patch generated security SQL, rename a technical id, or change a published protocol? Any such step needs the user's explicit instruction.

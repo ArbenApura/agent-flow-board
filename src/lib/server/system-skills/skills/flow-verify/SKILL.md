@@ -13,7 +13,10 @@ Run the right checks for what changed, and nothing more. A stylesheet tweak need
 
 - **The user calls it** (`/flow-verify`, "check it", "run the tests", "lint that"): run it now, whatever the mode.
 - **Before a commit**: run it right before a commit the user asked for, including a commit made as part of autonomous execution. (Docs-only and test-only commits do not need it.) Never commit or push without the user's word.
-- **Autonomous execution**: run it after each finished change; run the full test suite at the end of a phase.
+- **Autonomous execution, two speeds** (the repo rulebook's own rhythm wins where it sets one):
+  - **After a change, the fast gate only**: the formatter and the linter on the changed files, and the related tests when the change touched logic. A change of wording, a literal or a style class gets the formatter and the linter and nothing else. No whole-project gate here: a type check or build that reads every file, run after each change, turns a small task into hours.
+  - **Once, the full gates**: the whole-project type check or build and the full test suite, at the end of the item and before a commit. Earlier only right after a change that can break files outside the scope: a shared type, an exported signature, a component's inputs, a schema or migration, or a build or tool config. Run them in the background and carry on.
+  - **Never twice for nothing**: do not run a gate again when it passed and nothing in its scope changed since. Report the earlier result and say so.
 - **Active engagement without a request**: do not run it. The user sees failures themselves while testing.
 - **After a merge, a pull or a rebase**: run the full test suite on the merged tree before any push the user asked for, and report which failing test files come from other sessions' commits and which from this work. A failure that predates this work is reported, not fixed quietly. The push itself is only on the user's word.
 
@@ -46,7 +49,7 @@ State the scope in one line before running anything, e.g. `Scope: 4 files (3 sou
 
 Discover the gates first (see the source of truth above), then run them the way the repo rulebook says, with the package manager the repo uses. Map each in-scope file to the gates it needs, then run each gate once over all of its files. Skip a gate that has no files. Prefer a gate that accepts file arguments; run a whole-project gate only when it has no scoped form, and filter its output to the in-scope files.
 
-The mapping is by kind of file. Applies when the repo has a gate of that kind:
+The mapping is by kind of file, and it lists everything a file can need. Applies when the repo has a gate of that kind. **A gate that only runs over the whole project (a type check, a build) belongs to the full gates**: in autonomous execution it is left out of the per-change run and done once, as "When it runs" says; when the user calls this skill, or before a commit, it runs.
 
 | Files | Gates |
 |---|---|
@@ -79,7 +82,7 @@ Run independent gates in parallel.
 - **Types**: the repo's type check. If it always checks the whole project, filter its output to the in-scope files. Errors and warnings in files you touched must be fixed. Errors in other files are pre-existing or another session's: count them in one line, do not fix them.
 - **Lint**: the linter on the in-scope files only. With `fix`, use its fix mode.
 - **Format**: the formatter's check mode on the in-scope files. With `fix`, run its write mode on them first. Only the in-scope files, never the whole repo, and never a repo-wide format or lint script.
-- **Related tests**: the test runner on the test files that cover the changed code (a test next to the module, or the matching test folder). To find tests that import a changed file, use the runner's "related" mode if it has one. "No test files found" means no test covers those files: report it as "no related tests", not as a pass. With `full`, a config change, or at the end of a phase, run the whole suite.
+- **Related tests**: the test runner on the test files that cover the changed code (a test next to the module, or the matching test folder). To find tests that import a changed file, use the runner's "related" mode if it has one. "No test files found" means no test covers those files: report it as "no related tests", not as a pass. With `full`, a config change, or at the end of the item, run the whole suite.
 - **Database tests**: run them only the way the rulebook says. Use a throwaway database (an embedded server, a container with its own volume, or whatever the repo's test setup starts). Never point a test at a real or production database, and never use a database URL from a `.env` file.
 - **Packages**: the repo's package check, when a file in those roots changed.
 - **Browser suites** (only when the user asks, or a phase end requires them): they run against a build and its preview, never the dev server. A change that touches a screen also needs the look in both light and dark mode at desktop and phone width if the repo's design rules ask for it; a type check does not cover that.

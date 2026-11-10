@@ -92,7 +92,10 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'questions are checked and batched', pattern: /Answer your own question first/ },
 		{ rule: 'a permission is given once', pattern: /A permission is given once/ },
 		{ rule: 'new scope is never automatic', pattern: /Never add new scope on your own/ },
-		{ rule: 'the hook session id is reused', pattern: /use that id and skip `session_start`/ }
+		{ rule: 'the hook session id is reused', pattern: /use that id and skip `session_start`/ },
+		// AFB-20261110-1515: whole-project gates run once, never after every change
+		{ rule: 'the gates run at two speeds', pattern: /Run the gates at two speeds/ },
+		{ rule: 'a passed gate is not rerun', pattern: /Never twice for nothing/ }
 	],
 	'flow-audit': [
 		{ rule: 'no commit or push', pattern: /Do not commit, push/ },
@@ -113,7 +116,12 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'tests after a merge before a push', pattern: /After a merge, a pull or a rebase/ },
 		{ rule: 'no push or deploy', pattern: /Never run a push, a deploy/ },
 		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
-		{ rule: 'no gates found', pattern: /no gates found/ }
+		{ rule: 'no gates found', pattern: /no gates found/ },
+		{
+			rule: 'no whole-project gate after each change',
+			pattern: /After a change, the fast gate only/
+		},
+		{ rule: 'a passed gate is not rerun', pattern: /Never twice for nothing/ }
 	],
 	'flow-interview': [
 		{ rule: 'no code before approval', pattern: /approves the plan|approve the plan/i },

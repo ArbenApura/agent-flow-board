@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.5.0",
+		"version": "1.5.1",
 		"releasedAt": "2026-11-10"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.2.0",
+			"version": "1.2.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -98,6 +98,10 @@
 				{
 					"version": "1.2.0",
 					"hash": "ea0d6d01044b2c467f014ff603f2388086fc638f97d1e243a6749b1a6cccb81b"
+				},
+				{
+					"version": "1.2.1",
+					"hash": "00509eb934300429cd41b9e07325adc73b9cda616fadda8be845035ef7b853dc"
 				}
 			]
 		},
@@ -228,7 +232,7 @@
 			]
 		},
 		"flow-critic": {
-			"version": "1.2.0",
+			"version": "1.2.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -265,6 +269,10 @@
 				{
 					"version": "1.2.0",
 					"hash": "35748257d2a3632b29e739d4fdda8139e45611bd50e4e4bd77c550344b72abda"
+				},
+				{
+					"version": "1.2.1",
+					"hash": "8ab7a565c4baf65fecdaf1df73a2a619ebd21de89bc96a876a2ae3817ee5b658"
 				}
 			]
 		},
@@ -364,7 +372,7 @@
 			]
 		},
 		"flow-verify": {
-			"version": "1.1.2",
+			"version": "1.1.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -385,11 +393,32 @@
 				{
 					"version": "1.1.2",
 					"hash": "5aa51c81c9e89114a37e2777556e2fd343c2c35ab2eb384d1b2ec7d39113a3c8"
+				},
+				{
+					"version": "1.1.3",
+					"hash": "41ccd18ebe9d3ffdf6d7c7311b0373a12ed3fe002d8439349ff3f981e8ecf0cf"
 				}
 			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.5.1",
+			"date": "2026-11-10",
+			"notes": [
+				"flow 1.2.1, flow-verify 1.1.3 and flow-critic 1.2.1: the gates run at two speeds. After a change only the fast gate runs: the formatter and the linter on the changed files, and the related tests when the change touched logic. The whole-project type check or build and the full test suite run once, at the end of the item and before a commit, and earlier only after a change to a shared type, an exported signature, a schema or a config. A gate that passed is not run again while nothing in its scope changed; the review reuses the last result and reruns only what its fixes touch. The plan critic expects one gates step at the end of a plan, not one per phase. A repo rulebook that sets its own rhythm still wins."
+			],
+			"skills": {
+				"flow": "1.2.1",
+				"flow-audit": "1.1.5",
+				"flow-check": "1.2.2",
+				"flow-critic": "1.2.1",
+				"flow-interview": "1.1.5",
+				"flow-mockup": "1.3.0",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.3"
+			}
+		},
 		{
 			"version": "1.5.0",
 			"date": "2026-11-10",
