@@ -11,6 +11,7 @@
 // agent-flow-board check connect|run|pull|bind|watch|status|doctor|clear|setup|disconnect   browser checks on this machine (see check usage)
 // agent-flow-board mockup push <file.html> --server <url> --org <slug> --item <ref>   upload one mockup file (never queued)
 // agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key>   upload the project's kit (its built stylesheet and fonts)
+// agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug>   save a mockup's HTML to one new file outside any repo
 // -- DEP-MODULES -- //
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,7 +23,7 @@ import { hookSettings } from './hooks/settings.js';
 import { runSetup } from './hooks/setup.js';
 import { applyStatusFile } from './hooks/statusFile.js';
 import { deviceLogin } from './device.js';
-import { pushKit, pushMockup } from './mockup.js';
+import { pullMockup, pushKit, pushMockup } from './mockup.js';
 import { Queue } from './queue.js';
 import { accountKey, configDir, pickStore } from './tokenStore.js';
 // -- FUNCTIONS -- //
@@ -167,8 +168,8 @@ async function main() {
     }
     if (cmd === 'mockup') {
         // One upload over /api/v1 with this machine's own sign in. It is never queued, so a failure is said out loud and run again
-        if (!['push', 'kit'].includes(args[1] ?? '') || !args[2] || args[2].startsWith('--')) {
-            log('Usage: agent-flow-board mockup push <file.html> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [--another] [--title <text>] [--keep <text> | --keep-file <path>] [--free <text> | --free-file <path>] [--screenshot <file.png>]\n       agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key> [--commit <hash>] [--summary <text>]');
+        if (!['push', 'kit', 'pull'].includes(args[1] ?? '') || !args[2] || args[2].startsWith('--')) {
+            log('Usage: agent-flow-board mockup push <file.html> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [--another] [--title <text>] [--keep <text> | --keep-file <path>] [--free <text> | --free-file <path>] [--screenshot <file.png>]\n       agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key> [--commit <hash>] [--summary <text>]\n       agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug> [--version <n>] [--session <id>]');
             process.exit(2);
         }
         const server = serverUrl();
@@ -176,6 +177,37 @@ async function main() {
         if (!org) {
             log('Say which organisation: --org <slug>.');
             process.exit(2);
+        }
+        if (args[1] === 'pull') {
+            // The HTML of a mockup, read to the end and saved to one new file outside any repo (AFB-20261111-0017)
+            const out = flag('--out');
+            if (!out) {
+                log('Say where to save it: --out <file.html>, in a temporary folder outside the repo.');
+                process.exit(2);
+            }
+            const version = flag('--version');
+            if (version !== undefined && !/^[1-9][0-9]*$/.test(version)) {
+                log('The --version must be a whole number of 1 or more.');
+                process.exit(2);
+            }
+            const session = flag('--session');
+            if (args.includes('--session') && (!session || session.startsWith('--'))) {
+                log('Give the session id after --session.');
+                process.exit(2);
+            }
+            const pulled = await pullMockup({
+                server,
+                org,
+                token: tokenFor(server, org, true) ?? '',
+                fetch: fetchImpl,
+                mockup: args[2],
+                out,
+                version: version ? Number(version) : undefined,
+                session,
+                log
+            });
+            process.stdout.write(JSON.stringify(pulled) + '\n');
+            return;
         }
         if (args[1] === 'kit') {
             const project = flag('--project');

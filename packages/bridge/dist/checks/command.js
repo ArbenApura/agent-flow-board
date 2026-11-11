@@ -261,7 +261,14 @@ export async function checkMain(ctx) {
             process.once('SIGINT', stop);
             process.once('SIGTERM', stop);
             try {
-                return await approveCommand(args.slice(1), { log, out, json, board, signal: ac.signal });
+                return await approveCommand(args.slice(1), {
+                    log,
+                    out,
+                    json,
+                    board,
+                    org: flag('--org') ?? (only.length === 1 ? only[0]?.org : undefined),
+                    signal: ac.signal
+                });
             }
             finally {
                 process.off('SIGINT', stop);

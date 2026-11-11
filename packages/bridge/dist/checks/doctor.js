@@ -380,7 +380,7 @@ export async function runDoctor(ctx, opts, deps = {}) {
                 if (!existsSync(r.repo))
                     found(`${id}: the repo folder is not there any more.`, `Run: agent-flow-board check project forget ${r.name} --org ${r.org} --remove, then register it again.`);
                 else if (!rootHolding(r.repo))
-                    found(`${id}: the repo is not inside a folder the owner approved.`, 'Ask the owner: check approve --request --action roots --target <parent folder>, then check roots add <folder> --approval <code>.');
+                    found(`${id}: the repo is not inside a folder the owner approved.`, 'Run: agent-flow-board check approve --request --action roots --target <parent folder>, then check roots add <parent folder> --approval <code>.');
                 else {
                     const pin = pinState(r);
                     if (pin === 'changed') {

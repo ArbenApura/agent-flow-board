@@ -156,7 +156,7 @@ const writeEntries = (codes) => writeFileAtomic(approvalsFile(), JSON.stringify(
  */
 export function mintApproval(action, target, opts) {
     if (!opts.isTTY)
-        throw new Refusal('An approval code is made by the owner on an interactive terminal. This is not one, so no code was made.');
+        throw new Refusal('An approval code is made by the owner on an interactive terminal. This is not one, so no code was made. An agent asks on the board instead: agent-flow-board check approve --request --action <action> --target <target>.');
     return mintCode(action, target, opts.now);
 }
 /**

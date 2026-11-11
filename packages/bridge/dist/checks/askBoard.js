@@ -1,6 +1,7 @@
 // ASKING THE OWNER ON THE BOARD: THE AGENT FILES A REQUEST, THE OWNER CLICKS ONCE, THE BRIDGE CLAIMS THE ANSWER ONCE AND MAKES THE SAME LOCAL SINGLE-USE CODE A TERMINAL MAKES
 // Nothing here reads a terminal. A code is made only from a decision the board returned to the claim call (approve.ts keeps the list), never from an argument.
-// The board is injected, so the tests use a fake one. A board that does not know the path, or has approvals switched off, gives a plain message with the terminal fallback.
+// The board is injected, so the tests use a fake one. A board that does not know the path gives a plain message with the terminal fallback, the only way left there.
+// Every other refusal names what the agent does next and never sends the owner to a terminal (AFB-20261110-1448): the owner's switch, a reconnect, a retry.
 // -- MODULES -- //
 import { APPROVAL_ACTIONS, Refusal, UsageError, claimBoardDecisions, isApprovalAction, mintFromDecision, normaliseTarget } from './approve.js';
 import { BoardError } from './board.js';
@@ -29,20 +30,35 @@ export function parseEntries(text) {
         throw new UsageError(`--request-many asks for at most ${ASK_LIMIT} things at once.`);
     return entries;
 }
-/** A board that cannot take the ask says so in words an agent can pass on, with the terminal path. */
+/**
+ * The target as the command that takes the code spells it. `check login` and `check secrets import` accept a code for `<org>/<NAME>` only,
+ * so a bare registration name is given the organisation of the board asked: a code for another spelling would be granted and then refused.
+ */
+export function targetFor(action, target, org) {
+    const text = String(target ?? '').trim();
+    if ((action === 'login' || action === 'secrets') && org && text && !text.includes('/'))
+        return `${org}/${text}`;
+    return text;
+}
+/** A board that cannot take the ask says so in words an agent can act on. Only a board too old to approve leaves the terminal path. */
 function explain(e) {
     if (e instanceof BoardError) {
         if (e.status === 404)
             throw new Refusal(`This board is older and cannot take approvals yet. ${FALLBACK}`);
+        if (e.status === 401)
+            throw new Refusal("The board refused this machine's connection. Connect again yourself: agent-flow-board check connect --server <board address> --org <slug> --json (approve its code with the tool_connection_approve tool), then ask again.");
+        // Only the owner's switch is something to tell the owner; another refusal (a role, a limit) is passed on as it is
         if (e.status === 403)
-            throw new Refusal(`${e.message} ${FALLBACK}`);
+            throw new Refusal(e.message.includes('Agent access')
+                ? `${e.message} Tell the owner this once, in one line, and carry on with what needs no approval.`
+                : e.message);
         if (e.status === 429)
             throw new Refusal(e.message);
     }
     if (e instanceof BoardError ||
         e instanceof TypeError ||
         e?.name === 'TimeoutError')
-        throw new Refusal(`The board could not be reached (${e instanceof Error ? e.message.slice(0, 120) : 'no answer'}). ${FALLBACK}`);
+        throw new Refusal(`The board could not be reached (${e instanceof Error ? e.message.slice(0, 120) : 'no answer'}). Ask again; if it keeps failing run agent-flow-board check doctor --fix --json. This is not a step for the owner.`);
     throw e;
 }
 const REFUSED = {
@@ -65,11 +81,16 @@ export async function askOwner(board, o) {
             throw new UsageError('Say what to ask for.');
         if (o.entries.length > ASK_LIMIT)
             throw new UsageError(`At most ${ASK_LIMIT} things can be asked in one request.`);
-        const entries = o.entries.map((e) => {
+        const spelled = o.entries.map((e) => {
             if (!isApprovalAction(e.action))
                 throw new UsageError(`"${e.action.slice(0, 30)}" is not an action (${APPROVAL_ACTIONS.join(', ')}).`);
-            return { action: e.action, target: normaliseTarget(e.action, e.target) };
+            return {
+                action: e.action,
+                target: normaliseTarget(e.action, targetFor(e.action, e.target, o.org))
+            };
         });
+        // Two spellings of one target (hapra and <org>/hapra) are one ask: the board refuses the same entry twice
+        const entries = spelled.filter((e, i) => spelled.findIndex((x) => x.action === e.action && x.target === e.target) === i);
         let asked;
         try {
             asked = await board.requestApprovals({

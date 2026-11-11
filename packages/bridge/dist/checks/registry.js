@@ -314,7 +314,7 @@ export function configFor(reg) {
     if (!reg.repo)
         throw new Refusal(`The registration ${reg.name} has neither a repo folder nor a live site.`);
     if (!rootHolding(reg.repo))
-        throw new Refusal(`The repo of ${reg.name} is not inside a folder the owner approved (check roots list). Ask the owner to approve its parent folder.`);
+        throw new Refusal(`The repo of ${reg.name} is not inside a folder the owner approved (check roots list). Ask for its parent folder: agent-flow-board check approve --request --action roots --target <parent folder>, then check roots add <parent folder> --approval <code>.`);
     let appRoot = reg.repo;
     if (reg.appDir) {
         const dir = normaliseAppDir(reg.appDir);

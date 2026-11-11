@@ -297,6 +297,7 @@ async function requestOnBoard(p, ctx) {
         entries,
         why: text(p, '--why'),
         project: text(p, '--project'),
+        org: ctx.org,
         waitMinutes: minutes,
         resume: ids,
         say: (line) => ctx.log(line),
@@ -325,7 +326,9 @@ export async function rootsCommand(args, ctx) {
             show(ctx, { roots, problem }, [
                 ...(roots.length
                     ? roots
-                    : ['No roots. The owner adds one: check roots add <folder> --approval <code>.']),
+                    : [
+                        'No roots. Ask for one: agent-flow-board check approve --request --action roots --target <folder>, then check roots add <folder> --approval <code>.'
+                    ]),
                 ...(problem ? [problem] : [])
             ]);
             return problem ? 1 : 0;
