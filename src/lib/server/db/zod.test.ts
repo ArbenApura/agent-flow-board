@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { tabNameFromTitle } from '../../shared/tabName';
-import { continueChoice, itemInsert, projectInsert, projectPinInput, tabNameSchema } from './zod';
+import { NOTE_LIMITS, noteNumberOf, noteRef, sniffPicture } from '../../shared/notes';
+import {
+	continueChoice,
+	itemInsert,
+	noteCreateInput,
+	noteFileInsert,
+	noteFolderInput,
+	noteLinkInput,
+	noteUpdateInput,
+	projectInsert,
+	projectPinInput,
+	tabNameSchema
+} from './zod';
 
 const ids = {
 	orgId: '00000000-0000-4000-8000-000000000001',
@@ -81,5 +93,87 @@ describe('project pin', () => {
 	it('refuses a missing or malformed project id', () => {
 		for (const bad of [{}, { projectId: 'not-a-uuid' }, { projectId: '' }])
 			expect(projectPinInput.safeParse(bad).success, JSON.stringify(bad)).toBe(false);
+	});
+});
+
+describe('notes', () => {
+	it('a note needs a title within the limit and a body within the limit', () => {
+		expect(noteCreateInput.safeParse({ title: 'Billing rules' }).success).toBe(true);
+		expect(noteCreateInput.safeParse({ title: '   ' }).success).toBe(false);
+		expect(noteCreateInput.safeParse({ title: 'a'.repeat(NOTE_LIMITS.title + 1) }).success).toBe(
+			false
+		);
+		expect(
+			noteCreateInput.safeParse({ title: 'Long', body: 'a'.repeat(NOTE_LIMITS.body) }).success
+		).toBe(true);
+		expect(
+			noteCreateInput.safeParse({ title: 'Long', body: 'a'.repeat(NOTE_LIMITS.body + 1) }).success
+		).toBe(false);
+	});
+	it('a create or a change never takes the org, the number, the author or the cause from the caller', () => {
+		const parsed = noteCreateInput.parse({
+			title: 'T',
+			orgId: ids.orgId,
+			number: 9,
+			createdBy: 'someone-else',
+			cause: 'typing',
+			epoch: 5
+		});
+		expect(Object.keys(parsed)).toEqual(['title']);
+		expect(
+			Object.keys(noteUpdateInput.parse({ body: 'x', version: 3, publicEnabled: true }))
+		).toEqual(['body']);
+	});
+	it('visibility is public or private and nothing else', () => {
+		expect(noteUpdateInput.safeParse({ visibility: 'private' }).success).toBe(true);
+		expect(noteUpdateInput.safeParse({ visibility: 'secret' }).success).toBe(false);
+	});
+	it('a folder name is 1 to 80 characters with no slash', () => {
+		expect(noteFolderInput.safeParse({ name: 'Research' }).success).toBe(true);
+		for (const bad of ['', '  ', 'a/b', 'a\\b', 'a'.repeat(NOTE_LIMITS.folderName + 1)])
+			expect(noteFolderInput.safeParse({ name: bad }).success, bad).toBe(false);
+		expect(noteFolderInput.safeParse({ name: 'ok', parentId: 'not-a-uuid' }).success).toBe(false);
+	});
+	it('a link names one of the four kinds and an id', () => {
+		expect(noteLinkInput.safeParse({ targetKind: 'task', targetId: ids.projectId }).success).toBe(
+			true
+		);
+		expect(noteLinkInput.safeParse({ targetKind: 'user', targetId: ids.projectId }).success).toBe(
+			false
+		);
+		expect(noteLinkInput.safeParse({ targetKind: 'task', targetId: 'T-1' }).success).toBe(false);
+	});
+	it('a picture is one of four types and at most 25 MB', () => {
+		const base = { ...ids, noteId: ids.projectId, storageKey: 'notes/a', checksum: 'x' };
+		expect(noteFileInsert.safeParse({ ...base, mime: 'image/png', size: 10 }).success).toBe(true);
+		expect(noteFileInsert.safeParse({ ...base, mime: 'image/svg+xml', size: 10 }).success).toBe(
+			false
+		);
+		expect(
+			noteFileInsert.safeParse({ ...base, mime: 'image/png', size: NOTE_LIMITS.pictureBytes + 1 })
+				.success
+		).toBe(false);
+		expect(noteFileInsert.safeParse({ ...base, mime: 'image/png', size: 0 }).success).toBe(false);
+	});
+	it('the picture type is read from the first bytes, and anything else is refused', () => {
+		const pad = (head: number[]) => new Uint8Array([...head, ...new Array(16).fill(0)]);
+		expect(sniffPicture(pad([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe('image/png');
+		expect(sniffPicture(pad([0xff, 0xd8, 0xff, 0xe0]))).toBe('image/jpeg');
+		expect(sniffPicture(pad([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]))).toBe('image/gif');
+		expect(
+			sniffPicture(
+				new Uint8Array([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50, 0, 0])
+			)
+		).toBe('image/webp');
+		expect(sniffPicture(new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg">'))).toBe(
+			null
+		);
+		expect(sniffPicture(new Uint8Array([]))).toBe(null);
+	});
+	it('a note reference is N- and its number', () => {
+		expect(noteRef(12)).toBe('N-12');
+		expect(noteNumberOf('n-12')).toBe(12);
+		for (const bad of ['N-0', 'N-', 'T-12', 'N-1x', 'N-12345678901'])
+			expect(noteNumberOf(bad)).toBe(null);
 	});
 });

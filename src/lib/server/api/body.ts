@@ -1,6 +1,7 @@
 // HOW MUCH OF A REQUEST BODY THE API READS, BY ENDPOINT: THE DECLARED SIZE IS CHECKED FIRST AND THE STREAM IS CUT AT THE LIMIT
 
 // -- MODULES -- //
+import { NOTE_LIMITS } from '../../shared/notes';
 import { MAX_MOCKUP_BYTES, MAX_SCREENSHOT_BYTES } from '../ops/mockups';
 import { MAX_BODY_BYTES } from './dispatch';
 
@@ -8,6 +9,8 @@ import { MAX_BODY_BYTES } from './dispatch';
 
 /** A JSON body of a mockup call (notes, a pin, settings) is text, never a file. */
 const MOCKUP_JSON_BYTES = 1024 * 1024;
+/** The body of a live editing call: base64 of a few updates of 256 KB. */
+const LIVE_JSON_BYTES = 2 * 1024 * 1024;
 /** A little room over the file cap for the request's own framing. */
 const SLACK = 64 * 1024;
 
@@ -16,6 +19,11 @@ const SLACK = 64 * 1024;
 /** The most bytes this endpoint reads. Everything else keeps the general limit. */
 export function bodyLimit(method: string, path: string): number {
 	if (method === 'GET' || method === 'DELETE') return 0;
+	// A note picture goes up as the raw body; the cap is the picture limit, read while it streams in
+	if (/^\/orgs\/[^/]+\/projects\/[^/]+\/notes\/[^/]+\/files\/?$/.test(path) && method === 'POST')
+		return NOTE_LIMITS.pictureBytes + SLACK;
+	// Live editing calls are small JSON; a few updates of the largest size still fit
+	if (/^\/orgs\/[^/]+\/projects\/[^/]+\/notes\/[^/]+\/live\//.test(path)) return LIVE_JSON_BYTES;
 	if (/^\/orgs\/[^/]+\/mockups\/?$/.test(path) && method === 'POST')
 		return MAX_MOCKUP_BYTES + SLACK;
 	if (/^\/orgs\/[^/]+\/projects\/[^/]+\/mockup-kit\/?$/.test(path) && method === 'PUT')

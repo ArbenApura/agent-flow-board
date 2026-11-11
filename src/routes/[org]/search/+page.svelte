@@ -23,7 +23,8 @@
 		item: 'Item',
 		section: 'Document',
 		decision: 'Decision',
-		task: 'Task'
+		task: 'Task',
+		note: 'Note'
 	};
 
 	// -- FUNCTIONS -- //
@@ -31,6 +32,7 @@
 	function href(h: (typeof data.hits)[number]) {
 		const base = `/${data.org.slug}/${h.projectKey}`;
 		if (h.kind === 'task') return `${base}/tasks`;
+		if (h.kind === 'note' && h.noteRef) return `${base}/notes/${h.noteRef}`;
 		return h.itemRef ? `${base}/${h.itemRef}` : base;
 	}
 </script>
@@ -41,7 +43,7 @@
 	<PageHeader
 		class="mb-2!"
 		title="Search"
-		context="Items, documents, decisions and tasks across the organisation."
+		context="Items, documents, decisions, tasks and notes across the organisation."
 	/>
 	<form method="GET" class="flex items-end gap-2">
 		<TextField

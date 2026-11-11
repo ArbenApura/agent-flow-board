@@ -16,6 +16,7 @@ import {
 	mockup,
 	mockupRead,
 	mockupVersion,
+	note,
 	project,
 	projectCols,
 	projectLogoV,
@@ -34,7 +35,14 @@ import { listComments } from './docs';
 import { listEvents } from './history';
 import { pinnedProjectIds } from './pins';
 import { canSeeItem, getItem } from './items';
-import { findProject, visibleItemSql } from './resolve';
+import {
+	canSeeNote,
+	findProject,
+	isUuid,
+	noteRoleOf,
+	visibleItemSql,
+	visibleNoteSql
+} from './resolve';
 import { QUIET_RELEASE_MINUTES, RUNNING_WINDOW_MINUTES, staleMinutesSql } from './tracking';
 
 // -- CONSTANTS -- //
@@ -350,11 +358,13 @@ export async function itemPage(ctx: Ctx, nameOrId: string) {
 }
 
 export type SearchResult = {
-	kind: 'item' | 'section' | 'decision' | 'task';
+	kind: 'item' | 'section' | 'decision' | 'task' | 'note';
 	id: string;
 	title: string;
 	/** Where the hit leads: an item reference and its project key, or a task number. */
 	itemRef: string | null;
+	/** The reference of a note hit (N-12), null for any other kind. */
+	noteRef?: string | null;
 	projectKey: string;
 	rank: number;
 };
@@ -389,7 +399,16 @@ export async function searchBoard(
 					.from(task)
 					.where(inArray(task.id, taskIds))
 			: [];
-		const projectIds = [...new Set([...items, ...tasks].map((x) => x.projectId))];
+		// Notes the caller may see now: shared or their own, not in the trash, not under a trashed folder. A guest, who has
+		// no role on the project's notes, is dropped below with noteRoleOf.
+		const noteIds = hits.filter((h) => h.kind === 'note').map((h) => h.id);
+		const notes = noteIds.length
+			? await tx
+					.select({ id: note.id, number: note.number, projectId: note.projectId })
+					.from(note)
+					.where(and(inArray(note.id, noteIds), visibleNoteSql(ctx.actor.userId)))
+			: [];
+		const projectIds = [...new Set([...items, ...tasks, ...notes].map((x) => x.projectId))];
 		const projects = projectIds.length
 			? await tx.select(projectCols).from(project).where(inArray(project.id, projectIds))
 			: [];
@@ -405,7 +424,28 @@ export async function searchBoard(
 		const keyOf = new Map(projects.map((p) => [p.id, p.key]));
 		const only = options.project?.toUpperCase();
 		const out: SearchResult[] = [];
+		// Whether the caller has a role other than guest on the notes of each project, once each
+		const noteRoles = new Map<string, boolean>();
+		for (const id of new Set(notes.map((n) => n.projectId)))
+			noteRoles.set(id, !!(await noteRoleOf(tx, ctx, id)));
 		for (const h of hits) {
+			if (h.kind === 'note') {
+				const n = notes.find((x) => x.id === h.id);
+				if (!n || !noteRoles.get(n.projectId) || !roles.get(n.projectId)) continue;
+				const projectKey = keyOf.get(n.projectId)!;
+				if (only && projectKey.toUpperCase() !== only) continue;
+				out.push({
+					kind: 'note',
+					id: h.id,
+					title: h.title,
+					itemRef: null,
+					noteRef: `N-${n.number}`,
+					projectKey,
+					rank: h.rank
+				});
+				if (out.length >= (options.limit ?? 30)) break;
+				continue;
+			}
 			const it = h.itemId ? items.find((i) => i.id === h.itemId) : undefined;
 			// The sections and decisions of a trashed item are gone with it
 			if (it?.deletedAt) continue;
@@ -434,10 +474,29 @@ export async function searchBoard(
  * May this person still read the project, and the item a change touched? Asked when a stream opens and on every change,
  * so a removed member or a demoted guest stops receiving at the next event (SPEC 11).
  */
-export async function mayReceive(ctx: Ctx, projectId: string, itemId?: string | null) {
+export async function mayReceive(
+	ctx: Ctx,
+	projectId: string,
+	itemId?: string | null,
+	/** A change in the Notes area: the id of the note it touched, or 'area' for a folder (AFB-20261111-0035). */
+	noteId?: string | null
+) {
 	try {
 		return await run(ctx, async (tx) => {
 			const { role } = await requireCap(tx, ctx, 'read', projectId);
+			if (noteId) {
+				// Notes are hidden from guests, a private note from everyone but its creator, and a note id nobody can find
+				// is refused: the default here is no, never yes
+				const noteRole = await noteRoleOf(tx, ctx, projectId);
+				if (!noteRole) return false;
+				if (noteId === 'area') return true;
+				if (!isUuid(noteId)) return false;
+				const [n] = await tx
+					.select({ visibility: note.visibility, createdBy: note.createdBy })
+					.from(note)
+					.where(and(eq(note.id, noteId), eq(note.projectId, projectId)));
+				return !!n && canSeeNote(noteRole, n, ctx.actor.userId);
+			}
 			if (!itemId) return true;
 			const [it] = await tx
 				.select({

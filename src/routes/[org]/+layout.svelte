@@ -4,6 +4,7 @@
 	// -- ENVS -- //
 	import { navigating, page } from '$app/state';
 	// -- MODULES -- //
+	import { projectTabs } from '#lib/board/projectTabs.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Button from '#lib/ui/Button.svelte';
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
@@ -42,26 +43,19 @@
 
 	const base = $derived(`/${data.org.slug}`);
 	const current = $derived(data.projects.find((p) => p.key === page.params.project));
-	// Five links stay in the bar. The rest of the project lives under More (ADR-004)
-	const primary = $derived(
+	// Six links stay in the bar: Notes joined them after Tasks (AFB-20261111-0035). The rest of the project lives under More
+	// (ADR-004). The list is built in one place, and a guest on the project gets no Notes link
+	const projectPages = $derived(
 		current
-			? [
-					{ href: `${base}/${current.key}`, label: 'Registry', exact: true },
-					{ href: `${base}/${current.key}/tasks`, label: 'Tasks' },
-					{ href: `${base}/${current.key}/activity`, label: 'Activity' },
-					{ href: `${base}/${current.key}/health`, label: 'Health' },
-					{ href: `${base}/${current.key}/mockups`, label: 'Mockups' }
-				]
-			: []
+			? projectTabs(
+					base,
+					current.key,
+					(page.data as { summary?: { role?: string } | null }).summary?.role
+				)
+			: { primary: [], secondary: [] }
 	);
-	const secondary = $derived(
-		current
-			? [
-					{ href: `${base}/${current.key}/trash`, label: 'Trash' },
-					{ href: `${base}/${current.key}/settings`, label: 'Project settings' }
-				]
-			: []
-	);
+	const primary = $derived(projectPages.primary);
+	const secondary = $derived(projectPages.secondary);
 	const tabs = $derived<{ href: string; label: string; exact?: boolean }[]>([
 		...primary,
 		...secondary

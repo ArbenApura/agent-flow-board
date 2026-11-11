@@ -1,7 +1,22 @@
 // THE PAGE SIDE OF THE LIVE STREAM: OPENS THE EVENT SOURCE, TELLS THE PAGE TO REFETCH ON A CHANGE, AND REPORTS WHEN LIVE UPDATES ARE LOST
 
+// -- DEP-MODULES -- //
+import { SvelteSet } from 'svelte/reactivity';
+
 // -- TYPES -- //
 export type LiveState = { lost: boolean };
+
+/** A live editing notice. `note` says new updates were stored (up to `seq` of `epoch`); `presence` carries one awareness message. */
+export type NoteLiveNotice =
+	| { kind: 'note'; note: string; epoch: number | null; seq: number }
+	| { kind: 'presence'; note: string; epoch: number | null; data: string }
+	/** The stream came back after a drop: notices may have been missed, so an open note reads again by number. */
+	| { kind: 'reconnected' };
+
+// -- STATES -- //
+
+/** The listeners the note page registers. A live notice goes only to these and never to the page refresh. */
+const noteListeners = new SvelteSet<(notice: NoteLiveNotice) => void>();
 
 // -- CONSTANTS -- //
 
@@ -9,6 +24,27 @@ export type LiveState = { lost: boolean };
 const DEBOUNCE_MS = 120;
 
 // -- FUNCTIONS -- //
+
+/** Registers the note page's listener for live editing notices. Returns the function that removes it. */
+export function onNoteLive(listener: (notice: NoteLiveNotice) => void): () => void {
+	noteListeners.add(listener);
+	return () => noteListeners.delete(listener);
+}
+
+/** Parses one live notice; anything that is not the expected shape is dropped. */
+function liveNotice(kind: 'note' | 'presence', raw: unknown): NoteLiveNotice | null {
+	if (typeof raw !== 'string') return null;
+	try {
+		const d = JSON.parse(raw) as Record<string, unknown>;
+		if (typeof d.note !== 'string') return null;
+		const epoch = typeof d.epoch === 'number' ? d.epoch : null;
+		if (kind === 'note')
+			return typeof d.seq === 'number' ? { kind, note: d.note, epoch, seq: d.seq } : null;
+		return typeof d.data === 'string' ? { kind, note: d.note, epoch, data: d.data } : null;
+	} catch {
+		return null;
+	}
+}
 
 /**
  * Connects to a project stream. `onChange` runs once per burst of changes and after a reconnect (so a missed change is
@@ -49,12 +85,19 @@ export function connectStream(
 				// Only the very first open may show cached data. After a drop a change may have been missed, so the network answers
 				const missed = dropped;
 				dropped = false;
+				if (missed) for (const fn of noteListeners) fn({ kind: 'reconnected' });
 				first = false;
 				soon(missed);
 			}
 		});
 		es.addEventListener('change', () => soon());
 		es.addEventListener('refetch', () => soon());
+		// Live editing notices never reach soon(): a live update reloads no page
+		for (const kind of ['note', 'presence'] as const)
+			es.addEventListener(kind, (e) => {
+				const notice = liveNotice(kind, (e as MessageEvent).data);
+				if (notice) for (const fn of noteListeners) fn(notice);
+			});
 		es.addEventListener('error', () => {
 			dropped = true;
 			state.lost = true;

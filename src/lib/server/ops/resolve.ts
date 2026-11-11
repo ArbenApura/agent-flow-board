@@ -7,7 +7,8 @@ import type { Role } from '../orgs/roles';
 // -- DEP-MODULES -- //
 import { and, eq, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { item, itemAlias, project, projectCols, projectLogoV } from '../db/schema';
+import { NOTE_LIMITS } from '../../shared/notes';
+import { item, itemAlias, note, project, projectCols, projectLogoV } from '../db/schema';
 import { effectiveProjectRole } from '../orgs/roles';
 import { OpError, orgRoleOf, projectAllowed, projectRoleOf } from './context';
 
@@ -108,6 +109,80 @@ async function requireVisible(tx: Tx, ctx: Ctx, row: typeof item.$inferSelect) {
 	if (!orgRole) throw notFound();
 	const role = effectiveProjectRole(orgRole, await projectRoleOf(tx, row.projectId, actor.userId));
 	if (!role || !canSeeItem(role, row, actor.userId)) throw notFound();
+}
+
+// -- NOTES (AFB-20261111-0035): EVERY READ PATH OF A NOTE USES THESE HELPERS AND NO OTHER FILTER -- //
+
+/**
+ * The role the caller holds for the notes of one project: their role on that project, and null for a guest there, for a
+ * person with no access to the project and for a token limited to other projects. Notes are hidden from guests (rule 3),
+ * so the role is always the project's, never the organisation's alone.
+ */
+export async function noteRoleOf(tx: Tx, ctx: Ctx, projectId: string): Promise<Role | null> {
+	const actor = ctx.actor;
+	if (!actor?.userId || !projectAllowed(actor, projectId)) return null;
+	const orgRole = await orgRoleOf(tx, ctx.orgId, actor.userId);
+	if (!orgRole) return null;
+	const role = effectiveProjectRole(orgRole, await projectRoleOf(tx, projectId, actor.userId));
+	return role && role !== 'guest' ? role : null;
+}
+
+/**
+ * A shared note is seen by everyone on the project but guests. A private note is seen only by the person who created it,
+ * whatever their role: owners and admins included (the rule of a private plan).
+ */
+export function canSeeNote(
+	role: Role | null,
+	n: Pick<typeof note.$inferSelect, 'visibility' | 'createdBy'>,
+	userId: string
+): boolean {
+	if (!role || role === 'guest') return false;
+	if (n.visibility === 'public') return true;
+	return n.createdBy !== null && n.createdBy === userId;
+}
+
+/**
+ * The folders that are hidden because they, or a folder above them, are in the trash: worked out once per query by walking
+ * down from the trashed folders. UNION and the depth guard make it end even if the table ever held a loop.
+ */
+export const hiddenNoteFoldersSql = () =>
+	sql`(with recursive hidden(id, depth) as (
+		select id, 1 from note_folder where deleted_at is not null
+		union
+		select f.id, h.depth + 1 from note_folder f join hidden h on f.parent_id = h.id where h.depth < ${sql.raw(String(NOTE_LIMITS.folderDepth))}
+	) select id from hidden)`;
+
+/**
+ * The rule of canSeeNote as SQL, with the trash: the note is not trashed, its folder is not hidden, and it is shared or
+ * the caller's own. The caller's role (never a guest) is checked apart, with noteRoleOf. `trash: 'only'` gives the notes
+ * that are themselves in the trash, for the Trash page.
+ */
+export const visibleNoteSql = (userId: string, options: { trash?: 'only' } = {}) =>
+	options.trash === 'only'
+		? sql`(${note.deletedAt} is not null and (${note.visibility} = 'public' or ${note.createdBy} = ${userId}))`
+		: sql`(${note.deletedAt} is null and (${note.visibility} = 'public' or ${note.createdBy} = ${userId}) and (${note.folderId} is null or ${note.folderId} not in ${hiddenNoteFoldersSql()}))`;
+
+/**
+ * Refuses a note the caller may not see with the same NOT_FOUND as a note that does not exist, so a reference cannot be
+ * used to probe for private notes. A system call with no person is not limited. Returns the caller's role on the project.
+ */
+export async function requireNoteVisible(
+	tx: Tx,
+	ctx: Ctx,
+	row: Pick<typeof note.$inferSelect, 'projectId' | 'visibility' | 'createdBy' | 'folderId'>
+): Promise<Role | null> {
+	const actor = ctx.actor;
+	if (!actor?.userId) return null;
+	const notFound = () => new OpError('NOT_FOUND', 'No note with that name.');
+	const role = await noteRoleOf(tx, ctx, row.projectId);
+	if (!canSeeNote(role, row, actor.userId)) throw notFound();
+	if (row.folderId) {
+		const hidden = await tx.execute(
+			sql`select 1 as hit where ${row.folderId}::uuid in ${hiddenNoteFoldersSql()}`
+		);
+		if ((hidden as unknown as { rows: unknown[] }).rows.length) throw notFound();
+	}
+	return role;
 }
 
 /** A project by its key (CKT) or id, inside the caller's org. */

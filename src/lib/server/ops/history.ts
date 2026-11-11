@@ -7,11 +7,30 @@ import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, sql } from 'drizzle-
 import { z } from 'zod';
 // -- MODULES -- //
 import { undoEvent, type UndoResult } from '../db/events';
-import { attachment, event, item, mockup, mockupVersion, task } from '../db/schema';
+import {
+	attachment,
+	event,
+	item,
+	mockup,
+	mockupVersion,
+	note,
+	noteFile,
+	noteFolder,
+	task
+} from '../db/schema';
 import { mockupUnreadError, planWorked, unreadForGate } from './mockupReads';
 import { canSeeMockup } from './mockups';
 import { OpError, requireCap, run } from './context';
-import { canSeeItem, findItem, findProject, mayView, visibleItemSql } from './resolve';
+import { lockTree } from './noteFolders';
+import {
+	canSeeItem,
+	findItem,
+	findProject,
+	mayView,
+	noteRoleOf,
+	visibleItemSql,
+	visibleNoteSql
+} from './resolve';
 
 // -- CONSTANTS -- //
 
@@ -57,6 +76,12 @@ export async function listEvents(
 		const onlyItem = input.item
 			? (await findItem(tx, ctx, input.item, { includeTrashed: true })).id
 			: undefined;
+		// Notes are hidden from guests, and a private note's events from everyone but its creator (AFB-20261111-0035). An
+		// event of a note that was purged is hidden too: nobody can tell any more whether it was private.
+		const noteReader = !!(await noteRoleOf(tx, ctx, proj.id));
+		const noteEvents = noteReader
+			? sql`(${event.targetType} not in ('note', 'note_folder') or ${event.targetType} = 'note_folder' or exists (select 1 from note n where n.id::text = ${event.targetId} and (n.visibility = 'public' or n.created_by = ${ctx.actor.userId})))`
+			: sql`${event.targetType} not in ('note', 'note_folder')`;
 		const rows = await tx
 			.select({
 				id: event.id,
@@ -83,7 +108,8 @@ export async function listEvents(
 					onlyItem ? eq(event.itemId, onlyItem) : undefined,
 					input.sessionId ? eq(event.sessionId, input.sessionId) : undefined,
 					input.afterId !== undefined ? gt(event.id, input.afterId) : undefined,
-					sql`(${event.itemId} is null or ${visibleItemSql(ctx.actor.userId)})`
+					sql`(${event.itemId} is null or ${visibleItemSql(ctx.actor.userId)})`,
+					noteEvents
 				)
 			)
 			.orderBy(desc(event.id))
@@ -310,7 +336,43 @@ export async function listTrash(ctx: Ctx, projectKey: string) {
 			? await tx.select().from(item).where(inArray(item.id, mockupPlanIds))
 			: [];
 		const planOfMockup = new Map(mockupPlans.map((p) => [p.id, p]));
+		// Notes and folders in the trash, for the people notes are shared with; a private note only for its creator
+		const noteReader = !!(await noteRoleOf(tx, ctx, proj.id));
+		const trashedNotes = noteReader
+			? await tx
+					.select({
+						id: note.id,
+						number: note.number,
+						title: note.title,
+						deletedAt: note.deletedAt
+					})
+					.from(note)
+					.where(
+						and(eq(note.projectId, proj.id), visibleNoteSql(ctx.actor.userId, { trash: 'only' }))
+					)
+					.orderBy(desc(note.deletedAt))
+			: [];
+		const trashedFolders = noteReader
+			? await tx
+					.select({ id: noteFolder.id, name: noteFolder.name, deletedAt: noteFolder.deletedAt })
+					.from(noteFolder)
+					.where(and(eq(noteFolder.projectId, proj.id), isNotNull(noteFolder.deletedAt)))
+					.orderBy(desc(noteFolder.deletedAt))
+			: [];
 		return {
+			notes: trashedNotes.map((n) => ({
+				id: n.id,
+				ref: `N-${n.number}`,
+				title: n.title,
+				deletedAt: n.deletedAt,
+				daysLeft: daysLeft(n.deletedAt)
+			})),
+			noteFolders: trashedFolders.map((f) => ({
+				id: f.id,
+				name: f.name,
+				deletedAt: f.deletedAt,
+				daysLeft: daysLeft(f.deletedAt)
+			})),
 			items: items.map((i) => ({
 				id: i.id,
 				ref: i.ref,
@@ -428,10 +490,60 @@ async function purgeTrashRows(ctx: Ctx, days: number, checkRole: boolean) {
 			for (const v of versions) mockupKeys.push(v.key, ...(v.shot ? [v.shot] : []));
 			await tx.delete(mockup).where(inArray(mockup.id, mids));
 		}
+		// NOTES (AFB-20261111-0035). A folder in the trash for 30 days goes with every folder and note under it. Those notes
+		// were never trashed themselves, so they are deleted here, first, and their picture keys are collected before the rows go:
+		// a cascade alone would leave the stored files behind. UNION on the id alone ends even if the table held a loop.
+		// The tree lock of every project with an old trashed folder is taken first, in a fixed order, so a move or a restore
+		// at the same moment cannot change the tree between finding the doomed folders and deleting them
+		const lockedProjects = (
+			(await tx.execute(sql`
+				select distinct project_id from note_folder
+				where deleted_at is not null and deleted_at < ${cutoff} order by project_id`)) as unknown as {
+				rows: { project_id: string }[];
+			}
+		).rows;
+		for (const p of lockedProjects) await lockTree(tx, p.project_id);
+		const doomed = (
+			(await tx.execute(sql`
+				with recursive down(id) as (
+					select id from note_folder where deleted_at is not null and deleted_at < ${cutoff}
+					union
+					select f.id from note_folder f join down d on f.parent_id = d.id
+				) select id from down`)) as unknown as { rows: { id: string }[] }
+		).rows.map((r) => r.id);
+		const oldNotes = await tx
+			.select({ id: note.id })
+			.from(note)
+			.where(
+				doomed.length
+					? sql`((${note.deletedAt} is not null and ${note.deletedAt} < ${cutoff}) or ${inArray(note.folderId, doomed)})`
+					: and(isNotNull(note.deletedAt), lt(note.deletedAt, cutoff))
+			);
+		const noteKeys: string[] = [];
+		if (oldNotes.length) {
+			const nids = oldNotes.map((n) => n.id);
+			const pictures = await tx
+				.select({ key: noteFile.storageKey })
+				.from(noteFile)
+				.where(inArray(noteFile.noteId, nids));
+			noteKeys.push(...pictures.map((p) => p.key));
+			// Versions, links, pictures, favourites and live updates go with the note (cascade)
+			await tx.delete(note).where(inArray(note.id, nids));
+		}
+		if (doomed.length) await tx.delete(noteFolder).where(inArray(noteFolder.id, doomed));
+		// A link that pointed at something this run (or an earlier one) removed for good is removed with it
+		if (delItems.length || delTasks.length || oldMockups.length || oldNotes.length)
+			await tx.execute(sql`
+				delete from note_link l where
+					(l.target_kind = 'item' and not exists (select 1 from item x where x.id = l.target_id))
+					or (l.target_kind = 'task' and not exists (select 1 from task x where x.id = l.target_id))
+					or (l.target_kind = 'mockup' and not exists (select 1 from mockup x where x.id = l.target_id))
+					or (l.target_kind = 'note' and not exists (select 1 from note x where x.id = l.target_id))`);
 		return {
 			items: delItems.length,
 			tasks: delTasks.length,
-			keys: [...keys.map((k) => k.key), ...mockupKeys]
+			notes: oldNotes.length,
+			keys: [...keys.map((k) => k.key), ...mockupKeys, ...noteKeys]
 		};
 	});
 	// Files go after the rows, so a failure leaves a stray file and never a row pointing at nothing

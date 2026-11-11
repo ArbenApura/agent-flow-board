@@ -30,6 +30,8 @@ export type NewEvent = {
 	orgId: string;
 	projectId: string;
 	itemId?: string | null;
+	/** Set for an event about a note (its target id), so the change notice names the note and a stream can filter it. */
+	noteId?: string | null;
 	actorUserId?: string | null;
 	actorLabel?: string | null;
 	tool?: string | null;
@@ -98,6 +100,7 @@ export async function appendEvent(tx: Tx, e: NewEvent): Promise<number> {
 		k: 'event',
 		e: row.id,
 		i: e.itemId ?? null,
+		...(e.noteId ? { n: e.noteId } : {}),
 		v: e.verb
 	});
 	return row.id;

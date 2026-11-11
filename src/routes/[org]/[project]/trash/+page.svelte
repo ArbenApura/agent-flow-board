@@ -27,6 +27,8 @@
 			data.trash.items.length +
 				data.trash.tasks.length +
 				data.trash.mockups.length +
+				data.trash.notes.length +
+				data.trash.noteFolders.length +
 				data.trash.attachments.length ===
 				0
 	);
@@ -67,6 +69,38 @@
 					loading: `Restoring ${title}...`,
 					success: `${title} is back. Its public link stays off.`,
 					error: (e) => (e instanceof ApiError ? e.message : 'The mockup was not restored.')
+				}
+			);
+			await invalidate('afb:project');
+		} catch {
+			// The promise toast already shows the failure
+		}
+	}
+
+	async function restoreNote(ref: string, title: string) {
+		try {
+			await toast.promise(
+				api(org, `/projects/${key}/notes/${ref}/restore`, { method: 'POST', body: {} }),
+				{
+					loading: `Restoring ${title}...`,
+					success: `${title} is back.`,
+					error: (e) => (e instanceof ApiError ? e.message : 'The note was not restored.')
+				}
+			);
+			await invalidate('afb:project');
+		} catch {
+			// The promise toast already shows the failure
+		}
+	}
+
+	async function restoreFolder(id: string, name: string) {
+		try {
+			await toast.promise(
+				api(org, `/projects/${key}/note-folders/${id}/restore`, { method: 'POST', body: {} }),
+				{
+					loading: `Restoring ${name}...`,
+					success: `${name} is back with its notes.`,
+					error: (e) => (e instanceof ApiError ? e.message : 'The folder was not restored.')
 				}
 			);
 			await invalidate('afb:project');
@@ -199,6 +233,53 @@
 							<span class="min-w-0 flex-1 truncate">{mk.title}</span>
 							{@render daysBadge(mk.daysLeft)}
 							<Button size="sm" onclick={() => restoreMockup(mk.id, mk.title)}>Restore</Button>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+		{#if data.trash.notes.length}
+			<section class="flex flex-col gap-2" aria-label="Notes in the trash">
+				<h2 class="text-lg font-semibold">Notes</h2>
+				<ul
+					class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
+					data-testid="trash-notes"
+				>
+					{#each data.trash.notes as n (n.id)}
+						<li
+							class="flex items-center gap-3 border-b border-line px-3 py-2 text-sm last:border-b-0"
+						>
+							<span class="w-12 shrink-0 font-mono text-xs text-muted max-sm:hidden">{n.ref}</span>
+							<span class="min-w-0 flex-1 truncate">{n.title}</span>
+							{@render daysBadge(n.daysLeft)}
+							<Button
+								size="sm"
+								onclick={() => restoreNote(n.ref, n.title)}
+								data-testid="restore-note">Restore</Button
+							>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+		{#if data.trash.noteFolders.length}
+			<section class="flex flex-col gap-2" aria-label="Note folders in the trash">
+				<h2 class="text-lg font-semibold">Note folders</h2>
+				<ul
+					class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
+					data-testid="trash-note-folders"
+				>
+					{#each data.trash.noteFolders as f (f.id)}
+						<li
+							class="flex items-center gap-3 border-b border-line px-3 py-2 text-sm last:border-b-0"
+						>
+							<span class="min-w-0 flex-1 truncate">{f.name}</span>
+							{@render daysBadge(f.daysLeft)}
+							<Button
+								size="sm"
+								onclick={() => restoreFolder(f.id, f.name)}
+								data-testid="restore-note-folder">Restore</Button
+							>
 						</li>
 					{/each}
 				</ul>

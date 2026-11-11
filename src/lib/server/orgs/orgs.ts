@@ -77,7 +77,9 @@ export const RESERVED_SLUGS = new Set([
 	'deleted',
 	// The public mockup link (/m) and the signed mockup file (/mf)
 	'm',
-	'mf'
+	'mf',
+	// The public note link (/n)
+	'n'
 ]);
 
 // -- FUNCTIONS -- //

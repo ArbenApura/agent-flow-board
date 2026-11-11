@@ -13,7 +13,7 @@
 	const kind = $derived(
 		!routeId
 			? 'list'
-			: routeId.endsWith('/[item]')
+			: routeId.endsWith('/[item]') || routeId.endsWith('/notes/[n]')
 				? 'item'
 				: routeId.endsWith('/mockups/[id]')
 					? 'item'

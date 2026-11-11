@@ -63,7 +63,7 @@ const timing: Handle = async ({ event, resolve }) => {
 /** The public page of a mockup link never sends the address on to another site and is never indexed. */
 const publicMockupPage: Handle = async ({ event, resolve }) => {
 	const response = await resolve(event);
-	if (/^\/m\/[^/]+\/?$/.test(event.url.pathname)) {
+	if (/^\/[mn]\/[^/]+\/?$/.test(event.url.pathname)) {
 		try {
 			response.headers.set('referrer-policy', 'no-referrer');
 			response.headers.set('x-robots-tag', 'noindex');

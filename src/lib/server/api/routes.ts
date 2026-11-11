@@ -123,6 +123,9 @@ import {
 } from '../ops/environments';
 import { backupHealth } from '../backup/run';
 import { mockupRoutes } from './mockupRoutes';
+import { noteRoutes } from './noteRoutes';
+import { noteVersionRoutes } from './noteVersionRoutes';
+import { noteSyncRoutes } from './noteSyncRoutes';
 import { handleHook, hookInput } from '../ops/hooks';
 import { createInvite, listInvites, revokeInvite } from '../orgs/invites';
 import {
@@ -154,6 +157,11 @@ export type Route = {
 	query?: z.ZodType;
 	/** Raw bytes in the body (an upload). The other fields arrive in the query. */
 	upload?: boolean;
+	/**
+	 * Live editing call from the open page. A write takes application/json only, and a caller with the session cookie must
+	 * send this site's Origin (a missing one is refused), because /api/v1 is exempt from the form check of hooks.server.ts.
+	 */
+	live?: boolean;
 	/** Tokens may not call this (a token cannot mint tokens). */
 	sessionOnly?: boolean;
 	handler: Handler;
@@ -988,7 +996,10 @@ export const routes: Route[] = [
 	},
 
 	// -- mockups (their own file) -- //
-	...mockupRoutes
+	...mockupRoutes,
+	...noteRoutes,
+	...noteVersionRoutes,
+	...noteSyncRoutes
 ];
 
 /** Turns `/orgs/{org}/items/{item}` into a matcher that returns the named parts. */

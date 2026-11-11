@@ -274,6 +274,114 @@ body {
 	font-weight: 600;
 }
 
+/* NOTE EDITOR (AFB-20261111-0035, STEP 4.2). THE EDITOR ROOT IS A .md, SO THESE RULES ONLY ADD WHAT EDITING NEEDS. TOKENS ONLY */
+.md.ProseMirror {
+	min-height: 320px;
+	outline: none;
+	white-space: pre-wrap;
+}
+.md.ProseMirror ::selection {
+	background: var(--accent-soft);
+	color: var(--accent-text);
+}
+/* THE PLACEHOLDER SHOWS ON AN EMPTY FIRST LINE ONLY */
+.md.ProseMirror p.is-editor-empty:first-child::before {
+	content: attr(data-placeholder);
+	float: left;
+	height: 0;
+	color: var(--muted);
+	pointer-events: none;
+}
+/* A TABLE SITS IN ITS OWN SIDEWAYS SCROLL BOX AND USES THE WHOLE CARD */
+.md .tableWrapper {
+	max-width: none;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+.md .tableWrapper table {
+	display: table;
+	min-width: 100%;
+}
+.md td,
+.md th {
+	position: relative;
+	vertical-align: top;
+}
+/* SELECTED TABLE CELLS */
+.md .selectedCell::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: var(--accent-soft);
+	opacity: 0.7;
+	pointer-events: none;
+}
+/* CHECKLIST: A BOX AND A LINE OF TEXT, NO BULLET */
+.md ul[data-type='taskList'] {
+	list-style: none;
+	padding-left: 0;
+}
+.md ul[data-type='taskList'] ul[data-type='taskList'] {
+	padding-left: 1.5rem;
+}
+.md ul[data-type='taskList'] li {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+}
+.md ul[data-type='taskList'] li > label {
+	flex: none;
+	padding-top: 4px;
+}
+.md ul[data-type='taskList'] li > label input {
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+	accent-color: var(--accent);
+}
+.md ul[data-type='taskList'] li > div {
+	flex: 1;
+	min-width: 0;
+}
+.md ul[data-type='taskList'] li[data-checked='true'] > div {
+	color: var(--muted);
+	text-decoration: line-through;
+}
+.md img {
+	max-width: 100%;
+	border-radius: 8px;
+}
+.md img.ProseMirror-selectednode {
+	outline: 2px solid var(--accent);
+}
+/* OTHER PEOPLE'S CARETS AND THEIR NAMES. EVERY REMOTE CURSOR USES THE ONE INK TOKEN, SO NO COLOUR IS CHOSEN FOR A PERSON AT RUN TIME */
+.collaboration-carets__caret {
+	position: relative;
+	margin-left: -1px;
+	margin-right: -1px;
+	border-left: 1px solid var(--ink);
+	border-right: 1px solid var(--ink);
+	word-break: normal;
+	pointer-events: none;
+}
+.collaboration-carets__label {
+	position: absolute;
+	top: -1.4em;
+	left: -1px;
+	padding: 0 4px;
+	border-radius: 4px 4px 4px 0;
+	background: var(--ink);
+	color: var(--surface);
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 18px;
+	white-space: nowrap;
+	user-select: none;
+}
+.collaboration-carets__selection {
+	background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
+
 /* MOTION HELPERS (FLOW-20261016-0935 11.5). A FADE AND RISE FOR PAGE CONTENT, A STAGGER FOR LIST ROWS, A LIFT ON HOVERED CARDS AND A SETTLE ON PRESS. ALL OFF UNDER REDUCED MOTION */
 @keyframes afb-rise {
 	from {

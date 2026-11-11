@@ -6,6 +6,7 @@ import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'driz
 import { z } from 'zod';
 // -- MODULES -- //
 import { CONTINUE_MODES, CONTINUE_TOOL_IDS, validPair } from '../../shared/continue';
+import { NOTE_LIMITS, NOTE_PICTURE_TYPES } from '../../shared/notes';
 import { TAB_NAME } from '../../shared/tabName';
 import {
 	apiToken,
@@ -24,6 +25,11 @@ import {
 	mockupRead,
 	mockupTemplate,
 	mockupVersion,
+	note,
+	noteFile,
+	noteFolder,
+	noteLink,
+	noteVersion,
 	org,
 	phase,
 	project,
@@ -70,6 +76,11 @@ export const mockupReadSelect = createSelectSchema(mockupRead, { ranges: mockupR
 export const mockupProjectSelect = createSelectSchema(mockupProject);
 export const mockupTemplateSelect = createSelectSchema(mockupTemplate);
 export const mockupKitSelect = createSelectSchema(mockupKit);
+export const noteSelect = createSelectSchema(note);
+export const noteFolderSelect = createSelectSchema(noteFolder);
+export const noteVersionSelect = createSelectSchema(noteVersion);
+export const noteLinkSelect = createSelectSchema(noteLink);
+export const noteFileSelect = createSelectSchema(noteFile);
 
 // -- INSERT AND UPDATE SCHEMAS (what a write accepts) -- //
 
@@ -114,6 +125,47 @@ export const mockupTemplateInsert = createInsertSchema(mockupTemplate, {
 	name: (s) => s.min(1).max(80),
 	prompt: (s) => s.max(20_000)
 });
+// -- NOTES (the limits live in shared/notes.ts) -- //
+
+const noteTitle = z
+	.string()
+	.trim()
+	.min(1, 'A note needs a title')
+	.max(NOTE_LIMITS.title, `A title is at most ${NOTE_LIMITS.title} characters`);
+const noteBody = z
+	.string()
+	.max(NOTE_LIMITS.body, `A note is at most ${NOTE_LIMITS.body.toLocaleString('en')} characters`);
+// A slash is refused because tools name a folder by its path (Research/Competitors)
+const folderName = z
+	.string()
+	.trim()
+	.min(1, 'A folder needs a name')
+	.max(NOTE_LIMITS.folderName, `A folder name is at most ${NOTE_LIMITS.folderName} characters`)
+	.regex(/^[^/\\]+$/, 'A folder name cannot contain a slash');
+
+export const noteInsert = createInsertSchema(note, { title: noteTitle, body: noteBody });
+export const noteFolderInsert = createInsertSchema(noteFolder, { name: folderName });
+export const noteLinkInsert = createInsertSchema(noteLink);
+export const noteFileInsert = createInsertSchema(noteFile, {
+	mime: z.enum(NOTE_PICTURE_TYPES, { error: 'A picture is a PNG, JPEG, WebP or GIF' }),
+	size: (s) => s.min(1).max(NOTE_LIMITS.pictureBytes, 'A picture is at most 25 MB')
+});
+/** What a person or a tool sends to make a note. The org, the project, the number and the author come from the request. */
+export const noteCreateInput = noteInsert
+	.pick({ title: true, body: true, visibility: true, folderId: true })
+	.partial({ body: true, visibility: true, folderId: true });
+/** What a change to a note may carry. Every field is optional; the cause of the change is set by the server. */
+export const noteUpdateInput = createUpdateSchema(note, { title: noteTitle, body: noteBody })
+	.pick({
+		title: true,
+		body: true,
+		visibility: true,
+		folderId: true
+	})
+	// A schema given by hand replaces the generated optional one, so the fields are made optional again
+	.partial();
+export const noteFolderInput = noteFolderInsert.pick({ name: true, parentId: true });
+export const noteLinkInput = noteLinkInsert.pick({ targetKind: true, targetId: true });
 export const checkInsert = createInsertSchema(check);
 export const environmentInsert = createInsertSchema(environment, { url: (s) => s.url() });
 export const apiTokenInsert = createInsertSchema(apiToken);

@@ -101,6 +101,8 @@ export const CREATE_QUESTION: Record<CreateKind, string> = {
 };
 /** A project key as the app writes it: 2 to 10 capitals or digits, the first a capital. */
 const PROJECT_KEY = /^[A-Z][A-Z0-9]{1,9}$/;
+/** The idea the Turn into a plan and Turn into tasks actions of a note start from: `from note N-12`. */
+const NOTE_IDEA = /^from note N-[1-9][0-9]{0,8}$/;
 /** The only characters a shell command may carry. Nothing in this set is special in PowerShell, cmd, bash or zsh. */
 const SAFE_COMMAND_TEXT = /^[A-Za-z0-9 .,:\-_/]+$/;
 
@@ -243,13 +245,38 @@ export function buildCreatePrompt(input: {
 }): string {
 	const { kind, tool, key } = input;
 	if (!isProjectKey(key)) return '';
-	const idea = cleanIdea(input.idea);
+	let idea = cleanIdea(input.idea);
 	if (usesSlash(tool, 'ask')) {
 		return kind === 'plan' ? `/flow new ${key}: ${idea}` : `/flow-task ${key}: ${idea}`;
 	}
+	// An idea that only names a note tells a tool without the skills where to read it
+	if (NOTE_IDEA.test(idea)) idea = `${idea}. Read it first with the note_get tool.`;
 	return kind === 'plan'
 		? `Use the ${SERVER} flow workflow, workflow_get flow, to plan a new item in project ${key}. Call session_start first and hand the plan over and wait for my go before any code. The idea: ${idea}`
 		: `Use the ${SERVER} flow-task workflow, workflow_get flow-task, to record tasks in project ${key}. Call session_start first and do not start the work. The request: ${idea}`;
+}
+
+/** The idea a note hands over, `from note N-12`. Empty for a reference the app would not write. */
+export function noteIdea(ref: string): string {
+	const text = `from note ${ref.trim()}`;
+	return NOTE_IDEA.test(text) ? text : '';
+}
+
+/**
+ * The prompt of the Turn into a plan and Turn into tasks actions of a note: `/flow new KEY: from note N-12` and
+ * `/flow-task KEY: from note N-12` for Claude Code, plain words naming the workflow and the note for every other tool.
+ * Empty for a project key or a note reference the app would not write.
+ */
+export function buildNotePrompt(input: {
+	kind: CreateKind;
+	tool: ContinueToolId;
+	key: string;
+	ref: string;
+}): string {
+	const idea = noteIdea(input.ref);
+	return idea
+		? buildCreatePrompt({ kind: input.kind, tool: input.tool, key: input.key, idea })
+		: '';
 }
 
 /** True when every character is one a shell treats as plain text. */

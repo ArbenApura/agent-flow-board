@@ -6,7 +6,9 @@ import {
 	TITLE_LIMIT,
 	buildCommand,
 	buildCreatePrompt,
+	buildNotePrompt,
 	buildPrompt,
+	noteIdea,
 	cleanIdea,
 	cleanTitle,
 	commandPrompt,
@@ -249,6 +251,46 @@ describe('the New plan and New task prompts', () => {
 			expect(make('plan', 'claude-code', 'x', bad), bad).toBe('');
 		expect(isProjectKey('AFB')).toBe(true);
 		expect(isProjectKey('HAPR2')).toBe(true);
+	});
+});
+
+describe('the Turn into a plan and Turn into tasks prompts of a note', () => {
+	it('are the slash commands for Claude Code', () => {
+		expect(buildNotePrompt({ kind: 'plan', tool: 'claude-code', key: 'AFB', ref: 'N-12' })).toBe(
+			'/flow new AFB: from note N-12'
+		);
+		expect(buildNotePrompt({ kind: 'task', tool: 'claude-code', key: 'AFB', ref: 'N-12' })).toBe(
+			'/flow-task AFB: from note N-12'
+		);
+	});
+
+	it('are plain words that name the workflow and the note for every other tool', () => {
+		for (const tool of ['claude-ai', 'antigravity', 'codex', 'gemini', 'other'] as const) {
+			const plan = buildNotePrompt({ kind: 'plan', tool, key: 'AFB', ref: 'N-7' });
+			expect(plan, tool).toContain('workflow_get flow,');
+			expect(plan, tool).toContain('project AFB');
+			expect(plan, tool).toContain('from note N-7');
+			expect(plan, tool).toContain('note_get');
+			const task = buildNotePrompt({ kind: 'task', tool, key: 'AFB', ref: 'N-7' });
+			expect(task, tool).toContain('workflow_get flow-task');
+			expect(task, tool).toContain('from note N-7');
+			expect(task, tool).toContain('note_get');
+		}
+	});
+
+	it('stay plain text, so they can be a command for a tool that has one', () => {
+		const text = buildNotePrompt({ kind: 'plan', tool: 'codex', key: 'AFB', ref: 'N-7' });
+		expect(buildCommand('codex', text)).toBe(`codex "${text}"`);
+	});
+
+	it('refuse a note reference or a project key the app would not write', () => {
+		expect(buildNotePrompt({ kind: 'plan', tool: 'claude-code', key: 'AFB', ref: 'N-0' })).toBe('');
+		expect(buildNotePrompt({ kind: 'plan', tool: 'claude-code', key: 'AFB', ref: 'x; rm' })).toBe(
+			''
+		);
+		expect(buildNotePrompt({ kind: 'plan', tool: 'claude-code', key: 'afb', ref: 'N-1' })).toBe('');
+		expect(noteIdea('N-12')).toBe('from note N-12');
+		expect(noteIdea('12')).toBe('');
 	});
 });
 

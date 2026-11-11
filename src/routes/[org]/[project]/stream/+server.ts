@@ -1,5 +1,7 @@
 // -- DEP-TYPES -- //
 import type { RequestHandler } from './$types';
+// -- TYPES -- //
+import type { Change } from '#lib/server/realtime/notify.js';
 // -- DEP-MODULES -- //
 import { error } from '@sveltejs/kit';
 // -- MODULES -- //
@@ -15,6 +17,8 @@ import { orgContext } from '#lib/server/web/ctx.js';
 
 const REPLAY_LIMIT = 200;
 const HEARTBEAT_MS = 20_000;
+/** How long a stream remembers whether it may receive the live notices of one note. */
+const LIVE_ANSWER_MS = 5_000;
 
 // -- FUNCTIONS -- //
 
@@ -65,13 +69,34 @@ export const GET: RequestHandler = async ({ params, locals, request, url }) => {
 			let replaying = true;
 			// Ids the reconnect replay already sent, so a change that arrived while it ran is not sent twice
 			const replayed = new Set<number>();
-			const buffered: ({ e?: number; i?: string | null; k: string; v?: string } | null)[] = [];
+			const buffered: (Change | null)[] = [];
+
+			// What this stream may know about one note, for LIVE_ANSWER_MS, so a burst of typing is not one query per keystroke
+			const liveAnswers = new Map<string, { ok: boolean; at: number }>();
+			const maySeeLive = async (noteId: string) => {
+				const known = liveAnswers.get(noteId);
+				if (known && Date.now() - known.at < LIVE_ANSWER_MS) return known.ok;
+				const ok = await mayReceive(ctx, project.id, null, noteId);
+				if (liveAnswers.size > 200) liveAnswers.clear();
+				liveAnswers.set(noteId, { ok, at: Date.now() });
+				return ok;
+			};
 
 			const deliver = async (c: (typeof buffered)[number]) => {
 				if (closed) return;
 				// The listening connection dropped, so changes may have been missed
 				if (c === null) return send('refetch', {});
-				if (!(await mayReceive(ctx, project.id, c.i))) {
+				// Live editing notices go under their own event names and are never a page refresh. They carry no event id, so
+				// they never move the replay position. The answer for one note is remembered for a few seconds.
+				if (c.k === 'note' || c.k === 'presence') {
+					if (!c.n || !(await maySeeLive(c.n))) return;
+					if (c.k === 'note') send('note', { note: c.n, epoch: c.x ?? null, seq: c.s ?? 0 });
+					else send('presence', { note: c.n, epoch: c.s ?? null, data: c.d ?? '' });
+					return;
+				}
+				// A change in the Notes area is checked against the note it touched; a folder change against the area as a whole
+				const noteScope = c.n ?? (c.v?.startsWith('note_folder.') ? 'area' : null);
+				if (!(await mayReceive(ctx, project.id, c.i, noteScope))) {
 					// A person who lost access to the whole project gets the stream closed
 					if (!(await mayReceive(ctx, project.id))) close();
 					return;

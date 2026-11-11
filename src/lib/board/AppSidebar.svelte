@@ -15,6 +15,7 @@
 	import HeartPulse from '@lucide/svelte/icons/heart-pulse';
 	import House from '@lucide/svelte/icons/house';
 	import LayoutList from '@lucide/svelte/icons/layout-list';
+	import NotebookText from '@lucide/svelte/icons/notebook-text';
 	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
 	import Plug from '@lucide/svelte/icons/plug';
 	import Settings from '@lucide/svelte/icons/settings';
@@ -46,7 +47,7 @@
 		}[];
 		current?: { key: string };
 		me: { id?: string; name: string; email: string; imageV?: number | null };
-		/** The pages of the open project, the first five are the main ones. */
+		/** The pages of the open project, the first six are the main ones (five for a guest, who has no Notes). */
 		tabs: Tab[];
 		base: string;
 	} = $props();
@@ -57,6 +58,7 @@
 	const TAB_ICON: Record<string, Icon> = {
 		Registry: LayoutList,
 		Tasks: SquareCheckBig,
+		Notes: NotebookText,
 		Activity,
 		Health: HeartPulse,
 		Mockups: PanelsTopLeft,

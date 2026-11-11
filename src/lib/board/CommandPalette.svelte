@@ -17,6 +17,7 @@
 		title: string;
 		projectKey: string;
 		itemRef?: string | null;
+		noteRef?: string | null;
 	};
 	type Entry = { key: string; label: string; hint: string; href: string };
 
@@ -42,7 +43,8 @@
 		item: 'Item',
 		section: 'Document',
 		decision: 'Decision',
-		task: 'Task'
+		task: 'Task',
+		note: 'Note'
 	};
 	const uid = $props.id();
 
@@ -66,9 +68,11 @@
 					href:
 						h.kind === 'task'
 							? `/${org}/${h.projectKey}/tasks`
-							: h.itemRef
-								? `/${org}/${h.projectKey}/${h.itemRef}`
-								: `/${org}/${h.projectKey}`
+							: h.kind === 'note' && h.noteRef
+								? `/${org}/${h.projectKey}/notes/${h.noteRef}`
+								: h.itemRef
+									? `/${org}/${h.projectKey}/${h.itemRef}`
+									: `/${org}/${h.projectKey}`
 				}))
 			: pages.map((p) => ({ key: p.href, label: p.label, hint: 'Page', href: p.href }))
 	);

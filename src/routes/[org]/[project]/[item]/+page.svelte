@@ -13,6 +13,7 @@
 	import ContinueDialog from '#lib/board/ContinueDialog.svelte';
 	import EventList from '#lib/board/EventList.svelte';
 	import PlanTab from '#lib/board/item/PlanTab.svelte';
+	import NotesCard from '#lib/board/notes/NotesCard.svelte';
 	import {
 		DRIFT_TEXT,
 		ago,
@@ -673,6 +674,14 @@
 
 		{#if tab === 'plan'}
 			<PlanTab detail={d} {env} />
+			<!-- NOTES THAT LINK TO THIS PLAN, UNDER THE PLAN -->
+			<NotesCard
+				{org}
+				project={page.params.project ?? ''}
+				target={{ kind: 'item', id: d.item.id, ref: d.item.ref }}
+				role={d.role}
+				canWrite={env.canWrite}
+			/>
 		{:else if tab === 'decisions'}
 			{#await import('#lib/board/item/DecisionsTab.svelte') then m}<m.default
 					detail={d}

@@ -13,6 +13,7 @@ import { withTenant } from '../db/tenant';
 import { authenticateToken } from '../ops/tokens';
 import { registerCompat } from './compat';
 import { registerMockupTools } from './mockupTools';
+import { registerNoteTools } from './noteTools';
 import { registerTools, type McpDeps } from './tools';
 import { SERVER_INSTRUCTIONS } from './workflows';
 
@@ -105,6 +106,7 @@ export async function handleMcp(
 	const builder = registerTools(server, deps, auth);
 	registerCompat(builder);
 	registerMockupTools(builder);
+	registerNoteTools(builder);
 	// No prompts are registered: the flow skills reach people as a downloaded bundle (the Skills tab on /connect), and the
 	// workflow_get tool still serves the same texts, so the slash list of a harness stays free of this server's workflows
 	const transport = new WebStandardStreamableHTTPServerTransport({

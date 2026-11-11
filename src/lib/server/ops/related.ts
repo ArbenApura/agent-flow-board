@@ -3,15 +3,19 @@
 // and keeps every rule of search: only items the caller may see, never a trashed one, never a project a token is not limited to.
 
 // -- TYPES -- //
+import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
 import { and, eq, inArray, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { decision, event, item, project, projectMember, section, step } from '../db/schema';
+import { noteRef } from '../../shared/notes';
+import { decision, event, item, note, project, projectMember, section, step } from '../db/schema';
 import { relatedTokens, searchRelated } from '../db/search';
 import { effectiveProjectRole } from '../orgs/roles';
 import { OpError, effectiveCaps, orgRoleOf, projectAllowed, requireCap, run } from './context';
-import { findItem, findProject } from './resolve';
+import { readTree } from './noteFolders';
+import { readNotesLinkedTo } from './noteLinks';
+import { findItem, findProject, noteRoleOf, visibleNoteSql } from './resolve';
 
 // -- CONSTANTS -- //
 
@@ -49,6 +53,21 @@ export type RelatedPlan = {
 	reopened: number;
 };
 
+/** The most close notes related_plans (and the notes linked to a claimed item) list. */
+export const RELATED_NOTES_MAX = 5;
+
+/** A note as an agent is shown it: a pointer to read with note_get, never the whole text. Written by people, so untrusted. */
+export type RelatedNote = {
+	ref: string;
+	project: string;
+	title: string;
+	/** The folder path from the top, or null at the top of the project. */
+	folder: string | null;
+	/** A short excerpt around the words that matched. Left out of a list of the notes linked to a plan. */
+	snippet?: string;
+	untrusted: true;
+};
+
 // -- FUNCTIONS -- //
 
 /** Text another person wrote, as plain text of at most `max` characters: no HTML, no link or image markup, one line. */
@@ -84,6 +103,146 @@ function around(text: string, words: string[], max: number): string {
 	return plainSnippet(flat.slice(from), max);
 }
 
+/** The folder path of each folder id of the given projects, from the live tree. */
+async function folderPaths(tx: Tx, projectIds: string[]): Promise<Map<string, string>> {
+	const paths = new Map<string, string>();
+	for (const id of new Set(projectIds))
+		for (const f of await readTree(tx, id)) paths.set(f.id, f.path);
+	return paths;
+}
+
+/**
+ * The (at most five) notes closest to a request, for related_plans (AFB-20261111-0035, step 6.2). Only projects where the
+ * caller's own role on that project is not guest are read, and only notes they may see (shared, or their own private ones,
+ * not in the trash). It runs in a savepoint and never throws: a failed lookup gives `notesUnavailable` and the plans still
+ * come back.
+ */
+async function relatedNotes(
+	ctx: Ctx,
+	outer: Tx,
+	tokens: string[],
+	projectIds: string[]
+): Promise<{ notes: RelatedNote[]; notesUnavailable?: true }> {
+	try {
+		const notes = await outer.transaction(async (inner) => {
+			const sp = inner as unknown as Tx;
+			const allowed: string[] = [];
+			for (const id of projectIds) if (await noteRoleOf(sp, ctx, id)) allowed.push(id);
+			if (!allowed.length || !tokens.length) return [];
+			const toks = sql.join(
+				tokens.map((t) => sql`${t}`),
+				sql`, `
+			);
+			const any = sql.join(
+				tokens.map((t) => sql`plainto_tsquery('simple', ${t})`),
+				sql` || `
+			);
+			const matched = sql<number>`(select count(*)::int from unnest(array[${toks}]::text[]) as t(tok) where ${note.searchVector} @@ plainto_tsquery('simple', t.tok))`;
+			// Several words must agree, as for plans
+			const minTokens = tokens.length <= 2 ? 1 : Math.max(2, Math.ceil(tokens.length / 3));
+			const rows = await sp
+				.select({
+					number: note.number,
+					title: note.title,
+					projectId: note.projectId,
+					folderId: note.folderId,
+					// Only the head of a body is ever read
+					body: sql<string>`left(${note.body}, 60000)`
+				})
+				.from(note)
+				.where(
+					and(
+						inArray(note.projectId, allowed),
+						visibleNoteSql(ctx.actor.userId),
+						sql`${note.searchVector} @@ (${any})`,
+						sql`${matched} >= ${minTokens}`
+					)
+				)
+				.orderBy(
+					sql`${matched} desc`,
+					sql`ts_rank(${note.searchVector}, (${any})) desc`,
+					note.number
+				)
+				.limit(RELATED_NOTES_MAX);
+			if (!rows.length) return [];
+			const keys = new Map(
+				(
+					await sp
+						.select({ id: project.id, key: project.key })
+						.from(project)
+						.where(
+							inArray(
+								project.id,
+								rows.map((r) => r.projectId)
+							)
+						)
+				).map((p) => [p.id, p.key])
+			);
+			const paths = await folderPaths(
+				sp,
+				rows.map((r) => r.projectId)
+			);
+			return rows.map((r): RelatedNote => ({
+				ref: noteRef(r.number),
+				project: keys.get(r.projectId) ?? '',
+				title: plainSnippet(r.title, 120),
+				folder: r.folderId ? (paths.get(r.folderId) ?? null) : null,
+				snippet: around(r.body, tokens, SNIPPET_CHARS),
+				untrusted: true
+			}));
+		});
+		return { notes };
+	} catch (e) {
+		console.error('relatedNotes failed', e instanceof Error ? e.message : 'unknown error');
+		return { notes: [], notesUnavailable: true };
+	}
+}
+
+/**
+ * What a claim reply says about the notes linked to the plan (AFB-20261111-0035, step 6.2): `{}` when there are none or the
+ * caller's role on the plan's project is guest, the (at most five) newest otherwise, and `notesUnavailable` when the lookup
+ * failed. It never throws, because the claim already happened; a savepoint keeps a database error from aborting it.
+ */
+export async function claimNotes(
+	ctx: Ctx,
+	itemRef: string
+): Promise<
+	Record<string, never> | { notesUnavailable: true } | { notes: RelatedNote[]; moreNotes?: number }
+> {
+	try {
+		return await run(ctx, (outer) =>
+			outer.transaction(async (inner) => {
+				const sp = inner as unknown as Tx;
+				const plan = await findItem(sp, ctx, itemRef);
+				if (!(await noteRoleOf(sp, ctx, plan.projectId))) return {};
+				const linked = await readNotesLinkedTo(sp, 'item', plan.id, ctx.actor.userId);
+				if (!linked.length) return {};
+				const shown = linked.slice(0, RELATED_NOTES_MAX);
+				const paths = await folderPaths(sp, [plan.projectId]);
+				const [proj] = await sp
+					.select({ key: project.key })
+					.from(project)
+					.where(eq(project.id, plan.projectId));
+				return {
+					notes: shown.map((n): RelatedNote => ({
+						ref: n.ref,
+						project: proj?.key ?? '',
+						title: plainSnippet(n.title, 120),
+						folder: n.folderId ? (paths.get(n.folderId) ?? null) : null,
+						untrusted: true
+					})),
+					...(linked.length > shown.length ? { moreNotes: linked.length - shown.length } : {})
+				};
+			})
+		);
+	} catch (e) {
+		// A caller who may not see the plan or its project has no notes to be told about
+		if (e instanceof OpError && (e.code === 'FORBIDDEN' || e.code === 'NOT_FOUND')) return {};
+		console.error('claimNotes failed', e instanceof Error ? e.message : 'unknown error');
+		return { notesUnavailable: true };
+	}
+}
+
 /**
  * The plans closest to a request. `q` is the idea in plain words, `files` the paths it will touch. With no project the
  * search covers every project the caller may read. Reads only; the notice goes beside the results.
@@ -100,7 +259,13 @@ export async function relatedPlans(
 		stream?: string;
 		scope?: string;
 	}
-): Promise<{ notice: string; data: RelatedPlan[] }> {
+): Promise<{
+	notice: string;
+	data: RelatedPlan[];
+	/** The (at most five) close notes the caller may see; a lookup that failed leaves it empty and sets notesUnavailable. */
+	notes: RelatedNote[];
+	notesUnavailable?: true;
+}> {
 	const limit = Math.min(Math.max(input.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
 	const tokens = relatedTokens(input.q, input.files ?? []);
 	if (!tokens.length)
@@ -146,6 +311,8 @@ export async function relatedPlans(
 				if (!(e instanceof OpError)) throw e;
 			}
 		}
+		// The close notes, by the caller's role on each project (a failure here never fails the plans)
+		const noteHits = await relatedNotes(ctx, tx, tokens, projectIds);
 		// More than asked for come back so the boosts below can reorder them, then the list is cut to the limit
 		const rows = await searchRelated(tx, tokens, {
 			projectIds,
@@ -153,7 +320,7 @@ export async function relatedPlans(
 			excludeItemId: exclude,
 			limit: limit * 3
 		});
-		if (!rows.length) return { notice: RELATED_NOTICE, data: [] };
+		if (!rows.length) return { notice: RELATED_NOTICE, data: [], ...noteHits };
 		const ids = rows.map((r) => r.itemId);
 		const matchedSectionIds = rows.flatMap((r) =>
 			r.docs.filter((d) => d.kind === 'section').map((d) => d.id)
@@ -325,6 +492,6 @@ export async function relatedPlans(
 			});
 		}
 		plans.sort((a, b) => b.score - a.score);
-		return { notice: RELATED_NOTICE, data: plans.slice(0, limit) };
+		return { notice: RELATED_NOTICE, data: plans.slice(0, limit), ...noteHits };
 	});
 }

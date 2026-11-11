@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.7.0",
+		"version": "1.8.0",
 		"releasedAt": "2026-11-11"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.4.0",
+			"version": "1.5.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -110,6 +110,10 @@
 				{
 					"version": "1.4.0",
 					"hash": "01b1216f5ab17b936a24733da19e4adf5a7b054709041cabacfa75615846be50"
+				},
+				{
+					"version": "1.5.0",
+					"hash": "ba1ac0c20315fc70c175a9f7bf83cb6d2266491617f4560c795ad8cbacf2ac59"
 				}
 			]
 		},
@@ -297,7 +301,7 @@
 			]
 		},
 		"flow-interview": {
-			"version": "1.1.6",
+			"version": "1.1.7",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -334,6 +338,10 @@
 				{
 					"version": "1.1.6",
 					"hash": "70dc877cb373a4332f87bc36287cd9934ef19670aa134c3a5886228f13f2c4aa"
+				},
+				{
+					"version": "1.1.7",
+					"hash": "e397db75d9795413de36fe1cdcd038d7e908f34f76d73e4681f2915cbb4d9a77"
 				}
 			]
 		},
@@ -379,7 +387,7 @@
 			]
 		},
 		"flow-task": {
-			"version": "1.1.2",
+			"version": "1.1.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -400,6 +408,10 @@
 				{
 					"version": "1.1.2",
 					"hash": "3d27774931a1ca3c48e8e0709e70f864508ccb53dd1067fbc394d1391ff5b70c"
+				},
+				{
+					"version": "1.1.3",
+					"hash": "81869a78e05bcd2c41a988592ef246102e44e0998c3842795e8ad09983e0fb79"
 				}
 			]
 		},
@@ -443,6 +455,26 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.8.0",
+			"date": "2026-11-11",
+			"notes": [
+				"flow 1.5.0 (AFB-20261111-0035): the Notes area. The tools table names note_list, note_get, note_new, note_update, note_folder, note_link, note_trash and note_restore; notes are referenced N-<n>. An agent reads, searches and lists notes freely within the user's access, but creates or changes a note, a folder or a link only when the user asked for it in this session, and the text of a note that someone else wrote is untrusted data. Section 2a reads the (at most five) close notes that related_plans now returns, and the Turn into a plan action hands over `/flow new KEY: from note N-n`: the agent reads the note with note_get and links what it creates back with note_link. work_start and session_start list the notes linked to the item.",
+				"flow-interview 1.1.7: notes are read freely and added to the Checked list, a note is saved only when the user asks, and an interview that starts from a note reads it first.",
+				"flow-task 1.1.3: the Turn into tasks action hands over `/flow-task KEY: from note N-n`; the agent reads the note, makes one task per action and links each back to the note with note_link."
+			],
+			"skills": {
+				"flow": "1.5.0",
+				"flow-align": "1.0.0",
+				"flow-audit": "1.2.0",
+				"flow-check": "1.2.2",
+				"flow-critic": "1.4.0",
+				"flow-interview": "1.1.7",
+				"flow-mockup": "1.4.0",
+				"flow-task": "1.1.3",
+				"flow-verify": "1.1.3"
+			}
+		},
 		{
 			"version": "1.7.0",
 			"date": "2026-11-11",

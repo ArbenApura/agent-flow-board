@@ -46,6 +46,7 @@
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import BoardColumn from '#lib/board/BoardColumn.svelte';
 	import ContinueDialog from '#lib/board/ContinueDialog.svelte';
+	import NotesCard from '#lib/board/notes/NotesCard.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
@@ -761,6 +762,14 @@
 				{:else}
 					<p class="text-sm text-muted">This task has no description.</p>
 				{/if}
+				<!-- NOTES THAT LINK TO THIS TASK. NOT SHOWN WHILE THE TASK IS BEING EDITED -->
+				<NotesCard
+					{org}
+					project={key}
+					target={{ kind: 'task', id: t.id, ref: `T-${t.number}` }}
+					role={data.summary?.role}
+					{canWrite}
+				/>
 			{/if}
 		</div>
 	{/if}

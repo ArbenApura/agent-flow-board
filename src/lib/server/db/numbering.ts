@@ -9,7 +9,7 @@ import { sql } from 'drizzle-orm';
 
 // -- FUNCTIONS -- //
 
-type CounterColumn = 'next' | 'next_task';
+type CounterColumn = 'next' | 'next_task' | 'next_note';
 
 async function take(
 	tx: Tx,
@@ -17,10 +17,10 @@ async function take(
 	projectId: string,
 	column: CounterColumn
 ): Promise<number> {
-	const other = column === 'next' ? 'next_task' : 'next';
+	// The columns that are not being taken keep their default of 1 when the row is made here
 	const res = await tx.execute(
 		sql.raw(
-			`insert into project_counter (project_id, org_id, ${column}, ${other}) values ('${projectId}', '${orgId}', 2, 1)
+			`insert into project_counter (project_id, org_id, ${column}) values ('${projectId}', '${orgId}', 2)
 			 on conflict (project_id) do update set ${column} = project_counter.${column} + 1
 			 returning ${column} - 1 as n`
 		)
@@ -57,4 +57,15 @@ export async function allocateTaskNumber(
 	assertUuid(orgId, 'orgId');
 	assertUuid(projectId, 'projectId');
 	return take(tx, orgId, projectId, 'next_task');
+}
+
+/** The next note number in the project (N-12). */
+export async function allocateNoteNumber(
+	tx: Tx,
+	orgId: string,
+	projectId: string
+): Promise<number> {
+	assertUuid(orgId, 'orgId');
+	assertUuid(projectId, 'projectId');
+	return take(tx, orgId, projectId, 'next_note');
 }

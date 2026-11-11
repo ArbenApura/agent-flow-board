@@ -177,6 +177,7 @@ export async function exportOrg(
 				`select "storage_key", 'text/html' as "mime", "size", "checksum", null as "deleted_at" from "mockup_version" where "org_id" = $1
 				 union all select "screenshot_key", 'image/png', null, null, null from "mockup_version" where "org_id" = $1 and "screenshot_key" is not null
 				 union all select "storage_key", 'text/html', "size", null, null from "mockup_kit" where "org_id" = $1
+				 union all select "storage_key", "mime", "size", "checksum", null from "note_file" where "org_id" = $1
 				 order by 1`,
 				[orgId]
 			);

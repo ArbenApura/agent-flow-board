@@ -17,6 +17,7 @@
 	import MockupPreview from '#lib/board/MockupPreview.svelte';
 	import MockupShareDrawer from '#lib/board/MockupShareDrawer.svelte';
 	import MockupSwitcher from '#lib/board/MockupSwitcher.svelte';
+	import NotesCard from '#lib/board/notes/NotesCard.svelte';
 	import ActionMenu, { type MenuItem } from '#lib/ui/ActionMenu.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -529,6 +530,15 @@
 			{/snippet}
 		</MockupPreview>
 	</Card>
+
+	<!-- NOTES THAT LINK TO THIS MOCKUP, UNDER THE PREVIEW -->
+	<NotesCard
+		{org}
+		project={key}
+		target={{ kind: 'mockup', id: m.id, ref: null }}
+		role={data.summary?.role}
+		{canWrite}
+	/>
 </PageFrame>
 
 <MockupHistoryDrawer

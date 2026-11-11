@@ -53,7 +53,7 @@ const UNAVAILABLE_HTML =
 // -- FUNCTIONS -- //
 
 /** The routes that read no session: a signed mockup file (/mf) and a public mockup link (/m). */
-export const readsNoSession = (pathname: string) => /^\/(mf|m)\//.test(pathname);
+export const readsNoSession = (pathname: string) => /^\/(mf|m|n)\//.test(pathname);
 
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
 

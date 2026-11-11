@@ -279,7 +279,9 @@ export function run<T>(ctx: Ctx, fn: (tx: Tx) => Promise<T>, projectId?: string)
 
 // -- RATE LIMITS (L9) -- //
 
-export const LIMITS: Record<'write' | 'create', { max: number; windowSeconds: number }> = {
+export const LIMITS: Record<'write' | 'create' | 'sync', { max: number; windowSeconds: number }> = {
+	/** Live editing calls per person per minute, in a bucket of their own so typing never uses up the write limit (PROPOSED). */
+	sync: { max: 600, windowSeconds: 60 },
 	/** Writes per actor per minute. */
 	write: { max: 240, windowSeconds: 60 },
 	/** New items per actor per hour, so a runaway agent cannot flood a project. */

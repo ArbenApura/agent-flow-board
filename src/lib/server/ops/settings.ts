@@ -234,6 +234,9 @@ export async function orgAuditLog(ctx: Ctx, raw: z.input<typeof auditInput>) {
 			.where(
 				and(
 					eq(event.orgId, ctx.orgId),
+					// A private note's events (its title) show only to its creator, the same rule as the project history. An event
+					// of a note that was purged is hidden too: nobody can tell any more whether it was private.
+					sql`(${event.targetType} <> 'note' or exists (select 1 from note n where n.id::text = ${event.targetId} and (n.visibility = 'public' or n.created_by = ${ctx.actor.userId})))`,
 					only ? eq(event.projectId, only) : undefined,
 					input.before !== undefined ? lt(event.id, input.before) : undefined
 				)

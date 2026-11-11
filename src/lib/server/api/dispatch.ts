@@ -124,6 +124,17 @@ export async function handleApi(req: ApiRequest, deps: ApiDeps): Promise<ApiResp
 				}
 			};
 		const { route, params } = found;
+		if (route.live && req.method !== 'GET') {
+			const type = (req.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+			if (type !== 'application/json')
+				return fail(415, 'INVALID', 'Live editing calls take application/json only.');
+			// A cookie caller must name this site; a missing Origin is not enough here
+			if (!token) {
+				const origin = req.headers.get('origin');
+				if (!origin || (origin !== req.origin && origin !== new URL(deps.baseUrl).origin))
+					return fail(403, 'FORBIDDEN', 'This request did not come from this site.');
+			}
+		}
 		if (route.sessionOnly && token)
 			return fail(403, 'FORBIDDEN', 'This needs a signed in person. A token cannot do it.');
 

@@ -226,7 +226,9 @@ export const projectCounter = tenantTable('project_counter', 'project', {
 	orgId: orgId(),
 	next: integer('next').notNull().default(1),
 	/** The same counter for tasks, so T-04 style numbers never repeat. */
-	nextTask: integer('next_task').notNull().default(1)
+	nextTask: integer('next_task').notNull().default(1),
+	/** The same counter for notes (N-12). */
+	nextNote: integer('next_note').notNull().default(1)
 });
 
 // -- ORG DELETION LOG (outlives the org: org_id has no foreign key, so the purge does not erase it) -- //

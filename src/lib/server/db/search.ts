@@ -8,7 +8,7 @@ import { sql } from 'drizzle-orm';
 // -- TYPES -- //
 
 export type SearchHit = {
-	kind: 'item' | 'section' | 'decision' | 'task';
+	kind: 'item' | 'section' | 'decision' | 'task' | 'note';
 	id: string;
 	itemId: string | null;
 	title: string;
@@ -32,6 +32,8 @@ export async function searchAll(
 	/** The text with the characters LIKE treats as a pattern made plain. */
 	const like = q.replace(/[\\%_]/g, '\\$&');
 	const del = options.includeDeleted ? '' : 'and deleted_at is null';
+	/** N-12 typed whole is the reference of a note, in whichever project it is. */
+	const noteNo = /^N-([1-9]\d{0,8})$/i.exec(q);
 	const res = await tx.execute(sql`
 		with q as (select websearch_to_tsquery('simple', ${q}) as tsq)
 		-- AN ITEM CAN MATCH BY ITS TEXT, ITS REFERENCE AND AN ALIAS. THE BEST RANK OF EACH HIT IS KEPT BEFORE THE LIMIT, SO THE LIMIT COUNTS DISTINCT HITS
@@ -52,6 +54,11 @@ export async function searchAll(
 			select 'decision', d.id, d.item_id, d.title, ts_rank(d.search_vector, q.tsq) from decision d, q where d.search_vector @@ q.tsq
 			union all
 			select 'task', t.id, null, 'T-' || t.number || ' ' || t.title, ts_rank(t.search_vector, q.tsq) from task t, q where t.search_vector @@ q.tsq ${sql.raw(del.replace('deleted_at', 't.deleted_at'))}
+			union all
+			-- A NOTE MATCHES BY ITS TITLE AND TEXT. WHO MAY SEE IT (PRIVATE, GUEST, FOLDER IN THE TRASH) IS DECIDED BY THE CALLER, searchBoard
+			select 'note', n.id, null, 'N-' || n.number || ' ' || n.title, ts_rank(n.search_vector, q.tsq) from note n, q where n.search_vector @@ q.tsq ${sql.raw(del.replace('deleted_at', 'n.deleted_at'))}
+			union all
+			select 'note', n.id, null, 'N-' || n.number || ' ' || n.title, 2.0::real from note n where ${noteNo !== null} and n.number = ${noteNo ? Number(noteNo[1]) : 0} ${sql.raw(del.replace('deleted_at', 'n.deleted_at'))}
 		) u order by kind, id, rank desc
 		) hits order by rank desc, title limit ${limit}
 	`);

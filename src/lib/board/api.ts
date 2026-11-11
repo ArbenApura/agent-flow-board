@@ -19,9 +19,11 @@ export class ApiError extends Error {
 export async function api<T = unknown>(
 	org: string,
 	path: string,
-	init: { method?: string; body?: unknown; key?: string } = {}
+	init: { method?: string; body?: unknown; key?: string; keepalive?: boolean } = {}
 ): Promise<T> {
 	const res = await fetch(`/api/v1/orgs/${org}${path}`, {
+		// A call made while the page closes (a last checkpoint) must outlive it
+		...(init.keepalive ? { keepalive: true } : {}),
 		method: init.method ?? (init.body === undefined ? 'GET' : 'POST'),
 		headers: {
 			...(init.body !== undefined ? { 'content-type': 'application/json' } : {}),

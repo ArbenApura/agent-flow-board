@@ -30,7 +30,10 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 		tasks.flatMap((t) => t.linkedItemIds)
 	);
 	const openId = url.searchParams.get('task');
-	const open = openId ? tasks.find((t) => t.id === openId) : undefined;
+	// A task is named by its id, or by its reference (T-12) as a link in a note or a plan writes it
+	const open = openId
+		? tasks.find((t) => t.id === openId || `T-${t.number}` === openId.toUpperCase())
+		: undefined;
 	return {
 		tasks: tasks.map((t) => ({ ...t, body: bodyPreview(t.body) })),
 		refs,
@@ -41,7 +44,14 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 		),
 		// Imported and guest-written text is untrusted: no images, links marked nofollow, everything sanitised
 		openTask: open
-			? { id: open.id, body: open.body, html: renderMarkdownCached(open.body, { untrusted: true }) }
+			? {
+					id: open.id,
+					body: open.body,
+					html: renderMarkdownCached(open.body, {
+						untrusted: true,
+						linkBase: { org: org.slug, project: params.project }
+					})
+				}
 			: null
 	};
 };

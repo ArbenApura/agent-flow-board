@@ -3,7 +3,7 @@
 // AND COMPARES EVERY ROW, AND IT CHECKS THE AGE OF THE NEWEST BACKUP.
 
 // -- DEP-MODULES -- //
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 // -- MODULES -- //
@@ -215,6 +215,32 @@ describe('backup and restore', () => {
 			'project'
 		]);
 		expect(meta.migrations.length).toBeGreaterThan(0);
+	});
+
+	it('carries the pictures of notes as files, and reports one that is gone from storage', async () => {
+		const bytes = new Uint8Array([7, 7, 7]);
+		const sum = createHash('sha256').update(bytes).digest('hex');
+		await files.put('notes/backup/pic.png', bytes, 'image/png');
+		await src.admin.exec(
+			`with n as (insert into note (org_id, project_id, number, title) values ('${w.orgId}', '${w.projectId}', 1, 'With picture') returning id)
+			 insert into note_file (org_id, project_id, note_id, storage_key, mime, size, checksum) select '${w.orgId}', '${w.projectId}', id, 'notes/backup/pic.png', 'image/png', 3, '${sum}' from n`
+		);
+		try {
+			const { frames, meta } = await exportOrg(admin(), files, w.orgId);
+			expect(meta).toMatchObject({ files: 2, missingFiles: [] });
+			const keys = frames
+				.filter((f) => f.type === 'file')
+				.map((f) => (f.json as { key: string }).key);
+			expect(keys).toContain('notes/backup/pic.png');
+			await files.delete('notes/backup/pic.png');
+			const gone = await exportOrg(admin(), files, w.orgId);
+			expect(gone.meta.missingFiles).toEqual(['notes/backup/pic.png']);
+		} finally {
+			await src.admin.exec(
+				`delete from note where org_id = '${w.orgId}' and title = 'With picture'`
+			);
+			await files.delete('notes/backup/pic.png');
+		}
 	});
 
 	it('also carries a person who left but is still named by a row, so a restore into an empty database cannot fail on them', async () => {

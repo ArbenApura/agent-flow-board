@@ -22,6 +22,8 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 		// An old alias or another project's key in the address lands on the item's own address
 		if (d.project.key !== params.project || d.item.ref !== params.item)
 			redirect(307, `/${org.slug}/${d.project.key}/${d.item.ref}`);
+		// Where the texts live, so an afb: link or a bare reference in them becomes an address of this project
+		const linkBase = { org: org.slug, project: d.project.key };
 		// The mockups of this plan: a count and a list always, the preview and notes when their tab is open
 		const mockups = await itemMockups(
 			ctx,
@@ -35,7 +37,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 			...x,
 			comments: x.comments.map((c) => ({
 				...c,
-				html: renderMarkdownCached(c.body, { untrusted: c.untrusted })
+				html: renderMarkdownCached(c.body, { untrusted: c.untrusted, linkBase })
 			}))
 		}));
 		// A failure of the streamed part must reach the page as a rejected promise, never crash the server
@@ -46,13 +48,16 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 			extras,
 			detail: {
 				...d,
-				sections: d.sections.map((s) => ({ ...s, html: renderMarkdownCached(s.body) })),
+				sections: d.sections.map((s) => ({
+					...s,
+					html: renderMarkdownCached(s.body, { linkBase })
+				})),
 				decisions: d.decisions.map((x) => ({
 					...x,
-					contextHtml: renderMarkdownCached(x.context),
-					decisionHtml: renderMarkdownCached(x.decision),
-					alternativesHtml: renderMarkdownCached(x.alternatives),
-					consequencesHtml: renderMarkdownCached(x.consequences)
+					contextHtml: renderMarkdownCached(x.context, { linkBase }),
+					decisionHtml: renderMarkdownCached(x.decision, { linkBase }),
+					alternativesHtml: renderMarkdownCached(x.alternatives, { linkBase }),
+					consequencesHtml: renderMarkdownCached(x.consequences, { linkBase })
 				}))
 			}
 		};

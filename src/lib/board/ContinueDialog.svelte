@@ -24,6 +24,7 @@
 		buildPrompt,
 		commandPrompt,
 		effectiveMode,
+		noteIdea,
 		toolOf,
 		usesSlash,
 		validPair,
@@ -61,7 +62,7 @@
 		tool: ContinueToolId;
 		mode: ContinueMode;
 		/** Set for New plan and New task: nothing exists yet, so an idea box takes the place of the item. The key is the project the page is in. */
-		create?: { kind: CreateKind; key: string } | null;
+		create?: { kind: CreateKind; key: string; note?: string } | null;
 	} = $props();
 
 	// -- CONSTANTS -- //
@@ -180,7 +181,8 @@
 				shownAction = made ? 'ask' : act;
 				chosenTool = tool;
 				typed = null;
-				idea = '';
+				// A note hands over its reference as the idea, and the person may add to it
+				idea = made?.note ? noteIdea(made.note) : '';
 			}
 			prevOpen = isOpen;
 		});

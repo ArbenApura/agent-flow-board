@@ -157,6 +157,12 @@ describe('deleting an organisation', () => {
 		await db.admin.exec(
 			`insert into attachment (org_id, project_id, item_id, filename, kind, mime, size, storage_key, checksum, caption) values ('${w.orgId}', '${w.projectId}', '${itemId}', 'one.txt', 'data', 'text/plain', 1, 'a/one.txt', 'x', 'one'), ('${w.orgId}', '${w.projectId}', '${itemId}', 'two.txt', 'data', 'text/plain', 1, 'a/two.txt', 'x', 'two')`
 		);
+		// The picture of a note is a stored file too
+		await storage.put('notes/p/pic.png', new Uint8Array([4]), 'image/png');
+		await db.admin.exec(
+			`with n as (insert into note (org_id, project_id, number, title) values ('${w.orgId}', '${w.projectId}', 1, 'Note') returning id)
+			 insert into note_file (org_id, project_id, note_id, storage_key, mime, size, checksum) select '${w.orgId}', '${w.projectId}', id, 'notes/p/pic.png', 'image/png', 1, 'x' from n`
+		);
 		// The event log only grows for the runtime role, yet the purge must still erase it with the org
 		await db.admin.exec(
 			`insert into event (org_id, project_id, actor_user_id, actor_label, verb, target_type) values ('${w.orgId}', '${w.projectId}', '${w.people.owner}', 'owner', 'item.create', 'item')`
@@ -176,7 +182,7 @@ describe('deleting an organisation', () => {
 				new Date(deletedAt.getTime() + DAY)
 			)
 		).toBe('not-due');
-		expect(storage.files.size).toBe(3);
+		expect(storage.files.size).toBe(4);
 
 		// Due: the sweep finds exactly this org and nothing else
 		const later = new Date(deletedAt.getTime() + (ORG_DELETE_GRACE_DAYS + 1) * DAY);
