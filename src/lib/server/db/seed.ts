@@ -135,7 +135,7 @@ export async function seedDemo(
 			jsonb_build_object('status', i.status, 'note', 'Automatic'), false
 		FROM item i WHERE i.project_id = '${SEED.checkout}' AND i.status <> 'PLANNED'
 		AND NOT EXISTS (SELECT 1 FROM event e WHERE e.item_id = i.id AND e.verb = 'item.status')`);
-	// Work the health panel can show: a quiet item in progress, and an item ready for sign-off
+	// A quiet item in progress, and an item ready for sign-off
 	await db.exec(
 		`UPDATE item SET last_activity_at = now() - interval '10 days' WHERE id = '${SEED.firstItem}'`
 	);

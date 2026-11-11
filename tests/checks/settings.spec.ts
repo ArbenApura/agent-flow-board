@@ -202,15 +202,18 @@ test('M8 a project: the Agents may set COMPLETED switch and other sections persi
 	await expect(page.getByTestId('saved-agents')).toBeVisible();
 	expect((await project()).agentsMayComplete).toBe(true);
 
-	// Each section saves alone: an unsaved name stays unsaved while the tracking section saves
+	// Each section saves alone: an unsaved name stays unsaved while the agents section saves
 	await tab(page, 'general');
 	await page.getByTestId('project-name-input').fill('Name typed but not saved');
-	await tab(page, 'tracking');
-	await page.getByRole('button', { name: 'Quiet after' }).click();
-	await page.getByRole('option', { name: '7 days' }).click();
-	await page.getByTestId('save-tracking').click();
-	await expect(page.getByTestId('saved-tracking')).toBeVisible();
-	expect(await project()).toMatchObject({ staleDays: 7, name: `Settings ${key}` });
+	await tab(page, 'agents');
+	await page.getByRole('switch', { name: 'Agents may set COMPLETED' }).click();
+	await page.getByTestId('save-agents').click();
+	await expect.poll(async () => (await project()).agentsMayComplete).toBe(false);
+	await page.getByRole('switch', { name: 'Agents may set COMPLETED' }).click();
+	await page.getByTestId('save-agents').click();
+	await expect.poll(async () => (await project()).agentsMayComplete).toBe(true);
+	expect(await project()).toMatchObject({ name: `Settings ${key}` });
+	await tab(page, 'general');
 	await expect(page.getByTestId('save-general')).toBeEnabled();
 	// Streams and UI shots
 	await tab(page, 'streams');
@@ -382,7 +385,9 @@ test('M8 a member and a viewer see the settings but cannot change them, and the 
 		await expect(page.getByTestId('save-agents')).toHaveCount(0);
 		expect(
 			(
-				await page.request.patch('/api/v1/orgs/acme/projects/CKT', { data: { staleDays: 9 } })
+				await page.request.patch('/api/v1/orgs/acme/projects/CKT', {
+					data: { agentsMayComplete: false }
+				})
 			).status()
 		).toBe(403);
 		await ctx.close();

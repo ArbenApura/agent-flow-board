@@ -33,7 +33,6 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends }) 
 			themes: project.themes,
 			referencePages: project.referencePages,
 			agentsMayComplete: project.agentsMayComplete,
-			staleDays: project.staleDays,
 			rules: project.rules
 		},
 		// How many items sit under each stream and scope, as this person may see them (private and trashed items are not counted)

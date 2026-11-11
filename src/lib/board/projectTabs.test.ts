@@ -5,14 +5,13 @@ import { describe, expect, it } from 'vitest';
 import { PROJECT_TAB_LABELS, projectTabs } from './projectTabs';
 
 describe('the pages of a project', () => {
-	it('lists six main pages in order, Notes after Tasks, then Trash and Project settings', () => {
+	it('lists five main pages in order, Notes after Tasks, then Trash and Project settings', () => {
 		const { primary, secondary } = projectTabs('/acme', 'AFB', 'member');
 		expect(primary.map((t) => t.label)).toEqual([
 			'Registry',
 			'Tasks',
 			'Notes',
 			'Activity',
-			'Health',
 			'Mockups'
 		]);
 		expect(primary.map((t) => t.href)).toEqual([
@@ -20,7 +19,6 @@ describe('the pages of a project', () => {
 			'/acme/AFB/tasks',
 			'/acme/AFB/notes',
 			'/acme/AFB/activity',
-			'/acme/AFB/health',
 			'/acme/AFB/mockups'
 		]);
 		expect(primary[0].exact).toBe(true);
@@ -32,7 +30,6 @@ describe('the pages of a project', () => {
 			'Registry',
 			'Tasks',
 			'Activity',
-			'Health',
 			'Mockups'
 		]);
 		for (const role of ['owner', 'admin', 'member', 'viewer', undefined, null])

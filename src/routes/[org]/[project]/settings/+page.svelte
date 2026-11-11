@@ -24,7 +24,6 @@
 	import StreamsEditor from '#lib/settings/StreamsEditor.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
-	import Select from '#lib/ui/Select.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
@@ -33,7 +32,6 @@
 	import Layers from '@lucide/svelte/icons/layers';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import Bot from '@lucide/svelte/icons/bot';
-	import Activity from '@lucide/svelte/icons/activity';
 	import Download from '@lucide/svelte/icons/download';
 	import Trash from '@lucide/svelte/icons/trash';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
@@ -42,16 +40,12 @@
 
 	let { data }: PageProps = $props();
 
-	// -- CONSTANTS -- //
-
-	const STALE = [1, 2, 3, 5, 7, 14, 30];
 	// -- STATES -- //
 
 	let name = $state('');
 	let webApp = $state(false);
 	let streams = $state<StreamRow[]>([]);
 	let mayComplete = $state(true);
-	let stale = $state(3);
 	let status = $state<Record<string, { saving: boolean; saved: boolean; error: string }>>({});
 
 	// -- FUNCTIONS -- //
@@ -67,14 +61,12 @@
 			? {
 					general: name.trim() !== p.name || webApp !== p.webApp,
 					streams: canon(savedStreams(streams)) !== canon(p.streams),
-					agents: mayComplete !== p.agentsMayComplete,
-					tracking: stale !== p.staleDays
+					agents: mayComplete !== p.agentsMayComplete
 				}
 			: {
 					general: false,
 					streams: false,
-					agents: false,
-					tracking: false
+					agents: false
 				}
 	);
 
@@ -93,7 +85,6 @@
 		follow('webApp', p.webApp, (v) => (webApp = v));
 		follow('streams', p.streams, (v) => (streams = withIds(v)));
 		follow('mayComplete', p.agentsMayComplete, (v) => (mayComplete = v));
-		follow('stale', p.staleDays, (v) => (stale = v));
 	});
 
 	async function save(id: string, path: string, body: Record<string, unknown>, method = 'PATCH') {
@@ -239,31 +230,6 @@
 					hint="An agent still has to confirm closing an item it is not working on."
 					bind:checked={mayComplete}
 					disabled={!can}
-				/>
-			</Section>
-
-			<Section
-				id="tracking"
-				icon={Activity}
-				title="Tracking"
-				text="When an item in progress with no activity counts as quiet on the health page."
-				dirty={dirty.tracking}
-				saving={st('tracking').saving}
-				saved={st('tracking').saved}
-				error={st('tracking').error}
-				readonly={!can}
-				onsave={() => patchProject('tracking', { staleDays: stale })}
-			>
-				<Select
-					label="Quiet after"
-					value={String(stale)}
-					options={STALE.map((d) => ({
-						value: String(d),
-						label: `${d} ${d === 1 ? 'day' : 'days'}`
-					}))}
-					onchange={(v) => (stale = Number(v))}
-					disabled={!can}
-					class="w-48"
 				/>
 			</Section>
 

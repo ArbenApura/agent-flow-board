@@ -61,7 +61,7 @@ for (let i = 0; i < runs; i++) {
 	const items = await page
 		.locator(`a[href^="${project}/"]`)
 		.evaluateAll((as) => as.map((a) => a.getAttribute('href')));
-	const href = items.find((h) => !/\/(tasks|activity|health|settings|trash|ui)$/.test(h));
+	const href = items.find((h) => !/\/(tasks|activity|settings|trash|ui)$/.test(h));
 	const link = page.locator(`a[href="${href}"]`).first();
 	t = Date.now();
 	await link.click();

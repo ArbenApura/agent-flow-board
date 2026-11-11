@@ -7,7 +7,7 @@
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
-import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 // -- MODULES -- //
 import { check, checkRun, item, phase, session, step } from '../db/schema';
 import { notifyChange } from '../realtime/notify';
@@ -323,40 +323,4 @@ export async function validateEvidence(
 		if (runCommit && !sameCommit(runCommit, evidence.commit))
 			fail('the check run was made on a different commit than the one given.');
 	}
-}
-
-/** Open steps that need a passed check on a target and have none, among done steps (SPEC 9.4 "steps without evidence"). */
-export async function stepsWithoutEvidence(tx: Tx, projectId: string) {
-	return tx
-		.select({ itemId: step.itemId, key: step.key, text: step.text, target: step.requiredTarget })
-		.from(step)
-		.where(
-			and(
-				eq(step.projectId, projectId),
-				eq(step.state, 'done'),
-				sql`${step.requiredTarget} is not null`,
-				isNull(step.evidence)
-			)
-		)
-		.limit(200);
-}
-
-/** Sessions currently claiming something in a project, newest first. */
-export async function claimsIn(tx: Tx, projectId: string, since?: Date) {
-	return tx
-		.select({
-			sessionId: session.id,
-			tool: session.tool,
-			lastSeenAt: session.lastSeenAt,
-			phase: session.claimedPhase,
-			itemId: item.id,
-			ref: item.ref,
-			status: item.status,
-			// Minutes of work left unrecorded: the turn ended or the session went quiet, and its phase still has an open step
-			staleMinutes: staleMinutesSql()
-		})
-		.from(session)
-		.innerJoin(item, eq(item.id, session.claimedItemId))
-		.where(and(eq(item.projectId, projectId), since ? gt(session.lastSeenAt, since) : undefined))
-		.orderBy(desc(session.lastSeenAt));
 }

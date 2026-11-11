@@ -450,7 +450,6 @@ test('M7 first load JavaScript and the server response of the board pages stay i
 		'/acme/CKT/CKT-1?tab=ui',
 		'/acme/CKT/tasks',
 		'/acme/CKT/activity',
-		'/acme/CKT/health',
 		'/acme/CKT/ui',
 		'/acme/CKT/settings',
 		'/acme/settings',
@@ -458,7 +457,6 @@ test('M7 first load JavaScript and the server response of the board pages stay i
 		'/acme/LOAD?view=areas',
 		'/acme/LOAD/tasks',
 		'/acme/LOAD/activity',
-		'/acme/LOAD/health',
 		'/acme/LOAD/ui'
 	];
 	for (const path of PAGES) {

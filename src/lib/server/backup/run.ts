@@ -81,7 +81,7 @@ export function selectRetained(
 export const archiveKey = (orgId: string, at: Date) =>
 	`backups/${orgId}/${at.toISOString().replace(/[:.]/g, '-')}.afbbak`;
 
-/** How the newest backups of one org look, for the health panel and the alert. */
+/** How the newest backups of one org look, for the Organisation settings panel and the alert. */
 export async function backupHealth(
 	handle: DbHandle,
 	orgId: string,

@@ -16,7 +16,7 @@ The live board is at https://afb.arbenger.com. This product is planned on itself
 | Live    | Every open page updates as items change. A change can be undone for 30 days.                                                                                                                                                                                                                   |
 | Checks  | Browser checks that close a step only when they pass on the right target and show their screenshots, and a runner program (local or hosted in a container).                                                                                                                                    |
 | Notes   | A Notes area per project: Markdown notes in folders with versions, links to plans and tasks, and a Turn into a plan or tasks action. Agents read and search notes through the MCP tools `note_list` and `note_get` (references `N-<n>`) and write one only when the user asks in that session. |
-| Backups | Encrypted nightly backups of every organisation, a restore command, and a health panel that shows when one is late.                                                                                                                                                                            |
+| Backups | Encrypted nightly backups of every organisation, a restore command, and a backup status in Organisation settings that shows when one is late.                                                                                                                                                                            |
 
 ## Run it on your machine
 

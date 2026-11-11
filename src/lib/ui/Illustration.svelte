@@ -15,7 +15,6 @@
 		| 'checks'
 		| 'shots'
 		| 'trash'
-		| 'health'
 		| 'unplugged'
 		| 'repo'
 		| 'tasks'
@@ -662,46 +661,6 @@
 		/>
 		{@render spark(24, 40)}
 		{@render speck(26, 92)}
-	{:else if kind === 'health'}
-		<!-- A SHIELD WITH A TICK AND A QUIET HEARTBEAT LINE -->
-		<path
-			d="M10 90h30l8-12 10 22 10-30 8 20h84"
-			stroke="var(--line)"
-			stroke-width="2"
-			stroke-linecap="round"
-			stroke-linejoin="round"
-			stroke-dasharray="1 5"
-		/>
-		<path
-			d="M83 17l36 12v28c0 22-16 36-36 44-20-8-36-22-36-44V29z"
-			fill="url(#{uid}-hatch)"
-			stroke="var(--line)"
-			stroke-width="1.5"
-			stroke-linejoin="round"
-		/>
-		<path
-			d="M80 14l36 12v28c0 22-16 36-36 44-20-8-36-22-36-44V26z"
-			fill="var(--surface)"
-			stroke="var(--line)"
-			stroke-width="2"
-			stroke-linejoin="round"
-		/>
-		<path
-			d="M80 26l24 8v20c0 14-10 24-24 30-14-6-24-16-24-30V34z"
-			fill="var(--success-soft)"
-			stroke="var(--success)"
-			stroke-width="2"
-			stroke-linejoin="round"
-		/>
-		<path
-			d="M69 54l8 8 14-16"
-			stroke="var(--success)"
-			stroke-width="3.5"
-			stroke-linecap="round"
-			stroke-linejoin="round"
-		/>
-		{@render spark(30, 30)}
-		{@render spark(136, 40)}
 	{:else if kind === 'unplugged'}
 		<!-- A PLUG AND A SOCKET WITH A GAP BETWEEN THEM, NOT SET UP -->
 		<rect

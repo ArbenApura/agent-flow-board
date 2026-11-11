@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- tool and API replies are parsed from JSON and read loosely in checks */
-// M9: the health lists and the hook endpoint the bridge calls.
+// M9: the hook endpoint the bridge calls.
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { signIn } from './helpers';
 
@@ -33,40 +33,6 @@ async function setup(page: Page) {
 	).json();
 	return { key, ref: made.ref as string, id: made.id as string };
 }
-
-test('M9 the health panel lists what needs attention and hides private items from people who may not see them', async ({
-	browser,
-	baseURL
-}) => {
-	const owner = await as(browser, baseURL!, 'owner@acme.example');
-	const { key, ref } = await setup(owner.page);
-	const secret = await (
-		await owner.page.request.post(`${ACME}/projects/${key}/items`, {
-			data: {
-				title: 'Private tracked work',
-				visibility: 'private',
-				phases: [{ key: '1', title: 'x', steps: [{ text: 'A step' }] }]
-			}
-		})
-	).json();
-	await owner.page.goto(`/acme/${key}/health`);
-	// An item in review with a step open is drift, and says so in words
-	await owner.page.request.post(`${ACME}/items/${ref}/record`, {
-		data: { marks: [{ key: '1.1', mark: 'done' }] }
-	});
-	await owner.page.request.post(`${ACME}/items/${ref}/status`, {
-		data: { status: 'IN REVIEW', note: 'Early review' }
-	});
-	await owner.page.reload();
-	await expect(owner.page.getByTestId('drift-list')).toContainText('in review but a step is open');
-	// A member sees no backup entries and none of the private item
-	const member = await as(browser, baseURL!, 'member@acme.example');
-	await member.page.goto(`/acme/${key}/health`);
-	await expect(member.page.getByTestId('backup-health')).toHaveCount(0);
-	expect(await member.page.content()).not.toContain(secret.ref);
-	await member.ctx.close();
-	await owner.ctx.close();
-});
 
 test('M9 a tool hook call over the API gives a brief, a title once, a close question and one stop reminder per code change', async ({
 	browser,

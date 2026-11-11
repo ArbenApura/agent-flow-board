@@ -258,7 +258,7 @@ describe('settings', () => {
 
 	it('project settings: the reference pages and the other fields are saved by the section that owns them', async () => {
 		await expect(
-			updateProject(ctx('member'), { project: w.projectKey, staleDays: 5 })
+			updateProject(ctx('member'), { project: w.projectKey, agentsMayComplete: false })
 		).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		const r = await updateProject(ctx(), {
 			project: w.projectKey,
@@ -267,13 +267,11 @@ describe('settings', () => {
 				{ key: 'light', label: 'Light' },
 				{ key: 'dark', label: 'Dark' }
 			],
-			staleDays: 7,
 			agentsMayComplete: false
 		});
 		expect(r.changed).toBe(true);
 		expect(r.project).toMatchObject({
 			referencePages: ['/settings', '/acme/CKT'],
-			staleDays: 7,
 			agentsMayComplete: false
 		});
 		await expect(
@@ -282,12 +280,10 @@ describe('settings', () => {
 		await expect(
 			updateProject(ctx(), { project: w.projectKey, referencePages: ['/has space'] })
 		).rejects.toThrow();
-		await expect(updateProject(ctx(), { project: w.projectKey, staleDays: 0 })).rejects.toThrow();
 		// Only the sent field changes
 		const again = await updateProject(ctx(), { project: w.projectKey, name: 'Renamed project' });
 		expect(again.project).toMatchObject({
 			name: 'Renamed project',
-			staleDays: 7,
 			referencePages: ['/settings', '/acme/CKT']
 		});
 	});

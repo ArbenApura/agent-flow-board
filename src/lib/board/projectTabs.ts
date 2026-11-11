@@ -1,5 +1,5 @@
 // THE PAGES OF A PROJECT, IN THE ORDER THE SIDEBAR, THE PHONE MENU AND THE COMMAND PALETTE SHOW THEM
-// One list, read by all three, so they always agree. Six main pages, then Trash and Project settings (DESIGN.md, App shell).
+// One list, read by all three, so they always agree. Five main pages, then Trash and Project settings (DESIGN.md, App shell).
 
 // -- TYPES -- //
 
@@ -13,7 +13,6 @@ export const PROJECT_TAB_LABELS = [
 	'Tasks',
 	'Notes',
 	'Activity',
-	'Health',
 	'Mockups',
 	'Trash',
 	'Project settings'
@@ -36,7 +35,6 @@ export function projectTabs(
 		{ href: at('/tasks'), label: 'Tasks' },
 		{ href: at('/notes'), label: 'Notes' },
 		{ href: at('/activity'), label: 'Activity' },
-		{ href: at('/health'), label: 'Health' },
 		{ href: at('/mockups'), label: 'Mockups' }
 	];
 	return {

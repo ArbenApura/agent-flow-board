@@ -1,4 +1,4 @@
-// PHASE 9: SESSION CLAIMS, EVIDENCE, CLOSE HANDLING, HOOK LOGIC, REMINDERS AND HEALTH
+// PHASE 9: SESSION CLAIMS, EVIDENCE, CLOSE HANDLING, HOOK LOGIC, AND REMINDERS
 
 // -- DEP-MODULES -- //
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -11,7 +11,6 @@ import { run } from '../../src/lib/server/ops/context';
 import { canonicalTool } from '../../src/lib/shared/tool';
 import { handleHook } from '../../src/lib/server/ops/hooks';
 import { projectSummary } from '../../src/lib/server/ops/board';
-import { projectHealth } from '../../src/lib/server/ops/health';
 import { listSessionEvents } from '../../src/lib/server/ops/sessionEvents';
 import { createItem, updateItem } from '../../src/lib/server/ops/items';
 import { recordSteps } from '../../src/lib/server/ops/steps';
@@ -875,11 +874,6 @@ describe('tracking', () => {
 		await db.admin.exec(
 			`update session set last_seen_at = now(), reminded_at = now() - interval '3 minutes' where id = '${id}'`
 		);
-		// The health panel lists it as unrecorded work
-		const health = await projectHealth(person('admin'), w.projectKey);
-		expect(health.staleClaims.find((c) => c.itemRef === it.ref)).toMatchObject({
-			kind: 'unrecorded'
-		});
 		// A recorded step clears it
 		const part = await recordSteps(agent('member', id), {
 			item: it.ref,
@@ -970,81 +964,11 @@ describe('tracking', () => {
 			`update session set last_seen_at = now() - interval '121 minutes' where id in ('${second}', '${third}')`
 		);
 		expect(await running(live.ref)).toHaveLength(0);
-		// The badge and the health panel agree on the one limit: at 100 minutes running and not idle, at 125 idle and not running
-		const stale = async () =>
-			(await projectHealth(person('admin'), w.projectKey)).staleClaims.filter(
-				(c) => c.itemRef === live.ref && c.kind === 'idle'
-			);
-		expect(await stale()).toHaveLength(2);
+		// The one shared limit: at 100 minutes running, at 121 not running
 		await db.admin.exec(
 			`update session set last_seen_at = now() - interval '100 minutes' where id in ('${second}', '${third}')`
 		);
 		expect(await running(live.ref)).toHaveLength(1);
-		expect(await stale()).toHaveLength(0);
-	});
-
-	it('the health panel lists what needs attention, hides private items from people who may not see them, and shows failures to admins only', async () => {
-		const quiet = await newItem('Quiet and old');
-		await recordSteps(person(), { item: quiet.ref, marks: [{ key: '1.1', mark: 'done' }] });
-		await db.admin.exec(
-			`update item set last_activity_at = now() - interval '10 days' where id = '${quiet.id}'`
-		);
-		const secret = await createItem(person('owner'), {
-			project: w.projectKey,
-			title: 'Private and quiet',
-			visibility: 'private',
-			...PLAN
-		});
-		await recordSteps(person('owner'), { item: secret.ref, marks: [{ key: '1.1', mark: 'done' }] });
-		await db.admin.exec(
-			`update item set last_activity_at = now() - interval '10 days' where id = '${secret.id}'`
-		);
-		const stale = await newItem('Stale claim');
-		const id = await newSession();
-		await claim(agent('member', id), id, stale.ref, '1');
-		await db.admin.exec(
-			`update session set last_seen_at = now() - interval '5 hours' where id = '${id}'`
-		);
-		await db.admin.exec(
-			`update step set required_target = 'preview' where item_id = '${quiet.id}' and key = '1.1'`
-		);
-		// A review with a step still open is drift, and says so
-		const review = await newItem('Review with an open step');
-		await recordSteps(person(), { item: review.ref, marks: [{ key: '1.1', mark: 'done' }] });
-		await setStatus(person('owner'), {
-			item: review.ref,
-			status: 'IN REVIEW',
-			note: 'Moved to review early'
-		});
-		const admin = await projectHealth(
-			{ ...person('admin'), services: { backups: true } },
-			w.projectKey
-		);
-		expect(admin.quietItems.map((q) => q.ref)).toContain(quiet.ref);
-		// Not even an admin sees a private item somebody else made
-		expect(admin.quietItems.map((q) => q.ref)).not.toContain(secret.ref);
-		expect(admin.staleClaims.find((c) => c.itemRef === stale.ref)).toMatchObject({
-			tool: 'claude-code',
-			phase: '1'
-		});
-		expect(
-			admin.stepsWithoutEvidence.some((s) => s.itemRef === quiet.ref && s.target === 'preview')
-		).toBe(true);
-		// Its maker still sees it on the panel
-		const maker = await projectHealth(person('owner'), w.projectKey);
-		expect(maker.quietItems.map((q) => q.ref)).toContain(secret.ref);
-		expect(admin.drift.find((d) => d.ref === review.ref)?.codes).toContain(
-			'in-review-with-open-steps'
-		);
-		expect(admin.backup?.ok).toBe(false);
-		// A member sees the public items only, and not the backup state
-		const member = await projectHealth(person('member'), w.projectKey);
-		expect(member.quietItems.map((q) => q.ref)).toContain(quiet.ref);
-		expect(member.quietItems.map((q) => q.ref)).not.toContain(secret.ref);
-		expect(member.backup).toBeNull();
-		// A closed item with a claim is flagged (a claim on a closed item should not survive, so it is made by hand here)
-		await db.admin.exec(`update item set status = 'ON HOLD' where id = '${stale.id}'`);
-		await updateItem(person('owner'), { item: quiet.ref, title: 'Quiet and old, renamed' });
 	});
 
 	it('turning an item private releases the claims of other people and tells their sessions', async () => {

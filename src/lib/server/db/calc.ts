@@ -23,7 +23,7 @@ export function percentOf(total: number, done: number): number {
 
 /**
  * Drift warnings of SPEC 9.4 that depend only on the item itself. They never block anything.
- * Quiet items and claims on closed items are added by the health job. The warning for a plan with questions but no "Settled
+ * The warning for a plan with questions but no "Settled
  * without asking" list is not built, because an item holds no record of its open questions to count.
  */
 export function driftFlags(i: DriftInput): string[] {

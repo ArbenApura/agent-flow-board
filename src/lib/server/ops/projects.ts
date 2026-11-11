@@ -73,7 +73,6 @@ export const projectUpdateInput = z.object({
 		.optional(),
 	/** ADR-027: when off, an agent's COMPLETED is refused and people close items. */
 	agentsMayComplete: z.boolean().optional(),
-	staleDays: z.number().int().min(1).max(60).optional(),
 	/** Addresses inside the web app that UI shots compare new screens with. */
 	referencePages: z
 		.array(z.string().regex(/^\/[^\s]{0,198}$/, 'A reference page is an address starting with /'))
@@ -88,7 +87,6 @@ const PATCH = [
 	'streams',
 	'themes',
 	'agentsMayComplete',
-	'staleDays',
 	'referencePages'
 ] as const;
 
