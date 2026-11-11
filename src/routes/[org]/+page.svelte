@@ -283,7 +283,7 @@
 {#snippet projectList(list: typeof rows, group: string)}
 	{#if shownView === 'cards'}
 		<ul
-			class="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+			class="stagger grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4"
 			data-testid={group === 'pinned' ? 'pinned-cards' : 'project-cards'}
 		>
 			{#each list as o, i (o.project.id)}

@@ -318,7 +318,7 @@
 	<div
 		class={cn(
 			detail.sections.length > 1 &&
-				'lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:items-start lg:gap-6 xl:grid-cols-[200px_minmax(0,736px)_minmax(220px,1fr)]'
+				'lg:grid lg:grid-cols-[200px_minmax(0,1fr)] lg:items-start lg:gap-6 xl:grid-cols-[200px_minmax(0,1fr)_240px]'
 		)}
 	>
 		{#if detail.sections.length > 1}
@@ -365,7 +365,10 @@
 							>
 						{/if}
 					{/snippet}
-					<div class="md p-4 max-sm:p-3.5 [&_:is(h2,h3)]:scroll-mt-[139px]">
+					<!-- THE DOCUMENT CARD IS AS WIDE AS THE PAGE ALLOWS, SO THE TEXT FILLS IT INSTEAD OF STOPPING AT THE 72 CHARACTER MEASURE OF .md (AFB-20261111-1344) -->
+					<div
+						class="md p-4 max-sm:p-3.5 [&_:is(h2,h3)]:scroll-mt-[139px] [&>:not(table,pre)]:max-w-none!"
+					>
 						<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised Markdown from the server -->
 						{@html s.html}
 					</div>

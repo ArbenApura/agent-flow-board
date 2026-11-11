@@ -72,7 +72,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, is
 			author: found.author,
 			authorId: n.createdBy,
 			words,
-			// The open note is always in the list, also when it is older than the 50 newest of its folder
+			// The open note is always in the list, also when it is older than the 50 newest of its folder. The list is in the order of the titles, not of the last change: a note being edited would otherwise jump to the top and the rows would move under the pointer
 			siblings: [
 				...near.notes.map((s) => ({
 					id: s.id,
@@ -83,7 +83,9 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, is
 				...(near.notes.some((s) => s.id === n.id)
 					? []
 					: [{ id: n.id, ref: n.ref, title: n.title, private: n.visibility === 'private' }])
-			],
+			].sort((a, b) =>
+				a.title.localeCompare(b.title, 'en', { numeric: true, sensitivity: 'base' })
+			),
 			lastEditor: found.lastEditor,
 			mine: found.mine,
 			favourite: found.favourite,
