@@ -13,6 +13,9 @@ import {
 	event,
 	item,
 	member,
+	mockup,
+	mockupRead,
+	mockupVersion,
 	project,
 	projectCols,
 	projectLogoV,
@@ -58,7 +61,16 @@ async function runningIn(
 			reviewIdle: sql<boolean>`(${item.status} = 'IN REVIEW' and ${session.lastSeenAt} < now() - make_interval(mins => ${QUIET_RELEASE_MINUTES}) and not exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open'))`,
 			// Minutes since the first unrecorded edit, only once the session left it unrecorded (its turn ended or it went quiet)
 			// and while its phase still has an open step: the one rule in tracking.ts
-			staleMinutes: staleMinutesSql()
+			staleMinutes: staleMinutesSql(),
+			// The plan has a mockup with a page that nobody in the project has read to the end in its current version
+			// (AFB-20261111-0017). A yes or no only: no mockup title or text ever reaches the badge
+			mockupUnread: sql<boolean>`exists (
+				select 1 from ${mockup}
+				where ${mockup.itemId} = ${item.id}
+				  and ${mockup.trashedAt} is null
+				  and exists (select 1 from ${mockupVersion} where ${mockupVersion.mockupId} = ${mockup.id} and ${mockupVersion.number} = ${mockup.currentVersion} and ${mockupVersion.size} > 0)
+				  and not exists (select 1 from ${mockupRead} where ${mockupRead.mockupId} = ${mockup.id} and ${mockupRead.versionNumber} = ${mockup.currentVersion} and ${mockupRead.completedAt} is not null)
+			)`
 		})
 		.from(session)
 		.innerJoin(item, eq(item.id, session.claimedItemId))
@@ -92,6 +104,7 @@ async function runningIn(
 		title: `${r.tabName ?? 'ITEM'}: ${r.itemRef}`,
 		sessionId: r.sessionId,
 		staleMinutes: r.staleMinutes,
+		mockupUnread: r.mockupUnread,
 		reviewIdle: r.reviewIdle,
 		startedAt: r.startedAt,
 		lastSeenAt: r.lastSeenAt

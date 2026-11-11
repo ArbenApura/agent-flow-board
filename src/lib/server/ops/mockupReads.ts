@@ -7,7 +7,7 @@
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 // -- MODULES -- //
 import { mockup, mockupRead, mockupVersion, session } from '../db/schema';
 import { OpError, requireCap, run } from './context';
@@ -96,7 +96,9 @@ export async function recordMockupRead(
 		return await run(ctx, (outer) =>
 			outer.transaction(async (sp) => {
 				const tx = sp as unknown as Tx;
-				const { m } = await loadMockup(tx, ctx, input.mockup);
+				// The mockup row is locked for this short write, so two sessions finishing the page at the same moment are
+				// counted one after the other and the second one sees the first one's parts
+				const { m } = await loadMockup(tx, ctx, input.mockup, { lock: true });
 				await requireCap(tx, ctx, 'read', m.projectId);
 				if (input.sessionId) {
 					// Only this person's own session of this organisation may be named
@@ -134,7 +136,27 @@ export async function recordMockupRead(
 				// A length that changed means another file: start again from this part
 				const before = row.htmlLength === length ? ((row.ranges ?? []) as ReadRange[]) : [];
 				const ranges = mergeRange(before, start, end);
-				const complete = coversAll(ranges, length);
+				// The page counts as read when the parts of every session together cover it, so one row says so for the plan
+				// (the board badge reads completed_at)
+				const others = await tx
+					.select({ ranges: mockupRead.ranges, htmlLength: mockupRead.htmlLength })
+					.from(mockupRead)
+					.where(
+						and(
+							eq(mockupRead.mockupId, m.id),
+							eq(mockupRead.versionNumber, input.version),
+							ne(mockupRead.id, row.id)
+						)
+					);
+				const complete = coversAll(
+					unionRanges([
+						ranges,
+						...others
+							.filter((o) => o.htmlLength === length)
+							.map((o) => (o.ranges ?? []) as ReadRange[])
+					]),
+					length
+				);
 				await tx
 					.update(mockupRead)
 					.set({

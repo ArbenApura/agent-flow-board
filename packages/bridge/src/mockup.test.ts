@@ -1,16 +1,27 @@
 // THE MOCKUP PUSH COMMAND: NO SIGN IN, A FILE THAT IS TOO BIG OR NOT HTML, A REPEATED REQUEST ID ON A RETRY, AND THE ORDER OF THE CALLS
 
 // -- DEP-MODULES -- //
-import { mkdtempSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	symlinkSync,
+	truncateSync,
+	writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import {
 	MAX_MOCKUP_BYTES,
+	pullMockup,
 	pushKit,
 	pushMockup,
 	type KitPushOptions,
+	type PullOptions,
 	type PushOptions
 } from './mockup.js';
 
@@ -241,5 +252,173 @@ describe('mockup kit push', () => {
 			})
 		);
 		await expect(pushKit(s.options)).rejects.toThrow('Only admins change the kit. (403)');
+	});
+});
+
+describe('mockup pull', () => {
+	let dir = '';
+	beforeAll(() => {
+		dir = mkdtempSync(join(tmpdir(), 'afb-mockup-pull-'));
+	});
+	afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+	const PAGE = '<html><body>' + 'Rooms '.repeat(40) + '</body></html>';
+	const json = (body: unknown, status = 200) =>
+		new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+	// A board that serves the page 100 characters at a time, whatever limit is asked
+	const board = (recorded: boolean | undefined) => {
+		const urls: URL[] = [];
+		const keys: (string | null)[] = [];
+		const logs: string[] = [];
+		const options: PullOptions = {
+			server: 'https://board.test',
+			org: 'acme',
+			token: 'afb_token',
+			mockup: 'm-1',
+			out: '',
+			log: (l) => logs.push(l),
+			wait: async () => undefined,
+			fetch: async (url, init) => {
+				const u = new URL(url);
+				urls.push(u);
+				keys.push(new Headers(init?.headers).get('idempotency-key'));
+				const offset = Number(u.searchParams.get('offset'));
+				const html = PAGE.slice(offset, offset + 100);
+				return json({
+					html,
+					version: 3,
+					length: PAGE.length,
+					offset,
+					more: offset + 100 < PAGE.length,
+					...(recorded === undefined ? {} : { recorded })
+				});
+			}
+		};
+		return { urls, keys, logs, options };
+	};
+
+	it('reads every part in order to the end, writes one file and sends the session id', async () => {
+		const b = board(true);
+		const out = join(dir, 'pulled.html');
+		const r = await pullMockup({ ...b.options, out, session: 's_1', version: 3 });
+		expect(readFileSync(out, 'utf8')).toBe(PAGE);
+		expect(r).toEqual({ file: out, version: 3, length: PAGE.length, recorded: true });
+		expect(b.urls.length).toBe(Math.ceil(PAGE.length / 100));
+		expect(b.urls.map((u) => Number(u.searchParams.get('offset')))).toEqual(
+			b.urls.map((_, i) => i * 100)
+		);
+		expect(b.urls[0].pathname).toBe('/api/v1/orgs/acme/mockups/m-1/html');
+		expect(b.urls.every((u) => u.searchParams.get('sessionId') === 's_1')).toBe(true);
+		expect(b.urls.every((u) => u.searchParams.get('version') === '3')).toBe(true);
+		// Every part has its own request id, so a repeated part is never mistaken for another one
+		expect(new Set(b.keys).size).toBe(b.keys.length);
+		expect(b.logs.join('\n')).toMatch(/untrusted text/);
+	});
+
+	it('says so when the board did not count the read, and counts nothing without a session', async () => {
+		const unrecorded = board(false);
+		const a = await pullMockup({
+			...unrecorded.options,
+			out: join(dir, 'unrecorded.html'),
+			session: 's_x'
+		});
+		expect(a.recorded).toBe(false);
+		expect(unrecorded.logs.join('\n')).toMatch(/not recorded/);
+		const plain = board(undefined);
+		const b = await pullMockup({ ...plain.options, out: join(dir, 'plain.html') });
+		expect(b.recorded).toBe(false);
+		expect(plain.urls.every((u) => !u.searchParams.has('sessionId'))).toBe(true);
+	});
+
+	it('refuses no sign in, a file that is not HTML, an existing file, a missing folder and any path inside a git repository, before any call', async () => {
+		const b = board(true);
+		const run = (out: string, token = 'afb_token') => pullMockup({ ...b.options, out, token });
+		await expect(run(join(dir, 'a.html'), '')).rejects.toThrow(/Not signed in/);
+		await expect(run(join(dir, 'a.txt'))).rejects.toThrow(/must be a \.html file/);
+		const taken = join(dir, 'taken.html');
+		writeFileSync(taken, 'mine');
+		await expect(run(taken)).rejects.toThrow(/already exists/);
+		expect(readFileSync(taken, 'utf8')).toBe('mine');
+		await expect(run(join(dir, 'nope', 'a.html'))).rejects.toThrow(/does not exist/);
+		const repo = join(dir, 'repo');
+		mkdirSync(join(repo, '.git'), { recursive: true });
+		mkdirSync(join(repo, 'design'));
+		await expect(run(join(repo, 'design', 'a.html'))).rejects.toThrow(
+			/never saved inside a git repository/
+		);
+		expect(b.urls).toEqual([]);
+	});
+
+	it('pins the version of the first part, and writes nothing when the page changes while it is read', async () => {
+		// Asked with no version: every part after the first names the version the first one came from
+		const b = board(true);
+		await pullMockup({ ...b.options, out: join(dir, 'pinned.html') });
+		expect(b.urls[0].searchParams.has('version')).toBe(false);
+		expect(b.urls.slice(1).every((u) => u.searchParams.get('version') === '3')).toBe(true);
+		// A board that answers another version, or another length, half way
+		for (const change of [{ version: 4 }, { length: PAGE.length + 1 }]) {
+			const out = join(dir, `changed-${Object.keys(change)[0]}.html`);
+			let n = 0;
+			await expect(
+				pullMockup({
+					...b.options,
+					out,
+					fetch: async (url) => {
+						const offset = Number(new URL(url).searchParams.get('offset'));
+						n++;
+						return json({
+							html: PAGE.slice(offset, offset + 100),
+							version: 3,
+							length: PAGE.length,
+							more: true,
+							...(n > 1 ? change : {})
+						});
+					}
+				})
+			).rejects.toThrow(/changed while it was read/);
+			expect(existsSync(out)).toBe(false);
+		}
+		// A board that never finishes and sends nothing more
+		await expect(
+			pullMockup({
+				...b.options,
+				out: join(dir, 'endless.html'),
+				fetch: async () => json({ html: '', version: 3, length: 10, more: true })
+			})
+		).rejects.toThrow(/did not finish/);
+	});
+
+	it('refuses a folder that is a link into a repository, and a bare repository', async () => {
+		const b = board(true);
+		const repo = join(dir, 'linked-repo');
+		mkdirSync(join(repo, '.git'), { recursive: true });
+		mkdirSync(join(repo, 'design'));
+		const link = join(dir, 'looks-outside');
+		// A junction needs no special rights on Windows, and is a plain directory link elsewhere
+		symlinkSync(join(repo, 'design'), link, 'junction');
+		await expect(pullMockup({ ...b.options, out: join(link, 'a.html') })).rejects.toThrow(
+			/never saved inside a git repository/
+		);
+		const bare = join(dir, 'bare.git');
+		mkdirSync(join(bare, 'objects'), { recursive: true });
+		writeFileSync(join(bare, 'HEAD'), 'ref: refs/heads/main\n');
+		mkdirSync(join(bare, 'sub'));
+		await expect(pullMockup({ ...b.options, out: join(bare, 'sub', 'a.html') })).rejects.toThrow(
+			/never saved inside a git repository/
+		);
+		expect(b.urls).toEqual([]);
+	});
+
+	it("says the server's own words on a refusal and writes nothing", async () => {
+		const b = board(true);
+		const out = join(dir, 'refused.html');
+		await expect(
+			pullMockup({
+				...b.options,
+				out,
+				fetch: async () => json({ error: { message: 'No such mockup.' } }, 404)
+			})
+		).rejects.toThrow('No such mockup. (404)');
+		expect(existsSync(out)).toBe(false);
 	});
 });

@@ -316,6 +316,7 @@
 						title={r.title}
 						phase={ph.key}
 						staleMinutes={r.staleMinutes}
+						mockupUnread={r.mockupUnread}
 						reviewIdle={r.reviewIdle}
 						compact
 					/>

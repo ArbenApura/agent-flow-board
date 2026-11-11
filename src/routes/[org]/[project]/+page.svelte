@@ -309,6 +309,7 @@
 						title={r.title}
 						phase={r.phase ?? undefined}
 						staleMinutes={r.staleMinutes}
+						mockupUnread={r.mockupUnread}
 						reviewIdle={r.reviewIdle}
 						age={`Started ${new Date(r.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. ${activityText(r.lastSeenAt)}.`}
 					/>

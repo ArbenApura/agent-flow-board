@@ -4,8 +4,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
+import { projectSummary } from '../../src/lib/server/ops/board';
 import { createItem } from '../../src/lib/server/ops/items';
 import { addMockupPin } from '../../src/lib/server/ops/mockupPins';
+import { linkMockup, trashMockup } from '../../src/lib/server/ops/mockups';
 import { createToken } from '../../src/lib/server/ops/tokens';
 import { makePostgres, type TestDb } from '../support/db';
 import { call, connect } from '../support/mcp';
@@ -270,6 +272,11 @@ describe('mockup tools', () => {
 		expect(first.error).toBeUndefined();
 		expect(first.mockupNotice).toContain(id);
 		expect(first.mockupNotice).not.toMatch(/Rooms/);
+		// The board shows it next to the running badge (AFB-20261111-0017)
+		const badge = async () =>
+			(await projectSummary(w.ctx('member'), w.projectKey)).running.find((r) => r.itemRef === plan)
+				?.mockupUnread;
+		expect(await badge()).toBe(true);
 		// The last step of the phase is refused, by done and by waived, and nothing is written, the section included
 		const refused = await call(member, 'step_done', {
 			sessionId: s.sessionId,
@@ -288,6 +295,25 @@ describe('mockup tools', () => {
 		const still = await call(member, 'item_get', { item: plan, fields: ['steps', 'sections'] });
 		expect(still.steps.find((x: { key: string }) => x.key === '1.2').state).toBe('open');
 		expect(JSON.stringify(still.sections ?? [])).not.toContain('Mockup inventory');
+		// The way round is closed too (AFB-20261111-0017): an agent may not unlink or trash the unread mockup of a plan in
+		// progress, while a person may, and nothing but ids and counts is said
+		const unlink = await call(member, 'mockup_link', {
+			sessionId: s.sessionId,
+			mockup: id,
+			item: null
+		});
+		expect(unlink.error).toMatchObject({ code: 'MOCKUP_UNREAD' });
+		expect(unlink.error.message).not.toMatch(/Rooms/);
+		const agentCtx = {
+			...w.ctx('member'),
+			services: { storage: deps.storage!, baseUrl: BASE },
+			actor: { ...w.ctx('member').actor, kind: 'agent' as const }
+		};
+		await expect(trashMockup(agentCtx, id)).rejects.toMatchObject({ code: 'MOCKUP_UNREAD' });
+		const byPerson = await linkMockup(w.ctx('member'), id, null);
+		expect(byPerson.mockup.itemId).toBeNull();
+		await linkMockup(w.ctx('member'), id, plan);
+
 		// A dry run shows the notice and never throws
 		const dry = await call(member, 'step_done', {
 			sessionId: s.sessionId,
@@ -309,6 +335,11 @@ describe('mockup tools', () => {
 		// Read to the end, and the same call passes
 		const read = await call(member, 'mockup_get', { sessionId: s.sessionId, mockup: id });
 		expect(read.html).toMatchObject({ nextOffset: null, unreadChars: 0 });
+		expect(await badge()).toBe(false);
+		// Once it is read, an agent may unlink it again: the refusal is only for an unread mockup
+		const freed = await linkMockup(agentCtx, id, null);
+		expect(freed.mockup.itemId).toBeNull();
+		await linkMockup(agentCtx, id, plan);
 		const passed = await call(member, 'step_done', { sessionId: s.sessionId, keys: ['1.2'] });
 		expect(passed.error).toBeUndefined();
 		expect(passed.finishedPhases).toEqual(['1']);

@@ -49,6 +49,8 @@ export type Running = {
 	sessionId: string;
 	/** Minutes since finished work was last left unrecorded, or null when the session is up to date (progress first). */
 	staleMinutes: number | null;
+	/** The plan has a mockup that nobody has read to the end in its current version. Missing means it was not looked up. */
+	mockupUnread?: boolean;
 	/** The item is in review with nothing open and the session has been quiet: shown as In review, idle, not as running. */
 	reviewIdle: boolean;
 	/** When the session started and when it was last seen, so a stuck claim shows how old it is. */

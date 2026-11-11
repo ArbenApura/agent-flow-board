@@ -109,7 +109,7 @@
 				},
 				{
 					"version": "1.4.0",
-					"hash": "7bd3001444e717f4c61d5e87ba372ab6fa8c7d8c3c1b29e2fe639af67520e8bc"
+					"hash": "01b1216f5ab17b936a24733da19e4adf5a7b054709041cabacfa75615846be50"
 				}
 			]
 		},
@@ -292,7 +292,7 @@
 				},
 				{
 					"version": "1.4.0",
-					"hash": "275e3185bdc0c136b514888fc1eae380038522167ddde614e4ea885723c576dd"
+					"hash": "b46845c9a219d9317c6ca691d594ee6ec8a8ff901f3b554b9709bdd0f7ebcef5"
 				}
 			]
 		},
@@ -374,7 +374,7 @@
 				},
 				{
 					"version": "1.4.0",
-					"hash": "9cd7a5c031285ed0086e13c6837e1916dbe7e44b2b68ddbfc7a52bf1533a91a6"
+					"hash": "8a867d77871c83ec1eb525c014bcbb368fbf883a6c238ce9d2921e6565309666"
 				}
 			]
 		},
@@ -449,6 +449,7 @@
 			"notes": [
 				"flow 1.4.0: a build follows the mockup of its plan strictly. The agent reads the whole mockup HTML with mockup_get (the HTML now comes by default, in parts, until nextOffset is null), writes a Mockup inventory of everything it shows before any visible code, builds its structure, order, text, states and interactions with the project's real components, and marks every inventory line at the end of the phase. Colours, spacing, sizes and type that follow the project's tokens are always free, and the Free notes say what else may differ; other differences come to the user as one list. The server records what was read and refuses the last step of a phase with MOCKUP_UNREAD while the mockup is unread. This replaces 'a mockup is inspiration, never the spec'.",
 				"flow-mockup 1.4.0: a mockup linked to a plan is what the build follows, so it shows only what the plan contains and its Free notes are written completely.",
+				"Also in 1.7.0 (AFB-20261111-0017): the server refuses an agent that unlinks, moves or trashes an unread mockup of a plan being built, the bridge command `mockup pull` saves a mockup's HTML to a file outside any repo (flow-critic and flow-mockup name it), and the board shows 'Mockup not read' next to the running badge.",
 				"flow-critic 1.4.0: the lead gives the design fit critic the mockup HTML itself, and the critic checks every inventory line against the code; mockup mode checks that the Free notes are complete.",
 				"flow-audit 1.2.0: the audit reads the server's record of the mockup read (mockup_list with the item) and the Mockup inventory, and reports a mockup unlinked or trashed while the build ran.",
 				"flow-align 1.0.0 (new): type /flow-align to bring the repo rulebook, the user-level rule files and the agent's saved memory in line with the flow rules. It changes only what is provably stale, contradicting, duplicated or a needless stop, writes one short marked rules block into the repo rulebook, backs every file up first and reports once. It never loosens a safety rule, never deletes a memory and never commits. flow and flow-audit say once when a rule file has drifted."

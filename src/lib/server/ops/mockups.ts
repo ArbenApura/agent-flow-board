@@ -696,15 +696,33 @@ export async function restoreMockupVersion(ctx: Ctx, id: string, number: number)
  * turns the public link off. Unlinking keeps the visibility it has, so a mockup made private by its plan never becomes visible
  * to the whole project just because it was moved.
  */
+/**
+ * An agent may not unlink, move or trash the mockup of a plan it is building while that mockup is unread
+ * (AFB-20261111-0017): it would be the way past the step gate. A person is never refused, and neither is an agent on a
+ * plan that is not in progress or once the mockup is read to the end. Ids and counts only reach the message.
+ */
+async function refuseAgentEscape(tx: Tx, ctx: Ctx, m: MockupRow, plan: ItemRow | null) {
+	if (ctx.actor.kind !== 'agent' || !plan || plan.status !== 'IN PROGRESS') return;
+	const state = (await readStateOf(tx, [m])).get(m.id);
+	if (!state || state.readComplete) return;
+	throw new OpError(
+		'MOCKUP_UNREAD',
+		`${unreadLine([state])} A mockup that is not read to the end cannot be unlinked, moved or put in the trash by an agent while its plan is being built. Read it, or leave this change to the person.`,
+		{ mockups: [{ id: m.id, version: m.currentVersion }] }
+	);
+}
+
 export async function linkMockup(ctx: Ctx, id: string, itemRef: string | null) {
 	return run(ctx, (tx) =>
 		idempotent(ctx, tx, async () => {
 			// The plan row is locked first, the order updateItem and publish use, so a plan going private at the same moment
 			// either finishes before the copy below or syncs this mockup after it
 			const plan = itemRef ? await findItem(tx, ctx, itemRef, { lock: true }) : null;
-			const { m } = await loadMockup(tx, ctx, id, { lock: true });
+			const { m, plan: held } = await loadMockup(tx, ctx, id, { lock: true });
 			await requireCap(tx, ctx, 'write', m.projectId);
 			await rateLimit(tx, ctx, 'write');
+			// Taking the mockup off its plan is the way past the step gate, so an agent may not do it while it is unread
+			if (plan?.id !== held?.id) await refuseAgentEscape(tx, ctx, m, held);
 			if (plan && plan.projectId !== m.projectId)
 				throw new OpError('INVALID', 'A mockup can only be linked to a plan of its own project.');
 			const visibility = plan ? plan.visibility : m.visibility;
@@ -741,9 +759,10 @@ export async function linkMockup(ctx: Ctx, id: string, itemRef: string | null) {
 export async function trashMockup(ctx: Ctx, id: string) {
 	return run(ctx, (tx) =>
 		idempotent(ctx, tx, async () => {
-			const { m } = await loadMockup(tx, ctx, id, { lock: true });
+			const { m, plan: held } = await loadMockup(tx, ctx, id, { lock: true });
 			await requireCap(tx, ctx, 'delete', m.projectId);
 			await rateLimit(tx, ctx, 'write');
+			await refuseAgentEscape(tx, ctx, m, held);
 			await tx
 				.update(mockup)
 				.set({

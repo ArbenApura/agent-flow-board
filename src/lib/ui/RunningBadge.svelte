@@ -9,6 +9,7 @@
 		title,
 		phase,
 		staleMinutes = null,
+		mockupUnread = false,
 		reviewIdle = false,
 		age,
 		compact = false
@@ -21,6 +22,8 @@
 		phase?: string;
 		/** Minutes the session has left finished work unrecorded. A number adds a warning label beside the running badge. */
 		staleMinutes?: number | null;
+		/** The plan has a mockup the build has not read to the end. True adds a warning label beside the running badge. */
+		mockupUnread?: boolean;
 		/** The item is in review with nothing open and the session has gone quiet: shown as idle, not as running. */
 		reviewIdle?: boolean;
 		/** When the claim started and was last seen, added to the hover text. */
@@ -59,6 +62,12 @@
 	{#if staleMinutes !== null}
 		<span title={staleTitle}>
 			<Badge tone="warning" class={compact ? 'rounded-md' : ''}>Not recorded</Badge>
+		</span>
+	{/if}
+	<!-- THE SAME WARNING BADGE WHEN THE PLAN'S MOCKUP IS UNREAD. AN IDLE ITEM IN REVIEW SHOWS NONE: NOTHING IS BEING BUILT -->
+	{#if mockupUnread && !reviewIdle}
+		<span title="Nobody has read the plan's mockup to the end yet">
+			<Badge tone="warning" class={compact ? 'rounded-md' : ''}>Mockup not read</Badge>
 		</span>
 	{/if}
 </span>
