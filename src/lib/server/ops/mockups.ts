@@ -18,7 +18,7 @@ import { mockupKey } from '../mockups/keys';
 import { lintMockupHtml } from '../mockups/lint';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields } from './items';
-import { readStateOf, unreadLine } from './mockupReads';
+import { planWorked, readStateOf, unreadLine } from './mockupReads';
 import { findItem, findProject } from './resolve';
 
 // -- TYPES -- //
@@ -702,7 +702,11 @@ export async function restoreMockupVersion(ctx: Ctx, id: string, number: number)
  * plan that is not in progress or once the mockup is read to the end. Ids and counts only reach the message.
  */
 async function refuseAgentEscape(tx: Tx, ctx: Ctx, m: MockupRow, plan: ItemRow | null) {
-	if (ctx.actor.kind !== 'agent' || !plan || plan.status !== 'IN PROGRESS') return;
+	if (ctx.actor.kind !== 'agent' || !plan) return;
+	// A plan that was only written is free: planning moves mockups around. Once a step was ever marked or the status ever
+	// changed, the refusal holds whatever the steps and the status are set to afterwards, so reopening steps or a status
+	// round trip (also through REMOVED or COMPLETED) is no way round (AFB-20261111-0046)
+	if (!(await planWorked(tx, plan.id))) return;
 	const state = (await readStateOf(tx, [m])).get(m.id);
 	if (!state || state.readComplete) return;
 	throw new OpError(

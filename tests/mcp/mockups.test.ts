@@ -5,7 +5,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { projectSummary } from '../../src/lib/server/ops/board';
+import { listEvents, undoChange } from '../../src/lib/server/ops/history';
 import { createItem } from '../../src/lib/server/ops/items';
+import { addPhase, updateStep } from '../../src/lib/server/ops/plan';
 import { addMockupPin } from '../../src/lib/server/ops/mockupPins';
 import { linkMockup, trashMockup } from '../../src/lib/server/ops/mockups';
 import { createToken } from '../../src/lib/server/ops/tokens';
@@ -310,6 +312,70 @@ describe('mockup tools', () => {
 			actor: { ...w.ctx('member').actor, kind: 'agent' as const }
 		};
 		await expect(trashMockup(agentCtx, id)).rejects.toMatchObject({ code: 'MOCKUP_UNREAD' });
+		// Every other way to the same end is closed for an agent (AFB-20261111-0046). A token on the API is an agent too
+		const { recordSteps: record } = await import('../../src/lib/server/ops/steps');
+		await expect(
+			record(agentCtx, { item: plan, marks: [{ key: '1.2', mark: 'done' }] })
+		).rejects.toMatchObject({ code: 'MOCKUP_UNREAD' });
+		// Removing the last open step of the phase would close it
+		await expect(
+			updateStep(agentCtx, { item: plan, key: '1.2', remove: true })
+		).rejects.toMatchObject({ code: 'MOCKUP_UNREAD' });
+		// Reopening a done step and undoing the reopen would close it again without the step verb
+		await record(w.ctx('member'), { item: plan, marks: [{ key: '1.1', mark: 'open' }] });
+		const reopened = (await listEvents(w.ctx('member'), { project: w.projectKey, item: plan }))
+			.filter((e) => e.verb === 'step.update')
+			.reduce((a, b) => (a.id > b.id ? a : b));
+		await expect(undoChange(agentCtx, reopened.id)).rejects.toMatchObject({
+			code: 'MOCKUP_UNREAD'
+		});
+		await expect(undoChange(w.ctx('member'), reopened.id)).resolves.toMatchObject({ ok: true });
+		// Undoing the creation of a phase would delete its open steps and leave only closed ones
+		const extra = await addPhase(w.ctx('member'), {
+			item: plan,
+			key: '3',
+			title: 'Added later',
+			steps: [{ text: 'One more step' }]
+		});
+		expect(extra).toBeTruthy();
+		const created = (await listEvents(w.ctx('member'), { project: w.projectKey, item: plan }))
+			.filter((e) => e.verb === 'phase.create')
+			.reduce((a, b) => (a.id > b.id ? a : b));
+		await expect(undoChange(agentCtx, created.id)).rejects.toMatchObject({ code: 'MOCKUP_UNREAD' });
+		await expect(undoChange(w.ctx('member'), created.id)).resolves.toMatchObject({ ok: true });
+		// A change of status opens nothing, also through REMOVED: the refusal follows the plan's history, not its status
+		for (const status of ['ON HOLD', 'PLANNED', 'REMOVED'] as const) {
+			const moved = await call(member, 'item_status', {
+				sessionId: s.sessionId,
+				item: plan,
+				status,
+				note: 'Trying the status way round'
+			});
+			expect(moved.error).toBeUndefined();
+			const again = await call(member, 'mockup_link', {
+				sessionId: s.sessionId,
+				mockup: id,
+				item: null
+			});
+			expect(again.error, status).toMatchObject({ code: 'MOCKUP_UNREAD' });
+		}
+		await call(member, 'item_status', {
+			sessionId: s.sessionId,
+			item: plan,
+			status: 'IN PROGRESS',
+			note: 'Back to building'
+		});
+		// A close may have released the claim, so the plan is claimed again for the calls below
+		await call(member, 'work_start', { sessionId: s.sessionId, item: plan });
+		// The runner's own tick after a passing check is never held
+		const byRunner = await record(
+			agentCtx,
+			{ item: plan, marks: [{ key: '1.2', mark: 'done' }] },
+			{ agentGate: false }
+		);
+		expect(byRunner.finishedPhases).toEqual(['1']);
+		await record(w.ctx('member'), { item: plan, marks: [{ key: '1.2', mark: 'open' }] });
+
 		const byPerson = await linkMockup(w.ctx('member'), id, null);
 		expect(byPerson.mockup.itemId).toBeNull();
 		await linkMockup(w.ctx('member'), id, plan);

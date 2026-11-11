@@ -8,6 +8,7 @@ import { z } from 'zod';
 // -- MODULES -- //
 import { undoEvent, type UndoResult } from '../db/events';
 import { attachment, event, item, mockup, mockupVersion, task } from '../db/schema';
+import { mockupUnreadError, planWorked, unreadForGate } from './mockupReads';
 import { canSeeMockup } from './mockups';
 import { OpError, requireCap, run } from './context';
 import { canSeeItem, findItem, findProject, mayView, visibleItemSql } from './resolve';
@@ -122,6 +123,35 @@ async function undoGate(
 	return null;
 }
 
+/**
+ * The unread mockups that hold an agent's undo (AFB-20261111-0046): undoing the reopen of a step puts it back to done,
+ * waived or superseded without passing the step verb, so it meets the same gate. Null for a person, for any other change
+ * and when every mockup of the plan is read.
+ */
+async function undoMockupHold(
+	tx: Parameters<Parameters<typeof run>[1]>[0],
+	ctx: Ctx,
+	ev: { itemId: string | null; verb: string; before: unknown; after: unknown }
+) {
+	if (ctx.actor.kind !== 'agent' || !ev.itemId) return null;
+	const before = ev.before as { state?: string } | null;
+	const after = ev.after as { state?: string; key?: string } | null;
+	const closes =
+		after?.state === 'open' &&
+		typeof after.key === 'string' &&
+		!/^M[0-9]+$/.test(after.key) &&
+		['done', 'waived', 'superseded'].includes(before?.state ?? '');
+	// Undoing the creation of a phase or a step deletes it with its open steps, which closes what is left. On a plan that
+	// was worked on that is the same way round, so it is held too; on a plan that was only written it is plan editing
+	const removes =
+		(ev.verb === 'phase.create' || ev.verb === 'step.create') && (await planWorked(tx, ev.itemId));
+	if (!closes && !removes) return null;
+	const [it] = await tx.select().from(item).where(eq(item.id, ev.itemId));
+	if (!it) return null;
+	const { unread } = await unreadForGate(tx, ctx, it);
+	return unread.length ? unread : null;
+}
+
 /** Reverses one change with a compensating event. A conflict (the thing changed again since) is reported, not forced. */
 export async function undoChange(
 	ctx: Ctx,
@@ -133,6 +163,7 @@ export async function undoChange(
 			.select({
 				projectId: event.projectId,
 				itemId: event.itemId,
+				verb: event.verb,
 				before: event.before,
 				after: event.after
 			})
@@ -143,6 +174,8 @@ export async function undoChange(
 		// A change to an item this person cannot see is not theirs to undo, and looks the same as one that does not exist
 		const refused = await undoGate(tx, ctx, ev);
 		if (refused) return refused;
+		const held = await undoMockupHold(tx, ctx, ev);
+		if (held) throw mockupUnreadError(held, 'change');
 		return undoEvent(
 			tx,
 			{
@@ -168,6 +201,7 @@ export async function undoSession(ctx: Ctx, sessionId: string) {
 				id: event.id,
 				projectId: event.projectId,
 				itemId: event.itemId,
+				verb: event.verb,
 				before: event.before,
 				after: event.after,
 				actorUserId: event.actorUserId,
@@ -197,6 +231,11 @@ export async function undoSession(ctx: Ctx, sessionId: string) {
 			const refused = await undoGate(tx, ctx, e);
 			if (refused && !refused.ok) {
 				skipped.push({ id: e.id, reason: refused.reason });
+				continue;
+			}
+			// A step an agent would close again while the plan's mockup is unread stays as it is
+			if (await undoMockupHold(tx, ctx, e)) {
+				skipped.push({ id: e.id, reason: 'mockup-unread' });
 				continue;
 			}
 			const r = await undoEvent(

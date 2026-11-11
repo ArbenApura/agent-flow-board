@@ -1549,11 +1549,16 @@ async function tickOnPass(
 			outcome.note = `Passed on ${target}, which is weaker than the ${chk.requiredTarget} this check needs, so nothing was closed.`;
 		return;
 	}
-	await recordSteps(ctx, {
-		item: it.ref,
-		marks,
-		log: `Browser check ${chk.manualKey} passed on ${target}`
-	});
+	// The runner's own tick is never held by the mockup gate: the check passed on the built screen
+	await recordSteps(
+		ctx,
+		{
+			item: it.ref,
+			marks,
+			log: `Browser check ${chk.manualKey} passed on ${target}`
+		},
+		{ agentGate: false }
+	);
 	outcome.ticked.push(...marks.map((m) => m.key));
 }
 
@@ -1608,11 +1613,15 @@ async function reopenOnFail(
 	});
 	const keys = [...found.steps, ...(found.manual ? [found.manual] : [])];
 	if (!keys.length) return;
-	await recordSteps(ctx, {
-		item: it.ref,
-		marks: keys.map((key) => ({ key, mark: 'open' as const })),
-		log: `Browser check ${chk.manualKey} failed on ${target} (run ${r.id.slice(0, 8)}), so ${keys.join(', ')} reopened`
-	});
+	await recordSteps(
+		ctx,
+		{
+			item: it.ref,
+			marks: keys.map((key) => ({ key, mark: 'open' as const })),
+			log: `Browser check ${chk.manualKey} failed on ${target} (run ${r.id.slice(0, 8)}), so ${keys.join(', ')} reopened`
+		},
+		{ agentGate: false }
+	);
 	outcome.reopened.push(...keys);
 }
 

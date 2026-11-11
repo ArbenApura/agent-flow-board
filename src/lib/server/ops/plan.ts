@@ -3,7 +3,7 @@
 // -- TYPES -- //
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { recalcItem } from '../db/calc';
@@ -11,6 +11,7 @@ import { appendEvent } from '../db/events';
 import { comment, manualCheck, phase, step } from '../db/schema';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields, checkVersion } from './items';
+import { mockupUnreadError, unreadForGate } from './mockupReads';
 import { enforcePlanRules } from './planRules';
 import { findItem } from './resolve';
 
@@ -283,6 +284,23 @@ export async function updateStep(ctx: Ctx, raw: z.input<typeof updateStepInput>)
 						'CONFLICT',
 						`Step ${input.key} of ${it.ref} has ${talk.n} comment${talk.n === 1 ? '' : 's'}. Reword it instead of removing it.`
 					);
+				// Removing the last open step of a phase closes the phase, so an agent meets the mockup gate here too
+				// (AFB-20261111-0046). A person is never held
+				if (ctx.actor.kind === 'agent') {
+					const [left] = await tx
+						.select({ n: sql<number>`count(*)::int` })
+						.from(step)
+						.where(and(eq(step.phaseId, st.phaseId), eq(step.state, 'open'), ne(step.id, st.id)));
+					// Only a phase that was worked on is closed by this: a phase whose every step is still open is plan editing
+					const [worked] = await tx
+						.select({ n: sql<number>`count(*)::int` })
+						.from(step)
+						.where(and(eq(step.phaseId, st.phaseId), ne(step.state, 'open')));
+					if (left.n === 0 && worked.n > 0) {
+						const { unread } = await unreadForGate(tx, ctx, it);
+						if (unread.length) throw mockupUnreadError(unread, 'change');
+					}
+				}
 				await tx.delete(step).where(eq(step.id, st.id));
 				const calc = await recalcItem(tx, it.id);
 				await appendEvent(tx, {

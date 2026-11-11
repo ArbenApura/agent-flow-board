@@ -9,7 +9,7 @@ import type { Ctx } from './context';
 // -- DEP-MODULES -- //
 import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 // -- MODULES -- //
-import { mockup, mockupRead, mockupVersion, session } from '../db/schema';
+import { event, mockup, mockupRead, mockupVersion, session } from '../db/schema';
 import { OpError, requireCap, run } from './context';
 import { canSeeMockup, loadMockup } from './mockups';
 import { findItem } from './resolve';
@@ -280,6 +280,19 @@ export async function unreadForGate(
 	return { unread: unread.filter((s) => !missing.includes(s.id)), missing };
 }
 
+/**
+ * True once a plan was worked on: a step was ever marked, or its status was ever changed. It is read from the history, never
+ * from the steps or the status as they stand, so reopening every step or moving the status back and forth changes nothing
+ * (AFB-20261111-0046). A plan that was only written is free: planning moves steps and mockups around.
+ */
+export async function planWorked(tx: Tx, planId: string): Promise<boolean> {
+	const [n] = await tx
+		.select({ n: sql<number>`count(*)::int` })
+		.from(event)
+		.where(and(eq(event.itemId, planId), inArray(event.verb, ['step.update', 'item.status'])));
+	return n.n > 0;
+}
+
 /** One plain line about the unread mockups of a plan, or null when all are read. Ids, versions and counts only. */
 export function unreadLine(states: MockupReadState[]): string | null {
 	const unread = states.filter((s) => !s.readComplete);
@@ -293,10 +306,18 @@ export function unreadLine(states: MockupReadState[]): string | null {
 }
 
 /** Refuses with MOCKUP_UNREAD. Kept here so the message is written once. */
-export function mockupUnreadError(states: MockupReadState[]): OpError {
+export function mockupUnreadError(
+	states: MockupReadState[],
+	/** What was refused: marking steps (the default), or another change that would close a step (an undo, a removal). */
+	kind: 'steps' | 'change' = 'steps'
+): OpError {
+	const what =
+		kind === 'steps'
+			? 'Nothing was written by this call: the steps stay open, and any sections or decisions sent with it were not saved, so send them again.'
+			: 'Nothing was changed by this call: it would close a step of a phase while the mockup is unread.';
 	return new OpError(
 		'MOCKUP_UNREAD',
-		`${unreadLine(states)} Nothing was written by this call: the steps stay open, and any sections or decisions sent with it were not saved, so send them again. Never unlink, trash or replace a mockup to get past this: that is the person's call.`,
+		`${unreadLine(states)} ${what} Never unlink, trash or replace a mockup to get past this: that is the person's call.`,
 		{
 			mockups: states
 				.filter((s) => !s.readComplete)

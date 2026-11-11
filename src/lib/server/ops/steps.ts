@@ -24,9 +24,10 @@ export type Mark = z.infer<typeof markIn>;
 /** How a caller wants the step verb to behave beyond its input. */
 export type RecordOptions = {
 	/**
-	 * Set by the agent entry points (the MCP step tools, the lite close and the older flow_record). The last open step of a
-	 * phase is then refused with MOCKUP_UNREAD while a mockup of the plan is not read to the end. A person's tick through
-	 * the API and the runner's tick after a passing check leave it unset.
+	 * True holds the last open step of a phase with MOCKUP_UNREAD while a mockup of the plan is not read to the end. Left
+	 * unset it follows the caller: an agent (a token, on the MCP or the API) is gated and a person is not. The agent entry
+	 * points set it true, and the runner's tick after a passing browser check sets it false: a passing check on the built
+	 * screen is evidence of its own.
 	 */
 	agentGate?: boolean;
 };
@@ -271,7 +272,9 @@ export async function recordSteps(
 			// THE MOCKUP GATE (AFB-20261110-2331): an agent may not close a phase while the plan's mockup is unread. A person's
 			// tick and the runner's own tick never pass agentGate, so they are never held. Reopening a step closes nothing
 			let mockupNotice: string | null = null;
-			if (options.agentGate) {
+			// Any agent is gated, wherever the call comes from (a token on the API is an agent too, AFB-20261111-0046). The
+			// runner's own tick after a passing browser check passes an explicit false
+			if (options.agentGate ?? ctx.actor.kind === 'agent') {
 				// The cheap state is enough for the notice. The stored file is looked for only when a phase is about to close,
 				// so an ordinary step never pays for reading a file
 				const state = (await gatedState(tx, ctx, it)).filter((s) => !s.readComplete);
