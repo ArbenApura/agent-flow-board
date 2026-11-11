@@ -14,11 +14,11 @@
 	}: { children: Snippet; testid?: string; tag?: 'div' | 'main'; class?: string } = $props();
 </script>
 
-<!-- THE ONE CONTAINER (ADR-003). THE NAVIGATION AND EVERY PAGE SIT IN THE SAME 1440 PIXEL FRAME WITH THE SAME GUTTERS -->
+<!-- THE ONE CONTAINER (ADR-003). THE NAVIGATION AND EVERY PAGE SIT IN THE SAME 1920 PIXEL FRAME WITH THE SAME GUTTERS (WAS 1440, AFB-20261111-1344) -->
 <svelte:element
 	this={tag}
 	data-testid={testid}
-	class={cn('mx-auto w-full max-w-[1440px] px-8 max-sm:px-4', extra)}
+	class={cn('mx-auto w-full max-w-[1920px] px-8 max-sm:px-4', extra)}
 >
 	{@render children()}
 </svelte:element>

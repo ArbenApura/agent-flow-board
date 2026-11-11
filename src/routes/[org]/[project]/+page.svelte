@@ -459,7 +459,7 @@
 		<div
 			bind:this={track}
 			onscroll={measure}
-			class="grid snap-x snap-mandatory [scrollbar-width:none]! auto-cols-[max(290px,calc((100%-42px)/4))] grid-flow-col items-start gap-3.5 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 max-md:auto-cols-auto max-md:grid-flow-row [&::-webkit-scrollbar]:hidden [&>*]:snap-start"
+			class="grid snap-x snap-mandatory [scrollbar-width:none]! auto-cols-[max(290px,calc((100%-42px)/4))] grid-flow-col items-start gap-3.5 overflow-x-auto overflow-y-hidden overscroll-x-contain scroll-smooth pb-1 max-md:auto-cols-auto max-md:grid-flow-row min-[1640px]:auto-cols-[calc((100%-56px)/5)] [&::-webkit-scrollbar]:hidden [&>*]:snap-start"
 			data-testid="board-columns"
 		>
 			{#each data.columns as col (col.status)}

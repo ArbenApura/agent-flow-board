@@ -6,7 +6,10 @@ import {
 	emptyNotes,
 	groupByWhen,
 	markedParts,
+	NOTES_LAYOUT_COOKIE,
 	notesHref,
+	notesLayoutCookie,
+	parseNotesLayout,
 	readNotesLayout,
 	readNotesView,
 	whenGroup
@@ -68,15 +71,46 @@ describe('the view of the Notes page', () => {
 });
 
 describe('the redesigned list (AFB-20261111-0805)', () => {
-	it('reads and writes the cards layout in the address, beside the view', () => {
+	it('reads the cards layout from the address, and no address carries it any more', () => {
 		expect(readNotesLayout(new URLSearchParams('layout=cards'))).toBe('cards');
 		expect(readNotesLayout(new URLSearchParams('layout=grid'))).toBe('list');
-		expect(notesHref('/o/P', 'favourites', '', 'cards')).toBe(
-			'/o/P/notes?view=favourites&layout=cards'
-		);
+		expect(notesHref('/o/P', 'favourites')).toBe('/o/P/notes?view=favourites');
 		expect(notesHref('/o/P', 'all')).toBe('/o/P/notes');
 	});
+});
 
+describe('the remembered layout (AFB-20261111-1344)', () => {
+	const none = new URLSearchParams('');
+
+	it('takes the address first, then the saved choice, then the list', () => {
+		expect(readNotesLayout(none)).toBe('list');
+		expect(readNotesLayout(none, 'cards')).toBe('cards');
+		expect(readNotesLayout(none, 'list')).toBe('list');
+		// A shared link shows what was shared, whatever the person chose before
+		expect(readNotesLayout(new URLSearchParams('layout=list'), 'cards')).toBe('list');
+		expect(readNotesLayout(new URLSearchParams('layout=cards'), 'list')).toBe('cards');
+	});
+
+	it('ignores a value that is not one of the two layouts', () => {
+		expect(parseNotesLayout('grid')).toBeNull();
+		expect(parseNotesLayout('')).toBeNull();
+		expect(parseNotesLayout(null)).toBeNull();
+		expect(parseNotesLayout(undefined)).toBeNull();
+		expect(readNotesLayout(none, 'grid')).toBe('list');
+		// A bad value in the address does not hide a good saved one
+		expect(readNotesLayout(new URLSearchParams('layout=grid'), 'cards')).toBe('cards');
+	});
+
+	it('writes the cookie for a year, for the whole site', () => {
+		expect(NOTES_LAYOUT_COOKIE).toBe('afb-notes-layout');
+		expect(notesLayoutCookie('cards')).toBe(
+			'afb-notes-layout=cards; path=/; max-age=31536000; samesite=lax'
+		);
+		expect(parseNotesLayout(notesLayoutCookie('list').split(';')[0].split('=')[1])).toBe('list');
+	});
+});
+
+describe('the redesigned list rows (AFB-20261111-0805)', () => {
 	it('groups notes by Today, This week and Earlier in their order', () => {
 		const now = new Date(2026, 10, 11, 15, 0);
 		const at = (d: number, h = 9) => ({ updatedAt: new Date(2026, 10, d, h) });

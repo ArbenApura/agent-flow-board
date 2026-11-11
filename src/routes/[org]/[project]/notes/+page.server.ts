@@ -1,7 +1,7 @@
 // -- DEP-TYPES -- //
 import type { PageServerLoad } from './$types';
 // -- MODULES -- //
-import { readNotesView } from '#lib/board/notes/view.js';
+import { NOTES_LAYOUT_COOKIE, parseNotesLayout, readNotesView } from '#lib/board/notes/view.js';
 import { OpError } from '#lib/server/ops/context.js';
 import { listFolders } from '#lib/server/ops/noteFolders.js';
 import { listNotes } from '#lib/server/ops/notes.js';
@@ -13,11 +13,14 @@ import { childContext, pageError } from '#lib/server/web/ctx.js';
  * The folder tree and the notes of the open view, read side by side. Notes are not shared with guests, so a guest on the
  * project gets the permission panel. Refetched when the live stream reports a change.
  */
-export const load: PageServerLoad = async ({ params, parent, locals, depends, url }) => {
+export const load: PageServerLoad = async ({ params, parent, locals, depends, url, cookies }) => {
 	depends('afb:project');
 	const { org, summary } = await parent();
 	const asked = readNotesView(url.searchParams);
+	// The person's last choice of List or Cards, so the first render is already right (AFB-20261111-1344)
+	const savedLayout = parseNotesLayout(cookies.get(NOTES_LAYOUT_COOKIE));
 	const none = {
+		savedLayout,
 		folders: [],
 		total: 0,
 		favourites: 0,
@@ -42,6 +45,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 		]);
 		// A folder that is gone or in the trash shows as an empty folder until the person picks another
 		return {
+			savedLayout,
 			folders: tree.folders,
 			total: tree.top + tree.folders.reduce((sum, f) => sum + f.notes, 0),
 			favourites: tree.favourites,

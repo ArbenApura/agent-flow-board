@@ -17,7 +17,9 @@
 		emptyNotes,
 		groupByWhen,
 		notesHref,
-		readNotesLayout
+		notesLayoutCookie,
+		readNotesLayout,
+		type NotesLayout
 	} from '#lib/board/notes/view.js';
 	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
@@ -72,6 +74,8 @@
 	let namingOpen = $state(false);
 	let moving = $state<Moving | null>(null);
 	let movingOpen = $state(false);
+	/** The layout the person chose on this page, which shows at once while the cookie is on its way to the server. */
+	let chosen = $state<NotesLayout | null>(null);
 
 	// -- REACTIVE STATES -- //
 
@@ -93,7 +97,8 @@
 				: 'All notes'
 	);
 	const folderNameOf = $derived(new Map(folders.map((f) => [f.id, f.path])));
-	const layout = $derived(readNotesLayout(page.url.searchParams));
+	// The choice made on this page wins at once, then an explicit layout in the address (a shared link), then the cookie the server read, then the list
+	const layout = $derived(chosen ?? readNotesLayout(page.url.searchParams, data.savedLayout));
 	// A search is one list; every other view is grouped by when the notes changed
 	const groups = $derived(view.q ? [{ label: '', notes: data.notes }] : groupByWhen(data.notes));
 	const count = $derived(
@@ -150,8 +155,19 @@
 
 	// -- FUNCTIONS -- //
 
-	const hrefFor = (target: string) =>
-		notesHref(base, target, target === active ? view.q : '', layout);
+	const hrefFor = (target: string) => notesHref(base, target, target === active ? view.q : '');
+
+	/** Keeps the choice in the cookie, shows it at once and drops layout from the address so the cookie decides from now on. */
+	function chooseLayout(next: NotesLayout) {
+		chosen = next;
+		try {
+			document.cookie = notesLayoutCookie(next);
+		} catch {
+			// A page that may not set cookies (a sandboxed frame) still switches the view for this visit
+		}
+		if (page.url.searchParams.has('layout'))
+			void goto(notesHref(base, active, view.q), { replace: true, reset: false });
+	}
 	/** The folder a note sits in, shown in the views that hold more than one folder. */
 	const folderOf = (n: NoteRowData) =>
 		view.view !== 'folder' && n.folderId ? (folderNameOf.get(n.folderId) ?? '') : '';
@@ -187,7 +203,7 @@
 		clearTimeout(searchTimer);
 		searchTimer = setTimeout(() => {
 			searchTimer = undefined;
-			void goto(notesHref(base, active, q, layout), {
+			void goto(notesHref(base, active, q), {
 				replace: true,
 				// Typing must not jump the page or lose the cursor
 				reset: false
@@ -197,7 +213,7 @@
 
 	function clearSearch() {
 		q = '';
-		void goto(notesHref(base, active, '', layout), { replace: true });
+		void goto(notesHref(base, active, ''), { replace: true });
 	}
 
 	function ask(what: Naming) {
@@ -385,8 +401,8 @@
 	{#if data.denied}
 		<PermissionDenied needed={data.denied.needed} current={data.denied.role} what="the notes" />
 	{:else}
-		<!-- THE TREE CARD BESIDE THE LIST FROM lg (256, THE SIDEBAR'S OPEN WIDTH). BELOW lg THE TREE OPENS FROM THE FOLDERS BUTTON -->
-		<div class="grid gap-6 lg:grid-cols-[256px_minmax(0,1fr)]">
+		<!-- THE TREE CARD BESIDE THE LIST FROM lg: 288 FROM lg AND 320 FROM xl, SO A FOLDER NAME STAYS ON ONE LINE (WAS 256) (AFB-20261111-1344). BELOW lg THE TREE OPENS FROM THE FOLDERS BUTTON -->
+		<div class="grid gap-6 lg:grid-cols-[288px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
 			<aside
 				class="min-w-0 max-lg:hidden lg:sticky lg:top-[73px] lg:max-h-[calc(100dvh-89px)] lg:self-start lg:overflow-y-auto"
 				data-testid="notes-tree"
@@ -428,11 +444,7 @@
 								{ value: 'list', label: 'List', icon: List },
 								{ value: 'cards', label: 'Cards', icon: LayoutGrid }
 							]}
-							onchange={(v) =>
-								void goto(notesHref(base, active, view.q, v === 'cards' ? 'cards' : 'list'), {
-									replace: true,
-									reset: false
-								})}
+							onchange={(v) => chooseLayout(v === 'cards' ? 'cards' : 'list')}
 						/>
 					</span>
 				</div>

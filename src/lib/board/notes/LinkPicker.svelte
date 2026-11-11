@@ -8,7 +8,7 @@
 	import { LinkSearch } from '#lib/board/notes/editorMenu.js';
 	import { KIND_NAME, offerTargets, searchTargets } from '#lib/board/notes/links.js';
 	// -- DEP-COMPONENTS -- //
-	import X from '@lucide/svelte/icons/x';
+	import Search from '@lucide/svelte/icons/search';
 	// -- COMPONENTS -- //
 	import Skeleton from '#lib/ui/Skeleton.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
@@ -20,7 +20,6 @@
 		project,
 		label,
 		onpick,
-		onclose,
 		kinds,
 		selfId,
 		linked = []
@@ -31,7 +30,6 @@
 		label: string;
 		/** Links the chosen one. Returns a plain message when it could not, and nothing when it did. */
 		onpick: (target: Target) => Promise<string | null | void>;
-		onclose: () => void;
 		/** The kinds worth offering. All four when left out. */
 		kinds?: LinkKind[];
 		/** The note this picker belongs to, which is never offered to itself. */
@@ -95,24 +93,18 @@
 	});
 </script>
 
-<!-- INLINE PICKER. A SEARCH BOX AND A SHORT LIST, SO IT ALSO WORKS INSIDE A DRAWER WITHOUT A SECOND DIALOG -->
-<div
-	class="flex flex-col gap-2 rounded-lg border border-line bg-raised p-3 text-sm"
-	data-testid="link-picker"
->
-	<div class="flex items-end gap-2">
-		<div class="min-w-0 flex-1">
-			<TextField {label} bind:value={q} maxlength={100} oninput={typed} data-testid="link-search" />
-		</div>
-		<button
-			type="button"
-			aria-label="Close the search"
-			onclick={onclose}
-			class="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted hover:bg-surface hover:text-ink focus-visible:outline-2 focus-visible:outline-accent max-md:size-11"
-		>
-			<X size={16} />
-		</button>
-	</div>
+<!-- THE BODY OF THE ADD LINK DIALOG (LinkDialog.svelte). A SEARCH FIELD AND A SHORT LIST. THE DIALOG HAS THE CLOSE BUTTON AND CANCEL -->
+<div class="flex flex-col gap-3 text-sm" data-testid="link-picker">
+	<TextField
+		{label}
+		icon={Search}
+		bind:value={q}
+		maxlength={100}
+		oninput={typed}
+		class="text-sm"
+		data-testid="link-search"
+		data-autofocus
+	/>
 	{#if searching && !offered.length}
 		<Skeleton lines={3} />
 	{:else if failed}
@@ -120,16 +112,18 @@
 	{:else if !offered.length}
 		<p class="text-sm text-muted">Nothing found. Try other words from the title.</p>
 	{:else}
-		<ul class="flex max-h-64 flex-col overflow-y-auto" aria-label="Results">
+		<!-- THE ROWS RUN 10 PX PAST THE DIALOG'S PADDING AND PAD THEIR TEXT BACK, SO THE HOVER TINT HAS AN EVEN MARGIN -->
+		<ul class="-mx-2.5 flex max-h-72 flex-col overflow-y-auto" aria-label="Results">
 			{#each offered as t (`${t.kind}:${t.id}`)}
 				<li>
 					<button
 						type="button"
 						disabled={busyId !== null}
 						onclick={() => void pick(t)}
-						class="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-left text-ink hover:bg-surface focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
+						title={t.ref ? `${t.title}, ${t.ref}` : t.title}
+						class="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 text-left text-ink hover:bg-raised focus-visible:bg-raised focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
 					>
-						<span class="w-16 shrink-0 text-xs text-muted">{KIND_NAME[t.kind]}</span>
+						<span class="w-14 shrink-0 text-xs text-muted">{KIND_NAME[t.kind]}</span>
 						<span class="min-w-0 flex-1 truncate">{t.title}</span>
 						{#if t.ref}<span class="shrink-0 font-mono text-xs text-muted">{t.ref}</span>{/if}
 					</button>

@@ -23,7 +23,9 @@
 							? 'activity'
 							: routeId.endsWith('/[project]')
 								? 'board'
-								: 'list'
+								: routeId.endsWith('/notes')
+									? 'notes'
+									: 'list'
 	);
 </script>
 
@@ -32,12 +34,31 @@
 	<div role="status" aria-busy="true" aria-label="Loading the next page">
 		<div class="mt-6 mb-6 h-24 rounded-2xl border border-line bg-band"></div>
 		{#if kind === 'board'}
-			<div class="grid grid-cols-2 gap-4 lg:grid-cols-6">
-				{#each [0, 1, 2, 3, 4, 5] as i (i)}
-					<div class="h-56 rounded-xl border border-line bg-surface p-3 shadow-[var(--elev-1)]">
+			<!-- THE TOOLBAR CARD AND THE STATUS COLUMNS OF THE REGISTRY: FIVE, THE FIFTH BEHIND THE ARROWS UNTIL A 1640 WINDOW (AFB-20261111-1344) -->
+			<div class="mb-4 h-[58px] rounded-xl border border-line bg-surface"></div>
+			<div
+				class="grid auto-cols-[max(290px,calc((100%-42px)/4))] grid-flow-col gap-3.5 overflow-hidden max-md:auto-cols-auto max-md:grid-flow-row min-[1640px]:auto-cols-[calc((100%-56px)/5)]"
+			>
+				{#each [0, 1, 2, 3, 4] as i (i)}
+					<div class="h-56 rounded-xl border border-line bg-raised p-3">
 						<Skeleton variant="row" lines={2} />
 					</div>
 				{/each}
+			</div>
+		{:else if kind === 'notes'}
+			<!-- THE NOTES PAGE: THE TREE CARD (288 FROM lg, 320 FROM xl) BESIDE THE TOOLBAR AND THE LIST -->
+			<div class="grid gap-6 lg:grid-cols-[288px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
+				<div
+					class="h-96 rounded-xl border border-line bg-surface p-3 shadow-[var(--elev-1)] max-lg:hidden"
+				>
+					<Skeleton variant="row" lines={6} />
+				</div>
+				<div class="flex min-w-0 flex-col gap-4">
+					<div class="h-[58px] rounded-xl border border-line bg-surface"></div>
+					<div class="rounded-xl border border-line bg-surface px-4 shadow-[var(--elev-1)]">
+						<Skeleton variant="row" lines={6} />
+					</div>
+				</div>
 			</div>
 		{:else if kind === 'item'}
 			<div class="mb-6 h-32 rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"></div>

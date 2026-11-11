@@ -463,8 +463,8 @@ html[data-boot='app'] #afb-boot {
 	align-items: center;
 	gap: 12px;
 	height: 56px;
-	/* THE BAR CONTENT LINES UP WITH THE PAGE, NOT THE WINDOW EDGE */
-	padding: 0 max(32px, calc((100% - 1216px) / 2));
+	/* THE BAR CONTENT LINES UP WITH THE PAGE, NOT THE WINDOW EDGE. THE FRAME IS 1920 WIDE WITH 32 PX GUTTERS, SO THE CONTENT IS 1856 (AFB-20261111-1344) */
+	padding: 0 max(32px, calc((100% - 1856px) / 2));
 	border-bottom: 1px solid var(--line);
 	background: var(--surface);
 }
@@ -485,7 +485,7 @@ html[data-boot='app'] #afb-boot {
 	display: inline-block;
 }
 .boot-body {
-	max-width: 1280px;
+	max-width: 1920px;
 	margin: 0 auto;
 	padding: 24px 32px;
 	display: flex;
@@ -693,11 +693,11 @@ html[data-org='empty'] .boot-org-empty {
 /* THE ORG HOME USES THE FULL PAGE WIDTH, THE SAME AS THE REAL PAGE, SO THE SKELETON LINES UP WITH WHAT ARRIVES */
 html[data-org='cards'] .boot-body,
 html[data-org='empty'] .boot-body {
-	max-width: 1440px;
+	max-width: 1920px;
 }
 html[data-org='cards'] .boot-bar,
 html[data-org='empty'] .boot-bar {
-	padding: 0 max(32px, calc((100% - 1376px) / 2));
+	padding: 0 max(32px, calc((100% - 1856px) / 2));
 }
 html[data-org='cards'] .boot-org-cards {
 	display: flex;

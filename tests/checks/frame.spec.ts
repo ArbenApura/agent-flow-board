@@ -24,7 +24,8 @@ const TOLERANCE_PX = 1;
 
 // -- TESTS -- //
 
-for (const width of [1440, 390]) {
+// 1920 is the frame's own maximum (AFB-20261111-1344): there the frame is 1856 wide beside the 64 px rail
+for (const width of [1920, 1440, 390]) {
 	test(`M2 frame at ${width}: every screen has the width and left edge of the navigation`, async ({
 		browser,
 		baseURL

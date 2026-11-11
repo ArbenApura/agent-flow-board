@@ -20,7 +20,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import X from '@lucide/svelte/icons/x';
 	// -- COMPONENTS -- //
-	import LinkPicker from '#lib/board/notes/LinkPicker.svelte';
+	import LinkDialog from '#lib/board/notes/LinkDialog.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Card from '#lib/ui/Card.svelte';
 	import ErrorState from '#lib/ui/ErrorState.svelte';
@@ -125,24 +125,13 @@
 	<Card data-testid="note-links">
 		{#snippet header()}
 			<h2 class="min-w-0 flex-1 text-lg leading-6 font-semibold">Links</h2>
-			{#if canWrite && loaded && !adding}
+			{#if canWrite && loaded}
 				<Button size="sm" onclick={() => (adding = true)} data-testid="add-link">
 					<Plus size={16} /> Add link
 				</Button>
 			{/if}
 		{/snippet}
 		<div class="flex flex-col gap-4 text-sm">
-			{#if adding}
-				<LinkPicker
-					{org}
-					{project}
-					label="Which plan, task, mockup or note should it link to?"
-					selfId={note.id}
-					{linked}
-					onpick={add}
-					onclose={() => (adding = false)}
-				/>
-			{/if}
 			{#if failed && !loaded}
 				<ErrorState message="The links did not load." onretry={load} />
 			{:else if !loaded}
@@ -209,4 +198,17 @@
 			{/if}
 		</div>
 	</Card>
+
+	<!-- ADD A LINK, IN A DIALOG (AFB-20261111-1344). MOUNTED WITH open, NEVER INSIDE AN {#if} -->
+	<LinkDialog
+		open={adding}
+		onclose={() => (adding = false)}
+		title="Add a link"
+		{org}
+		{project}
+		label="Which plan, task, mockup or note should it link to?"
+		selfId={note.id}
+		{linked}
+		onpick={add}
+	/>
 {/if}

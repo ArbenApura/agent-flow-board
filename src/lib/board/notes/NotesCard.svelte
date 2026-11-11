@@ -11,7 +11,7 @@
 	// -- DEP-COMPONENTS -- //
 	import Plus from '@lucide/svelte/icons/plus';
 	// -- COMPONENTS -- //
-	import LinkPicker from '#lib/board/notes/LinkPicker.svelte';
+	import LinkDialog from '#lib/board/notes/LinkDialog.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Card from '#lib/ui/Card.svelte';
 	import ErrorState from '#lib/ui/ErrorState.svelte';
@@ -106,24 +106,13 @@
 	<Card data-testid="notes-card">
 		{#snippet header()}
 			<h2 class="min-w-0 flex-1 text-lg leading-6 font-semibold">Notes</h2>
-			{#if canWrite && notes && !adding}
+			{#if canWrite && notes}
 				<Button size="sm" onclick={() => (adding = true)} data-testid="link-a-note">
 					<Plus size={16} /> Link a note
 				</Button>
 			{/if}
 		{/snippet}
 		<div class="flex flex-col gap-3 text-sm">
-			{#if adding}
-				<LinkPicker
-					{org}
-					{project}
-					label="Which note should be linked here?"
-					kinds={['note']}
-					{linked}
-					onpick={link}
-					onclose={() => (adding = false)}
-				/>
-			{/if}
 			{#if failed && !notes}
 				<ErrorState message="The notes did not load." onretry={load} />
 			{:else if !notes}
@@ -148,4 +137,17 @@
 			{/if}
 		</div>
 	</Card>
+
+	<!-- LINK A NOTE, IN THE SAME DIALOG AS ADD LINK, FOR NOTES ONLY (AFB-20261111-1344). MOUNTED WITH open, NEVER INSIDE AN {#if} -->
+	<LinkDialog
+		open={adding}
+		onclose={() => (adding = false)}
+		title="Link a note"
+		{org}
+		{project}
+		label="Which note should be linked here?"
+		kinds={['note']}
+		{linked}
+		onpick={link}
+	/>
 {/if}

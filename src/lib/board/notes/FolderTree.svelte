@@ -21,6 +21,7 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import FolderInput from '@lucide/svelte/icons/folder-input';
+	import FolderOpen from '@lucide/svelte/icons/folder-open';
 	import FolderPlus from '@lucide/svelte/icons/folder-plus';
 	import NotebookText from '@lucide/svelte/icons/notebook-text';
 	import Pencil from '@lucide/svelte/icons/pencil';
@@ -76,14 +77,17 @@
 
 	const NOTE_TYPE = 'application/x-afb-note';
 	const FOLDER_TYPE = 'application/x-afb-folder';
-	// The colours, active state and radius of a sidebar row, at the contents-card row of the Documents tab (40, and 44 in the drawer) (AFB-20261111-0805)
+	// The colours, active state and radius of a sidebar row, at the contents-card row of the Documents tab (40, and 44 in the drawer) (AFB-20261111-0805). 8 px of padding on the right keeps the count and the actions button off the row's edge (AFB-20261111-1344)
 	const ROW =
-		'group/row relative flex min-h-10 items-center rounded-lg text-sm text-ink transition-colors hover:bg-raised max-lg:min-h-11 motion-reduce:transition-none';
+		'group/row relative flex min-h-10 items-center rounded-lg pr-2 text-sm text-ink transition-colors hover:bg-raised max-lg:min-h-11 motion-reduce:transition-none';
 	const ROW_ON = 'bg-accent-soft font-medium text-accent-text hover:bg-accent-soft';
-	// One leading slot for the icon, the caret or a folder icon, so every name starts on one edge
-	const SLOT = 'inline-flex h-10 w-8 shrink-0 items-center justify-center max-lg:h-11 max-lg:w-11';
+	// Two leading slots on every row, the caret (empty when no folders are inside) and the icon, so every name starts on one edge. Below lg they are 44 high, so the caret is a tap target
+	const SLOT = 'inline-flex size-6 shrink-0 items-center justify-center max-lg:h-11 max-lg:w-8';
+	// One cell for the count. It is a 32 px square so the actions button, which takes its place on hover, fits inside it
+	const COUNT =
+		'flex size-8 shrink-0 items-center justify-center text-badge font-semibold tabular-nums';
 	const LINK =
-		'flex min-h-10 min-w-0 flex-1 cursor-pointer items-center self-stretch rounded-md pl-1 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent max-lg:min-h-11';
+		'flex min-h-10 min-w-0 flex-1 cursor-pointer items-center self-stretch rounded-md pl-1.5 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent max-lg:min-h-11';
 
 	// -- STATES -- //
 
@@ -95,6 +99,10 @@
 	// -- REACTIVE STATES -- //
 
 	const rows = $derived(visibleRows(folders, expanded));
+	// Folder rows show an actions button only when the person may rename, move or trash; the fixed rows' counts make room for it only then
+	const hasMenus = $derived(
+		folders.length > 0 && ((canWrite && (!!onrename || !!onmove)) || (canDelete && !!ontrash))
+	);
 
 	// -- REACTIVE STATEMENTS -- //
 
@@ -181,17 +189,21 @@
 			aria-current={on ? 'page' : undefined}
 			class={cn(
 				ROW,
-				'cursor-pointer pr-1 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent',
+				'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent',
 				on && ROW_ON
 			)}
 		>
-			<span class={cn(SLOT, !on && 'text-muted')}><Icon size={18} /></span>
-			<span class="min-w-0 flex-1 truncate pl-1">{label}</span>
+			<!-- THE SAME TWO SLOTS AS A FOLDER ROW: AN EMPTY CARET SLOT, THEN THE ICON -->
+			<span class={SLOT} aria-hidden="true"></span>
+			<span class={cn(SLOT, !on && 'text-muted')} aria-hidden="true"><Icon size={18} /></span>
+			<span class="min-w-0 flex-1 truncate pl-1.5">{label}</span>
 			{#if count !== undefined}
+				<!-- ON TOUCH THE FOLDER ROWS SHOW THEIR ACTIONS BUTTON BESIDE THE COUNT, SO THIS COUNT STAYS ON THEIR COLUMN -->
 				<span
 					data-count
 					class={cn(
-						'w-8 shrink-0 text-center text-badge font-semibold tabular-nums',
+						COUNT,
+						hasMenus && 'pointer-coarse:mr-9 max-sm:pointer-coarse:mr-12',
 						!on && 'text-muted'
 					)}>{count}</span
 				>
@@ -211,7 +223,8 @@
 	</ul>
 	{#if folders.length || (canWrite && onnewfolder)}
 		<div class="mx-1 my-2 border-t border-line"></div>
-		<div class="flex min-h-8 items-center justify-between pl-2.5">
+		<!-- 8 PX EACH SIDE, SO NEW FOLDER SITS ON THE SAME RIGHT EDGE AS THE COUNTS AND THE ACTIONS BUTTONS BELOW -->
+		<div class="flex min-h-8 items-center justify-between px-2">
 			<h2 class="text-xs font-medium text-muted">Folders</h2>
 			{#if canWrite && onnewfolder}
 				<Button
@@ -250,7 +263,7 @@
 						ondragleave={() => (over = over === f.id ? null : over)}
 						ondrop={(e) => drop(e, f.id)}
 					>
-						<!-- THE LEADING SLOT: THE CARET FOR A FOLDER WITH FOLDERS INSIDE, A FOLDER ICON FOR ANY OTHER -->
+						<!-- THE CARET SLOT: THE CARET FOR A FOLDER WITH FOLDERS INSIDE, EMPTY FOR ANY OTHER, SO THE FOLDER ICONS OF SIBLINGS LINE UP -->
 						{#if parent}
 							<button
 								type="button"
@@ -259,7 +272,8 @@
 								onclick={() => toggle(f.id)}
 								class={cn(
 									SLOT,
-									'cursor-pointer rounded-md hover:text-ink focus-visible:outline-2 focus-visible:outline-accent',
+									// The hit area is 44 wide below lg (the tap target rule); the 12 px it takes from the icon slot is given back, so nothing moves
+									'cursor-pointer rounded-md hover:text-ink focus-visible:outline-2 focus-visible:outline-accent max-lg:-mr-3 max-lg:w-11',
 									!on && 'text-muted'
 								)}
 							>
@@ -272,10 +286,12 @@
 								/>
 							</button>
 						{:else}
-							<span class={cn(SLOT, !on && 'text-muted')} aria-hidden="true"
-								><FolderIcon size={16} /></span
-							>
+							<span class={SLOT} aria-hidden="true"></span>
 						{/if}
+						<!-- THE ICON SLOT: THE OPEN FOLDER WHILE A FOLDER IS OPEN -->
+						<span class={cn(SLOT, !on && 'text-muted')} aria-hidden="true">
+							{#if parent && open}<FolderOpen size={18} />{:else}<FolderIcon size={18} />{/if}
+						</span>
 						<a
 							href={hrefFor(f.id)}
 							data-folder={f.id}
@@ -285,23 +301,24 @@
 							title={f.name}
 							class={LINK}
 						>
-							<span class="min-w-0 flex-1 py-2 break-words">
-								<span class="block">{f.name}</span>
+							<span class="min-w-0 flex-1">
+								<!-- ONE LINE. THE FULL NAME IS IN THE TITLE OF THE LINK AND IN THE HEADING OF THE OPEN FOLDER -->
+								<span class="block truncate">{f.name}</span>
 								<!-- A folder deeper than the indent goes shows its place as words -->
 								{#if pastIndent(f.depth)}
 									<span class="block truncate text-xs font-normal text-muted">{f.path}</span>
 								{/if}
 							</span>
 						</a>
-						<!-- THE COUNT, AND THE ACTIONS IN ITS PLACE ON HOVER OR FOCUS. ON A TOUCH SCREEN BOTH SHOW SIDE BY SIDE -->
+						<!-- THE COUNT, AND THE ACTIONS IN ITS PLACE ON HOVER OR FOCUS, BOTH IN ONE 32 PX CELL. ON A TOUCH SCREEN BOTH SHOW SIDE BY SIDE -->
 						<span
-							class="relative flex shrink-0 items-center pr-1 pointer-fine:w-8 pointer-fine:justify-center"
+							class="relative flex shrink-0 items-center gap-1 pointer-fine:size-8 pointer-fine:justify-center"
 						>
 							{#if f.notes}
 								<span
 									data-count
 									class={cn(
-										'px-1 text-badge font-semibold tabular-nums',
+										COUNT,
 										!on && 'text-muted',
 										menu.length > 0 &&
 											'pointer-fine:group-focus-within/row:opacity-0 pointer-fine:group-hover/row:opacity-0'

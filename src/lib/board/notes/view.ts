@@ -31,24 +31,35 @@ export function readNotesView(params: URLSearchParams): NotesView {
 export const activeOf = (v: NotesView): TreeView =>
 	v.view === 'folder' && v.folderId ? v.folderId : v.view === 'favourites' ? 'favourites' : 'all';
 
-/** How the notes are laid out: rows (the default) or cards, kept in the address as layout=cards (AFB-20261111-0805). */
+/** How the notes are laid out: rows (the default) or cards (AFB-20261111-0805). */
 export type NotesLayout = 'list' | 'cards';
 
-export const readNotesLayout = (params: Pick<URLSearchParams, 'get'>): NotesLayout =>
-	params.get('layout') === 'cards' ? 'cards' : 'list';
+/** The cookie that keeps the person's choice, so a reload, a new tab and a link without it open the same layout (AFB-20261111-1344). */
+export const NOTES_LAYOUT_COOKIE = 'afb-notes-layout';
 
-/** The address of a view of the Notes page. A search and the cards layout are carried along when given. */
-export function notesHref(
-	base: string,
-	target: TreeView,
-	q = '',
-	layout: NotesLayout = 'list'
-): string {
+/** One of the two layouts, or null for anything else (a missing, empty or changed value is ignored). */
+export const parseNotesLayout = (value: string | null | undefined): NotesLayout | null =>
+	value === 'list' || value === 'cards' ? value : null;
+
+/**
+ * The layout to show. An explicit layout in the address wins, so a shared link shows what was shared; then the saved
+ * choice (the cookie); then the list.
+ */
+export const readNotesLayout = (
+	params: Pick<URLSearchParams, 'get'>,
+	saved?: string | null
+): NotesLayout => parseNotesLayout(params.get('layout')) ?? parseNotesLayout(saved) ?? 'list';
+
+/** The cookie string that keeps a choice for a year. Not httpOnly: the page writes it when the switch is used, the server reads it. */
+export const notesLayoutCookie = (layout: NotesLayout): string =>
+	`${NOTES_LAYOUT_COOKIE}=${layout}; path=/; max-age=31536000; samesite=lax`;
+
+/** The address of a view of the Notes page. A search is carried along when given. The layout is not: the cookie keeps it. */
+export function notesHref(base: string, target: TreeView, q = ''): string {
 	const params = new URLSearchParams();
 	if (target === 'favourites') params.set('view', 'favourites');
 	else if (target !== 'all') params.set('folder', target);
 	if (q.trim()) params.set('q', q.trim());
-	if (layout === 'cards') params.set('layout', 'cards');
 	const query = params.toString();
 	return `${base}/notes${query ? `?${query}` : ''}`;
 }
