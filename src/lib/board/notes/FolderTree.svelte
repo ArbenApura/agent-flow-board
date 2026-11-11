@@ -183,13 +183,13 @@
 
 <!-- THE FOLDER TREE OF THE NOTES PAGE. EVERY ROW IS A LINK, THE CARET AND THE NAME ARE TWO SEPARATE CONTROLS -->
 <nav aria-label="Note folders" class="flex min-w-0 flex-col gap-1">
-	<ul class="flex flex-col gap-1">
+	<ul class="flex flex-col gap-2">
 		{@render fixed('all', 'All notes', NotebookText, total)}
 		{@render fixed('favourites', 'Favourites', Star)}
 	</ul>
 	{#if folders.length}
 		<p class="px-2 pt-3 pb-1 text-xs font-medium text-muted">Folders</p>
-		<ul bind:this={list} class="flex flex-col gap-1">
+		<ul bind:this={list} class="flex flex-col gap-2">
 			{#each rows as f (f.id)}
 				{@const on = active === f.id}
 				{@const parent = hasChildren(folders, f.id)}

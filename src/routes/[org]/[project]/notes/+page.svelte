@@ -305,7 +305,7 @@
 	/>
 	{#if data.canWrite}
 		<Button
-			class="mt-4 h-12 w-full justify-start max-md:h-14 max-sm:h-14"
+			class="mt-2 h-12 w-full justify-start max-md:h-14 max-sm:h-14"
 			onclick={() => ask({ kind: 'folder' })}
 			data-testid="new-folder"
 		>
