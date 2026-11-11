@@ -1,5 +1,5 @@
 // MOCKUP VERBS: PUBLISH, VERSIONS, RESTORE, LINK, TRASH AND THE PUBLIC LINK (AFB-20261107-0346)
-// A mockup is inspiration, never a spec. Every version owns its own stored file and nothing is ever deleted by a restore.
+// A build follows the mockup of its plan (AFB-20261110-2331). Every version owns its own stored file and nothing is ever deleted by a restore.
 // Everything an agent reads that another person wrote is returned marked untrusted, with its author.
 
 // -- TYPES -- //
@@ -18,6 +18,7 @@ import { mockupKey } from '../mockups/keys';
 import { lintMockupHtml } from '../mockups/lint';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields } from './items';
+import { readStateOf, unreadLine } from './mockupReads';
 import { findItem, findProject } from './resolve';
 
 // -- TYPES -- //
@@ -109,6 +110,9 @@ export async function loadMockup(
 	const { role } = await requireCap(tx, ctx, 'read', m.projectId);
 	const plan = m.itemId ? await planOf(tx, m.itemId) : null;
 	if (!canSeeMockup(m, ctx.actor.userId, plan)) throw new OpError('NOT_FOUND', 'No such mockup.');
+	// A mockup goes with its plan: while the plan is in the trash the mockup is hidden, and it is back when the plan is restored
+	// (AFB-20261110-2338). A mockup in its own trash is still reachable there, so it can be restored
+	if (!options.trashed && plan?.deletedAt) throw new OpError('NOT_FOUND', 'No such mockup.');
 	return { m, plan, role };
 }
 
@@ -434,6 +438,10 @@ export async function listMockups(ctx: Ctx, raw: z.input<typeof listInput>) {
 					eq(mockup.orgId, ctx.orgId),
 					input.trashed ? isNotNull(mockup.trashedAt) : isNull(mockup.trashedAt),
 					itemId ? eq(mockup.itemId, itemId) : undefined,
+					// A mockup whose plan is in the trash is left out here, before the limit, so it never crowds out a live one
+					input.trashed
+						? undefined
+						: sql`not exists (select 1 from ${item} where ${item.id} = ${mockup.itemId} and ${item.deletedAt} is not null)`,
 					input.q ? ilike(mockup.title, `%${input.q.replace(/[%_\\]/g, '\\$&')}%`) : undefined
 				)
 			)
@@ -444,9 +452,12 @@ export async function listMockups(ctx: Ctx, raw: z.input<typeof listInput>) {
 			? await tx.select().from(item).where(inArray(item.id, planIds))
 			: [];
 		const planById = new Map(plans.map((p) => [p.id, p]));
-		const visible = rows.filter((m) =>
-			canSeeMockup(m, ctx.actor.userId, m.itemId ? (planById.get(m.itemId) ?? null) : null)
-		);
+		// A mockup whose plan is in the trash is left out of the live list (the mockup trash still shows its own)
+		const visible = rows.filter((m) => {
+			const plan = m.itemId ? (planById.get(m.itemId) ?? null) : null;
+			if (!input.trashed && plan?.deletedAt) return false;
+			return canSeeMockup(m, ctx.actor.userId, plan);
+		});
 		const counts = visible.length
 			? await tx
 					.select({
@@ -479,14 +490,24 @@ export async function listMockups(ctx: Ctx, raw: z.input<typeof listInput>) {
 					)
 			: [];
 		const hasShot = new Set(shots.map((s) => `${s.mockupId}:${s.number}`));
+		// The mockups of one plan carry how much of each was read, for the audit and a build that asks (AFB-20261110-2331)
+		const read = itemId ? await readStateOf(tx, visible) : null;
 		return {
 			mockups: visible.map((m) => {
 				const plan = m.itemId ? planById.get(m.itemId) : undefined;
+				const state = read?.get(m.id);
 				return {
 					...publicMockup(m),
 					versions: byId.get(m.id) ?? 1,
 					hasShot: hasShot.has(`${m.id}:${m.currentVersion}`),
-					plan: plan ? { ref: plan.ref, title: plan.title } : null
+					plan: plan ? { ref: plan.ref, title: plan.title } : null,
+					...(state
+						? {
+								htmlLength: state.htmlLength,
+								readChars: state.readChars,
+								readComplete: state.readComplete
+							}
+						: {})
 				};
 			})
 		};
@@ -497,7 +518,7 @@ export async function listMockups(ctx: Ctx, raw: z.input<typeof listInput>) {
 
 /** The fixed line a claim reply carries when the plan has a mockup. Server text only: no mockup text is ever put in it. */
 export const MOCKUP_RULE =
-	'This plan has a mockup. Before any visible code in a phase that touches a screen, fetch it with mockup_get (notes and open pins first), build from it with the project real components first, and write a "Mockup read" line for the phase in the design-brief section. Never skip it and never design your own screen in its place.';
+	'This plan has a mockup, and the build follows it. Before any visible code, read its whole HTML with mockup_get, passing your sessionId, part by part until nextOffset is null: the notes and pins never replace the HTML. Then write the "Mockup inventory" and the "Mockup read" line in the design-brief section and build what the mockup shows with the project real components and tokens. Its structure, order, text, states and interactions are binding. Never skip it, never design your own screen in its place, and never unlink or trash it to pass: the last step of a phase is refused while it is unread.';
 
 const CLAIM_MOCKUPS_MAX = 5;
 const CLAIM_TITLE_CHARS = 120;
@@ -519,10 +540,14 @@ export async function claimMockups(
 				title: string;
 				currentVersion: number;
 				openPins: number;
+				htmlLength: number | null;
+				readChars: number;
+				readComplete: boolean;
 				untrusted: true;
 			}[];
 			moreMockups?: number;
 			mockupRule: string;
+			mockupNotice?: string;
 	  }
 > {
 	try {
@@ -562,6 +587,10 @@ export async function claimMockups(
 					)
 					.groupBy(mockupPin.mockupId, mockupPin.versionNumber);
 				const open = new Map(pins.map((p) => [`${p.mockupId}:${p.version}`, p.n]));
+				// How much of each was read so far, by anyone in the project (AFB-20261110-2331). Every mockup of the plan counts
+				// for the notice, also the ones past the five listed here
+				const read = await readStateOf(tx, visible);
+				const notice = unreadLine(visible.map((m) => read.get(m.id)!));
 				return {
 					mockups: shown.map((m) => ({
 						id: m.id,
@@ -571,10 +600,14 @@ export async function claimMockups(
 								: m.title,
 						currentVersion: m.currentVersion,
 						openPins: open.get(`${m.id}:${m.currentVersion}`) ?? 0,
+						htmlLength: read.get(m.id)?.htmlLength ?? null,
+						readChars: read.get(m.id)?.readChars ?? 0,
+						readComplete: read.get(m.id)?.readComplete ?? false,
 						untrusted: true as const
 					})),
 					...(visible.length > shown.length ? { moreMockups: visible.length - shown.length } : {}),
-					mockupRule: MOCKUP_RULE
+					mockupRule: MOCKUP_RULE,
+					...(notice ? { mockupNotice: notice } : {})
 				};
 			})
 		);

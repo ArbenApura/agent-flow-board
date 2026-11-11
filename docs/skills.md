@@ -6,7 +6,7 @@ Replaces the custom skills of `AFB-20261018-0622` and `AFB-20261019-0341`. Built
 
 ## What is in the bundle
 
-`flow`, `flow-task`, `flow-interview`, `flow-critic` (with its supporting files `checklists`, `code-lenses`, `code-template`, `plan-lenses` and `plan-template`), `flow-audit`, `flow-check` and `flow-verify`. Installing and updating them is the `flow_skills` MCP tool, not a skill: a skill has to be installed before anyone can find it.
+`flow`, `flow-task`, `flow-interview`, `flow-critic` (with its supporting files `checklists`, `code-lenses`, `code-template`, `mockup-lenses`, `plan-lenses` and `plan-template`), `flow-audit`, `flow-check`, `flow-mockup` (with its `starter`), `flow-verify` and `flow-align` (with its `rules-block`). `flow-align` is the one a person types to bring a repo's rule files and their agent's memory in line with the flow rules: it changes only what is provably stale, contradicting, duplicated or a needless stop, backs every file up first, and never loosens a safety rule or deletes a memory. Installing and updating them is the `flow_skills` MCP tool, not a skill: a skill has to be installed before anyone can find it.
 
 The bundle has one semver release number and a changelog. Every skill has its own version and a SHA-256 hash.
 

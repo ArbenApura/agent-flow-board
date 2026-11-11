@@ -29,6 +29,7 @@ import { WORKFLOWS, WORKFLOW_FILE_NAMES, workflowFile } from '../../src/lib/serv
 
 const NAMES = [
 	'flow',
+	'flow-align',
 	'flow-audit',
 	'flow-check',
 	'flow-critic',
@@ -41,7 +42,27 @@ const NAMES = [
 // -- TESTS -- //
 
 describe('the system skills manifest', () => {
-	it('lists the eight flow skills, each with a semver version', () => {
+	it('keeps the flow-align rules block true: every rule is a sentence of the flow skill, and the marker carries a version of its own (AFB-20261110-2333)', () => {
+		const sources = sourceFiles();
+		const block = sources['flow-align'].find((f) => f.path === 'rules-block.md')!.text;
+		const flow = sources.flow.find((f) => f.path === 'SKILL.md')!.text;
+		const open = /<!-- afb:flow-align rules (\d+\.\d+\.\d+) [^>]*-->/.exec(block);
+		expect(open, 'the opening marker').toBeTruthy();
+		// The block is versioned by itself: an edit of the skill around it must not make every repo's block look old
+		expect(open![1]).toMatch(/^\d+\.\d+\.\d+$/);
+		const end = block.indexOf('<!-- /afb:flow-align rules -->');
+		expect(end).toBeGreaterThan(open!.index);
+		const rules = block
+			.slice(open!.index, end)
+			.split('\n')
+			.filter((l) => l.startsWith('- '))
+			.map((l) => l.slice(2).trim());
+		expect(rules.length).toBeGreaterThan(5);
+		// A rule the flow skill no longer says word for word is drift: change the block and bump flow-align
+		for (const rule of rules) expect(flow, rule).toContain(rule);
+	});
+
+	it('lists the nine flow skills, each with a semver version', () => {
 		expect(Object.keys(MANIFEST.skills).sort()).toEqual(NAMES);
 		expect(MANIFEST.bundle.version).toMatch(/^\d+\.\d+\.\d+$/);
 		for (const [name, entry] of Object.entries(MANIFEST.skills))

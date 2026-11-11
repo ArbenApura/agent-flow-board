@@ -3,7 +3,7 @@
 // -- TYPES -- //
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
-import { and, desc, eq, gt, inArray, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { undoEvent, type UndoResult } from '../db/events';
@@ -353,6 +353,17 @@ async function purgeTrashRows(ctx: Ctx, days: number, checkRole: boolean) {
 			.innerJoin(item, eq(item.id, attachment.itemId))
 			.where(and(isNotNull(item.deletedAt), lt(item.deletedAt, cutoff)));
 		const keys = [...files, ...itemFiles];
+		// A purged plan's mockups go to the mockup trash first (AFB-20261110-2338): the plan link is dropped with the row, and
+		// without this they would come back as standalone mockups. Their files stay until the mockup itself is purged
+		await tx
+			.update(mockup)
+			.set({ trashedAt: sql`now()`, updatedAt: sql`now()`, version: sql`${mockup.version} + 1` })
+			.where(
+				and(
+					isNull(mockup.trashedAt),
+					sql`${mockup.itemId} in (select ${item.id} from ${item} where ${item.deletedAt} is not null and ${item.deletedAt} < ${cutoff})`
+				)
+			);
 		const delItems = await tx
 			.delete(item)
 			.where(and(isNotNull(item.deletedAt), lt(item.deletedAt, cutoff)))

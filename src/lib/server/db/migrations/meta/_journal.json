@@ -281,6 +281,13 @@
       "when": 1794179891892,
       "tag": "0039_soft_killer_shrike",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794354493209,
+      "tag": "0040_whole_naoko",
+      "breakpoints": true
     }
   ]
 }

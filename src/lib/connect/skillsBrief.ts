@@ -58,7 +58,7 @@ Use its tools first. \`flow_skills\` takes your tool name, the scope and what yo
 
 Folder names can change between tool versions. If the folder in this table does not exist and the tool's documentation names another, follow the documentation and tell the person.
 
-When a tool has no skills folder at all, the same texts can be read with the \`workflow_get\` tool of the Agent Flow Board connection (name \`flow\`, \`flow-task\`, \`flow-interview\`, \`flow-critic\`, \`flow-audit\`, \`flow-check\`, \`flow-mockup\` or \`flow-verify\`). Say so to the person instead of inventing a folder.
+When a tool has no skills folder at all, the same texts can be read with the \`workflow_get\` tool of the Agent Flow Board connection (name \`flow\`, \`flow-task\`, \`flow-interview\`, \`flow-critic\`, \`flow-audit\`, \`flow-check\`, \`flow-mockup\`, \`flow-verify\` or \`flow-align\`). Say so to the person instead of inventing a folder.
 
 ## Never
 

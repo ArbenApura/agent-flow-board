@@ -1,11 +1,13 @@
 // MOCKUP TABLES: MOCKUPS, VERSIONS, PINNED COMMENTS, PROJECT STYLE, PAGE TEMPLATES AND THE PROJECT KIT
 
 // -- DEP-MODULES -- //
+import { sql } from 'drizzle-orm';
 import {
 	bigint,
 	boolean,
 	index,
 	integer,
+	jsonb,
 	real,
 	text,
 	timestamp,
@@ -131,6 +133,38 @@ export const mockupPin = tenantTable(
 		resolvedBy: text('resolved_by')
 	},
 	(t) => [index('mockup_pin_mockup_idx').on(t.mockupId, t.versionNumber)]
+);
+
+// -- WHAT A SESSION HAS READ OF A MOCKUP VERSION (AFB-20261110-2331) -- //
+
+export const mockupRead = tenantTable(
+	'mockup_read',
+	'project',
+	{
+		id: id(),
+		orgId: orgId(),
+		projectId: projectId(),
+		// No foreign key: the record outlives the session row, like the session history
+		sessionId: text('session_id').notNull(),
+		mockupId: uuid('mockup_id')
+			.notNull()
+			.references(() => mockup.id, { onDelete: 'cascade' }),
+		versionNumber: integer('version_number').notNull(),
+		/** The parts of the HTML that were served, as sorted [start, end) character pairs that never overlap. */
+		ranges: jsonb('ranges')
+			.$type<[number, number][]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		/** The length of the HTML in characters when it was last read. */
+		htmlLength: integer('html_length').notNull().default(0),
+		/** Set once the ranges cover the whole HTML. */
+		completedAt: timestamp('completed_at', { withTimezone: true }),
+		...stamps()
+	},
+	(t) => [
+		unique('mockup_read_session_uq').on(t.sessionId, t.mockupId, t.versionNumber),
+		index('mockup_read_mockup_idx').on(t.mockupId, t.versionNumber)
+	]
 );
 
 // -- PROJECT STYLE, SCREENS AND THEMES -- //

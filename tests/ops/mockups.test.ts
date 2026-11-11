@@ -14,7 +14,7 @@ import { mockup } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { itemMockups } from '../../src/lib/server/web/itemMockups';
 import { listEvents, listTrash, purgeTrash, undoChange } from '../../src/lib/server/ops/history';
-import { createItem, trashItem, updateItem } from '../../src/lib/server/ops/items';
+import { createItem, restoreItem, trashItem, updateItem } from '../../src/lib/server/ops/items';
 import {
 	getMockup,
 	listMockups,
@@ -317,7 +317,12 @@ describe('mockups', () => {
 			(e) => e.verb === 'item.create'
 		)!;
 		await expect(undoChange(as('member'), created.id)).resolves.toMatchObject({ ok: true });
-		expect((await getMockup(as('admin'), m2.mockup.id)).mockup.publicLinkOn).toBe(false);
+		// The mockup is hidden with its trashed plan, so the link state is read from the row
+		await expect(getMockup(as('admin'), m2.mockup.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		const [link] = await db.admin.query<{ public_enabled: boolean }>(
+			`select public_enabled from mockup where id = '${m2.mockup.id}'`
+		);
+		expect(link.public_enabled).toBe(false);
 	});
 
 	it('the public link reads only its own mockup, a new address replaces the old, and every off state returns nothing', async () => {
@@ -371,7 +376,41 @@ describe('mockups', () => {
 		expect(await rowByToken(hashOf(fourth.token!))).toEqual([]);
 	});
 
-	it('linking moves a mockup to another plan, and an item purged after 30 days leaves its mockup private', async () => {
+	it('a mockup is hidden while its plan is in the trash and is back when the plan is restored', async () => {
+		const gone = await plan('Trashed plan with a mockup');
+		const kept = await plan('Live plan with a mockup');
+		const m = await publishMockup(as('member'), { item: gone.ref }, html(1));
+		const other = await publishMockup(as('member'), { item: kept.ref }, html(1));
+		const solo = await publishMockup(
+			as('member'),
+			{ project: w.projectKey, title: 'Solo' },
+			html(1)
+		);
+		const ids = async () =>
+			(await listMockups(as('member'), { project: w.projectKey })).mockups.map((x) => x.id);
+		expect(await ids()).toEqual(
+			expect.arrayContaining([m.mockup.id, other.mockup.id, solo.mockup.id])
+		);
+		await trashItem(as('member'), gone.ref);
+		// Gone from the list and from every read, and not in the mockup trash: it follows its plan
+		const after = await ids();
+		expect(after).not.toContain(m.mockup.id);
+		expect(after).toEqual(expect.arrayContaining([other.mockup.id, solo.mockup.id]));
+		await expect(getMockup(as('member'), m.mockup.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(readMockupHtml(as('member'), m.mockup.id)).rejects.toMatchObject({
+			code: 'NOT_FOUND'
+		});
+		expect(
+			(await listMockups(as('member'), { project: w.projectKey, trashed: true })).mockups.map(
+				(x) => x.id
+			)
+		).not.toContain(m.mockup.id);
+		await restoreItem(as('member'), gone.ref);
+		expect(await ids()).toContain(m.mockup.id);
+		expect((await getMockup(as('member'), m.mockup.id)).plan?.ref).toBe(gone.ref);
+	});
+
+	it('linking moves a mockup to another plan, and an item purged after 30 days takes its mockup to the mockup trash', async () => {
 		const a = await plan('Link plan A', 'member');
 		const b = await plan('Link plan B', 'member');
 		const m = await publishMockup(as('member'), { item: a.ref }, html(1));
@@ -390,8 +429,16 @@ describe('mockups', () => {
 			`select item_id, visibility from mockup where id = '${m.mockup.id}'`
 		);
 		expect(row).toEqual({ item_id: null, visibility: 'private' });
-		// Still hidden from everyone but its maker
+		// It does not come back as a standalone mockup: it is in the mockup trash, where its maker can still restore it
 		await expect(getMockup(as('admin'), m.mockup.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(getMockup(as('member'), m.mockup.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		expect(
+			(await listMockups(as('member'), { project: w.projectKey })).mockups.map((x) => x.id)
+		).not.toContain(m.mockup.id);
+		expect((await listTrash(as('member'), w.projectKey)).mockups.map((x) => x.id)).toContain(
+			m.mockup.id
+		);
+		await restoreMockupFromTrash(as('member'), m.mockup.id);
 		expect((await getMockup(as('member'), m.mockup.id)).mockup.id).toBe(m.mockup.id);
 	});
 

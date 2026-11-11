@@ -131,6 +131,7 @@ Six lenses. By default three subagents split them M1 + M2, M3 + M4 and M5 + M6 (
 - [ ] **It works.** The interactions the mockup shows (opening a dialog, switching a tab, filling a field, the declared screens) do something and end in a drawn state. Nothing navigates away or submits.
 - [ ] **Realistic content.** Real-looking names, numbers, dates and lengths, including a long title and a large number; no placeholder text, no real person's data, no secret.
 - [ ] **The Keep notes are true.** Each Keep note describes something the mockup really shows, in concrete words, and each open pin is answered or still visibly open.
+- [ ] **The Free notes are complete.** A build follows this mockup: its structure, order, text, states and interactions bind the build, and only token-level colour, spacing, size and type, a real component standing in for a drawn one, and what the Free notes list may differ. Every invented component, placeholder text and part drawn only to fill the page is named in the Free notes. Something the mockup shows that the plan does not contain, or that a build could not make with the product's components, and that the Free notes do not name is a `HIGH`.
 
 ### Lens M5 - Responsive behaviour and polish
 - [ ] **Four widths.** At wide, laptop, tablet and phone widths nothing overflows, is cut, overlaps or scrolls sideways, and the page scrolls on a phone.

@@ -89,7 +89,7 @@ describe('mockup tools', () => {
 			mockup: id,
 			html: PAGE.replace('Rooms', 'Rooms two')
 		});
-		const notesOnly = await call(member, 'mockup_get', { mockup: id, version: 1 });
+		const notesOnly = await call(member, 'mockup_get', { mockup: id, version: 1, html: false });
 		expect(notesOnly).toMatchObject({ untrusted: true });
 		expect(notesOnly.notes).toMatchObject({
 			untrusted: true,
@@ -103,7 +103,16 @@ describe('mockup tools', () => {
 			htmlOffset: 6,
 			htmlLimit: 6
 		});
-		expect(part.html).toMatchObject({ untrusted: true, html: '<body>', version: 1, more: true });
+		expect(part.html).toMatchObject({
+			untrusted: true,
+			html: '<body>',
+			version: 1,
+			more: true,
+			nextOffset: 12
+		});
+		// A later part carries the HTML and its counters alone: the notes and pins came with the first part
+		expect(part.notes).toBeUndefined();
+		expect(part.pins).toBeUndefined();
 		const restored = await call(member, 'mockup_restore', {
 			sessionId: s.sessionId,
 			mockup: id,
@@ -162,6 +171,172 @@ describe('mockup tools', () => {
 		await call(member, 'mockup_link', { sessionId: s.sessionId, mockup: id, item: null });
 		const after = await call(member, 'work_start', { sessionId: s.sessionId, item: plain });
 		expect(after).not.toHaveProperty('mockups');
+	});
+
+	it('serves the HTML by default, records what each session read and counts it per mockup version (AFB-20261110-2331)', async () => {
+		const plan = (
+			await createItem(w.ctx('member'), { project: w.projectKey, title: 'Read record', ...PLAN })
+		).ref;
+		const s = await call(member, 'session_start', { tool: 'claude-code' });
+		const made = await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			item: plan,
+			html: PAGE
+		});
+		const id = made.mockup.id as string;
+		const state = async () =>
+			(await call(member, 'mockup_list', { project: w.projectKey, item: plan })).mockups[0];
+		expect(await state()).toMatchObject({ htmlLength: null, readChars: 0, readComplete: false });
+
+		// No session id: the page is served and nothing is recorded, and the reply says what to do
+		const loose = await call(member, 'mockup_get', { mockup: id });
+		expect(loose.html).toMatchObject({ html: PAGE, nextOffset: null, recorded: false });
+		expect(loose.html.recordNote).toMatch(/sessionId/);
+		expect(loose.notes).toBeDefined();
+		expect(await state()).toMatchObject({ readChars: 0, readComplete: false });
+
+		// Two parts at the same moment both count, and overlapping parts are counted once
+		const half = Math.floor(PAGE.length / 2);
+		const [a, b] = await Promise.all([
+			call(member, 'mockup_get', {
+				sessionId: s.sessionId,
+				mockup: id,
+				htmlOffset: 0,
+				htmlLimit: 10
+			}),
+			call(member, 'mockup_get', {
+				sessionId: s.sessionId,
+				mockup: id,
+				htmlOffset: 5,
+				htmlLimit: half
+			})
+		]);
+		expect(a.html.error ?? b.html.error).toBeUndefined();
+		expect(await state()).toMatchObject({
+			htmlLength: PAGE.length,
+			readChars: 5 + half,
+			readComplete: false
+		});
+
+		// Another session of the project finishes the page: the read is counted per mockup, not per session
+		const s2 = await call(member, 'session_start', { tool: 'gemini-cli' });
+		const rest = await call(member, 'mockup_get', {
+			sessionId: s2.sessionId,
+			mockup: id,
+			htmlOffset: a.html.nextOffset
+		});
+		expect(rest.html).toMatchObject({ nextOffset: null, unreadChars: 10 });
+		expect(await state()).toMatchObject({ readChars: PAGE.length, readComplete: true });
+
+		// A new version is another page: it reads as unread until it is read
+		await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			mockup: id,
+			html: PAGE.replace('Rooms', 'Rooms two')
+		});
+		expect(await state()).toMatchObject({ htmlLength: null, readChars: 0, readComplete: false });
+		const claimed = await call(member, 'work_start', { sessionId: s.sessionId, item: plan });
+		expect(claimed.mockups[0]).toMatchObject({ id, currentVersion: 2, readComplete: false });
+		expect(claimed.mockupNotice).toMatch(/not read to the end/);
+		expect(claimed.mockupNotice).not.toMatch(/Rooms/);
+	});
+
+	it('refuses an agent the last step of a phase while the plan mockup is unread, and never a person or the runner', async () => {
+		const made = await createItem(w.ctx('member'), {
+			project: w.projectKey,
+			title: 'Mockup gate',
+			...PLAN
+		});
+		const plan = made.ref;
+		const s = await call(member, 'session_start', { tool: 'claude-code' });
+		await call(member, 'work_start', { sessionId: s.sessionId, item: plan });
+		// No mockup yet: nothing is held and nothing is said
+		const free = await call(member, 'step_done', { sessionId: s.sessionId, keys: ['1.1'] });
+		expect(free.error).toBeUndefined();
+		expect(free).not.toHaveProperty('mockupNotice');
+		await call(member, 'record', {
+			sessionId: s.sessionId,
+			marks: [{ key: '1.1', mark: 'open' }]
+		});
+
+		const m = await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			item: plan,
+			html: PAGE
+		});
+		const id = m.mockup.id as string;
+		// An earlier step is recorded with a notice; ids and counts only
+		const first = await call(member, 'step_done', { sessionId: s.sessionId, keys: ['1.1'] });
+		expect(first.error).toBeUndefined();
+		expect(first.mockupNotice).toContain(id);
+		expect(first.mockupNotice).not.toMatch(/Rooms/);
+		// The last step of the phase is refused, by done and by waived, and nothing is written, the section included
+		const refused = await call(member, 'step_done', {
+			sessionId: s.sessionId,
+			keys: ['1.2'],
+			sections: [{ slug: 'design-brief', title: 'Design brief', body: 'Mockup inventory' }]
+		});
+		expect(refused.error).toMatchObject({ code: 'MOCKUP_UNREAD' });
+		expect(refused.error.message).toMatch(/mockup_get/);
+		expect(refused.error.message).toMatch(/were not saved/);
+		expect(refused.error.message).toMatch(/Never unlink, trash or replace/);
+		const waived = await call(member, 'record', {
+			sessionId: s.sessionId,
+			marks: [{ key: '1.2', mark: 'waived', reason: 'Trying to get past the gate' }]
+		});
+		expect(waived.error).toMatchObject({ code: 'MOCKUP_UNREAD' });
+		const still = await call(member, 'item_get', { item: plan, fields: ['steps', 'sections'] });
+		expect(still.steps.find((x: { key: string }) => x.key === '1.2').state).toBe('open');
+		expect(JSON.stringify(still.sections ?? [])).not.toContain('Mockup inventory');
+		// A dry run shows the notice and never throws
+		const dry = await call(member, 'step_done', {
+			sessionId: s.sessionId,
+			keys: ['1.2'],
+			dryRun: true
+		});
+		expect(dry.error).toBeUndefined();
+		expect(dry.mockupNotice).toContain(id);
+
+		// A person's own tick (the API and the web call the verb with no gate) closes the phase all the same
+		const { recordSteps } = await import('../../src/lib/server/ops/steps');
+		const byHand = await recordSteps(w.ctx('member'), {
+			item: plan,
+			marks: [{ key: '1.2', mark: 'done' }]
+		});
+		expect(byHand.finishedPhases).toEqual(['1']);
+		await recordSteps(w.ctx('member'), { item: plan, marks: [{ key: '1.2', mark: 'open' }] });
+
+		// Read to the end, and the same call passes
+		const read = await call(member, 'mockup_get', { sessionId: s.sessionId, mockup: id });
+		expect(read.html).toMatchObject({ nextOffset: null, unreadChars: 0 });
+		const passed = await call(member, 'step_done', { sessionId: s.sessionId, keys: ['1.2'] });
+		expect(passed.error).toBeUndefined();
+		expect(passed.finishedPhases).toEqual(['1']);
+		expect(passed).not.toHaveProperty('mockupNotice');
+
+		// A new version holds the next phase again
+		await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			mockup: id,
+			html: PAGE.replace('Rooms', 'Rooms three')
+		});
+		const again = await call(member, 'step_done', {
+			sessionId: s.sessionId,
+			keys: ['2.1', '2.2']
+		});
+		expect(again.error).toMatchObject({ code: 'MOCKUP_UNREAD' });
+
+		// A mockup whose stored file is gone can be read by nobody, so it holds nothing
+		const [row] = await db.admin.query<{ storage_key: string }>(
+			`select storage_key from mockup_version where mockup_id = '${id}' and number = 2`
+		);
+		await deps.storage!.delete(row.storage_key);
+		const exempt = await call(member, 'step_done', {
+			sessionId: s.sessionId,
+			keys: ['2.1', '2.2']
+		});
+		expect(exempt.error).toBeUndefined();
+		await call(member, 'work_stop', { sessionId: s.sessionId });
 	});
 
 	it('shows at most five mockups on a claim, counts the rest and clips a long title', async () => {

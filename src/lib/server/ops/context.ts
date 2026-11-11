@@ -74,6 +74,7 @@ export type OpErrorCode =
 	| 'RATE_LIMITED'
 	| 'CONFLICT'
 	| 'COMPLETED_REFUSED'
+	| 'MOCKUP_UNREAD'
 	| 'CONFIRM_REQUIRED'
 	| 'ORG_LOCKED';
 

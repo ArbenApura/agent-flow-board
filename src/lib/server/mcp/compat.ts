@@ -338,13 +338,17 @@ export function registerCompat({ tool }: ToolBuilder) {
 		async (a, { ctx }) => {
 			const s = await implicitSession(ctx, TOOL);
 			const c = { ...ctx, actor: { ...ctx.actor, sessionId: s.id } };
-			const r = await recordSteps(c, {
-				item: a.id,
-				marks: a.steps ?? [],
-				log: a.log,
-				expectVersion: a.expectRev,
-				dryRun: a.dryRun
-			});
+			const r = await recordSteps(
+				c,
+				{
+					item: a.id,
+					marks: a.steps ?? [],
+					log: a.log,
+					expectVersion: a.expectRev,
+					dryRun: a.dryRun
+				},
+				{ agentGate: true }
+			);
 			return {
 				...r,
 				lastPhase: r.finishedPhases.at(-1) ?? null,

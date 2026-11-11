@@ -15,6 +15,7 @@ import {
 	removeMockupPin,
 	setMockupPinResolved
 } from '../ops/mockupPins';
+import { recordMockupRead } from '../ops/mockupReads';
 import { kitInput, readMockupKit, setMockupKit } from '../ops/mockupSettings';
 import {
 	getMockup,
@@ -93,12 +94,29 @@ export const mockupRoutes: Route[] = [
 		path: '/orgs/{org}/mockups/{id}/html',
 		summary: 'The HTML of one version, or a part of it (untrusted text)',
 		tag: 'Mockups',
-		handler: ({ ctx, params, query }) =>
-			readMockupHtml(ctx, params.id, {
+		handler: async ({ ctx, params, query }) => {
+			const part = await readMockupHtml(ctx, params.id, {
 				version: num(query.version, 'version'),
 				offset: num(query.offset, 'offset', 0),
 				limit: num(query.limit, 'limit')
-			})
+			});
+			// A tool with no mockup_get reads here. With its session id the part counts as read (AFB-20261110-2331)
+			if (!query.sessionId) return part;
+			const read = await recordMockupRead(ctx, {
+				mockup: params.id,
+				version: part.version,
+				offset: part.offset,
+				served: part.html.length,
+				length: part.length,
+				sessionId: query.sessionId
+			});
+			return {
+				...part,
+				nextOffset: part.more ? part.offset + part.html.length : null,
+				recorded: read.recorded,
+				...(read.recorded ? { readChars: read.readChars, unreadChars: read.unreadChars } : {})
+			};
+		}
 	},
 	{
 		method: 'POST',

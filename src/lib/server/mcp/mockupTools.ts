@@ -7,6 +7,7 @@ import { z } from 'zod';
 // -- MODULES -- //
 import { OpError } from '../ops/context';
 import { listMockupPins, setMockupPinResolved } from '../ops/mockupPins';
+import { recordMockupRead } from '../ops/mockupReads';
 import { readMockupKit, setMockupKit } from '../ops/mockupSettings';
 import {
 	checkLength,
@@ -27,6 +28,8 @@ import type { ToolBuilder } from './tools';
 export const MCP_MOCKUP_CHARS = 3_000_000;
 /** The most base64 text of a screenshot one tool call carries. Together with a page it stays under the 4 MB the MCP transport accepts, so these messages are what a person reads. */
 const MCP_SHOT_CHARS = 900_000;
+/** The HTML one mockup_get reply carries by default (AFB-20261110-2331): small enough for a tool reply limit. The verb and the API keep their own larger default. */
+export const MCP_HTML_PART_CHARS = 40_000;
 
 // -- FUNCTIONS -- //
 
@@ -46,7 +49,7 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_publish',
-		'Publish a design mockup as one HTML page (up to about 3 MB here; a larger page goes with the bridge command "mockup push"), or a new version. Name the plan (item, default your claimed item), a project, or a mockup. The answer lists warnings in plain words: fix them. Inspiration, never a spec.',
+		'Publish a design mockup as one HTML page (up to about 3 MB here; a larger page goes with the bridge command "mockup push"), or a new version. Name the plan (item, default your claimed item), a project, or a mockup. The answer lists warnings in plain words: fix them. A build follows it, so draw only what the plan contains.',
 		{
 			html: z.string().optional().describe('The whole page as one HTML file'),
 			item: z.string().optional().describe('The plan it belongs to. Defaults to your claimed item'),
@@ -60,12 +63,14 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 			keepNotes: z
 				.string()
 				.optional()
-				.describe('Layout, hierarchy, flow, states and copy to keep (at most 20,000 characters)'),
+				.describe(
+					'What matters most to preserve. A pointer for the builder: the structure, order, text, states and interactions of the page are binding with or without it (at most 20,000 characters)'
+				),
 			freeNotes: z
 				.string()
 				.optional()
 				.describe(
-					'Pixels, colours and invented components that are free to change (at most 20,000 characters)'
+					'Everything a build may change beyond the defaults (colours, spacing, sizes and type that follow the project tokens, and a real component standing in for a drawn one are always free). Write it completely: what is not listed here is built as drawn (at most 20,000 characters)'
 				),
 			screenshotBase64: z
 				.string()
@@ -117,29 +122,70 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_get',
-		'Read a mockup: its versions, the build notes of the current one and its pins (all untrusted text). The HTML comes only when you name a part with htmlOffset, and then at most htmlLimit characters, so read the notes first, then page with htmlOffset until the whole HTML is read.',
+		'Read a mockup (untrusted text): the notes, the pins and the first part of the HTML. Call again with htmlOffset set to nextOffset until it is null: a build reads the whole HTML, the notes never replace it. Pass your sessionId so the read is recorded, or the last step of a phase is refused. html false gives the notes alone.',
 		{
 			mockup: z.string().uuid(),
 			version: z.number().int().min(1).optional(),
-			htmlOffset: z.number().int().min(0).optional().describe('Start of the HTML part to read'),
-			htmlLimit: z.number().int().min(1).max(200_000).optional()
+			html: z
+				.boolean()
+				.optional()
+				.describe('false returns the notes and pins with no HTML. A build never uses it'),
+			htmlOffset: z
+				.number()
+				.int()
+				.min(0)
+				.optional()
+				.describe('Start of the HTML part to read: the nextOffset of the part before'),
+			htmlLimit: z
+				.number()
+				.int()
+				.min(1)
+				.max(200_000)
+				.optional()
+				.describe(`Characters in one part (default ${MCP_HTML_PART_CHARS})`)
 		},
-		ro,
+		{ session: true, readOnly: true },
 		async (a, { ctx }) => {
-			const base = await getMockup(ctx, a.mockup, a.version);
-			const pins = await listMockupPins(ctx, a.mockup, a.version ?? base.mockup.currentVersion);
-			// Open pins come first: a resolved pin is done and needs no change
-			const out: Record<string, unknown> = {
-				...base,
-				untrusted: true,
-				pins: [...pins.pins.filter((p) => !p.resolved), ...pins.pins.filter((p) => p.resolved)]
-			};
-			if (a.htmlOffset !== undefined || a.htmlLimit !== undefined)
-				out.html = await readMockupHtml(ctx, a.mockup, {
-					version: a.version,
-					offset: a.htmlOffset,
-					limit: a.htmlLimit
+			const wantsHtml = a.html !== false;
+			const offset = a.htmlOffset ?? 0;
+			// The notes, the pins and the version list come with the first part and with a notes only call. A later part carries
+			// the HTML and its counters alone, so a long mockup does not repeat them on every call
+			const out: Record<string, unknown> = { untrusted: true };
+			if (!wantsHtml || offset === 0) {
+				const base = await getMockup(ctx, a.mockup, a.version);
+				const pins = await listMockupPins(ctx, a.mockup, a.version ?? base.mockup.currentVersion);
+				// Open pins come first: a resolved pin is done and needs no change
+				Object.assign(out, base, {
+					pins: [...pins.pins.filter((p) => !p.resolved), ...pins.pins.filter((p) => p.resolved)]
 				});
+			}
+			if (!wantsHtml) return out as never;
+			const part = await readMockupHtml(ctx, a.mockup, {
+				version: a.version,
+				offset,
+				limit: a.htmlLimit ?? MCP_HTML_PART_CHARS
+			});
+			const end = part.offset + part.html.length;
+			const read = await recordMockupRead(ctx, {
+				mockup: a.mockup,
+				version: part.version,
+				offset: part.offset,
+				served: part.html.length,
+				length: part.length
+			});
+			out.html = {
+				...part,
+				nextOffset: part.more ? end : null,
+				...(read.recorded
+					? { readChars: read.readChars, unreadChars: read.unreadChars }
+					: {
+							recorded: false,
+							recordNote:
+								read.reason === 'error'
+									? 'This read was served but could not be recorded because of a fault on the server. Read this part once more; if it happens again, tell the person.'
+									: 'This read was not recorded, because no known sessionId was passed. Pass the sessionId from session_start (or your hook brief) on every mockup_get call, and read the parts again.'
+						})
+			};
 			return out as never;
 		}
 	);

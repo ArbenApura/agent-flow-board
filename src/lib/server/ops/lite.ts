@@ -105,9 +105,14 @@ export async function closeLiteItem(ctx: Ctx, raw: z.input<typeof closeInput>) {
 		title: 'Lessons',
 		body: input.lessons
 	});
-	return recordSteps(subRequest(ctx, 'close:steps', input.item, input.keys), {
-		item: input.item,
-		marks: input.keys.map((key) => ({ key, mark: 'done' as const })),
-		log: input.log
-	});
+	// The lite close is an agent's call (the lite_close tool is its one caller), so the mockup gate applies
+	return recordSteps(
+		subRequest(ctx, 'close:steps', input.item, input.keys),
+		{
+			item: input.item,
+			marks: input.keys.map((key) => ({ key, mark: 'done' as const })),
+			log: input.log
+		},
+		{ agentGate: true }
+	);
 }

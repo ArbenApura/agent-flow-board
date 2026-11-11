@@ -371,9 +371,12 @@
 	{/if}
 
 	<Notice tone="info" data-testid="reference-notice">
-		A mockup is inspiration, never the spec.<span class="max-sm:hidden">
-			The build follows the project's real components and design rules first.</span
-		>
+		{#if data.detail.plan}
+			A build of this plan follows this mockup. Colours, spacing, sizes and type follow the
+			project's tokens, and the Free notes list anything else that may differ.
+		{:else}
+			A design idea. Once it is linked to a plan, a build follows it.
+		{/if}
 		{#if m.publicLinkOn}
 			<Badge tone="info" class="ml-1">Public link on</Badge>
 		{/if}

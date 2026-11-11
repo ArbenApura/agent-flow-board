@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.6.0",
+		"version": "1.7.0",
 		"releasedAt": "2026-11-11"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.3.0",
+			"version": "1.4.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -106,11 +106,15 @@
 				{
 					"version": "1.3.0",
 					"hash": "4f74f8487877531d211b7d0aeb79f80ffffc2453f4163e6bb97fd4abfcf28407"
+				},
+				{
+					"version": "1.4.0",
+					"hash": "7bd3001444e717f4c61d5e87ba372ab6fa8c7d8c3c1b29e2fe639af67520e8bc"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.1.5",
+			"version": "1.2.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -143,6 +147,10 @@
 				{
 					"version": "1.1.5",
 					"hash": "39652b18cfc60295752357a5b7f2a84e5faaacdb6fbeb56636bc2c16063d4e8b"
+				},
+				{
+					"version": "1.2.0",
+					"hash": "93eb807f6e352f08181a7d0ce68db30670038cfe48edaf5f725f859506433828"
 				}
 			]
 		},
@@ -236,7 +244,7 @@
 			]
 		},
 		"flow-critic": {
-			"version": "1.3.0",
+			"version": "1.4.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -281,6 +289,10 @@
 				{
 					"version": "1.3.0",
 					"hash": "ee87f7dfa3969d81a8bdb00d15b932d47b14e9a1f54f9bbfef5ffffe6a08a5fb"
+				},
+				{
+					"version": "1.4.0",
+					"hash": "275e3185bdc0c136b514888fc1eae380038522167ddde614e4ea885723c576dd"
 				}
 			]
 		},
@@ -326,7 +338,7 @@
 			]
 		},
 		"flow-mockup": {
-			"version": "1.3.1",
+			"version": "1.4.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -359,6 +371,10 @@
 				{
 					"version": "1.3.1",
 					"hash": "55a028be386e3389f8073fe1429ff61c8551ad3e243bcccad1c4ca5f5037b464"
+				},
+				{
+					"version": "1.4.0",
+					"hash": "9cd7a5c031285ed0086e13c6837e1916dbe7e44b2b68ddbfc7a52bf1533a91a6"
 				}
 			]
 		},
@@ -415,9 +431,40 @@
 					"hash": "41ccd18ebe9d3ffdf6d7c7311b0373a12ed3fe002d8439349ff3f981e8ecf0cf"
 				}
 			]
+		},
+		"flow-align": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "b734723eb0acde4f5e9ac30cab1370c95ab1129eacaf8f5492a2d33320bdd9af"
+				}
+			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.7.0",
+			"date": "2026-11-11",
+			"notes": [
+				"flow 1.4.0: a build follows the mockup of its plan strictly. The agent reads the whole mockup HTML with mockup_get (the HTML now comes by default, in parts, until nextOffset is null), writes a Mockup inventory of everything it shows before any visible code, builds its structure, order, text, states and interactions with the project's real components, and marks every inventory line at the end of the phase. Colours, spacing, sizes and type that follow the project's tokens are always free, and the Free notes say what else may differ; other differences come to the user as one list. The server records what was read and refuses the last step of a phase with MOCKUP_UNREAD while the mockup is unread. This replaces 'a mockup is inspiration, never the spec'.",
+				"flow-mockup 1.4.0: a mockup linked to a plan is what the build follows, so it shows only what the plan contains and its Free notes are written completely.",
+				"flow-critic 1.4.0: the lead gives the design fit critic the mockup HTML itself, and the critic checks every inventory line against the code; mockup mode checks that the Free notes are complete.",
+				"flow-audit 1.2.0: the audit reads the server's record of the mockup read (mockup_list with the item) and the Mockup inventory, and reports a mockup unlinked or trashed while the build ran.",
+				"flow-align 1.0.0 (new): type /flow-align to bring the repo rulebook, the user-level rule files and the agent's saved memory in line with the flow rules. It changes only what is provably stale, contradicting, duplicated or a needless stop, writes one short marked rules block into the repo rulebook, backs every file up first and reports once. It never loosens a safety rule, never deletes a memory and never commits. flow and flow-audit say once when a rule file has drifted."
+			],
+			"skills": {
+				"flow": "1.4.0",
+				"flow-align": "1.0.0",
+				"flow-audit": "1.2.0",
+				"flow-check": "1.2.2",
+				"flow-critic": "1.4.0",
+				"flow-interview": "1.1.6",
+				"flow-mockup": "1.4.0",
+				"flow-task": "1.1.2",
+				"flow-verify": "1.1.3"
+			}
+		},
 		{
 			"version": "1.6.0",
 			"date": "2026-11-11",

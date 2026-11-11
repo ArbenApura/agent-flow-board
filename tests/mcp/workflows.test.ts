@@ -81,9 +81,20 @@ describe('workflow text', () => {
 
 	it('shares the rule with every workflow through the common rules', () => {
 		for (const w of WORKFLOWS) {
-			if (w.name === 'flow-task' || w.name === 'flow-audit') continue;
+			// flow-align claims no item and has no steps, like flow-task, so it has its own short rules
+			if (w.name === 'flow-task' || w.name === 'flow-audit' || w.name === 'flow-align') continue;
 			expect(w.body, w.name).toContain('Progress first');
 		}
+	});
+
+	it('serves flow-align with its rules block and never tells it to claim an item (AFB-20261110-2333)', () => {
+		const body = workflowByName('flow-align')!.body;
+		expect(body).toContain('five closed classes');
+		expect(body).toContain('<!-- afb:flow-align rules ');
+		expect(body).toContain('<!-- /afb:flow-align rules -->');
+		expect(body).toContain('Do not call work_start and do not call step_done');
+		expect(body).not.toContain('Call work_start for the item the user names before any edit');
+		expect(SERVER_INSTRUCTIONS).toContain('flow-align');
 	});
 
 	it('has the audit report finished work that was never recorded', () => {

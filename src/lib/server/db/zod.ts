@@ -21,6 +21,7 @@ import {
 	mockupKit,
 	mockupPin,
 	mockupProject,
+	mockupRead,
 	mockupTemplate,
 	mockupVersion,
 	org,
@@ -59,6 +60,13 @@ export const sessionSelect = createSelectSchema(session);
 export const mockupSelect = createSelectSchema(mockup);
 export const mockupVersionSelect = createSelectSchema(mockupVersion);
 export const mockupPinSelect = createSelectSchema(mockupPin);
+/** The read record. The ranges are sorted [start, end) pairs that never overlap and never pass the HTML length. */
+export const mockupReadRanges = z
+	.array(z.tuple([z.number().int().min(0), z.number().int().min(0)]))
+	.refine((r) => r.every(([a, b], i) => a < b && (i === 0 || r[i - 1][1] < a)), {
+		message: 'The ranges must be sorted and must not overlap or touch.'
+	});
+export const mockupReadSelect = createSelectSchema(mockupRead, { ranges: mockupReadRanges });
 export const mockupProjectSelect = createSelectSchema(mockupProject);
 export const mockupTemplateSelect = createSelectSchema(mockupTemplate);
 export const mockupKitSelect = createSelectSchema(mockupKit);

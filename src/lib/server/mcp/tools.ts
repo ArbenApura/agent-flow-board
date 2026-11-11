@@ -737,7 +737,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'workflow_get',
-		'Read a workflow: flow (plan and build), flow-task, flow-interview, flow-critic, flow-audit, flow-check (browser checks), flow-mockup (a design mockup) or flow-verify (the gates). flow-critic also has supporting files (file). Long texts come in parts: pass the reply next as offset.',
+		'Read a workflow: flow (plan and build), flow-task, flow-interview, flow-critic, flow-audit, flow-check (browser checks), flow-mockup (a design mockup), flow-verify (the gates) or flow-align (rule files and memory). flow-critic also has supporting files (file). Long texts come in parts: pass the reply next as offset.',
 		{
 			name: z.enum([
 				'flow',
@@ -747,7 +747,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				'flow-audit',
 				'flow-check',
 				'flow-mockup',
-				'flow-verify'
+				'flow-verify',
+				'flow-align'
 			]),
 			file: z.enum(WORKFLOW_FILE_NAMES).optional(),
 			offset: z.number().int().min(0).optional()
@@ -1018,7 +1019,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 					marks: a.keys.map((key) => ({ key, mark: 'done' as const, evidence: a.evidence })),
 					log: a.log,
 					dryRun: a.dryRun
-				}
+				},
+				{ agentGate: true }
 			);
 			return { ...r, ...(Object.keys(docs).length ? { docs } : {}) } as never;
 		}
@@ -1048,7 +1050,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 					marks: a.marks ?? [],
 					log: a.log,
 					dryRun: a.dryRun
-				}
+				},
+				{ agentGate: true }
 			);
 			return { ...r, ...(Object.keys(docs).length ? { docs } : {}) } as never;
 		}

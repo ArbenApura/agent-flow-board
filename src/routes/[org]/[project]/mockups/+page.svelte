@@ -95,7 +95,7 @@
 	<PageHeader
 		class="mb-2!"
 		title="Mockups"
-		context={`${data.mockups.length} ${data.mockups.length === 1 ? 'mockup' : 'mockups'}, design ideas your tools drew for this project. A mockup is inspiration, never the spec.`}
+		context={`${data.mockups.length} ${data.mockups.length === 1 ? 'mockup' : 'mockups'}, design ideas your tools drew for this project. A build follows the mockup of its plan.`}
 	/>
 
 	{#if data.mockups.length === 0}

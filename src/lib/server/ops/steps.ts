@@ -12,6 +12,7 @@ import { appendEvents, type NewEvent } from '../db/events';
 import { item, manualCheck, phase, step } from '../db/schema';
 import { OpError, idempotent, maybeDry, rateLimit, requireCap } from './context';
 import { actorFields, checkVersion } from './items';
+import { gatedState, mockupUnreadError, unreadForGate, unreadLine } from './mockupReads';
 import { findItem } from './resolve';
 import { applyStatus, automaticMoves } from './status';
 import { afterRecord, validateEvidence } from './tracking';
@@ -19,6 +20,16 @@ import { afterRecord, validateEvidence } from './tracking';
 // -- TYPES -- //
 
 export type Mark = z.infer<typeof markIn>;
+
+/** How a caller wants the step verb to behave beyond its input. */
+export type RecordOptions = {
+	/**
+	 * Set by the agent entry points (the MCP step tools, the lite close and the older flow_record). The last open step of a
+	 * phase is then refused with MOCKUP_UNREAD while a mockup of the plan is not read to the end. A person's tick through
+	 * the API and the runner's tick after a passing check leave it unset.
+	 */
+	agentGate?: boolean;
+};
 
 // -- CONSTANTS -- //
 
@@ -59,7 +70,11 @@ export const recordInput = z.object({
  * transaction with the item row locked. A replayed requestId returns the stored result. `dryRun` shows the result and
  * writes nothing.
  */
-export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
+export async function recordSteps(
+	ctx: Ctx,
+	raw: z.input<typeof recordInput>,
+	options: RecordOptions = {}
+) {
 	const input = recordInput.parse(raw);
 	// Cut by code points, so a multibyte character is never split
 	const logChars = input.log ? [...input.log] : [];
@@ -253,6 +268,22 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 			const finishedPhases = phases
 				.filter((p) => touched.has(p.id) && !open.some((s) => s.phaseId === p.id))
 				.map((p) => p.key);
+			// THE MOCKUP GATE (AFB-20261110-2331): an agent may not close a phase while the plan's mockup is unread. A person's
+			// tick and the runner's own tick never pass agentGate, so they are never held. Reopening a step closes nothing
+			let mockupNotice: string | null = null;
+			if (options.agentGate) {
+				// The cheap state is enough for the notice. The stored file is looked for only when a phase is about to close,
+				// so an ordinary step never pays for reading a file
+				const state = (await gatedState(tx, ctx, it)).filter((s) => !s.readComplete);
+				if (state.length) {
+					const closing = finishedPhases.length > 0;
+					const { unread } = closing ? await unreadForGate(tx, ctx, it) : { unread: state };
+					if (unread.length) {
+						if (closing && !input.dryRun) throw mockupUnreadError(unread);
+						mockupNotice = unreadLine(unread);
+					}
+				}
+			}
 			const claim = await afterRecord(tx, ctx, it, {
 				finishedPhases,
 				nextPhase,
@@ -283,6 +314,7 @@ export async function recordSteps(ctx: Ctx, raw: z.input<typeof recordInput>) {
 						}
 					: {}),
 				...(claim ? { claim } : {}),
+				...(mockupNotice ? { mockupNotice } : {}),
 				...(logCut
 					? {
 							logNotice: `The log line was cut to ${LOG_MAX} characters (it had ${logChars.length}).`

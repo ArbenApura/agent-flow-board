@@ -68,7 +68,7 @@
 	});
 </script>
 
-<!-- THE MOCKUPS TAB OF A PLAN: THE PREVIEW OF ITS MOCKUP, AND WHAT TO KEEP AND WHAT IS FREE. A MOCKUP IS INSPIRATION, NEVER THE SPEC -->
+<!-- THE MOCKUPS TAB OF A PLAN: THE PREVIEW OF ITS MOCKUP, AND WHAT TO KEEP AND WHAT IS FREE. A BUILD OF THE PLAN FOLLOWS ITS MOCKUP (AFB-20261110-2331) -->
 <div class="flex flex-col gap-4" data-testid="mockups-tab">
 	{#if !current}
 		<div class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
