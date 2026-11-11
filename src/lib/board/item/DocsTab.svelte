@@ -365,10 +365,7 @@
 							>
 						{/if}
 					{/snippet}
-					<!-- THE DOCUMENT CARD IS AS WIDE AS THE PAGE ALLOWS, SO THE TEXT FILLS IT INSTEAD OF STOPPING AT THE 72 CHARACTER MEASURE OF .md (AFB-20261111-1344) -->
-					<div
-						class="md p-4 max-sm:p-3.5 [&_:is(h2,h3)]:scroll-mt-[139px] [&>:not(table,pre)]:max-w-none!"
-					>
+					<div class="md p-4 max-sm:p-3.5 [&_:is(h2,h3)]:scroll-mt-[139px]">
 						<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised Markdown from the server -->
 						{@html s.html}
 					</div>

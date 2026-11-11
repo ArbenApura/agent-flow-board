@@ -195,10 +195,7 @@ body {
 	line-height: 24px;
 	overflow-wrap: anywhere;
 }
-/* TEXT KEEPS A READABLE LINE LENGTH, TABLES AND CODE USE THE WHOLE CARD */
-.md > :not(table, pre) {
-	max-width: 72ch;
-}
+/* TEXT, TABLES AND CODE ALL USE THE WHOLE CARD. THE 72 CHARACTER MEASURE THAT STOPPED A PARAGRAPH AT HALF OF A WIDE CARD IS GONE (AFB-20261111-1344) */
 .md > * + * {
 	margin-top: 0.75rem;
 }
