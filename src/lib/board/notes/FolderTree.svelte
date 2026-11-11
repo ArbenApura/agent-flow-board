@@ -21,13 +21,14 @@
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import FolderInput from '@lucide/svelte/icons/folder-input';
-	import FolderOpen from '@lucide/svelte/icons/folder-open';
+	import FolderPlus from '@lucide/svelte/icons/folder-plus';
 	import NotebookText from '@lucide/svelte/icons/notebook-text';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Star from '@lucide/svelte/icons/star';
 	import Trash from '@lucide/svelte/icons/trash';
 	// -- COMPONENTS -- //
 	import ActionMenu from '#lib/ui/ActionMenu.svelte';
+	import Button from '#lib/ui/Button.svelte';
 
 	// -- TYPES -- //
 
@@ -46,7 +47,9 @@
 		onmove,
 		ontrash,
 		ondropped,
-		onpick
+		onpick,
+		onnewfolder,
+		favourites
 	}: {
 		folders: Folder[];
 		active: TreeView;
@@ -54,6 +57,10 @@
 		hrefFor: (view: TreeView) => string;
 		/** Every note the person may see. */
 		total: number;
+		/** The notes the person starred, shown beside Favourites. */
+		favourites?: number;
+		/** Opens the New folder dialog, from the icon button beside the Folders heading. */
+		onnewfolder?: () => void;
 		canWrite?: boolean;
 		canDelete?: boolean;
 		onrename?: (folder: Folder) => void;
@@ -69,13 +76,14 @@
 
 	const NOTE_TYPE = 'application/x-afb-note';
 	const FOLDER_TYPE = 'application/x-afb-folder';
-	// The colours, active state and radius of a sidebar row, at the row level of the scale (48, and 56 on a phone)
+	// The colours, active state and radius of a sidebar row, at the contents-card row of the Documents tab (40, and 44 in the drawer) (AFB-20261111-0805)
 	const ROW =
-		'group/row flex min-h-12 items-center gap-1 rounded-lg text-sm text-muted transition-colors hover:bg-raised hover:text-ink max-md:min-h-14';
-	const ROW_ON =
-		'bg-accent-soft font-medium text-accent-text hover:bg-accent-soft hover:text-accent-text';
+		'group/row relative flex min-h-10 items-center rounded-lg text-sm text-ink transition-colors hover:bg-raised max-lg:min-h-11 motion-reduce:transition-none';
+	const ROW_ON = 'bg-accent-soft font-medium text-accent-text hover:bg-accent-soft';
+	// One leading slot for the icon, the caret or a folder icon, so every name starts on one edge
+	const SLOT = 'inline-flex h-10 w-8 shrink-0 items-center justify-center max-lg:h-11 max-lg:w-11';
 	const LINK =
-		'flex min-h-12 min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-lg px-2 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent max-md:min-h-14';
+		'flex min-h-10 min-w-0 flex-1 cursor-pointer items-center self-stretch rounded-md pl-1 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent max-lg:min-h-11';
 
 	// -- STATES -- //
 
@@ -165,31 +173,63 @@
 	Icon: Component<{ size?: number; class?: string }>,
 	count?: number
 )}
+	{@const on = active === view}
 	<li>
 		<a
 			href={hrefFor(view)}
 			onclick={onpick}
-			aria-current={active === view ? 'page' : undefined}
-			class={cn(ROW, 'cursor-pointer px-2', active === view && ROW_ON)}
+			aria-current={on ? 'page' : undefined}
+			class={cn(
+				ROW,
+				'cursor-pointer pr-1 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent',
+				on && ROW_ON
+			)}
 		>
-			<Icon size={18} class="shrink-0" />
-			<span class="min-w-0 flex-1 truncate">{label}</span>
+			<span class={cn(SLOT, !on && 'text-muted')}><Icon size={18} /></span>
+			<span class="min-w-0 flex-1 truncate pl-1">{label}</span>
 			{#if count !== undefined}
-				<span data-count class="shrink-0 pr-1 text-badge font-semibold tabular-nums">{count}</span>
+				<span
+					data-count
+					class={cn(
+						'w-8 shrink-0 text-center text-badge font-semibold tabular-nums',
+						!on && 'text-muted'
+					)}>{count}</span
+				>
 			{/if}
 		</a>
 	</li>
 {/snippet}
 
 <!-- THE FOLDER TREE OF THE NOTES PAGE. EVERY ROW IS A LINK, THE CARET AND THE NAME ARE TWO SEPARATE CONTROLS -->
-<nav aria-label="Note folders" class="flex min-w-0 flex-col gap-1">
-	<ul class="flex flex-col gap-2">
+<nav
+	aria-label="Note folders"
+	class="flex min-w-0 flex-col rounded-xl border border-line bg-surface p-2 shadow-[var(--elev-1)]"
+>
+	<ul class="flex flex-col gap-0.5">
 		{@render fixed('all', 'All notes', NotebookText, total)}
-		{@render fixed('favourites', 'Favourites', Star)}
+		{@render fixed('favourites', 'Favourites', Star, favourites)}
 	</ul>
+	{#if folders.length || (canWrite && onnewfolder)}
+		<div class="mx-1 my-2 border-t border-line"></div>
+		<div class="flex min-h-8 items-center justify-between pl-2.5">
+			<h2 class="text-xs font-medium text-muted">Folders</h2>
+			{#if canWrite && onnewfolder}
+				<Button
+					variant="subtle"
+					size="sm"
+					iconOnly
+					aria-label="New folder"
+					title="New folder"
+					onclick={onnewfolder}
+					data-testid="new-folder"
+				>
+					<FolderPlus size={16} />
+				</Button>
+			{/if}
+		</div>
+	{/if}
 	{#if folders.length}
-		<p class="px-2 pt-3 pb-1 text-xs font-medium text-muted">Folders</p>
-		<ul bind:this={list} class="flex flex-col gap-2">
+		<ul bind:this={list} class="mt-1 flex flex-col gap-0.5">
 			{#each rows as f (f.id)}
 				{@const on = active === f.id}
 				{@const parent = hasChildren(folders, f.id)}
@@ -210,13 +250,18 @@
 						ondragleave={() => (over = over === f.id ? null : over)}
 						ondrop={(e) => drop(e, f.id)}
 					>
+						<!-- THE LEADING SLOT: THE CARET FOR A FOLDER WITH FOLDERS INSIDE, A FOLDER ICON FOR ANY OTHER -->
 						{#if parent}
 							<button
 								type="button"
 								aria-label={open ? `Close ${f.name}` : `Open ${f.name}`}
 								aria-expanded={open}
 								onclick={() => toggle(f.id)}
-								class="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg hover:bg-line/60 focus-visible:outline-2 focus-visible:outline-accent max-md:size-11"
+								class={cn(
+									SLOT,
+									'cursor-pointer rounded-md hover:text-ink focus-visible:outline-2 focus-visible:outline-accent',
+									!on && 'text-muted'
+								)}
 							>
 								<ChevronRight
 									size={16}
@@ -227,7 +272,9 @@
 								/>
 							</button>
 						{:else}
-							<span class="size-10 shrink-0 max-md:size-11" aria-hidden="true"></span>
+							<span class={cn(SLOT, !on && 'text-muted')} aria-hidden="true"
+								><FolderIcon size={16} /></span
+							>
 						{/if}
 						<a
 							href={hrefFor(f.id)}
@@ -235,31 +282,39 @@
 							onclick={onpick}
 							onkeydown={(e) => keydown(e, f.id)}
 							aria-current={on ? 'page' : undefined}
-							class={cn(LINK, 'pl-0')}
+							title={f.name}
+							class={LINK}
 						>
-							{#if open && parent}
-								<FolderOpen size={18} class="shrink-0" />
-							{:else}
-								<FolderIcon size={18} class="shrink-0" />
-							{/if}
-							<span class="min-w-0 flex-1">
-								<span class="block truncate">{f.name}</span>
+							<span class="min-w-0 flex-1 py-2 break-words">
+								<span class="block">{f.name}</span>
 								<!-- A folder deeper than the indent goes shows its place as words -->
 								{#if pastIndent(f.depth)}
 									<span class="block truncate text-xs font-normal text-muted">{f.path}</span>
 								{/if}
 							</span>
+						</a>
+						<!-- THE COUNT, AND THE ACTIONS IN ITS PLACE ON HOVER OR FOCUS. ON A TOUCH SCREEN BOTH SHOW SIDE BY SIDE -->
+						<span
+							class="relative flex shrink-0 items-center pr-1 pointer-fine:w-8 pointer-fine:justify-center"
+						>
 							{#if f.notes}
-								<span data-count class="shrink-0 text-badge font-semibold tabular-nums"
-									>{f.notes}</span
+								<span
+									data-count
+									class={cn(
+										'px-1 text-badge font-semibold tabular-nums',
+										!on && 'text-muted',
+										menu.length > 0 &&
+											'pointer-fine:group-focus-within/row:opacity-0 pointer-fine:group-hover/row:opacity-0'
+									)}>{f.notes}</span
 								>
 							{/if}
-						</a>
-						{#if menu.length}
-							<span class="shrink-0"
-								><ActionMenu items={menu} label={`Actions for ${f.name}`} size="sm" /></span
-							>
-						{/if}
+							{#if menu.length}
+								<span
+									class="pointer-fine:absolute pointer-fine:inset-0 pointer-fine:flex pointer-fine:items-center pointer-fine:justify-center pointer-fine:opacity-0 pointer-fine:group-focus-within/row:opacity-100 pointer-fine:group-hover/row:opacity-100"
+									><ActionMenu items={menu} label={`Actions for ${f.name}`} size="sm" /></span
+								>
+							{/if}
+						</span>
 					</div>
 				</li>
 			{/each}

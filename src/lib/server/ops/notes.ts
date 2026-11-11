@@ -11,6 +11,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
+import { EXCERPT_SOURCE_CHARS, noteExcerpt, noteMatch } from '../../shared/noteExcerpt';
 import { NOTE_LIMITS, noteNumberOf, noteRef, sniffPicture } from '../../shared/notes';
 import { appendEvent } from '../db/events';
 import { allocateNoteNumber } from '../db/numbering';
@@ -77,6 +78,8 @@ export const noteListInput = z.object({
 	folderId: z.string().uuid().nullable().optional(),
 	favourites: z.boolean().optional(),
 	q: z.string().trim().max(200).optional(),
+	/** Titles only: no excerpt and no last editor, for a list of names such as In this folder. */
+	brief: z.boolean().optional(),
 	limit: z.number().int().min(1).max(200).default(100),
 	offset: z.number().int().min(0).default(0)
 });
@@ -317,6 +320,14 @@ export async function listNotes(ctx: Ctx, raw: z.input<typeof noteListInput>) {
 				role: 'guest'
 			});
 		const me = ctx.actor.userId;
+		// The excerpt window of a search follows its longest word, the one least likely to be common ('the zircontide')
+		const firstWord = input.brief
+			? ''
+			: ((input.q ?? '')
+					.toLowerCase()
+					.split(/\s+/)
+					.filter(Boolean)
+					.sort((a, b) => b.length - a.length)[0] ?? '');
 		const starred = sql<boolean>`exists (select 1 from note_favourite nf where nf.note_id = ${note.id} and nf.user_id = ${me})`;
 		const where = [eq(note.projectId, proj.id), visibleNoteSql(me)];
 		if (input.folderId === null) where.push(sql`${note.folderId} is null`);
@@ -339,8 +350,15 @@ export async function listNotes(ctx: Ctx, raw: z.input<typeof noteListInput>) {
 				createdBy: note.createdBy,
 				updatedAt: note.updatedAt,
 				version: note.version,
+				updatedBy: note.updatedBy,
 				favourite: starred,
-				preview: sql<string>`left(${note.body}, 160)`
+				preview: sql<string>`left(${note.body}, 160)`,
+				// The text an excerpt is made from: the start of the note, or for a search the stretch around the first hit
+				source: input.brief
+					? sql<string>`''`
+					: firstWord
+						? sql<string>`substr(${note.body}, greatest(1, strpos(lower(${note.body}), ${firstWord}) - ${EXCERPT_SOURCE_CHARS / 3}), ${EXCERPT_SOURCE_CHARS})`
+						: sql<string>`left(${note.body}, ${EXCERPT_SOURCE_CHARS})`
 			})
 			.from(note)
 			.where(and(...where))
@@ -348,9 +366,30 @@ export async function listNotes(ctx: Ctx, raw: z.input<typeof noteListInput>) {
 			.limit(input.limit + 1)
 			.offset(input.offset);
 		const page = rows.slice(0, input.limit);
+		// The last person who changed each note, read once for the page
+		const ids = input.brief
+			? []
+			: [...new Set(page.map((r) => r.updatedBy ?? r.createdBy).filter((v): v is string => !!v))];
+		const people = ids.length
+			? await tx
+					.select({ id: user.id, name: user.name })
+					.from(user)
+					.where(sql`${user.id} in (${sql.join(ids, sql`, `)})`)
+			: [];
+		const nameOf = new Map(people.map((p) => [p.id, p.name]));
 		return {
 			project: { id: proj.id, key: proj.key },
-			notes: page.map((r) => ({ ...r, ref: noteRef(r.number), mine: r.createdBy === me })),
+			notes: page.map(({ source, updatedBy, ...r }) => {
+				const editor = updatedBy ?? r.createdBy;
+				return {
+					...r,
+					ref: noteRef(r.number),
+					mine: r.createdBy === me,
+					excerpt: input.brief ? '' : noteExcerpt(r.title, source),
+					match: input.q && !input.brief ? noteMatch(source, input.q) : null,
+					lastEditor: editor ? { id: editor, name: nameOf.get(editor) ?? 'Someone' } : null
+				};
+			}),
 			next: rows.length > input.limit ? input.offset + input.limit : null
 		};
 	});

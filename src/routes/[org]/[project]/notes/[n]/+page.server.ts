@@ -5,7 +5,8 @@ import { error } from '@sveltejs/kit';
 import { renderMarkdown } from '#lib/markdown.js';
 import { OpError } from '#lib/server/ops/context.js';
 import { listFolders } from '#lib/server/ops/noteFolders.js';
-import { getNote } from '#lib/server/ops/notes.js';
+import { getNote, listNotes } from '#lib/server/ops/notes.js';
+import { plainText } from '#lib/shared/noteExcerpt.js';
 import { childContext, pageError } from '#lib/server/web/ctx.js';
 
 // -- FUNCTIONS -- //
@@ -25,6 +26,9 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, is
 		folders: [],
 		note: null,
 		author: null as string | null,
+		authorId: null as string | null,
+		words: 0,
+		siblings: [] as { id: string; ref: string; title: string; private: boolean }[],
 		lastEditor: null as string | null,
 		mine: false,
 		favourite: false,
@@ -43,6 +47,14 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, is
 			listFolders(ctx, { project: params.project })
 		]);
 		const n = found.note;
+		// The notes beside this one, for In this folder (AFB-20261111-0805)
+		const near = await listNotes(ctx, {
+			project: params.project,
+			folderId: n.folderId ?? null,
+			brief: true,
+			limit: 50
+		});
+		const words = plainText(found.body.text).split(' ').filter(Boolean).length;
 		return {
 			...none,
 			folders: tree.folders,
@@ -58,6 +70,20 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, is
 				epoch: n.epoch
 			},
 			author: found.author,
+			authorId: n.createdBy,
+			words,
+			// The open note is always in the list, also when it is older than the 50 newest of its folder
+			siblings: [
+				...near.notes.map((s) => ({
+					id: s.id,
+					ref: s.ref,
+					title: s.title,
+					private: s.visibility === 'private'
+				})),
+				...(near.notes.some((s) => s.id === n.id)
+					? []
+					: [{ id: n.id, ref: n.ref, title: n.title, private: n.visibility === 'private' }])
+			],
 			lastEditor: found.lastEditor,
 			mine: found.mine,
 			favourite: found.favourite,

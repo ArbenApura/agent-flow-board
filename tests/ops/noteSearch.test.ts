@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { searchAll } from '../../src/lib/server/db/search';
 import { run } from '../../src/lib/server/ops/context';
 import { searchBoard } from '../../src/lib/server/ops/board';
-import { createNote, trashNote } from '../../src/lib/server/ops/notes';
+import { createNote, listNotes, trashNote } from '../../src/lib/server/ops/notes';
 import { createFolder, trashFolder } from '../../src/lib/server/ops/noteFolders';
 import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
@@ -75,6 +75,24 @@ describe('note search', () => {
 			w.projectId
 		);
 		expect(byTitle.every((h) => h.kind === 'note' && h.itemId === null)).toBe(true);
+	});
+
+	it('listNotes gives a plain excerpt, the last editor and, for a search, the words around the hit as ranges (AFB-20261111-0805)', async () => {
+		const m = w.ctx('member');
+		await createNote(m, {
+			project: P(),
+			title: 'Excerpt check',
+			body: '# Excerpt check\n\n**Bold** words and a [link](https://example.com) before the zircontide word.'
+		});
+		const all = await listNotes(m, { project: P() });
+		const row = all.notes.find((n) => n.title === 'Excerpt check');
+		expect(row?.excerpt).toBe('Bold words and a link before the zircontide word.');
+		expect(row?.match).toBeNull();
+		expect(row?.lastEditor).toEqual({ id: w.people.member, name: 'member' });
+		const hit = (await listNotes(m, { project: P(), q: 'zircontide' })).notes[0];
+		expect(hit?.match?.text).toContain('zircontide');
+		const [a, b] = hit?.match?.marks[0] ?? [0, 0];
+		expect(hit?.match?.text.slice(a, b)).toBe('zircontide');
 	});
 
 	it('a member finds shared notes and their own private ones, not the trash, not another private note', async () => {

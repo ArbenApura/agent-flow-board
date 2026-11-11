@@ -182,7 +182,12 @@ export async function listFolders(ctx: Ctx, raw: z.input<typeof folderListInput>
 			});
 		const tree = await readTree(tx, proj.id);
 		const counts = await tx
-			.select({ folderId: note.folderId, n: sql<number>`count(*)::int` })
+			.select({
+				folderId: note.folderId,
+				n: sql<number>`count(*)::int`,
+				// The caller's own stars, so the tree can show how many favourites there are
+				starred: sql<number>`(count(*) filter (where exists (select 1 from note_favourite nf where nf.note_id = ${note.id} and nf.user_id = ${ctx.actor.userId})))::int`
+			})
 			.from(note)
 			.where(and(eq(note.projectId, proj.id), visibleNoteSql(ctx.actor.userId)))
 			.groupBy(note.folderId);
@@ -196,7 +201,9 @@ export async function listFolders(ctx: Ctx, raw: z.input<typeof folderListInput>
 			project: { id: proj.id, key: proj.key },
 			folders,
 			/** The notes that sit in no folder. */
-			top: byFolder.get(null) ?? 0
+			top: byFolder.get(null) ?? 0,
+			/** The notes the caller starred. */
+			favourites: counts.reduce((sum, c) => sum + c.starred, 0)
 		};
 	});
 }

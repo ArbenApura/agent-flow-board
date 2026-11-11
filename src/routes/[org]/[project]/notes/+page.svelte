@@ -12,32 +12,39 @@
 	// -- MODULES -- //
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { crumbs, moveRefusal } from '#lib/board/notes/tree.js';
-	import { activeOf, emptyNotes, notesHref } from '#lib/board/notes/view.js';
-	import { ago } from '#lib/board/status.js';
+	import {
+		activeOf,
+		emptyNotes,
+		groupByWhen,
+		notesHref,
+		readNotesLayout
+	} from '#lib/board/notes/view.js';
 	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
 	import FolderInput from '@lucide/svelte/icons/folder-input';
-	import FolderPlus from '@lucide/svelte/icons/folder-plus';
 	import FolderTreeIcon from '@lucide/svelte/icons/folder-tree';
-	import Lock from '@lucide/svelte/icons/lock';
+	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
+	import List from '@lucide/svelte/icons/list';
+	import Pencil from '@lucide/svelte/icons/pencil';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
-	import Star from '@lucide/svelte/icons/star';
 	import Trash from '@lucide/svelte/icons/trash';
 	// -- COMPONENTS -- //
 	import FolderTree from '#lib/board/notes/FolderTree.svelte';
 	import MoveDialog from '#lib/board/notes/MoveDialog.svelte';
 	import NameDialog from '#lib/board/notes/NameDialog.svelte';
+	import NoteCard from '#lib/board/notes/NoteCard.svelte';
+	import NoteRow from '#lib/board/notes/NoteRow.svelte';
 	import ActionMenu from '#lib/ui/ActionMenu.svelte';
-	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import PermissionDenied from '#lib/ui/PermissionDenied.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
+	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 
 	// -- REQUIRED PROPS -- //
@@ -46,10 +53,10 @@
 
 	// -- TYPES -- //
 
-	type NoteRow = PageProps['data']['notes'][number];
+	type NoteRowData = PageProps['data']['notes'][number];
 	/** The dialog that is open. Its data is kept while it closes, so the words do not flash blank. */
 	type Naming = { kind: 'note' } | { kind: 'folder' } | { kind: 'rename'; folder: Folder };
-	type Moving = { kind: 'note'; note: NoteRow } | { kind: 'folder'; folder: Folder };
+	type Moving = { kind: 'note'; note: NoteRowData } | { kind: 'folder'; folder: Folder };
 
 	// -- CONSTANTS -- //
 
@@ -86,6 +93,22 @@
 				: 'All notes'
 	);
 	const folderNameOf = $derived(new Map(folders.map((f) => [f.id, f.path])));
+	const layout = $derived(readNotesLayout(page.url.searchParams));
+	// A search is one list; every other view is grouped by when the notes changed
+	const groups = $derived(view.q ? [{ label: '', notes: data.notes }] : groupByWhen(data.notes));
+	const count = $derived(
+		view.q
+			? data.notes.length
+			: view.view === 'favourites'
+				? data.favourites
+				: view.view === 'folder'
+					? (here?.notes ?? data.notes.length)
+					: data.total
+	);
+	const context = $derived(
+		`${data.total} ${data.total === 1 ? 'note' : 'notes'} in ${folders.length} ${folders.length === 1 ? 'folder' : 'folders'}. Ideas, research and how things work, outside any one plan. Your coding tools can read them.`
+	);
+	const folderMenu = $derived<MenuItem[]>(here ? folderMenuOf(here) : []);
 	const nameDialog = $derived(
 		naming.kind === 'note'
 			? {
@@ -115,28 +138,66 @@
 					}
 	);
 
+	// -- REACTIVE STATEMENTS -- //
+
+	// A link that changes the search (a tree row, Back) shows its words in the box, unless the person is typing
+	$effect(() => {
+		const fromAddress = view.q;
+		untrack(() => {
+			if (searchTimer === undefined && fromAddress !== q.trim()) q = fromAddress;
+		});
+	});
+
 	// -- FUNCTIONS -- //
 
-	const hrefFor = (target: string) => notesHref(base, target, target === active ? view.q : '');
+	const hrefFor = (target: string) =>
+		notesHref(base, target, target === active ? view.q : '', layout);
+	/** The folder a note sits in, shown in the views that hold more than one folder. */
+	const folderOf = (n: NoteRowData) =>
+		view.view !== 'folder' && n.folderId ? (folderNameOf.get(n.folderId) ?? '') : '';
+
+	/** The actions of the open folder, the same as its row in the tree. */
+	function folderMenuOf(f: Folder): MenuItem[] {
+		const items: MenuItem[] = [];
+		if (data.canWrite) {
+			items.push({
+				label: 'Rename',
+				icon: Pencil,
+				onselect: () => ask({ kind: 'rename', folder: f })
+			});
+			items.push({
+				label: 'Move to',
+				icon: FolderInput,
+				onselect: () => askMove({ kind: 'folder', folder: f })
+			});
+		}
+		if (data.canDelete)
+			items.push({
+				label: 'Move to the trash',
+				icon: Trash,
+				danger: true,
+				onselect: () => trashFolder(f)
+			});
+		return items;
+	}
 	const refresh = () => invalidate('afb:project');
 	const said = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
 
 	const typed = () => {
 		clearTimeout(searchTimer);
-		searchTimer = setTimeout(
-			() =>
-				void goto(notesHref(base, active, q), {
-					replace: true,
-					// Typing must not jump the page or lose the cursor
-					reset: false
-				}),
-			250
-		);
+		searchTimer = setTimeout(() => {
+			searchTimer = undefined;
+			void goto(notesHref(base, active, q, layout), {
+				replace: true,
+				// Typing must not jump the page or lose the cursor
+				reset: false
+			});
+		}, 250);
 	};
 
 	function clearSearch() {
 		q = '';
-		void goto(notesHref(base, active), { replace: true });
+		void goto(notesHref(base, active, '', layout), { replace: true });
 	}
 
 	function ask(what: Naming) {
@@ -239,7 +300,7 @@
 		}
 	}
 
-	async function trashNote(n: NoteRow) {
+	async function trashNote(n: NoteRowData) {
 		const ok = await askConfirm({
 			title: `Move "${n.title}" to the trash?`,
 			body: 'It is hidden for everyone who could see it, and its public link stops. It can be restored from the Trash for 30 days.',
@@ -256,7 +317,7 @@
 		}
 	}
 
-	async function star(n: NoteRow) {
+	async function star(n: NoteRowData) {
 		try {
 			await api(org, `/projects/${key}/notes/${n.ref}/favourite`, {
 				method: 'PUT',
@@ -268,7 +329,7 @@
 		}
 	}
 
-	function menuOf(n: NoteRow): MenuItem[] {
+	function menuOf(n: NoteRowData): MenuItem[] {
 		const items: MenuItem[] = [];
 		if (data.canWrite)
 			items.push({
@@ -295,6 +356,7 @@
 		{active}
 		{hrefFor}
 		total={data.total}
+		favourites={data.favourites}
 		canWrite={data.canWrite}
 		canDelete={data.canDelete}
 		onrename={(folder) => ask({ kind: 'rename', folder })}
@@ -302,24 +364,15 @@
 		ontrash={trashFolder}
 		ondropped={dropped}
 		onpick={pick}
+		onnewfolder={() => {
+			pick?.();
+			ask({ kind: 'folder' });
+		}}
 	/>
-	{#if data.canWrite}
-		<Button
-			class="mt-2 h-12 w-full justify-start max-md:h-14 max-sm:h-14"
-			onclick={() => ask({ kind: 'folder' })}
-			data-testid="new-folder"
-		>
-			<FolderPlus size={16} /> New folder
-		</Button>
-	{/if}
 {/snippet}
 
 <PageFrame class="flex flex-col gap-4 pb-12">
-	<PageHeader
-		class="mb-2!"
-		title="Notes"
-		context={`${data.total} ${data.total === 1 ? 'note' : 'notes'}. What belongs to no single plan: how things work, ideas, research. Your coding tools can read them.`}
-	>
+	<PageHeader class="mb-2!" title="Notes" {context}>
 		{#snippet actions()}
 			{#if data.canWrite}
 				<Button variant="primary" onclick={() => ask({ kind: 'note' })} data-testid="new-note">
@@ -332,48 +385,95 @@
 	{#if data.denied}
 		<PermissionDenied needed={data.denied.needed} current={data.denied.role} what="the notes" />
 	{:else}
-		<!-- THE TREE BESIDE THE LIST, WITH THE GRID OF THE SETTINGS PAGES. BELOW md THE TREE OPENS FROM THE FOLDERS BUTTON -->
-		<div class="grid gap-6 md:grid-cols-[240px_minmax(0,1fr)] md:gap-10">
+		<!-- THE TREE CARD BESIDE THE LIST FROM lg (256, THE SIDEBAR'S OPEN WIDTH). BELOW lg THE TREE OPENS FROM THE FOLDERS BUTTON -->
+		<div class="grid gap-6 lg:grid-cols-[256px_minmax(0,1fr)]">
 			<aside
-				class="min-w-0 max-md:hidden md:sticky md:top-24 md:self-start"
+				class="min-w-0 max-lg:hidden lg:sticky lg:top-[73px] lg:max-h-[calc(100dvh-89px)] lg:self-start lg:overflow-y-auto"
 				data-testid="notes-tree"
 			>
 				{@render tree()}
 			</aside>
 
 			<section class="flex min-w-0 flex-col gap-4" aria-label={heading}>
-				<!-- ONE TOOLBAR CARD, AS ON THE TASKS AND MOCKUPS PAGES -->
+				<!-- ONE TOOLBAR CARD, AS ON THE TASKS AND MOCKUPS PAGES: FOLDERS, SEARCH AND THE LIST OR CARDS SWITCH -->
 				<div
 					class="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface p-2.5"
 				>
-					<Button class="md:hidden" onclick={() => (drawer = true)} data-testid="folders-button">
-						<FolderTreeIcon size={16} /> Folders
+					<Button
+						class="max-sm:w-11 max-sm:px-0 lg:hidden"
+						onclick={() => (drawer = true)}
+						aria-label="Folders"
+						data-testid="folders-button"
+					>
+						<FolderTreeIcon size={16} /><span class="max-sm:sr-only">Folders</span>
 					</Button>
-					<div class="min-w-56 flex-1 sm:max-w-80">
+					<div class="min-w-40 flex-1 sm:max-w-80">
 						<TextField
 							label="Search notes"
 							icon={Search}
 							hideLabel
-							placeholder="Search titles and text"
+							placeholder="Search notes"
 							type="search"
 							bind:value={q}
 							oninput={typed}
 							data-testid="notes-q"
 						/>
 					</div>
+					<span class="ml-auto flex items-center">
+						<SegmentedControl
+							label="View"
+							value={layout}
+							compactOnPhone
+							options={[
+								{ value: 'list', label: 'List', icon: List },
+								{ value: 'cards', label: 'Cards', icon: LayoutGrid }
+							]}
+							onchange={(v) =>
+								void goto(notesHref(base, active, view.q, v === 'cards' ? 'cards' : 'list'), {
+									replace: true,
+									reset: false
+								})}
+						/>
+					</span>
 				</div>
 
-				<div class="flex min-w-0 flex-col gap-0.5">
-					<!-- A folder deep in the tree shows the way to it as words -->
-					{#if trail.length > 1}
-						<p class="truncate text-xs text-muted">
-							{trail
-								.slice(0, -1)
-								.map((c) => c.name)
-								.join(' / ')}
-						</p>
+				<!-- THE HEADING ROW: THE WAY TO THE FOLDER AS LINKS, ITS NAME AND COUNT, AND ITS ACTIONS -->
+				<div class="flex min-h-10 min-w-0 items-end justify-between gap-3">
+					<div class="flex min-w-0 flex-col">
+						{#if view.view === 'folder' && here}
+							<nav
+								aria-label="Folder path"
+								class="flex min-w-0 items-center gap-1 text-xs text-muted"
+							>
+								<a
+									href={hrefFor('all')}
+									class="shrink-0 cursor-pointer hover:text-ink hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+									>Notes</a
+								>
+								<span aria-hidden="true">/</span>
+								{#each trail.slice(0, -1) as c (c.id)}
+									<a
+										href={hrefFor(c.id)}
+										class="max-w-48 cursor-pointer truncate hover:text-ink hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+										>{c.name}</a
+									>
+									<span aria-hidden="true">/</span>
+								{/each}
+							</nav>
+						{/if}
+						<h2
+							class="flex min-w-0 items-baseline gap-2 text-lg leading-7 font-semibold text-ink"
+							data-testid="notes-heading"
+						>
+							<span class="truncate">{heading}</span>
+							<span class="shrink-0 font-sans text-sm font-normal text-muted tabular-nums"
+								>{count}</span
+							>
+						</h2>
+					</div>
+					{#if here && folderMenu.length}
+						<ActionMenu items={folderMenu} label={`Actions for ${here.name}`} />
 					{/if}
-					<h2 class="truncate text-lg leading-7 font-semibold text-ink">{heading}</h2>
 				</div>
 
 				{#if data.notes.length === 0}
@@ -392,60 +492,56 @@
 							{/snippet}
 						</EmptyState>
 					</div>
-				{:else}
-					<ul
-						class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
-						data-testid="note-list"
+				{:else if layout === 'cards'}
+					<!-- CARDS, ON THE MOCKUPS PAGE GRID -->
+					<div
+						class="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3"
+						data-testid="note-cards"
 					>
 						{#each data.notes as n (n.id)}
-							{@const menu = menuOf(n)}
-							<li
-								class="flex min-h-14 items-center gap-x-3 border-b border-line px-4 py-2 last:border-b-0"
-								data-row
-								data-testid="note"
-								draggable={data.canWrite}
-								ondragstart={(e) => e.dataTransfer?.setData(NOTE_TYPE, n.ref)}
-							>
-								<a
-									href={`${base}/notes/${n.ref}`}
-									class="flex min-h-11 min-w-0 flex-1 cursor-pointer flex-col justify-center focus-visible:outline-2 focus-visible:outline-accent"
-								>
-									<span class="flex min-w-0 items-center gap-2">
-										<span class="truncate text-sm font-medium text-ink hover:underline"
-											>{n.title}</span
-										>
-										{#if n.private}
-											<Badge><Lock size={12} /> Private</Badge>
-										{/if}
-									</span>
-									<span class="truncate text-xs text-muted">
-										<span class="font-mono">{n.ref}</span>
-										{#if view.view !== 'folder' && n.folderId}
-											· {folderNameOf.get(n.folderId) ?? ''}
-										{/if}
-										{#if n.preview.trim()}
-											· {n.preview.replace(/\s+/g, ' ').trim()}
-										{/if}
-									</span>
-								</a>
-								<span class="w-20 shrink-0 text-right text-xs text-muted tabular-nums max-sm:hidden"
-									>{ago(n.updatedAt)}</span
-								>
-								<button
-									type="button"
-									aria-label={n.favourite ? `Remove the star from ${n.title}` : `Star ${n.title}`}
-									aria-pressed={n.favourite}
-									onclick={() => star(n)}
-									class="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-lg text-muted hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-accent max-md:size-11"
-								>
-									<Star size={18} class={cn(n.favourite && 'fill-current text-warning')} />
-								</button>
-								{#if menu.length}
-									<ActionMenu items={menu} label={`Actions for ${n.title}`} size="sm" />
-								{/if}
-							</li>
+							<NoteCard
+								note={n}
+								href={`${base}/notes/${n.ref}`}
+								folder={folderOf(n)}
+								onstar={() => star(n)}
+							/>
 						{/each}
-					</ul>
+					</div>
+				{:else}
+					<!-- ONE LIST CARD. A SEARCH IS ONE LIST; OTHERWISE THE ROWS ARE GROUPED BY WHEN THEY CHANGED -->
+					<div
+						class="overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--elev-1)]"
+						data-testid="note-list"
+					>
+						{#each groups as g, i (g.label)}
+							<section aria-labelledby={g.label === '' ? undefined : `notes-group-${i}`}>
+								{#if g.label}
+									<h3
+										id={`notes-group-${i}`}
+										class={cn(
+											'border-b border-line bg-raised/50 px-4 py-1.5 text-xs font-medium text-muted max-sm:px-3.5',
+											i > 0 && 'border-t'
+										)}
+									>
+										{g.label}
+									</h3>
+								{/if}
+								<ul>
+									{#each g.notes as n (n.id)}
+										<NoteRow
+											note={n}
+											href={`${base}/notes/${n.ref}`}
+											folder={folderOf(n)}
+											menu={menuOf(n)}
+											onstar={() => star(n)}
+											draggable={data.canWrite}
+											ondragstart={(e) => e.dataTransfer?.setData(NOTE_TYPE, n.ref)}
+										/>
+									{/each}
+								</ul>
+							</section>
+						{/each}
+					</div>
 					{#if data.more}
 						<p class="text-sm text-muted">
 							Only the 200 newest are shown. Search, or open a folder, to see the rest.

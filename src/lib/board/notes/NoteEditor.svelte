@@ -465,14 +465,14 @@
 
 <div class="flex flex-col gap-2">
 	<div
-		class="overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--elev-1)] focus-within:border-accent"
+		class="overflow-clip rounded-xl border border-line bg-surface shadow-[var(--elev-1)] focus-within:border-accent"
 		data-testid="note-editor"
 	>
-		<!-- TOOLBAR. A SIDEWAYS ROW ON A PHONE, GROUPS SEPARATED BY A GAP -->
+		<!-- TOOLBAR. A SIDEWAYS ROW ON A PHONE, GROUPS SEPARATED BY A GAP. IT STAYS UNDER THE TOP BAR (65, 57 ON A PHONE) WHILE A LONG NOTE SCROLLS; THE CARD CLIPS INSTEAD OF HIDING SO THE STICKY WORKS -->
 		<div
 			role="toolbar"
 			aria-label="Formatting"
-			class="flex [scrollbar-width:none]! items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-line bg-raised px-2 max-md:h-11 md:h-10 [&::-webkit-scrollbar]:hidden"
+			class="sticky top-[65px] z-10 flex [scrollbar-width:none]! items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain border-b border-line bg-raised px-2 max-md:top-[57px] max-md:h-11 md:h-10 [&::-webkit-scrollbar]:hidden"
 		>
 			{#each TOOLS as tool, i (tool.id)}
 				{@const s = stateOf(tool)}
@@ -523,7 +523,7 @@
 		{/if}
 
 		<!-- THE EDITOR. THE LIBRARY MOUNTS ITS OWN ROOT, A .md, INSIDE THIS BOX -->
-		<div bind:this={host} class="p-5 max-sm:p-4"></div>
+		<div bind:this={host} class="px-8 py-6 max-sm:p-4"></div>
 	</div>
 
 	<!-- THE PICTURE PICKER OF THE TOOLBAR AND THE SLASH MENU -->

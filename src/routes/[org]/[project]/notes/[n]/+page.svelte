@@ -39,10 +39,13 @@
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
+	import Check from '@lucide/svelte/icons/check';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
+	import CloudOff from '@lucide/svelte/icons/cloud-off';
 	import FileClock from '@lucide/svelte/icons/file-clock';
 	import FolderInput from '@lucide/svelte/icons/folder-input';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import Lock from '@lucide/svelte/icons/lock';
 	import Share2 from '@lucide/svelte/icons/share-2';
 	import Star from '@lucide/svelte/icons/star';
@@ -51,9 +54,12 @@
 	import ContinueDialog from '#lib/board/ContinueDialog.svelte';
 	import LinksPanel from '#lib/board/notes/LinksPanel.svelte';
 	import MoveDialog from '#lib/board/notes/MoveDialog.svelte';
+	import NoteDetails from '#lib/board/notes/NoteDetails.svelte';
 	import NoteEditorSkeleton from '#lib/board/notes/NoteEditorSkeleton.svelte';
 	import NoteHistoryDrawer from '#lib/board/notes/NoteHistoryDrawer.svelte';
+	import NoteOutline from '#lib/board/notes/NoteOutline.svelte';
 	import NoteShareDrawer from '#lib/board/notes/NoteShareDrawer.svelte';
+	import NoteSiblings from '#lib/board/notes/NoteSiblings.svelte';
 	import PresenceStack from '#lib/board/notes/PresenceStack.svelte';
 	import ActionMenu from '#lib/ui/ActionMenu.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
@@ -64,8 +70,6 @@
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import PermissionDenied from '#lib/ui/PermissionDenied.svelte';
-	import Switch from '#lib/ui/Switch.svelte';
-	import TextField from '#lib/ui/TextField.svelte';
 
 	// -- REQUIRED PROPS -- //
 
@@ -106,6 +110,8 @@
 	let titleTimer: ReturnType<typeof setTimeout> | undefined;
 	let titleSent = '';
 	let titlePath = '';
+	/** The box that holds the text, for the On this page outline. */
+	let docBox = $state<HTMLElement>();
 	let editorLoad = $state.raw<Promise<typeof import('#lib/board/notes/NoteEditor.svelte')> | null>(
 		null
 	);
@@ -123,6 +129,29 @@
 		note
 			? `${note.ref} · ${data.author ? `by ${data.author}, ` : ''}changed ${ago(note.updatedAt)}`
 			: ''
+	);
+	const folderLink = $derived.by(() => {
+		const f = note?.folderId ? folders.find((x) => x.id === note.folderId) : undefined;
+		return f ? { name: f.path, href: notesHref(base, f.id) } : null;
+	});
+	/** The save state in a word or two for the header; the full words stay in liveLine. */
+	const saveShort = $derived(
+		liveStatus === 'saved'
+			? 'Saved'
+			: liveStatus === 'pending' || liveStatus === 'saving'
+				? 'Saving...'
+				: liveStatus === 'offline'
+					? 'Offline'
+					: liveStatus === 'error'
+						? 'Retrying'
+						: 'Not saved'
+	);
+	const saveTone = $derived(
+		liveStatus === 'offline' || liveStatus === 'error'
+			? 'warning'
+			: liveStatus === 'full' || liveStatus === 'toolarge' || liveStatus === 'stopped'
+				? 'danger'
+				: 'muted'
 	);
 
 	/** What the page data says about the text, for a person who can write. Null for a reader or a note that is gone. */
@@ -472,19 +501,79 @@
 			</EmptyState>
 		</div>
 	{:else}
-		<!-- NO PRIMARY BUTTON ON A NOTE PAGE. THE STAR, THE PRIVATE SWITCH AND THE MENU ARE PLAIN CONTROLS -->
-		<PageHeader
-			class="mb-2!"
-			title={note.title}
-			{context}
-			back={{ href: notesHref(base, note.folderId ?? 'all'), label: 'Back to Notes' }}
-		>
+		<!-- NO PRIMARY BUTTON ON A NOTE PAGE. THE STAR, THE SAVE STATE AND THE MENU ARE PLAIN CONTROLS -->
+		<!-- THE FOLDER TRAIL TAKES THE BACK LINE, AND A PERSON WHO CAN WRITE EDITS THE TITLE IN PLACE IN THE BAND (AFB-20261111-0805) -->
+		<PageHeader class="mb-2!" title={note.title} {context}>
+			{#snippet crumbs()}
+				<nav aria-label="Folder" class="flex min-w-0 flex-wrap items-center gap-1">
+					<a
+						href={notesHref(base, 'all')}
+						class="cursor-pointer text-accent-text hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+						>Notes</a
+					>
+					{#each trail as c (c.id)}
+						<span class="text-muted" aria-hidden="true">/</span>
+						<a
+							href={notesHref(base, c.id)}
+							class="max-w-48 cursor-pointer truncate text-accent-text hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+							>{c.name}</a
+						>
+					{/each}
+				</nav>
+			{/snippet}
+			{#snippet heading()}
+				{#if data.canWrite && session}
+					<input
+						aria-label="Title"
+						bind:value={titleDraft}
+						maxlength={200}
+						oninput={titleTyped}
+						onblur={() => {
+							// An emptied title is never saved, so leaving the field shows the saved one again
+							if (!titleDraft.trim()) titleDraft = titleSent;
+						}}
+						data-testid="note-title"
+						class="-mx-2 block w-[calc(100%+1rem)] min-w-0 rounded-lg border border-transparent bg-transparent px-2 font-semibold tracking-tight text-ink transition-[border-color,box-shadow] duration-150 hover:border-line focus-visible:border-accent focus-visible:ring-4 focus-visible:ring-accent-soft focus-visible:outline-none motion-reduce:transition-none"
+					/>
+				{:else}
+					{note.title}
+				{/if}
+			{/snippet}
 			{#snippet actions()}
 				<div class="flex items-center gap-1">
 					<!-- WHO ELSE HAS THE NOTE OPEN. ONLY A WINDOW THAT EDITS LIVE HAS ANY -->
-					<PresenceStack {peers} />
+					<span class="mr-1 empty:hidden"><PresenceStack {peers} /></span>
 					{#if note.private}
 						<Badge><Lock size={12} /> Private</Badge>
+					{/if}
+					{#if data.canWrite && session && live}
+						<!-- THE SAVE STATE, SHORT HERE; THE FULL WORDS ARE READ OUT AND SHOWN ON HOVER -->
+						<p
+							role="status"
+							aria-live="polite"
+							title={liveLine(liveStatus)}
+							data-testid="note-save-line"
+							class={cn(
+								'inline-flex h-10 items-center gap-1.5 px-2 text-sm max-sm:h-11',
+								saveTone === 'danger'
+									? 'text-danger'
+									: saveTone === 'warning'
+										? 'text-warning'
+										: 'text-muted'
+							)}
+						>
+							{#if liveStatus === 'pending' || liveStatus === 'saving'}
+								<LoaderCircle size={16} class="animate-spin motion-reduce:animate-none" />
+							{:else if liveStatus === 'saved'}
+								<Check size={16} />
+							{:else}
+								<CloudOff size={16} />
+							{/if}
+							<span>{saveShort}</span>
+							{#if saveShort !== liveLine(liveStatus)}
+								<span class="sr-only">: {liveLine(liveStatus)}</span>
+							{/if}
+						</p>
 					{/if}
 					<button
 						type="button"
@@ -503,140 +592,129 @@
 			{/snippet}
 		</PageHeader>
 
-		<!-- THE FOLDER THE NOTE LIVES IN, AS LINKS BACK UP THE TREE -->
-		<nav aria-label="Folder" class="flex min-w-0 flex-wrap items-center gap-1 text-sm text-muted">
-			<a href={notesHref(base, 'all')} class="cursor-pointer text-accent-text hover:underline"
-				>Notes</a
-			>
-			{#each trail as c (c.id)}
-				<span aria-hidden="true">/</span>
-				<a
-					href={notesHref(base, c.id)}
-					class="max-w-48 cursor-pointer truncate text-accent-text hover:underline">{c.name}</a
-				>
-			{/each}
-		</nav>
+		<!-- FROM 2xl: IN THIS FOLDER, THE DOCUMENT AND THE SIDE COLUMN. FROM lg: THE DOCUMENT AND THE SIDE COLUMN. BELOW: ONE COLUMN -->
+		<div
+			class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_256px] 2xl:grid-cols-[256px_minmax(0,1fr)_256px]"
+		>
+			<NoteSiblings
+				folder={folders.find((f) => f.id === note.folderId)?.name ?? null}
+				notes={data.siblings}
+				count={folders.find((f) => f.id === note.folderId)?.notes}
+				current={note.ref}
+				{base}
+				allHref={notesHref(base, 'all')}
+			/>
 
-		{#if data.mine && data.canWrite}
-			<div class="rounded-xl border border-line bg-surface px-4 shadow-[var(--elev-1)]">
-				<Switch
-					label="Only me"
-					hint="Nobody else on the project can see or find this note."
-					checked={note.private}
-					disabled={busy}
-					onchange={setPrivate}
-				/>
-			</div>
-		{/if}
-
-		{#if data.canWrite}
-			<!-- A PERSON WHO CAN WRITE EDITS IN PLACE. THE EDITOR CODE LOADS ON DEMAND BEHIND A SKELETON OF ITS REAL SIZE -->
-			{#if session}
-				<!-- THE EDITOR SENDS ITS CHANGES ITSELF. COMING BACK ONLINE SENDS WHAT WAS KEPT AND READS WHAT WAS MISSED -->
-				<OfflineBanner onreconnect={() => live?.provider.reconnect()} />
-				<TextField
-					label="Title"
-					bind:value={titleDraft}
-					maxlength={200}
-					oninput={titleTyped}
-					data-testid="note-title"
-				/>
-				{#if replaced}
-					<!-- THE TEXT WAS CHANGED FROM OUTSIDE THE EDITOR. WHAT THE PERSON HAD ON SCREEN IS KEPT HERE UNTIL THEY LEAVE -->
-					<Notice tone="warning" data-testid="note-replaced">
-						<p class="font-medium">{replaced.by} changed the text of this note.</p>
-						<p class="mt-1">
-							The editor now shows the new text. The text saved before it is in History, and what
-							you had on screen can be copied.
-						</p>
-						<div class="mt-2 flex flex-wrap gap-2">
-							<Button size="sm" variant="secondary" onclick={() => (historyOpen = true)}
-								>Open History</Button
-							>
-							<Button size="sm" variant="secondary" onclick={copyMine}>Copy my text</Button>
-							<Button size="sm" variant="ghost" onclick={() => (replaced = null)}>Dismiss</Button>
-						</div>
-					</Notice>
-				{/if}
-				{#if live}
-					{#key live.id}
-						{#if editorLoad}
-							{#await editorLoad}
-								<NoteEditorSkeleton />
-							{:then loaded}
-								<loaded.default
-									ydoc={live.ydoc}
-									provider={live.provider.live}
-									user={{ name: me.name, color: CARET_COLOUR }}
-									locked={liveStatus === 'full' || liveStatus === 'toolarge'}
-									{org}
-									project={key}
-									note={note.ref}
-								/>
-							{:catch}
-								<Notice tone="danger"
-									>The editor could not be loaded. Reload the page to try again.</Notice
-								>
-							{/await}
+			<div bind:this={docBox} class="flex min-w-0 flex-col gap-4">
+				{#if data.canWrite}
+					<!-- A PERSON WHO CAN WRITE EDITS IN PLACE. THE EDITOR CODE LOADS ON DEMAND BEHIND A SKELETON OF ITS REAL SIZE -->
+					{#if session}
+						<!-- THE EDITOR SENDS ITS CHANGES ITSELF. COMING BACK ONLINE SENDS WHAT WAS KEPT AND READS WHAT WAS MISSED -->
+						<OfflineBanner onreconnect={() => live?.provider.reconnect()} />
+						{#if replaced}
+							<!-- THE TEXT WAS CHANGED FROM OUTSIDE THE EDITOR. WHAT THE PERSON HAD ON SCREEN IS KEPT HERE UNTIL THEY LEAVE -->
+							<Notice tone="warning" data-testid="note-replaced">
+								<p class="font-medium">{replaced.by} changed the text of this note.</p>
+								<p class="mt-1">
+									The editor now shows the new text. The text saved before it is in History, and
+									what you had on screen can be copied.
+								</p>
+								<div class="mt-2 flex flex-wrap gap-2">
+									<Button size="sm" variant="secondary" onclick={() => (historyOpen = true)}
+										>Open History</Button
+									>
+									<Button size="sm" variant="secondary" onclick={copyMine}>Copy my text</Button>
+									<Button size="sm" variant="ghost" onclick={() => (replaced = null)}
+										>Dismiss</Button
+									>
+								</div>
+							</Notice>
+						{/if}
+						{#if live}
+							{#key live.id}
+								{#if editorLoad}
+									{#await editorLoad}
+										<NoteEditorSkeleton />
+									{:then loaded}
+										<loaded.default
+											ydoc={live.ydoc}
+											provider={live.provider.live}
+											user={{ name: me.name, color: CARET_COLOUR }}
+											locked={liveStatus === 'full' || liveStatus === 'toolarge'}
+											{org}
+											project={key}
+											note={note.ref}
+										/>
+									{:catch}
+										<Notice tone="danger"
+											>The editor could not be loaded. Reload the page to try again.</Notice
+										>
+									{/await}
+								{:else}
+									<NoteEditorSkeleton />
+								{/if}
+							{/key}
+							{#if liveStatus === 'full' || liveStatus === 'toolarge'}
+								<Notice tone="danger" data-testid="note-full">{liveLine(liveStatus)}.</Notice>
+							{/if}
+						{:else if openError}
+							<Notice tone="danger" data-testid="note-open-error">
+								<p>{openError}</p>
+								<div class="mt-2">
+									<Button size="sm" variant="secondary" onclick={retryOpen}>Try again</Button>
+								</div>
+							</Notice>
 						{:else}
 							<NoteEditorSkeleton />
 						{/if}
-					{/key}
-					{#if liveStatus === 'full' || liveStatus === 'toolarge'}
-						<Notice tone="danger" data-testid="note-full">{liveLine(liveStatus)}.</Notice>
+					{:else}
+						<NoteEditorSkeleton />
 					{/if}
-					<p
-						role="status"
-						aria-live="polite"
-						data-testid="note-save-line"
-						class={cn(
-							'text-sm',
-							liveStatus === 'error' || liveStatus === 'full' || liveStatus === 'toolarge'
-								? 'text-danger'
-								: 'text-muted'
-						)}
+				{:else}
+					<article
+						class="rounded-xl border border-line bg-surface px-8 py-6 shadow-[var(--elev-1)] max-sm:p-4"
+						data-testid="note-body"
 					>
-						{liveLine(liveStatus)}
-					</p>
-				{:else if openError}
-					<Notice tone="danger" data-testid="note-open-error">
-						<p>{openError}</p>
-						<div class="mt-2">
-							<Button size="sm" variant="secondary" onclick={retryOpen}>Try again</Button>
-						</div>
-					</Notice>
-				{:else}
-					<NoteEditorSkeleton />
+						{#if data.empty}
+							<p class="text-sm text-muted">This note has no text yet.</p>
+						{:else}
+							<!-- THE BODY IS MARKDOWN, SANITISED ON THE SERVER -->
+							<div class="md flex flex-col gap-2 text-sm text-ink">
+								<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised Markdown from the server -->
+								{@html data.html}
+							</div>
+						{/if}
+					</article>
 				{/if}
-			{:else}
-				<NoteEditorSkeleton />
-			{/if}
-		{:else}
-			<article
-				class="rounded-xl border border-line bg-surface p-5 shadow-[var(--elev-1)] max-sm:p-4"
-				data-testid="note-body"
-			>
-				{#if data.empty}
-					<p class="text-sm text-muted">This note has no text yet.</p>
-				{:else}
-					<!-- THE BODY IS MARKDOWN, SANITISED ON THE SERVER -->
-					<div class="md flex flex-col gap-2 text-sm text-ink">
-						<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised Markdown from the server -->
-						{@html data.html}
-					</div>
-				{/if}
-			</article>
-		{/if}
+			</div>
 
-		<!-- WHAT THE NOTE LINKS TO AND WHICH NOTES MENTION IT. A GUEST SEES NO NOTES, SO NO PANEL -->
-		<LinksPanel
-			{org}
-			project={key}
-			note={{ id: note.id, ref: note.ref }}
-			version={note.version}
-			role={data.summary?.role}
-			canWrite={data.canWrite}
-		/>
+			<!-- THE SIDE COLUMN: DETAILS, LINKS, AND ON THIS PAGE LAST SO IT CAN STICK WHILE THE TEXT SCROLLS -->
+			<aside class="flex min-w-0 flex-col gap-4 self-stretch" aria-label="About this note">
+				<NoteDetails
+					folder={folderLink}
+					author={data.author ? { id: data.authorId, name: data.author } : null}
+					createdAt={note.createdAt}
+					lastEditor={data.lastEditor}
+					updatedAt={note.updatedAt}
+					words={data.words}
+					canSwitch={data.mine && data.canWrite}
+					private={note.private}
+					{busy}
+					onprivate={setPrivate}
+				/>
+				<!-- WHAT THE NOTE LINKS TO AND WHICH NOTES MENTION IT. A GUEST SEES NO NOTES, SO NO PANEL -->
+				<LinksPanel
+					{org}
+					project={key}
+					note={{ id: note.id, ref: note.ref }}
+					version={note.version}
+					role={data.summary?.role}
+					canWrite={data.canWrite}
+				/>
+				<!-- A WRITER'S HEADINGS REST UNDER THE STICKY TOOLBAR TOO (65 + 40 + 8), A READER'S UNDER THE TOP BAR (65 + 16) -->
+				<NoteOutline root={docBox} line={data.canWrite ? 113 : 81} />
+			</aside>
+		</div>
 	{/if}
 </PageFrame>
 

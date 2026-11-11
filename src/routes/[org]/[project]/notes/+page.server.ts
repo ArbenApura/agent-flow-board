@@ -20,6 +20,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 	const none = {
 		folders: [],
 		total: 0,
+		favourites: 0,
 		notes: [],
 		more: false,
 		view: asked,
@@ -43,6 +44,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 		return {
 			folders: tree.folders,
 			total: tree.top + tree.folders.reduce((sum, f) => sum + f.notes, 0),
+			favourites: tree.favourites,
 			notes: list.notes.map((n) => ({
 				id: n.id,
 				ref: n.ref,
@@ -51,7 +53,9 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 				private: n.visibility === 'private',
 				mine: n.mine,
 				favourite: n.favourite,
-				preview: n.preview,
+				excerpt: n.excerpt,
+				match: n.match,
+				lastEditor: n.lastEditor,
 				updatedAt: n.updatedAt
 			})),
 			more: list.next !== null,

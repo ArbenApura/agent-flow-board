@@ -156,14 +156,21 @@
 						<h3 class="text-xs font-medium text-muted">{g.label}</h3>
 						<ul class="flex flex-col">
 							{#each g.links as l (`${l.kind}:${l.id}`)}
-								<li class="flex min-h-11 items-center gap-2">
+								<!-- A COMPACT ROW FOR THE SIDE COLUMN: THE TITLE ON TWO LINES, THEN THE REFERENCE AND WHERE THE LINK COMES FROM (AFB-20261111-0805) -->
+								<li class="flex min-h-11 items-start gap-2">
 									<a
 										href={linkHref(base, l)}
-										class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-ink hover:underline"
+										class="flex min-w-0 flex-1 cursor-pointer flex-col py-1.5 text-ink hover:underline"
 									>
-										<span class="min-w-0 truncate">{l.title}</span>
-										{#if l.ref}<span class="shrink-0 font-mono text-xs text-muted">{l.ref}</span
-											>{/if}
+										<span class="line-clamp-2">{l.title}</span>
+										{#if l.ref || !canRemove(l)}
+											<span class="text-xs text-muted">
+												{#if l.ref}<span class="font-mono">{l.ref}</span
+													>{/if}{#if l.ref && !canRemove(l)}
+													·
+												{/if}{#if !canRemove(l)}In the text{/if}
+											</span>
+										{/if}
 									</a>
 									{#if canWrite && canRemove(l)}
 										<button
@@ -175,8 +182,6 @@
 										>
 											<X size={16} />
 										</button>
-									{:else if !canRemove(l)}
-										<span class="shrink-0 text-xs text-muted">In the text</span>
 									{/if}
 								</li>
 							{/each}
@@ -188,13 +193,13 @@
 						<h3 class="text-xs font-medium text-muted">Mentioned by</h3>
 						<ul class="flex flex-col">
 							{#each loaded.mentionedBy as m (m.id)}
-								<li class="flex min-h-11 items-center">
+								<li class="flex min-h-11 items-start">
 									<a
 										href={noteHref(base, m)}
-										class="flex min-w-0 cursor-pointer items-center gap-2 text-ink hover:underline"
+										class="flex min-w-0 cursor-pointer flex-col py-1.5 text-ink hover:underline"
 									>
-										<span class="min-w-0 truncate">{m.title}</span>
-										<span class="shrink-0 font-mono text-xs text-muted">{m.ref}</span>
+										<span class="line-clamp-2">{m.title}</span>
+										<span class="font-mono text-xs text-muted">{m.ref}</span>
 									</a>
 								</li>
 							{/each}

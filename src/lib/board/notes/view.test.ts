@@ -1,7 +1,16 @@
 // -- DEP-MODULES -- //
 import { describe, expect, it } from 'vitest';
 // -- MODULES -- //
-import { activeOf, emptyNotes, notesHref, readNotesView } from './view';
+import {
+	activeOf,
+	emptyNotes,
+	groupByWhen,
+	markedParts,
+	notesHref,
+	readNotesLayout,
+	readNotesView,
+	whenGroup
+} from './view';
 
 // -- CONSTANTS -- //
 
@@ -55,5 +64,41 @@ describe('the view of the Notes page', () => {
 		expect(empty.title).toBe('Nothing in this folder');
 		expect(emptyNotes(read(`folder=${FOLDER}`), false, true)).toEqual(empty);
 		expect(emptyNotes(read(`folder=${FOLDER}`), true, false).create).toBe(false);
+	});
+});
+
+describe('the redesigned list (AFB-20261111-0805)', () => {
+	it('reads and writes the cards layout in the address, beside the view', () => {
+		expect(readNotesLayout(new URLSearchParams('layout=cards'))).toBe('cards');
+		expect(readNotesLayout(new URLSearchParams('layout=grid'))).toBe('list');
+		expect(notesHref('/o/P', 'favourites', '', 'cards')).toBe(
+			'/o/P/notes?view=favourites&layout=cards'
+		);
+		expect(notesHref('/o/P', 'all')).toBe('/o/P/notes');
+	});
+
+	it('groups notes by Today, This week and Earlier in their order', () => {
+		const now = new Date(2026, 10, 11, 15, 0);
+		const at = (d: number, h = 9) => ({ updatedAt: new Date(2026, 10, d, h) });
+		const groups = groupByWhen([at(11, 14), at(11, 1), at(9), at(5), at(1)], now);
+		expect(groups.map((g) => [g.label, g.notes.length])).toEqual([
+			['Today', 2],
+			['This week', 2],
+			['Earlier', 1]
+		]);
+		expect(whenGroup(new Date(2026, 10, 10, 23, 59), now)).toBe('This week');
+	});
+
+	it('cuts text into marked and plain parts, ignoring a broken range', () => {
+		expect(
+			markedParts('a tribulation b', [
+				[2, 13],
+				[5, 3]
+			])
+		).toEqual([
+			{ text: 'a ', mark: false },
+			{ text: 'tribulation', mark: true },
+			{ text: ' b', mark: false }
+		]);
 	});
 });

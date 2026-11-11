@@ -11,6 +11,8 @@
 		context,
 		actions,
 		back,
+		crumbs,
+		heading,
 		testid = 'page-title',
 		class: extra
 	}: {
@@ -20,6 +22,10 @@
 		/** The actions of the page, on the right. One primary at most. */
 		actions?: Snippet;
 		back?: { href: string; label: string };
+		/** Links in place of the back link, such as the folder a note sits in (AFB-20261111-0805). */
+		crumbs?: Snippet;
+		/** What goes inside the h1 in place of the plain title, such as a title edited in place. */
+		heading?: Snippet;
 		testid?: string;
 		class?: string;
 	} = $props();
@@ -48,13 +54,15 @@
 	</svg>
 	<!-- THE TITLE KEEPS 12 REM, SO ON A PHONE THE ACTIONS WRAP BELOW IT INSTEAD OF SQUEEZING IT TO ONE LETTER PER LINE -->
 	<div class="relative min-w-48 flex-1">
-		{#if back}
+		{#if crumbs}
+			<div class="mb-1 flex min-w-0 flex-wrap items-center gap-1 text-sm">{@render crumbs()}</div>
+		{:else if back}
 			<a href={back.href} class="mb-1 inline-block text-sm text-accent-text hover:underline"
 				>{back.label}</a
 			>
 		{/if}
 		<h1 class="text-xl font-semibold tracking-tight text-ink sm:text-2xl" data-testid={testid}>
-			{title}
+			{#if heading}{@render heading()}{:else}{title}{/if}
 		</h1>
 		{#if typeof context === 'string'}
 			<p class="mt-1 text-sm text-muted">{context}</p>
