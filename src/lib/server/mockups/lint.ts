@@ -2,6 +2,9 @@
 // It never blocks a save, never stores anything and never throws. A mockup runs sandboxed with no network, so a font, icon or
 // picture loaded by address silently becomes the system font or nothing. Each warning says what and what to do about it.
 
+// -- CONSTANTS -- //
+import { MAX_CONFIG_OPTIONS, MAX_CONFIG_SCREENS, MAX_CONFIG_VALUES } from '../../board/mockups';
+
 // -- TYPES -- //
 
 export type KitFacts = {
@@ -319,7 +322,10 @@ const decodeEntities = (v: string) =>
 
 type DeclaredConfig = {
 	screens: string[];
-	options: { key: string; label: string; screens: unknown }[];
+	/** How many screens and options were written, before any cut: the board keeps only the first few. */
+	screenTotal: number;
+	optionTotal: number;
+	options: { key: string; label: string; screens: unknown; valueCount: number }[];
 };
 
 /**
@@ -365,18 +371,24 @@ function declaredConfig(text: string): { config: DeclaredConfig; rest: string } 
 		if (Array.isArray(c.options))
 			for (const o of c.options.slice(0, 12)) {
 				if (!o || typeof o !== 'object') continue;
-				const r = o as { key?: unknown; label?: unknown; screens?: unknown };
+				const r = o as { key?: unknown; label?: unknown; screens?: unknown; values?: unknown };
 				// A key the board would refuse is not looked for in the page
 				if (typeof r.key !== 'string' || !KEY_SHAPE.test(r.key)) continue;
 				options.push({
 					key: r.key,
 					label: typeof r.label === 'string' ? r.label : r.key,
-					screens: r.screens
+					screens: r.screens,
+					valueCount: Array.isArray(r.values) ? r.values.length : 0
 				});
 			}
 		// The page without its own tag content, so the tag never counts as the page reacting to itself
 		return {
-			config: { screens, options },
+			config: {
+				screens,
+				screenTotal: Array.isArray(c.screens) ? c.screens.length : 0,
+				optionTotal: Array.isArray(c.options) ? c.options.length : 0,
+				options
+			},
 			rest: `${text.slice(0, tag.from)} ${text.slice(tag.to)}`
 		};
 	} catch {
@@ -417,6 +429,20 @@ function readConfigWarnings(text: string): string[] {
 	if (!found) return [];
 	const { config, rest } = found;
 	const out: string[] = [];
+	// The board draws only the first screens, options and values up to its limits, so anything past them can never be reached
+	if (config.screenTotal > MAX_CONFIG_SCREENS)
+		out.push(
+			`The page declares ${config.screenTotal} screens, and the board shows only the first ${MAX_CONFIG_SCREENS}, so the rest cannot be reached. Merge screens or split the mockup.`
+		);
+	if (config.optionTotal > MAX_CONFIG_OPTIONS)
+		out.push(
+			`The page declares ${config.optionTotal} options, and the board shows only the first ${MAX_CONFIG_OPTIONS}, so the rest cannot be reached. Merge options or scope them to screens.`
+		);
+	for (const o of config.options)
+		if (o.valueCount > MAX_CONFIG_VALUES)
+			out.push(
+				`The option "${clean(o.label, 32)}" has ${o.valueCount} values, and the board shows only the first ${MAX_CONFIG_VALUES}, so the rest cannot be reached. Split it into two options or drop the values the page reaches another way.`
+			);
 	const known = new Set(config.screens);
 	for (const o of config.options) {
 		if (!Array.isArray(o.screens)) continue;

@@ -55,7 +55,7 @@ function element(): Stub {
 function boot(
 	script: string,
 	meta: string | null,
-	opts: { afbSet?: () => void; restyle?: boolean; mutate?: boolean } = {}
+	opts: { afbSet?: () => void; restyle?: boolean } = {}
 ) {
 	const posts: Posted[] = [];
 	const handlers: Record<string, (e: unknown) => void> = {};
@@ -73,11 +73,17 @@ function boot(
 			meta !== null && s.includes('afb-config') ? { getAttribute: () => meta } : null,
 		addEventListener: () => undefined
 	};
+	// A browser hands the records of a mutation to the observer's callback and empties its queue, so takeRecords is empty by the time
+	// the script looks: a test delivers records through `deliver`, as the browser would
+	let delivered: ((records: unknown[]) => void) | null = null;
 	class Observer {
+		constructor(callback: (records: unknown[]) => void) {
+			delivered = callback;
+		}
 		observe() {}
 		disconnect() {}
 		takeRecords() {
-			return opts.mutate ? [{ type: 'childList', target: body, attributeName: null }] : [];
+			return [];
 		}
 	}
 	const sandbox: Record<string, unknown> = {
@@ -113,6 +119,9 @@ function boot(
 		root,
 		choose: (key: string, value: string) =>
 			handlers.message({ source: parent, data: { type: 'afb-set', key, value } }),
+		/** What the page changed, as the browser delivers it to the observer. */
+		deliver: (records: unknown[]) => delivered?.(records),
+		body,
 		flush: () => {
 			while (timers.length) timers.shift()?.();
 		}
@@ -185,10 +194,19 @@ describe.each(SCRIPTS)('%s: a choice that changes nothing', (_name, script) => {
 		expect(run.posts.some((p) => p.type === 'afb-unresponsive')).toBe(false);
 	});
 	it('stays quiet when the page changed its own markup', () => {
-		const run = boot(script, meta, { mutate: true });
+		const run = boot(script, meta);
 		run.choose('role', 'y');
+		// The page re-rendered its markup (a hook such as afbSet that builds the screen): the records come through the callback
+		run.deliver([{ type: 'childList', target: run.body, attributeName: null }]);
 		run.flush();
 		expect(run.posts.some((p) => p.type === 'afb-unresponsive')).toBe(false);
+	});
+	it('is not fooled by the attribute the board wrote itself', () => {
+		const run = boot(script, meta);
+		run.choose('role', 'y');
+		run.deliver([{ type: 'attributes', target: run.root, attributeName: 'data-role' }]);
+		run.flush();
+		expect(run.posts).toContainEqual({ type: 'afb-unresponsive', key: 'role', reason: 'none' });
 	});
 	it('names a hook of the page that threw, which was silent before', () => {
 		const run = boot(script, meta, {

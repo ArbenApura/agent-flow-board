@@ -86,18 +86,20 @@ function choose(key,value){
  var list=key==='screen'?cfg.screens:null;
  if(!list)cfg.options.forEach(function(o){if(o.key===key)list=o.values});
  if(!list||!has(list,value))return;
- var token=++probe,before='',failed=false,obs=null;
+ var token=++probe,before='',failed=false,obs=null,moved=false;
+ // The browser hands the records to this callback and empties its queue, so they are judged here as they arrive
+ function judge(records){records.forEach(function(m){if(!own(m,key))moved=true})}
  try{before=look()}catch(_){}
- try{obs=new MutationObserver(function(){});obs.observe(document.documentElement,{attributes:true,childList:true,subtree:true,characterData:true})}catch(_){}
+ try{obs=new MutationObserver(function(records){judge(records)});obs.observe(document.documentElement,{attributes:true,childList:true,subtree:true,characterData:true})}catch(_){}
  try{
   if(typeof window.afbSet==='function')window.afbSet(key,value);
   else document.documentElement.setAttribute('data-'+key,value)
  }catch(_){failed=true}
  again();
  setTimeout(function(){
-  var moved=false;
   if(obs){
-   try{obs.takeRecords().forEach(function(m){if(!own(m,key))moved=true})}catch(_){}
+   // Whatever has not been delivered yet is judged too
+   try{judge(obs.takeRecords())}catch(_){}
    obs.disconnect()
   }
   if(token!==probe)return;

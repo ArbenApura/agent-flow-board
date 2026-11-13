@@ -302,6 +302,28 @@ describe('the options and screens a page declares', () => {
 		expect(() => lintMockupHtml(hostile)).not.toThrow();
 		expect(Date.now() - start).toBeLessThan(1500);
 	});
+	it('warns when the board will cut a list of screens, options or values, so the rest can never be reached', () => {
+		const many = (n: number) => Array.from({ length: n }, (_, i) => [`v${i}`, `V${i}`]);
+		const longOption = `{"key":"role","label":"Role","values":${JSON.stringify(many(14))}}`;
+		const w = lintMockupHtml(
+			page(`{"screens":${JSON.stringify(many(13))},"options":[${longOption}]}`, REACTS)
+		);
+		expect(w.some((x) => x.includes('13 screens') && x.includes('first 12'))).toBe(true);
+		expect(w.some((x) => x.includes('14 values') && x.includes('first 12'))).toBe(true);
+		const seven = Array.from({ length: 7 }, (_, i) => opt(`o${i}`)).join(',');
+		expect(
+			lintMockupHtml(page(`{"screens":[],"options":[${seven}]}`, REACTS)).some((x) =>
+				x.includes('7 options')
+			)
+		).toBe(true);
+		// At the limits nothing is said
+		const atLimit = `{"key":"role","label":"Role","values":${JSON.stringify(many(12))}}`;
+		expect(
+			lintMockupHtml(
+				page(`{"screens":${JSON.stringify(many(12))},"options":[${atLimit}]}`, REACTS)
+			).some((x) => x.includes('cannot be reached'))
+		).toBe(false);
+	});
 	it('keeps the other warnings of a page whose options hold keys the board would refuse', () => {
 		const w = lintMockupHtml(
 			page(
