@@ -6,8 +6,9 @@
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
 	// -- MODULES -- //
-	import { scrollFade } from '#lib/actions/scrollFade.js';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import { itemTabsFrom, parseItemTab } from '#lib/board/item/itemTabs.js';
+	import ItemTabs from '#lib/board/item/ItemTabs.svelte';
 	import { clearCache } from '#lib/board/swr.js';
 	import VisibilityPill from '#lib/board/item/VisibilityPill.svelte';
 	import ContinueDialog from '#lib/board/ContinueDialog.svelte';
@@ -46,7 +47,6 @@
 	import { cn } from '#lib/ui/cn.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
-	import Activity from '@lucide/svelte/icons/activity';
 	import Check from '@lucide/svelte/icons/check';
 	import CheckCheck from '@lucide/svelte/icons/check-check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
@@ -55,13 +55,6 @@
 	import MessageCircle from '@lucide/svelte/icons/message-circle';
 	import Play from '@lucide/svelte/icons/play';
 	import Target from '@lucide/svelte/icons/target';
-	import FileText from '@lucide/svelte/icons/file-text';
-	import Gavel from '@lucide/svelte/icons/gavel';
-	import ListChecks from '@lucide/svelte/icons/list-checks';
-	import MessagesSquare from '@lucide/svelte/icons/messages-square';
-	import MonitorCheck from '@lucide/svelte/icons/monitor-check';
-	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
-	import Paperclip from '@lucide/svelte/icons/paperclip';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash from '@lucide/svelte/icons/trash';
 
@@ -69,43 +62,8 @@
 
 	let { data }: PageProps = $props();
 
-	// -- CONSTANTS -- //
-
-	const TABS = [
-		'plan',
-		'decisions',
-		'docs',
-		'mockups',
-		'checks',
-		'activity',
-		'files',
-		'discussion'
-	] as const;
-	type Tab = (typeof TABS)[number];
-	const TAB_LABEL: Record<Tab, string> = {
-		plan: 'Plan',
-		decisions: 'Decisions',
-		docs: 'Documents',
-		mockups: 'Mockups',
-		checks: 'Checks',
-		activity: 'Activity',
-		files: 'Files',
-		discussion: 'Discussion'
-	};
-	const TAB_ICON = {
-		plan: ListChecks,
-		decisions: Gavel,
-		docs: FileText,
-		mockups: PanelsTopLeft,
-		checks: MonitorCheck,
-		activity: Activity,
-		files: Paperclip,
-		discussion: MessagesSquare
-	} as const;
-
 	// -- STATES -- //
 
-	let tabRow = $state<HTMLElement>();
 	let statusOpen = $state(false);
 	let continueOpen = $state(false);
 	let continueAction = $state<ContinueAction>('resume');
@@ -185,46 +143,20 @@
 		};
 	});
 	const org = $derived(page.params.org ?? '');
-	const tab = $derived<Tab>(
-		(TABS as readonly string[]).includes(page.url.searchParams.get('tab') ?? '')
-			? (page.url.searchParams.get('tab') as Tab)
-			: 'plan'
-	);
+	const tab = $derived(parseItemTab(page.url.searchParams.get('tab')));
 	const env = $derived<TabEnv>({
 		org,
 		canWrite: d?.caps.includes('write') ?? false,
 		canComment: d?.caps.includes('comment') ?? false,
 		onchanged: () => invalidate('afb:project')
 	});
-	const counts = $derived<Partial<Record<Tab, number>>>({
-		plan: d?.item.totalSteps ?? 0,
-		decisions: d?.decisions.length ?? 0,
-		docs: d?.sections.length ?? 0,
-		mockups: data.mockups?.list.length ?? 0
-	});
-
-	// -- REACTIVE STATEMENTS -- //
-
-	// The active tab slides to the middle of its row, with the row's own scroll so the page never moves
-	$effect(() => {
-		void tab;
-		const row = tabRow;
-		const current = row?.querySelector<HTMLElement>('[aria-current="page"]');
-		if (!row || !current || row.scrollWidth <= row.clientWidth) return;
-		const left =
-			current.getBoundingClientRect().left -
-			row.getBoundingClientRect().left +
-			row.scrollLeft -
-			(row.clientWidth - current.offsetWidth) / 2;
-		row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
-	});
+	// The tabs and their counts come from the same helper as the top bar's copy, so the two can never drift
+	const tabsView = $derived(itemTabsFrom(page.route.id, data, page.url.searchParams));
 
 	// -- FUNCTIONS -- //
 
 	// Sentence case for display: 'IN REVIEW' reads as 'In review'
 	const statusLabel = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
-
-	const tabHref = (t: Tab) => (t === 'plan' ? page.url.pathname : `${page.url.pathname}?tab=${t}`);
 
 	// Copies the item reference and shows a tick on the button for a moment
 	async function copyRef() {
@@ -626,50 +558,17 @@
 		<!-- A MATCHING STRIP UNDER THE BAR (AFTER:) KEEPS THE 8 PX BELOW IT CLEAN TOO, WHERE THE STICKY BLOCKS OF A TAB STOP (131 PX). BOTH STRIPS ARE 9 PX SO THEY ALSO COVER THE BAR'S 1 PX BORDER -->
 		<nav
 			aria-label="Item sections"
-			class="sticky top-[65px] z-20 rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-1)] before:pointer-events-none before:absolute before:inset-x-0 before:-top-[9px] before:h-[9px] before:bg-[var(--bg)] after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-[9px] after:h-[9px] after:bg-[var(--bg)] md:top-[73px]"
+			class="sticky top-[65px] z-20 rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-1)] before:pointer-events-none before:absolute before:inset-x-0 before:-top-[9px] before:h-[9px] before:bg-[var(--bg)] after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-[9px] after:h-[9px] after:bg-[var(--bg)] md:top-[73px] 2xl:hidden"
 		>
-			<!-- THE ROW SCROLLS SIDEWAYS ON A PHONE. A FADE OF THE SURFACE SHOWS AT THE EDGE WHERE IT CONTINUES -->
-			<div class="group/fade relative">
-				<div
-					bind:this={tabRow}
-					use:scrollFade
-					class="[scrollbar-width:none]! overflow-x-auto overflow-y-hidden overscroll-x-contain [&::-webkit-scrollbar]:hidden"
-				>
-					<ul class="flex min-w-max gap-1">
-						{#each TABS.filter((t) => t !== 'checks' || d.project.webApp) as t (t)}
-							{@const Icon = TAB_ICON[t]}
-							<li>
-								<a
-									href={tabHref(t)}
-									aria-current={tab === t ? 'page' : undefined}
-									data-testid={`tab-${t}`}
-									class="group flex min-h-10 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm whitespace-nowrap text-muted transition-colors hover:bg-raised/60 hover:text-ink aria-[current=page]:bg-raised aria-[current=page]:font-medium aria-[current=page]:text-ink motion-reduce:transition-none max-sm:min-h-11"
-								>
-									<Icon
-										size={16}
-										class="shrink-0 group-aria-[current=page]:text-accent"
-										aria-hidden="true"
-									/>
-									{TAB_LABEL[t]}
-									{#if (counts[t] ?? 0) > 0}<span
-											data-count
-											class="rounded-full bg-raised px-2 py-0.5 text-badge leading-none font-semibold text-muted tabular-nums group-aria-[current=page]:bg-surface group-aria-[current=page]:text-ink"
-											>{counts[t]}</span
-										>{/if}
-								</a>
-							</li>
-						{/each}
-					</ul>
-				</div>
-				<span
-					class="pointer-events-none absolute inset-y-0 left-0 w-6 rounded-l-lg bg-[linear-gradient(to_right,var(--surface),transparent)] opacity-0 transition-opacity group-data-[fade-start]/fade:opacity-100 motion-reduce:transition-none"
-					aria-hidden="true"
-				></span>
-				<span
-					class="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-[linear-gradient(to_left,var(--surface),transparent)] opacity-0 transition-opacity group-data-[fade-end]/fade:opacity-100 motion-reduce:transition-none"
-					aria-hidden="true"
-				></span>
-			</div>
+			<!-- FROM 1536 PX UP THIS CARD IS GONE (DISPLAY NONE): THE SAME TABS SIT IN THE TOP BAR OF THE LAYOUT, FROM THE SAME HELPER -->
+			{#if tabsView}
+				<ItemTabs
+					tabs={tabsView.tabs}
+					counts={tabsView.counts}
+					active={tabsView.active}
+					pathname={page.url.pathname}
+				/>
+			{/if}
 		</nav>
 
 		{#if tab === 'plan'}

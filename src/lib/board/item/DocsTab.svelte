@@ -28,8 +28,11 @@
 
 	// The line the sticky blocks stop at, in pixels from the top of the window: the tab bar ends at 123 and keeps 8 below it
 	const STICKY = 131;
+	// From 1536 px the tab bar is in the top bar and the card under it is gone, so the line is where the top bar ends (65) plus the same 8 (the 2xl: classes below say the same)
+	const STICKY_WIDE = 73;
+	const WIDE = '(min-width: 1536px)';
 	// A heading jumped to rests 8 px under that line (its scroll margin is the same 139 px), so it is the current one from there
-	const HEADING_LINE = STICKY + 8;
+	const HEADING_GAP = 8;
 
 	// -- STATES -- //
 
@@ -120,18 +123,19 @@
 
 	/** The last open card that starts above the sticky line is the current section, and the last heading above the line is the current heading. */
 	function measure() {
+		const line = matchMedia(WIDE).matches ? STICKY_WIDE : STICKY;
 		let section = '';
 		for (const s of detail.sections) {
 			if (collapsedBy[s.id]) continue;
 			const el = document.getElementById(`doc-${s.id}`);
 			if (!el) continue;
-			if (!section || el.getBoundingClientRect().top <= STICKY + 1) section = s.id;
+			if (!section || el.getBoundingClientRect().top <= line + 1) section = s.id;
 		}
 		currentSection = section;
 		const els = headingEls[section] ?? [];
 		let index = -1;
 		els.forEach((h, i) => {
-			if (h.getBoundingClientRect().top <= HEADING_LINE + 1) index = i;
+			if (h.getBoundingClientRect().top <= line + HEADING_GAP + 1) index = i;
 		});
 		// At the very bottom of a short page the last headings can never reach the line, so the last one counts
 		const bottom = innerHeight + scrollY >= document.documentElement.scrollHeight - 2;
@@ -324,7 +328,7 @@
 		{#if detail.sections.length > 1}
 			<nav
 				aria-label="Contents"
-				class="sticky top-[131px] hidden max-h-[calc(100dvh-147px)] overflow-y-auto rounded-xl border border-line bg-surface p-2 shadow-[var(--elev-1)] lg:block"
+				class="sticky top-[131px] hidden max-h-[calc(100dvh-147px)] overflow-y-auto rounded-xl border border-line bg-surface p-2 shadow-[var(--elev-1)] lg:block 2xl:top-[73px] 2xl:max-h-[calc(100dvh-89px)]"
 			>
 				<ul class="flex flex-col gap-0.5">
 					{#each detail.sections as s (s.id)}
@@ -355,7 +359,7 @@
 					bind:collapsed={() => collapsedBy[s.id] ?? false, (v) => (collapsedBy[s.id] = v)}
 					role="region"
 					aria-label={s.title}
-					class="scroll-mt-[131px]"
+					class="scroll-mt-[131px] 2xl:scroll-mt-[73px]"
 				>
 					{#snippet heading()}{s.title}{/snippet}
 					{#snippet actions()}
@@ -365,7 +369,9 @@
 							>
 						{/if}
 					{/snippet}
-					<div class="md p-4 max-sm:p-3.5 [&_:is(h2,h3)]:scroll-mt-[139px]">
+					<div
+						class="md p-4 max-sm:p-3.5 [&_:is(h2,h3)]:scroll-mt-[139px] 2xl:[&_:is(h2,h3)]:scroll-mt-[81px]"
+					>
 						<!-- eslint-disable-next-line svelte/no-at-html-tags -- sanitised Markdown from the server -->
 						{@html s.html}
 					</div>
@@ -374,7 +380,10 @@
 		</div>
 		<!-- ON THIS PAGE: THE HEADINGS OF THE SECTION UNDER THE STICKY LINE, FROM XL UP. THE ENTRIES ARE READ FROM THE RENDERED CARD, SO THEY ARE BUTTONS AND NOT ANCHORS -->
 		{#if detail.sections.length > 1 && outlineItems.length > 0}
-			<nav aria-label="On this page" class="sticky top-[131px] hidden self-start xl:block">
+			<nav
+				aria-label="On this page"
+				class="sticky top-[131px] hidden self-start xl:block 2xl:top-[73px]"
+			>
 				<p class="mb-2 pl-3 text-sm font-semibold">On this page</p>
 				<ul class="border-l border-line">
 					{#each outlineItems as h, i (`${i}:${h.text}`)}

@@ -130,7 +130,8 @@ test('M6 the item page: a step tick updates at once and moves the status, and th
 		'waived, Not needed after all'
 	);
 	// Settled without asking, documents, discussion and activity
-	await page.getByTestId('tab-decisions').click();
+	// The tabs are drawn twice (the card, and the top bar from 1536 px), so the visible copy is clicked
+	await page.locator('[data-testid="tab-decisions"]:visible').click();
 	await page.getByTestId('add-decision').click();
 	await page.getByRole('radio', { name: 'Settled without asking' }).click();
 	await page.getByLabel('The question that was settled').fill('Which colour');
@@ -139,7 +140,7 @@ test('M6 the item page: a step tick updates at once and moves the status, and th
 	await page.getByRole('button', { name: 'Save' }).click();
 	await expect(page.getByTestId('settled-list')).toContainText('Which colour');
 	await expect(page.getByTestId('settled-list')).toContainText('Graphite');
-	await page.getByTestId('tab-docs').click();
+	await page.locator('[data-testid="tab-docs"]:visible').click();
 	await page.getByTestId('add-section').click();
 	await page.getByLabel('Section title').fill('Spec');
 	await page
@@ -149,12 +150,12 @@ test('M6 the item page: a step tick updates at once and moves the status, and th
 	const doc = page.getByTestId('docs-tab');
 	await expect(doc.locator('strong')).toHaveText('bold');
 	await expect(doc.locator('script')).toHaveCount(0);
-	await page.getByTestId('tab-discussion').click();
+	await page.locator('[data-testid="tab-discussion"]:visible').click();
 	await page.getByTestId('comment-text').fill('Looks right to me');
 	await page.getByTestId('comment-submit').click();
 	await expect(page.getByTestId('comment')).toContainText('Looks right to me');
 	await expect(page.getByTestId('comment')).toContainText('Maria Member');
-	await page.getByTestId('tab-activity').click();
+	await page.locator('[data-testid="tab-activity"]:visible').click();
 	await expect(page.getByTestId('event').first()).toBeVisible();
 	await expect(page.getByTestId('event-list')).toContainText('created the item');
 	await ctx.close();
@@ -242,7 +243,7 @@ test('M6 permission denied is a panel that names the role, and a viewer sees no 
 	await expect(page.getByTestId('change-status')).toHaveCount(0);
 	await expect(page.getByRole('checkbox', { name: /1\.1/ })).toBeDisabled();
 	// A viewer can still comment
-	await page.getByTestId('tab-discussion').click();
+	await page.locator('[data-testid="tab-discussion"]:visible').click();
 	await expect(page.getByTestId('comment-text')).toBeVisible();
 	await ctx.close();
 });

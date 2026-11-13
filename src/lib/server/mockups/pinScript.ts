@@ -31,8 +31,22 @@ function setup(){
   if(!o||typeof o.key!=='string'||!KEY.test(o.key)||o.key==='screen'||seen[o.key]||typeof o.label!=='string')return;
   var v=pairs(o.values,12);
   if(v.length<2)return;
+  // The screens an option applies to: a list of declared screens, none given or an empty list meaning every screen. A bad list refuses the option
+  var sc=null;
+  if(o.screens!==undefined){
+   if(!Array.isArray(o.screens)||o.screens.length>12)return;
+   var ok=true,used=Object.create(null);
+   o.screens.forEach(function(s){
+    if(typeof s!=='string'||!KEY.test(s)||!has(cfg.screens,s)||used[s]===1)ok=false;
+    else used[s]=1
+   });
+   if(!ok)return;
+   if(o.screens.length)sc=o.screens.slice()
+  }
   seen[o.key]=1;
-  cfg.options.push({key:o.key,label:o.label.slice(0,32),values:v})
+  var entry={key:o.key,label:o.label.slice(0,32),values:v};
+  if(sc)entry.screens=sc;
+  cfg.options.push(entry)
  });
  cfg.options.forEach(function(o){
   var a=root.getAttribute('data-'+o.key);
@@ -44,17 +58,53 @@ function setup(){
  }
  sendConfig=function(){parent.postMessage({type:'afb-config',config:cfg,current:current},'*')}
 }
-// The board asks for one choice: the key and value must be ones the page declared. A page with its own hook gets called, any other page gets the attribute
+// A bounded look at the page: the size of the document and a few computed styles of at most about 600 elements, enough to tell whether a choice changed anything
+var probe=0;
+function look(){
+ var root=document.documentElement,all=document.body?document.body.getElementsByTagName('*'):[],n=all.length,step=Math.max(1,Math.ceil(n/600));
+ var r=[root.scrollHeight,root.scrollWidth],list=[root];
+ if(document.body)list.push(document.body);
+ for(var i=0;i<n;i+=step)list.push(all[i]);
+ list.forEach(function(el){
+  var s=getComputedStyle(el);
+  r.push(s.display,s.visibility,s.opacity,s.color,s.backgroundColor,s.height,s.width,s.colorScheme,s.fontFamily,s.fontSize,s.borderRadius,s.boxShadow,s.transform)
+ });
+ return r.join('|')
+}
+// The attribute the board wrote and the pin layer are the board's own changes, never the page's answer
+function own(m,key){
+ if(m.type==='attributes'&&m.target===document.documentElement&&m.attributeName==='data-'+key)return true;
+ if(typeof layer==='undefined'||!layer)return false;
+ // The layer itself being added to the page is the board's own change too
+ if(m.addedNodes&&m.addedNodes.length===1&&m.addedNodes[0]===layer)return true;
+ return layer.contains(m.target)
+}
+// The board asks for one choice: the key and value must be ones the page declared. A page with its own hook gets called, any other page gets the attribute.
+// Then it checks that something changed, and tells the board when nothing did (or when the page's own hook threw), so a mockup that ignores the buttons is named
 function choose(key,value){
  if(!cfg)return;
  var list=key==='screen'?cfg.screens:null;
  if(!list)cfg.options.forEach(function(o){if(o.key===key)list=o.values});
  if(!list||!has(list,value))return;
+ var token=++probe,before='',failed=false,obs=null;
+ try{before=look()}catch(_){}
+ try{obs=new MutationObserver(function(){});obs.observe(document.documentElement,{attributes:true,childList:true,subtree:true,characterData:true})}catch(_){}
  try{
   if(typeof window.afbSet==='function')window.afbSet(key,value);
   else document.documentElement.setAttribute('data-'+key,value)
- }catch(_){}
- again()
+ }catch(_){failed=true}
+ again();
+ setTimeout(function(){
+  var moved=false;
+  if(obs){
+   try{obs.takeRecords().forEach(function(m){if(!own(m,key))moved=true})}catch(_){}
+   obs.disconnect()
+  }
+  if(token!==probe)return;
+  var same=false;
+  try{same=!moved&&before!==''&&look()===before}catch(_){}
+  if(failed||same)parent.postMessage({type:'afb-unresponsive',key:key,reason:failed?'error':'none'},'*')
+ },450)
 }`;
 
 /**

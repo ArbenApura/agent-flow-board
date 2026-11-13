@@ -200,7 +200,7 @@
 {#snippet row(s: Row, testid: string, isNext: boolean)}
 	<li
 		id={testid === 'step' ? `step-${s.id}` : undefined}
-		class="group flex min-h-12 scroll-mt-[131px] items-start gap-3 border-b border-line px-4 py-3 last:border-b-0 max-sm:px-3.5 {isNext
+		class="group flex min-h-12 scroll-mt-[131px] items-start gap-3 border-b border-line px-4 py-3 last:border-b-0 max-sm:px-3.5 2xl:scroll-mt-[73px] {isNext
 			? 'bg-raised'
 			: ''}"
 		data-row

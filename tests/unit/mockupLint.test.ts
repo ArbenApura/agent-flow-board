@@ -46,8 +46,9 @@ describe('tools of the viewer drawn inside a page', () => {
 		expect(got.some((w) => w.includes('row of screens'))).toBe(true);
 	});
 	it('stays quiet when the screens are declared, and for an ordinary page', () => {
+		// The page reacts to the screen the board picks, so the check for a page that ignores it stays quiet too
 		const declared =
-			'<meta name="afb-config" content=\'{"screens":[["a","A"],["b","B"]],"options":[]}\'>';
+			'<meta name="afb-config" content=\'{"screens":[["a","A"],["b","B"]],"options":[]}\'><style>[data-screen="b"] .a{display:none}</style>';
 		expect(lintMockupHtml(page('<div class="screen-switcher"></div>', declared))).toEqual([]);
 		expect(lintMockupHtml(page('<nav class="tabs"><button>One</button></nav>'))).toEqual([]);
 	});
@@ -211,5 +212,103 @@ describe('lintKitHtml', () => {
 			expect(() => lintKitHtml(h)).not.toThrow();
 			expect(Date.now() - start).toBeLessThan(2500);
 		}
+	});
+});
+
+// -- WHAT THE PAGE DECLARES, AND WHETHER IT CAN REACT (AFB-20261112-2350) -- //
+
+describe('the options and screens a page declares', () => {
+	const page = (config: string, rest = '') =>
+		`<!doctype html><html><head><!--afb-kit--><meta name="afb-config" content='${config}'>${rest}</head><body></body></html>`;
+	const SCREENS = '"screens":[["a","A"],["b","B"]]';
+	const opt = (key: string, extra = '') =>
+		`{"key":"${key}","label":"${key} label","values":[["x","X"],["y","Y"]]${extra}}`;
+	const REACTS =
+		'<style>[data-role="y"] .a{display:none}[data-view="y"] .a{display:none}[data-flag="y"] .a{display:none}[data-screen="b"] .a{display:none}</style>';
+
+	it('warns when an option names a screen the page did not declare', () => {
+		const w = lintMockupHtml(
+			page(`{${SCREENS},"options":[${opt('role', ',"screens":["a","nope"]')}]}`, REACTS)
+		);
+		expect(w.some((x) => x.includes('did not declare') && x.includes('nope'))).toBe(true);
+	});
+	it('warns about three options shown on every one of several screens, and only then', () => {
+		const three = `${opt('role')},${opt('view')},${opt('flag')}`;
+		expect(
+			lintMockupHtml(page(`{${SCREENS},"options":[${three}]}`, REACTS)).some((x) =>
+				x.includes('options show on every one')
+			)
+		).toBe(true);
+		const scoped = `${opt('role', ',"screens":["a"]')},${opt('view', ',"screens":["a"]')},${opt('flag')}`;
+		expect(lintMockupHtml(page(`{${SCREENS},"options":[${scoped}]}`, REACTS))).toEqual([]);
+		// One screen only: nothing to scope
+		expect(lintMockupHtml(page(`{"screens":[["a","A"]],"options":[${three}]}`, REACTS))).toEqual(
+			[]
+		);
+	});
+	it('warns about an option that nothing in the page can react to', () => {
+		const w = lintMockupHtml(page(`{${SCREENS},"options":[${opt('role')}]}`));
+		expect(w.some((x) => x.includes('will do nothing') && x.includes('data-role'))).toBe(true);
+		expect(w.some((x) => x.includes('nothing reads data-screen'))).toBe(true);
+	});
+	it('stays quiet for a page that reads the attribute or defines window.afbSet', () => {
+		expect(lintMockupHtml(page(`{"screens":[],"options":[${opt('role')}]}`, REACTS))).toEqual([]);
+		const hook = '<script>window.afbSet = function (k, v) { show(k, v); };</script>';
+		expect(lintMockupHtml(page(`{${SCREENS},"options":[${opt('role')}]}`, hook))).toEqual([]);
+		expect(
+			lintMockupHtml(
+				page(
+					`{"screens":[],"options":[${opt('dark-tone')}]}`,
+					'<script>if (document.documentElement.dataset.darkTone) go();</script>'
+				)
+			)
+		).toEqual([]);
+	});
+	it('does not count a commented out window.afbSet as the page reacting', () => {
+		const starter = '<script>\n// window.afbSet = function (key, value) {};\n</script>';
+		expect(
+			lintMockupHtml(page(`{"screens":[],"options":[${opt('role')}]}`, starter)).some((x) =>
+				x.includes('will do nothing')
+			)
+		).toBe(true);
+	});
+	it('leaves the colour mode to the kit stylesheet', () => {
+		expect(lintMockupHtml(page(`{"screens":[],"options":[${opt('mode')}]}`))).toEqual([]);
+	});
+	it('reads content written with entities and says nothing about content it cannot read', () => {
+		const encoded = `<!doctype html><html><head><meta name="afb-config" content="{&quot;screens&quot;:[],&quot;options&quot;:[{&quot;key&quot;:&quot;role&quot;,&quot;label&quot;:&quot;Role&quot;,&quot;values&quot;:[[&quot;x&quot;,&quot;X&quot;],[&quot;y&quot;,&quot;Y&quot;]]}]}"></head><body></body></html>`;
+		expect(lintMockupHtml(encoded).some((x) => x.includes('will do nothing'))).toBe(true);
+		for (const bad of [
+			'{not json',
+			'[]',
+			'null',
+			'{"options":"x","screens":5}',
+			'{"options":[null,1,{"key":5}]}'
+		])
+			expect(lintMockupHtml(page(bad))).toEqual([]);
+	});
+	it('stays fast on pages built to make a pattern backtrack, and never builds a pattern from an option key', () => {
+		// Many openers with the name and no closing bracket: a pattern over the whole page took seconds for a few kilobytes
+		const openers = '<meta name="afb-config" '.repeat(8000);
+		let start = Date.now();
+		expect(() => lintMockupHtml(openers)).not.toThrow();
+		expect(Date.now() - start).toBeLessThan(1500);
+		// A key made of pattern characters, next to the text that makes such a pattern backtrack for minutes
+		const hostile = page(
+			`{"screens":[],"options":[${opt('(a|aa)+$')}]}`,
+			`<script>${'dataset.' + 'a'.repeat(60) + '!'}</script>`
+		);
+		start = Date.now();
+		expect(() => lintMockupHtml(hostile)).not.toThrow();
+		expect(Date.now() - start).toBeLessThan(1500);
+	});
+	it('keeps the other warnings of a page whose options hold keys the board would refuse', () => {
+		const w = lintMockupHtml(
+			page(
+				`{"screens":[],"options":[${opt('(')},${opt('\\\\')}]}`,
+				'<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter">'
+			)
+		);
+		expect(w.some((x) => x.includes('fonts.googleapis.com'))).toBe(true);
 	});
 });

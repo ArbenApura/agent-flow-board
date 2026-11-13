@@ -30,9 +30,11 @@
 		parsePinMessage,
 		parsePinMove,
 		parseStepMessage,
+		parseUnresponsiveMessage,
 		pinMessages,
 		setMessage,
-		validChoice
+		validChoice,
+		visibleOptions
 	} from '#lib/board/mockups.js';
 	import { fileKey } from '#lib/board/thumbLoad.js';
 	import DeviceFrame from '#lib/board/DeviceFrame.svelte';
@@ -131,6 +133,10 @@
 	let choices = $state<Record<string, string>>({});
 	/** The last click or drag point, so the box can be placed again when its height or the stage changes. */
 	let lastPoint: PinPoint | null = null;
+	/** The choice the person made last. Only the answer to this one is shown, never the answer to a choice made while loading. */
+	let pendingKey = $state<string | null>(null);
+	/** Set when the page said a choice changed nothing, or that its own hook threw. Cleared on the next choice. */
+	let quiet = $state<{ key: string; reason: 'none' | 'error' } | null>(null);
 
 	// -- REACTIVE STATES -- //
 
@@ -139,6 +145,19 @@
 	const options = $derived(
 		screens.map((s) => ({ value: s, label: SCREEN_LABEL[s], icon: DEVICE_ICON[s] }))
 	);
+	// Only the options that apply to the screen on show are drawn. The others keep their value in `choices`
+	const shownOptions = $derived(config ? visibleOptions(config, choices[SCREEN_OPTION]) : []);
+	// What the quiet hint says: the name of the control the person used, and whether nothing changed or the page's own hook threw
+	const quietText = $derived.by(() => {
+		if (!quiet) return '';
+		const name =
+			quiet.key === SCREEN_OPTION
+				? 'the screen'
+				: (config?.options.find((o) => o.key === quiet?.key)?.label ?? quiet.key);
+		return quiet.reason === 'error'
+			? `The mockup's own switch code failed for ${name}. The page may not show that choice.`
+			: `Nothing on the page changed when you switched ${name}. This mockup may not react to it.`;
+	});
 
 	// -- FUNCTIONS -- //
 
@@ -198,6 +217,8 @@
 	/** A choice from the toolbar, the strip or a key: sent to the frame, which checks it against what the page declared. */
 	function choose(key: string, value: string) {
 		if (!config || validChoice(config, key, value) === null) return;
+		pendingKey = key;
+		quiet = null;
 		choices = { ...choices, [key]: value };
 		send(setMessage(key, value));
 		remember();
@@ -250,6 +271,12 @@
 			stepScreen(dir);
 			return;
 		}
+		const stuck = parseUnresponsiveMessage(e.data, e.source, win);
+		if (stuck) {
+			// Only the answer to the person's last choice counts
+			if (stuck.key === pendingKey) quiet = stuck;
+			return;
+		}
 		const pin = parsePinMessage(e.data, e.source, win);
 		if (pin) {
 			place(pin);
@@ -292,6 +319,8 @@
 		// ...and to say again what it offers
 		config = null;
 		choices = {};
+		pendingKey = null;
+		quiet = null;
 	});
 
 	// Pins, the pin being placed and the pin mode go to the frame on every ready message and on every change, so a frame that loads
@@ -376,7 +405,7 @@
 
 <svelte:window onmessage={onMessage} onkeydown={onKeydown} />
 
-<!-- THE PREVIEW: ONE TOOLBAR OF THE BOARD (DEVICE, THE OPTIONS THE MOCKUP DECLARED, COMMENTS, THE SCREENS) AND THE MOCKUP IN A SANDBOXED FRAME, DRAWN INSIDE A DEVICE. THE WHOLE DEVICE SHOWS, AND THE MOCKUP SCROLLS INSIDE ITS SCREEN ONLY -->
+<!-- THE PREVIEW: ONE TOOLBAR OF THE BOARD (DEVICE, COMMENTS, THE SCREENS, THEN THE OPTIONS THAT APPLY TO THE SCREEN ON SHOW) AND THE MOCKUP IN A SANDBOXED FRAME, DRAWN INSIDE A DEVICE. THE WHOLE DEVICE SHOWS, AND THE MOCKUP SCROLLS INSIDE ITS SCREEN ONLY -->
 <div class={cn('flex flex-col', flush && 'max-sm:-m-3.5')} data-testid="mockup-preview">
 	<!-- ON A PHONE ALL ROWS SHARE THE SAME LEFT AND RIGHT EDGES: THE DEVICE SWITCH FILLS THE ROOM LEFT OF THE COMMENT BUTTONS, AND EVERY OPTION AND THE SCREEN STRIP RUN FULL WIDTH ON A ROW OF THEIR OWN -->
 	<div
@@ -402,39 +431,56 @@
 				/>
 			</div>
 		{/if}
-		<!-- ONE CONTROL FOR EACH OPTION THE MOCKUP DECLARED. A MOCKUP THAT DECLARED NOTHING SHOWS NONE -->
-		{#each config?.options ?? [] as o (o.key)}
-			<div class="max-sm:order-3 max-sm:basis-full">
-				{#if o.values.length <= 3}
-					<SegmentedControl
-						label={o.label}
-						value={choices[o.key]}
-						options={o.values}
-						class="max-sm:flex max-sm:w-full max-sm:[&>button]:flex-1"
-						onchange={(v) => choose(o.key, v)}
-					/>
-				{:else}
-					<Select
-						fill
-						label={o.label}
-						prefix={o.label}
-						value={choices[o.key]}
-						options={o.values}
-						onchange={(v) => choose(o.key, v)}
-					/>
-				{/if}
-			</div>
-		{/each}
 		{#if toolbar}
 			<div class="ml-auto flex items-center gap-2 max-sm:order-2">{@render toolbar()}</div>
 		{/if}
 		{#if config && config.screens.length > 1}
 			<MockupScreenStrip
-				class="basis-full max-sm:order-4"
+				class="basis-full max-sm:order-3"
 				screens={config.screens}
 				value={choices[SCREEN_OPTION] ?? config.screens[0].value}
 				onpick={(v) => choose(SCREEN_OPTION, v)}
 			/>
+		{/if}
+		<!-- THE OPTIONS THAT APPLY TO THE SCREEN ON SHOW, IN A ROW OF THEIR OWN BELOW THE SCREEN STRIP SO THE STRIP NEVER MOVES. NONE APPLIES: NO ROW. A HIDDEN OPTION KEEPS ITS VALUE -->
+		{#if shownOptions.length}
+			<div
+				class="flex basis-full flex-wrap items-center gap-2 max-sm:order-4 sm:gap-3"
+				data-testid="mockup-options"
+			>
+				{#each shownOptions as o (o.key)}
+					<div class="max-sm:basis-full">
+						{#if o.values.length <= 3}
+							<SegmentedControl
+								label={o.label}
+								value={choices[o.key]}
+								options={o.values}
+								class="max-sm:flex max-sm:w-full max-sm:[&>button]:flex-1"
+								onchange={(v) => choose(o.key, v)}
+							/>
+						{:else}
+							<Select
+								fill
+								label={o.label}
+								prefix={o.label}
+								value={choices[o.key]}
+								options={o.values}
+								onchange={(v) => choose(o.key, v)}
+							/>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{/if}
+		<!-- A QUIET HINT WHEN THE LAST CHOICE CHANGED NOTHING IN THE PAGE. IT IS A STATUS LINE, NEVER AN ERROR, AND CLEARS ON THE NEXT CHOICE -->
+		{#if quiet}
+			<p
+				role="status"
+				class="basis-full text-sm text-muted max-sm:order-5"
+				data-testid="mockup-unresponsive"
+			>
+				{quietText}
+			</p>
 		{/if}
 	</div>
 	<div

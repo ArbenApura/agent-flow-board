@@ -4,11 +4,13 @@
 	// -- ENVS -- //
 	import { navigating, page } from '$app/state';
 	// -- MODULES -- //
+	import { itemTabsFrom } from '#lib/board/item/itemTabs.js';
 	import { projectTabs } from '#lib/board/projectTabs.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Button from '#lib/ui/Button.svelte';
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
 	import AppSidebar from '#lib/board/AppSidebar.svelte';
+	import ItemTabs from '#lib/board/item/ItemTabs.svelte';
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import Mark from '#lib/ui/Mark.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
@@ -60,6 +62,8 @@
 		...primary,
 		...secondary
 	]);
+	// The tabs of the open item, for the top bar on a wide screen. Null on any other page, and on an item that did not load
+	const itemTabs = $derived(itemTabsFrom(page.route.id, page.data, page.url.searchParams));
 	// Where the person is, shown in the top bar: the open project and its page, or the name of the screen
 	const crumbs = $derived.by(() => {
 		const path = page.url.pathname;
@@ -156,6 +160,22 @@
 							>
 						{/each}
 					</nav>
+					<!-- THE TABS OF THE OPEN ITEM FROM 1536 PX UP, TEXT ONLY. BELOW THAT THEY STAY IN THE CARD UNDER THE BAR. THEY TAKE THE ROOM BETWEEN THE BREADCRUMB AND SEARCH AND SCROLL WHEN IT IS NOT ENOUGH -->
+					{#if itemTabs}
+						<nav
+							aria-label="Item sections"
+							class="hidden min-w-0 flex-1 2xl:block"
+							data-testid="item-tabs-bar"
+						>
+							<ItemTabs
+								tabs={itemTabs.tabs}
+								counts={itemTabs.counts}
+								active={itemTabs.active}
+								pathname={page.url.pathname}
+								icons={false}
+							/>
+						</nav>
+					{/if}
 
 					<div class="ml-auto flex items-center gap-2">
 						<Button

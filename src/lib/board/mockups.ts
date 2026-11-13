@@ -222,7 +222,13 @@ export const MAX_CONFIG_VALUES = 12;
 export const SCREEN_OPTION = 'screen';
 
 export type ConfigValue = { value: string; label: string };
-export type ConfigOption = { key: string; label: string; values: ConfigValue[] };
+/** An option may say which of the page's screens it applies to. Without `screens` it applies to every screen. */
+export type ConfigOption = {
+	key: string;
+	label: string;
+	values: ConfigValue[];
+	screens?: string[];
+};
 /** What a mockup declared: its own screens (steps of a flow) and the options a person may switch (a mode, a brand, a role). */
 export type FrameConfig = { screens: ConfigValue[]; options: ConfigOption[] };
 
@@ -254,6 +260,31 @@ function valuesOf(raw: unknown, max: number): ConfigValue[] | null {
 }
 
 /**
+ * The screens an option applies to: an array of at most MAX_CONFIG_SCREENS unique keys that are all screens the page declared, or
+ * null when anything is off. A Set is used for both checks, so a key such as `__proto__` is only ever a string.
+ */
+function optionScreensOf(raw: unknown, declared: ReadonlySet<string>): string[] | null {
+	if (!Array.isArray(raw) || raw.length > MAX_CONFIG_SCREENS) return null;
+	const seen = new Set<string>();
+	for (const s of raw) {
+		if (typeof s !== 'string' || !CONFIG_KEY.test(s) || !declared.has(s) || seen.has(s))
+			return null;
+		seen.add(s);
+	}
+	return [...seen];
+}
+
+/** True when an option shows on a screen: no list (or an empty one) means every screen, and so does a page that has no current screen. */
+export function optionApplies(option: ConfigOption, screen: string | undefined): boolean {
+	return !option.screens?.length || screen === undefined || option.screens.includes(screen);
+}
+
+/** The options to draw for the screen on show. Purely derived: a hidden option keeps its value, it is only not drawn. */
+export function visibleOptions(config: FrameConfig, screen: string | undefined): ConfigOption[] {
+	return config.options.filter((o) => optionApplies(o, screen));
+}
+
+/**
  * The message a mockup sends once, after it loads: the screens and options it declared and the value each has now. Anything that is
  * not exactly in shape (too many, a bad key, a duplicate, an option with fewer than two values) makes a whole option or the whole
  * message refused, so a page can never put more than the limits on the board's toolbar. A current value that is not declared is
@@ -273,17 +304,27 @@ export function parseConfigMessage(
 		return null;
 	const options: ConfigOption[] = [];
 	const seen = new Set<string>();
+	const declared = new Set(screens.map((s) => s.value));
 	for (const o of raw.options) {
 		if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
 		const r = o as Record<string, unknown>;
 		const label = labelOf(r.label);
 		const values = valuesOf(r.values, MAX_CONFIG_VALUES);
-		if (Object.keys(r).sort().join(',') !== 'key,label,values') return null;
+		// Exactly these two shapes: an option with its `screens` list, or without it
+		const shape = Object.keys(r).sort().join(',');
+		if (shape !== 'key,label,values' && shape !== 'key,label,screens,values') return null;
 		if (typeof r.key !== 'string' || !CONFIG_KEY.test(r.key) || r.key === SCREEN_OPTION)
 			return null;
 		if (!label || !values || values.length < 2 || seen.has(r.key)) return null;
 		seen.add(r.key);
-		options.push({ key: r.key, label, values });
+		if (shape === 'key,label,values') {
+			options.push({ key: r.key, label, values });
+			continue;
+		}
+		// A bad `screens` list refuses only its own option: the rest of the page's controls stand
+		const scoped = optionScreensOf(r.screens, declared);
+		if (scoped)
+			options.push({ key: r.key, label, values, ...(scoped.length ? { screens: scoped } : {}) });
 	}
 	const given =
 		m.current && typeof m.current === 'object' && !Array.isArray(m.current)
@@ -312,6 +353,20 @@ export function parseStepMessage(
 ): 'prev' | 'next' | null {
 	const m = messageFrom(data, from, frame, 'afb-step', 'dir,type');
 	return m && (m.dir === 'prev' || m.dir === 'next') ? m.dir : null;
+}
+
+/**
+ * The message a mockup sends when a choice from the board changed nothing in the page, or when the page's own hook threw: the key of
+ * the choice and why. The board shows it as a quiet hint and never acts on it otherwise.
+ */
+export function parseUnresponsiveMessage(
+	data: unknown,
+	from: unknown,
+	frame: unknown
+): { key: string; reason: 'none' | 'error' } | null {
+	const m = messageFrom(data, from, frame, 'afb-unresponsive', 'key,reason,type');
+	if (!m || typeof m.key !== 'string' || !CONFIG_KEY.test(m.key)) return null;
+	return m.reason === 'none' || m.reason === 'error' ? { key: m.key, reason: m.reason } : null;
 }
 
 /** The value of a choice that the mockup declares, or the one it started with. Used to apply what the address or the browser remembered. */

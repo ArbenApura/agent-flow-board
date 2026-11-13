@@ -296,6 +296,163 @@ function ownToolsWarnings(text: string): string[] {
 	return out;
 }
 
+// -- WHAT THE PAGE DECLARES AND WHETHER IT CAN REACT (AFB-20261112-2350) -- //
+
+const META_CONTENT = /\bcontent\s*=\s*(?:'([^']*)'|"([^"]*)")/i;
+/** The shape of an option key, as the board and the frame script check it. A key that is not this is never looked for in the page. */
+const KEY_SHAPE = /^[a-z0-9][a-z0-9-]{0,23}$/;
+/** How far before the name the tag may start, how far after it the content may reach, and how many places are tried. All bounded, so a hostile page stays fast. */
+const TAG_REACH = 2_000;
+const CONTENT_REACH = 12_000;
+const MAX_TRIES = 20;
+/** An option every page of a mockup with several screens shows is a warning from this many options on. */
+const UNSCOPED_LIMIT = 3;
+
+/** The few entities a content attribute may hold, decoded before the JSON is read. */
+const decodeEntities = (v: string) =>
+	v
+		.replace(/&quot;|&#0*34;|&#x0*22;/gi, '"')
+		.replace(/&apos;|&#0*39;|&#x0*27;/gi, "'")
+		.replace(/&lt;/gi, '<')
+		.replace(/&gt;/gi, '>')
+		.replace(/&amp;/gi, '&');
+
+type DeclaredConfig = {
+	screens: string[];
+	options: { key: string; label: string; screens: unknown }[];
+};
+
+/**
+ * The content of the afb-config tag and where it sits. No pattern runs over the whole page: the name is found with indexOf, the tag
+ * start is the nearest opener before it, and the content is read from a short slice, so the time is bounded whatever the page holds.
+ */
+function configContent(text: string): { raw: string; from: number; to: number } | null {
+	let at = text.indexOf('afb-config');
+	for (
+		let tries = 0;
+		at !== -1 && tries < MAX_TRIES;
+		tries++, at = text.indexOf('afb-config', at + 10)
+	) {
+		const start = Math.max(text.lastIndexOf('<meta', at), text.lastIndexOf('<META', at));
+		if (start === -1 || at - start > TAG_REACH) continue;
+		// The name must be the attribute value of this very tag
+		const head = text.slice(start, at);
+		if (head.includes('>') || !/\bname\s*=\s*["']$/i.test(head)) continue;
+		const found = META_CONTENT.exec(text.slice(start, start + CONTENT_REACH));
+		if (!found) continue;
+		return {
+			raw: found[1] ?? found[2] ?? '',
+			from: start + found.index,
+			to: start + found.index + found[0].length
+		};
+	}
+	return null;
+}
+
+/** What the page declared in its afb-config tag, or null when it declares nothing or the content cannot be read. Never throws. */
+function declaredConfig(text: string): { config: DeclaredConfig; rest: string } | null {
+	try {
+		const tag = configContent(text);
+		if (!tag) return null;
+		const parsed: unknown = JSON.parse(decodeEntities(tag.raw));
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+		const c = parsed as { screens?: unknown; options?: unknown };
+		const pair = (p: unknown) => (Array.isArray(p) && typeof p[0] === 'string' ? p[0] : null);
+		const screens = Array.isArray(c.screens)
+			? c.screens.map(pair).filter((s): s is string => s !== null)
+			: [];
+		const options: DeclaredConfig['options'] = [];
+		if (Array.isArray(c.options))
+			for (const o of c.options.slice(0, 12)) {
+				if (!o || typeof o !== 'object') continue;
+				const r = o as { key?: unknown; label?: unknown; screens?: unknown };
+				// A key the board would refuse is not looked for in the page
+				if (typeof r.key !== 'string' || !KEY_SHAPE.test(r.key)) continue;
+				options.push({
+					key: r.key,
+					label: typeof r.label === 'string' ? r.label : r.key,
+					screens: r.screens
+				});
+			}
+		// The page without its own tag content, so the tag never counts as the page reacting to itself
+		return {
+			config: { screens, options },
+			rest: `${text.slice(0, tag.from)} ${text.slice(tag.to)}`
+		};
+	} catch {
+		return null;
+	}
+}
+
+/** True when something in the page can answer a choice: a data-<key> attribute read by a selector or a script, or a window.afbSet hook that is not only a comment. */
+function pageCanReact(rest: string, key: string): boolean {
+	const camel = key.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+	if (rest.includes(`data-${key}`)) return true;
+	// Plain text searches, never a pattern built from the key: the key comes from the page
+	if (
+		rest.includes(`dataset.${camel}`) ||
+		rest.includes(`dataset["${camel}"]`) ||
+		rest.includes(`dataset['${camel}']`)
+	)
+		return true;
+	return rest.split('\n').some((l) => /\bafbSet\b/.test(l) && !/^\s*(?:\/\/|\*|\/\*|<!--)/.test(l));
+}
+
+/**
+ * The warnings about what the page declared: an option that names a screen the page did not declare, several options shown on every
+ * screen, and a declared option or screen that nothing in the page can react to, which is how a mockup ends up with buttons that do
+ * nothing. The colour mode is left to the project's kit stylesheet, which the page text does not contain.
+ */
+function configWarnings(text: string): string[] {
+	// Its own guard: a throw here must never take the other warnings of the page with it
+	try {
+		return readConfigWarnings(text);
+	} catch {
+		return [];
+	}
+}
+
+function readConfigWarnings(text: string): string[] {
+	const found = declaredConfig(text);
+	if (!found) return [];
+	const { config, rest } = found;
+	const out: string[] = [];
+	const known = new Set(config.screens);
+	for (const o of config.options) {
+		if (!Array.isArray(o.screens)) continue;
+		const unknown = o.screens.filter((s) => typeof s !== 'string' || !known.has(s));
+		if (unknown.length)
+			out.push(
+				`The option "${clean(o.label, 32)}" lists ${plural(unknown.length, 'screen', 'screens')} the page did not declare (${unknown
+					.slice(0, 3)
+					.map((s) => clean(String(s), 24))
+					.join(
+						', '
+					)}), so the board will not show that option. Use the keys from the page's own screens list.`
+			);
+	}
+	if (config.screens.length > 1) {
+		const everywhere = config.options.filter(
+			(o) => !Array.isArray(o.screens) || o.screens.length === 0
+		);
+		if (everywhere.length >= UNSCOPED_LIMIT)
+			out.push(
+				`${everywhere.length} options show on every one of the ${config.screens.length} screens. Add "screens": ["key", ...] to each option so it shows only on the screens where it matters.`
+			);
+	}
+	for (const o of config.options) {
+		if (o.key === 'mode' || pageCanReact(rest, o.key)) continue;
+		out.push(
+			`The option "${clean(o.label, 32)}" will do nothing unless the project's kit stylesheet reads it: nothing in the page reads data-${clean(o.key, 24)} on the root element and the page defines no window.afbSet. Style the page with [data-${clean(o.key, 24)}="..."] selectors, or define window.afbSet(key, value), so the board's button changes the page.`
+		);
+	}
+	if (config.screens.length > 1 && !pageCanReact(rest, 'screen'))
+		out.push(
+			'The page declares screens, but nothing reads data-screen on the root element and the page defines no window.afbSet, so the board\'s screen buttons will not change the page. Show each screen with [data-screen="..."] selectors, or define window.afbSet(key, value).'
+		);
+	return out;
+}
+
 /**
  * The warnings for a mockup page, in plain words. With the project's kit facts it also checks the fonts and colours against the
  * kit. An empty list means nothing was found. This never throws.
@@ -346,7 +503,7 @@ export function lintMockupHtml(html: string, kit?: KitFacts | null): string[] {
 		}
 		const symbols = symbolWarning(text);
 		if (symbols) warnings.push(symbols);
-		warnings.push(...ownToolsWarnings(text));
+		warnings.push(...ownToolsWarnings(text), ...configWarnings(text));
 		if (kit && kit.palette.size) {
 			const own = unique(coloursIn(css)).filter((c) => !kit.palette.has(c));
 			if (own.length)

@@ -144,6 +144,6 @@ Six lenses. By default three subagents split them M1 + M2, M3 + M4 and M5 + M6 (
 ### Lens M6 - The board's contract
 - [ ] **The kit marker** is in the head, and the page carries no stylesheet, font or icon set of its own beyond the compiled rules for classes the kit lacks.
 - [ ] **Nothing from a network address**: no script, style, font, image or frame loaded by address, and `{PUBLISH_WARNINGS}` is empty or each warning is explained.
-- [ ] **The declaration is right.** The config tag declares exactly the screens and options the real app offers, each within the limits, and every declared value is drawn.
+- [ ] **The declaration is right.** The config tag declares exactly the screens and options the real app offers, each within the limits, and every declared value is drawn. An option that does not apply to every screen carries `screens`, and each declared option and screen really changes the page when switched (the page reads `data-<key>` on the root element, or defines `window.afbSet`): switch each one and look, because a control that does nothing is a defect.
 - [ ] **No viewer tools and no device.** The page draws no theme or device switch, no screen pills, no step bar, no browser window or phone body.
 - [ ] **The notes are useful.** Keep and Free are concrete, and the Free notes hold the `Fidelity:` line with no unexplained difference left.
