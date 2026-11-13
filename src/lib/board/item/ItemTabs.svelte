@@ -5,9 +5,7 @@
 	import type { ItemTab, ItemTabCounts } from '#lib/board/item/itemTabs.js';
 	// -- MODULES -- //
 	import { scrollFade } from '#lib/actions/scrollFade.js';
-	import { ITEM_TAB_LABEL, itemTabHref } from '#lib/board/item/itemTabs.js';
-	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	import { ITEM_TAB_LABEL, itemTabHref } from '#lib/board/item/itemTabs.js'; // -- DEP-COMPONENTS -- //
 	import Activity from '@lucide/svelte/icons/activity';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Gavel from '@lucide/svelte/icons/gavel';
@@ -118,23 +116,12 @@
 			{/each}
 		</ul>
 	</div>
-	<!-- THE FADE IS THE COLOUR OF WHAT THE ROW SITS ON: THE SURFACE OF THE CARD, OR THE TOP BAR'S OWN TOKEN FOR THE TEXT ONLY COPY -->
 	<span
-		class={cn(
-			'pointer-events-none absolute inset-y-0 left-0 w-6 rounded-l-lg opacity-0 transition-opacity group-data-[fade-start]/fade:opacity-100 motion-reduce:transition-none',
-			icons
-				? 'bg-[linear-gradient(to_right,var(--surface),transparent)]'
-				: 'bg-[linear-gradient(to_right,var(--bar),transparent)]'
-		)}
+		class="pointer-events-none absolute inset-y-0 left-0 w-6 rounded-l-lg bg-[linear-gradient(to_right,var(--surface),transparent)] opacity-0 transition-opacity group-data-[fade-start]/fade:opacity-100 motion-reduce:transition-none"
 		aria-hidden="true"
 	></span>
 	<span
-		class={cn(
-			'pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg opacity-0 transition-opacity group-data-[fade-end]/fade:opacity-100 motion-reduce:transition-none',
-			icons
-				? 'bg-[linear-gradient(to_left,var(--surface),transparent)]'
-				: 'bg-[linear-gradient(to_left,var(--bar),transparent)]'
-		)}
+		class="pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-[linear-gradient(to_left,var(--surface),transparent)] opacity-0 transition-opacity group-data-[fade-end]/fade:opacity-100 motion-reduce:transition-none"
 		aria-hidden="true"
 	></span>
 </div>

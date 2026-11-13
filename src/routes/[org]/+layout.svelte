@@ -4,6 +4,7 @@
 	// -- ENVS -- //
 	import { navigating, page } from '$app/state';
 	// -- MODULES -- //
+	import { itemTabsBar } from '#lib/board/item/itemTabsBar.svelte.js';
 	import { itemTabsFrom } from '#lib/board/item/itemTabs.js';
 	import { projectTabs } from '#lib/board/projectTabs.js';
 	import { cn } from '#lib/ui/cn.js';
@@ -160,20 +161,27 @@
 							>
 						{/each}
 					</nav>
-					<!-- THE TABS OF THE OPEN ITEM FROM 1536 PX UP, TEXT ONLY. BELOW THAT THEY STAY IN THE CARD UNDER THE BAR. THEY TAKE THE ROOM BETWEEN THE BREADCRUMB AND SEARCH AND SCROLL WHEN IT IS NOT ENOUGH -->
+					<!-- THE TABS OF THE OPEN ITEM FROM 1536 PX UP, TEXT ONLY, IN THE SAME CAPSULE AS THE CARD IN THE PAGE. THEY APPEAR ONLY ONCE THAT CARD HAS SCROLLED PAST THE BAR (VISIBILITY, SO A HIDDEN COPY IS NOT FOCUSABLE OR READ), CENTRED IN THE ROOM BETWEEN THE BREADCRUMB AND SEARCH, AND SCROLL WHEN IT IS NOT ENOUGH. BELOW 1536 PX THE CARD STAYS STUCK UNDER THE BAR -->
 					{#if itemTabs}
 						<nav
-							aria-label="Item sections"
-							class="hidden min-w-0 flex-1 2xl:block"
+							aria-label="Item sections, pinned"
+							class={cn(
+								'hidden min-w-0 flex-1 justify-center transition-[opacity,visibility] duration-150 motion-reduce:transition-none 2xl:flex',
+								itemTabsBar.show ? 'visible opacity-100' : 'invisible opacity-0'
+							)}
 							data-testid="item-tabs-bar"
 						>
-							<ItemTabs
-								tabs={itemTabs.tabs}
-								counts={itemTabs.counts}
-								active={itemTabs.active}
-								pathname={page.url.pathname}
-								icons={false}
-							/>
+							<div
+								class="max-w-full min-w-0 rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-1)]"
+							>
+								<ItemTabs
+									tabs={itemTabs.tabs}
+									counts={itemTabs.counts}
+									active={itemTabs.active}
+									pathname={page.url.pathname}
+									icons={false}
+								/>
+							</div>
 						</nav>
 					{/if}
 

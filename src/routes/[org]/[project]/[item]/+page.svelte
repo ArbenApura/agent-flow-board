@@ -7,6 +7,7 @@
 	import { page } from '$app/state';
 	// -- MODULES -- //
 	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import { itemTabsBar } from '#lib/board/item/itemTabsBar.svelte.js';
 	import { itemTabsFrom, parseItemTab } from '#lib/board/item/itemTabs.js';
 	import ItemTabs from '#lib/board/item/ItemTabs.svelte';
 	import { clearCache } from '#lib/board/swr.js';
@@ -64,6 +65,7 @@
 
 	// -- STATES -- //
 
+	let tabCard = $state<HTMLElement>();
 	let statusOpen = $state(false);
 	let continueOpen = $state(false);
 	let continueAction = $state<ContinueAction>('resume');
@@ -152,6 +154,26 @@
 	});
 	// The tabs and their counts come from the same helper as the top bar's copy, so the two can never drift
 	const tabsView = $derived(itemTabsFrom(page.route.id, data, page.url.searchParams));
+
+	// -- REACTIVE STATEMENTS -- //
+
+	// The tabs show in the top bar once the card has scrolled up past it (the bar is 65 px tall). Below 1536 px the card sticks under
+	// the bar and never leaves, so this stays false there, and the bar copy is not drawn at those widths anyway
+	$effect(() => {
+		const card = tabCard;
+		if (!card) return;
+		const watch = new IntersectionObserver(
+			([entry]) => {
+				itemTabsBar.show = !entry.isIntersecting && entry.boundingClientRect.top < 65;
+			},
+			{ rootMargin: '-65px 0px 0px 0px' }
+		);
+		watch.observe(card);
+		return () => {
+			watch.disconnect();
+			itemTabsBar.show = false;
+		};
+	});
 
 	// -- FUNCTIONS -- //
 
@@ -557,10 +579,11 @@
 		<!-- THE TAB BAR. A CARD THE SAME WIDTH AS THE HEADER ABOVE IT, STICKING JUST UNDER THE TOP BAR (56 PX PLUS ITS LINE, 64 PX PLUS ITS LINE FROM MD) WITH A GAP. THE GAP IS FILLED WITH THE PAGE COLOUR SO SCROLLED TEXT DOES NOT SHOW THROUGH THE TRANSLUCENT TOP BAR -->
 		<!-- A MATCHING STRIP UNDER THE BAR (AFTER:) KEEPS THE 8 PX BELOW IT CLEAN TOO, WHERE THE STICKY BLOCKS OF A TAB STOP (131 PX). BOTH STRIPS ARE 9 PX SO THEY ALSO COVER THE BAR'S 1 PX BORDER -->
 		<nav
+			bind:this={tabCard}
 			aria-label="Item sections"
-			class="sticky top-[65px] z-20 rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-1)] before:pointer-events-none before:absolute before:inset-x-0 before:-top-[9px] before:h-[9px] before:bg-[var(--bg)] after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-[9px] after:h-[9px] after:bg-[var(--bg)] md:top-[73px] 2xl:hidden"
+			class="sticky top-[65px] z-20 rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-1)] before:pointer-events-none before:absolute before:inset-x-0 before:-top-[9px] before:h-[9px] before:bg-[var(--bg)] after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-[9px] after:h-[9px] after:bg-[var(--bg)] md:top-[73px] 2xl:relative 2xl:top-auto 2xl:before:hidden 2xl:after:hidden"
 		>
-			<!-- FROM 1536 PX UP THIS CARD IS GONE (DISPLAY NONE): THE SAME TABS SIT IN THE TOP BAR OF THE LAYOUT, FROM THE SAME HELPER -->
+			<!-- FROM 1536 PX UP THIS CARD STOPS STICKING AND SCROLLS AWAY LIKE ANY CARD. ONCE IT HAS GONE PAST THE TOP BAR THE SAME TABS APPEAR IN THE BAR OF THE LAYOUT, FROM THE SAME HELPER -->
 			{#if tabsView}
 				<ItemTabs
 					tabs={tabsView.tabs}
