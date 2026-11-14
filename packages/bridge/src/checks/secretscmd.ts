@@ -2,6 +2,7 @@
 // Import needs the owner's approval code (check approve --request --action secrets --target <org>/<NAME>): an agent cannot mint one. Names only are ever printed.
 
 // -- MODULES -- //
+import { strictList } from '../listFlags.js';
 import { findRegistration } from './registry.js';
 import { forgetSecrets, importSecrets, listSecrets } from './secrets.js';
 
@@ -56,22 +57,26 @@ export async function secretsCommand(args: string[], ctx: Ctx): Promise<number> 
 		if (sub === 'import') {
 			if (!reg.repo) throw new Error(`${name} is a live site: it has no repo to import keys from.`);
 			const file = flag('--from');
-			const keys = flag('--keys');
+			// The keys widen what the import seals: comma form or one quoted list, a stray extra word is refused (rule R2)
+			const keys = strictList(
+				args,
+				'--keys',
+				/^[A-Z][A-Z0-9_]*$/,
+				'environment keys (uppercase letters, digits and underscores, starting with a letter)'
+			);
 			const approval = flag('--approval');
 			if (!file || !keys) throw new Error('Say --from <file> and --keys A,B.');
 			if (!approval)
 				throw new Error(
 					`Secrets are imported with the owner's approval code. Ask the owner on the board: agent-flow-board check approve --request --action secrets --target ${org}/${name}, then you pass --approval <code>.`
 				);
+			ctx.log(`Sealing keys: ${keys.join(', ')}.`);
 			const done = importSecrets({
 				org,
 				name,
 				repo: reg.repo,
 				file,
-				keys: keys
-					.split(',')
-					.map((k) => k.trim())
-					.filter(Boolean),
+				keys,
 				testRef: flag('--test-ref'),
 				testInbox: flag('--test-inbox'),
 				ownerSaid: flag('--owner-said'),

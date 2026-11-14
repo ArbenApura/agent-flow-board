@@ -285,17 +285,17 @@ describe('mockup tools', () => {
 		for (const p of first.parts.list as {
 			key: string;
 			start: number;
-			end: number;
-			excludedChars: number;
+			chars: number;
+			excludedChars?: number;
 		}[]) {
 			// The part that holds the picture is read before and after its payload, never through it
 			const slices: [number, number][] =
-				p.excludedChars > 0
+				p.excludedChars && p.excludedChars > 0
 					? [
 							[0, at - p.start],
-							[at + payload.length - p.start, p.end - p.start]
+							[at + payload.length - p.start, p.chars]
 						]
-					: [[0, p.end - p.start]];
+					: [[0, p.chars]];
 			for (const [from, to] of slices) {
 				if (to <= from) continue;
 				const r = await call(member, 'mockup_get', {

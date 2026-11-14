@@ -38,6 +38,8 @@ export type MockupTreeAsset = {
 	storageKey: string;
 	size: number;
 	elements: number;
+	/** How many grouped quality findings the tree file carries (rule R10). */
+	checks?: number;
 };
 
 export type MockupDerivedAssets = {

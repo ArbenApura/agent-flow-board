@@ -1228,6 +1228,15 @@ export async function setVersionScreenshot(
 	return { version: out.version, hasScreenshot: true as const };
 }
 
+/** One advisory quality finding of a render (rule R10): bounded, enum-valued, never a gate. */
+export const renderCheckInput = z.object({
+	kind: z.enum(['overflow', 'tap', 'contrast']),
+	severity: z.enum(['fail', 'unknown']),
+	ref: z.string().max(80).optional(),
+	selector: z.string().max(200).optional(),
+	detail: z.string().max(300)
+});
+
 export const renderInput = z.object({
 	screen: z
 		.string()
@@ -1244,7 +1253,9 @@ export const renderInput = z.object({
 	/** The picture of the screen as base64 of a PNG. */
 	pngBase64: z.string().max(7_000_000).optional(),
 	/** The rendered tree: what a browser saw (data-ref, role, text, box, whitelisted computed styles). */
-	elements: z.array(z.record(z.string(), z.unknown())).max(600).optional()
+	elements: z.array(z.record(z.string(), z.unknown())).max(600).optional(),
+	/** The advisory quality findings the browser saw at render time (rules R5 to R9), at most 60 grouped ones. */
+	checks: z.array(renderCheckInput).max(60).optional()
 });
 
 /**
@@ -1259,8 +1270,11 @@ export async function setVersionRender(
 	raw: z.input<typeof renderInput>
 ) {
 	const input = renderInput.parse(raw);
-	if (!input.pngBase64 && !input.elements)
-		throw new OpError('INVALID', 'Send a picture (pngBase64), the rendered elements, or both.');
+	if (!input.pngBase64 && !input.elements && !input.checks)
+		throw new OpError(
+			'INVALID',
+			'Send a picture (pngBase64), the rendered elements, quality checks, or a combination.'
+		);
 	let png: Uint8Array | undefined;
 	let pictureMime: 'image/png' | 'image/jpeg' = 'image/png';
 	if (input.pngBase64) {
@@ -1303,6 +1317,18 @@ export async function setVersionRender(
 						excluded: undefined
 					};
 				}
+				// The declared screens of this version (the afb-config keys plus its data-screen hooks, compared case-insensitively):
+				// an undeclared screen is refused right after the capability check and before the first file is stored (rule R3).
+				// A version that declares nothing accepts any screen and the whole page
+				const declaredKeys = (derived.outline?.screens ?? []).map((s) => s.key.toLowerCase());
+				if (declaredKeys.length) {
+					const screenKey = input.screen.toLowerCase();
+					if (screenKey === 'page' || !declaredKeys.includes(screenKey))
+						throw new OpError(
+							'INVALID',
+							`The screen "${input.screen}" is not declared by this version. Its declared screens are: ${declaredKeys.join(', ')}.`
+						);
+				}
 				const same = (s: { screen: string; state: string; width: number }) =>
 					s.screen === input.screen && s.state === input.state && s.width === input.width;
 				const replaced: string[] = [];
@@ -1328,14 +1354,15 @@ export async function setVersionRender(
 						}
 					];
 				}
-				if (input.elements) {
+				if (input.elements || input.checks) {
 					const key = mockupKey(ctx.orgId, m.projectId, 'asset', 'json');
 					const body = new TextEncoder().encode(
 						JSON.stringify({
 							screen: input.screen,
 							state: input.state,
 							width: input.width,
-							elements: input.elements
+							...(input.elements?.length ? { elements: input.elements } : {}),
+							...(input.checks?.length ? { checks: input.checks } : {})
 						})
 					);
 					written.push(key);
@@ -1349,7 +1376,8 @@ export async function setVersionRender(
 							width: input.width,
 							storageKey: key,
 							size: body.byteLength,
-							elements: input.elements.length
+							elements: input.elements?.length ?? 0,
+							...(input.checks?.length ? { checks: input.checks.length } : {})
 						}
 					];
 				}
@@ -1399,7 +1427,8 @@ export async function setVersionRender(
 		state: input.state,
 		width: input.width,
 		picture: Boolean(png),
-		elements: input.elements?.length ?? 0
+		elements: input.elements?.length ?? 0,
+		...(input.checks?.length ? { checks: input.checks.length } : {})
 	};
 }
 
@@ -1433,7 +1462,13 @@ export async function readMockupTrees(
 			(!options.width || t.width === options.width)
 	);
 	const budget = options.maxChars ?? 9_000;
-	const trees: { screen: string; state: string; width: number; elements: unknown[] }[] = [];
+	const trees: {
+		screen: string;
+		state: string;
+		width: number;
+		elements: unknown[];
+		checks?: unknown[];
+	}[] = [];
 	let used = 0;
 	let omitted = 0;
 	for (const t of listed) {
@@ -1444,8 +1479,18 @@ export async function readMockupTrees(
 			continue;
 		}
 		used += text.length;
-		const parsed = JSON.parse(text) as { elements: unknown[] };
-		trees.push({ screen: t.screen, state: t.state, width: t.width, elements: parsed.elements });
+		// A tree stored before the quality checks existed carries no checks field: it is read without one
+		const parsed = JSON.parse(text) as {
+			elements?: unknown[];
+			checks?: unknown[];
+		};
+		trees.push({
+			screen: t.screen,
+			state: t.state,
+			width: t.width,
+			elements: parsed.elements ?? [],
+			...(Array.isArray(parsed.checks) ? { checks: parsed.checks } : {})
+		});
 	}
 	return { version: found.number, available: listed.length, omitted, trees };
 }

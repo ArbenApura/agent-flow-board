@@ -74,6 +74,44 @@ describe('the check command group', () => {
 		expect(logs.join(' ')).toMatch(/0 finished run folder/);
 	});
 
+	it('connect --project takes a comma list or one quoted list and refuses a stray extra word (rule R2)', async () => {
+		const refused = ctx([
+			'connect',
+			'--server',
+			'https://board.test',
+			'--org',
+			'arbenger',
+			'--project',
+			'AFB',
+			'HAPR'
+		]);
+		expect(await checkMain(refused.c)).toBe(2);
+		expect(refused.logs.join(' ')).toMatch(/extra word "HAPR"/);
+		const lowercase = ctx([
+			'connect',
+			'--server',
+			'https://board.test',
+			'--org',
+			'arbenger',
+			'--project',
+			'afb'
+		]);
+		expect(await checkMain(lowercase.c)).toBe(2);
+		expect(lowercase.logs.join(' ')).toMatch(/not "afb"/);
+		// The final list is printed before the connection is attempted
+		const comma = ctx([
+			'connect',
+			'--server',
+			'https://board.test',
+			'--org',
+			'arbenger',
+			'--project',
+			'AFB,HAPR'
+		]);
+		await checkMain(comma.c);
+		expect(comma.logs.join(' ')).toMatch(/Connecting for the projects: AFB, HAPR\./);
+	});
+
 	it('run without a connection says how to connect, as one JSON error with --json, and does not wait', async () => {
 		const { c, outs } = ctx([
 			'run',

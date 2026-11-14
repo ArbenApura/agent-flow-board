@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { checkMain } from './command.js';
 import { devConfigHash } from './devPolicy.js';
-import { inspectMockupCli, inspectUrl } from './inspect.js';
+import { inspectMockupCli, inspectUrl, redactSignedAddress } from './inspect.js';
 import { compareInspections } from './pairing.js';
 import { saveRegistration } from './registry.js';
 import { fileStore } from '../tokenStore.js';
@@ -291,4 +291,68 @@ describe('mockup inspect & app DOM dump (B.5)', () => {
 		expect(diff.notCompared.map((n) => n.reason)).toContain('missing-in-mockup');
 		expect(diff.notCompared.map((n) => n.reason)).toContain('unmapped-mockup-ref');
 	}, 60_000);
+
+	it('redacts a signed address in one shared function, in any spelling (rule R1)', () => {
+		// A goto failure: the URL with its exp and sig, in either order
+		expect(
+			redactSignedAddress(
+				'net::ERR_CONNECTION_REFUSED at http://h.test/m/a/file?exp=1790000000&sig=deadbeef'
+			)
+		).toBe('net::ERR_CONNECTION_REFUSED at http://h.test/m/a/file?[hidden]');
+		expect(redactSignedAddress('refused http://h.test/m/a/file?sig=deadbeef&exp=1790000000')).toBe(
+			'refused http://h.test/m/a/file?[hidden]'
+		);
+		// A timeout whose Call log names the URL, in quotes, with the rest of the message kept
+		const timeout =
+			'TimeoutError: page.goto: Timeout 30000ms exceeded.\nCall log:\n  - navigating to "http://h.test/m/a/file?sig=deadbeef", waiting until "load"';
+		const redactedTimeout = redactSignedAddress(timeout);
+		expect(redactedTimeout).not.toMatch(/sig=|exp=/);
+		expect(redactedTimeout).toContain('Call log');
+		// A URL with no query stays as it is
+		expect(redactSignedAddress('http://h.test/m/a/file and back')).toBe(
+			'http://h.test/m/a/file and back'
+		);
+		// An URL-encoded equals sign, also of the whole address tail
+		expect(redactSignedAddress('sig%3Ddeadbeef')).toBe('[hidden]');
+		expect(
+			redactSignedAddress('navigating to "http%3A%2F%2Fh.test%2Fm%2Fa%2Ffile%3Fsig%3Ddeadbeef"')
+		).toBe('navigating to "http%3A%2F%2Fh.test%2Fm%2Fa%2Ffile%3F[hidden]"');
+		// A truncated tail: the value ends the message
+		expect(redactSignedAddress('... at http://h.test/m/a/file?sig=dead')).toBe(
+			'... at http://h.test/m/a/file?[hidden]'
+		);
+		// An ordinary page address keeps its query, and the word "exp" in prose stays
+		expect(redactSignedAddress('http://h.test/app?page=2')).toBe('http://h.test/app?page=2');
+		expect(redactSignedAddress('the exp of the token')).toBe('the exp of the token');
+		// A signed file address of the board loses its query too
+		expect(redactSignedAddress('PUT /api/v1/files/a/b?exp=1&sig=x refused')).toBe(
+			'PUT /api/v1/files/a/b? refused'
+		);
+	});
+
+	it('leaves no sig= or exp= in a failed mockup inspect (rule R1)', async () => {
+		const srv = await startServer((u) => {
+			if (u.pathname === '/api/v1/orgs/arbenger/mockups/m-plan/url')
+				return {
+					status: 403,
+					contentType: 'application/json',
+					body: JSON.stringify({
+						error: { message: 'Forbidden for http://h.test/m/a/file?exp=1790000000&sig=deadbeef' }
+					})
+				};
+			return { status: 404, contentType: 'text/plain', body: 'not found' };
+		});
+		servers.push(srv.server);
+		await expect(
+			inspectMockupCli({
+				server: srv.origin,
+				org: 'arbenger',
+				token: 'afb_test_token_value',
+				mockup: 'm-plan',
+				fetch: (input, init) => fetch(input, init)
+			})
+		).rejects.toThrow(
+			/^(?!.*(sig=|exp=))Forbidden for http:\/\/h\.test\/m\/a\/file\?\[hidden\] \(403\)$/
+		);
+	});
 });

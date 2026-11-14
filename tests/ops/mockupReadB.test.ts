@@ -207,6 +207,118 @@ describe('mockup reads are light', () => {
 		expect((await listMockupParts(as('viewer'), plain.mockup.id)).bundle).toBe(false);
 	});
 
+	it('stores the quality checks of a render, bounded, and reads trees stored without them (rule R10)', async () => {
+		const p = await createItem(as('member'), { project: w.projectKey, title: 'Checks', ...PLAN });
+		const made = await publishMockup(as('member'), { item: p.ref }, html(3));
+		const check = {
+			kind: 'contrast' as const,
+			severity: 'fail' as const,
+			selector: '[data-ref="cta"]',
+			detail: 'Contrast 2.9 is below 4.5 for normal text.'
+		};
+		// Checks without elements or a picture are stored
+		await setVersionRender(as('member'), made.mockup.id, made.version.number, {
+			screen: 'page',
+			width: 1280,
+			checks: [check, { kind: 'tap', severity: 'unknown', detail: 'check could not run: x' }]
+		});
+		const seen = await readMockupTrees(as('viewer'), made.mockup.id, { screen: 'page' });
+		expect(seen.trees).toHaveLength(1);
+		expect(seen.trees[0]?.checks).toHaveLength(2);
+		expect(seen.trees[0]?.elements).toEqual([]);
+		const derived = await getMockupDerived(as('viewer'), made.mockup.id);
+		expect(derived.derived?.trees?.find((t) => t.checks)?.checks).toBe(2);
+		// A 61-entry array and an unknown kind are refused
+		await expect(
+			setVersionRender(as('member'), made.mockup.id, made.version.number, {
+				screen: 'page',
+				width: 1280,
+				checks: Array.from({ length: 61 }, () => check)
+			})
+		).rejects.toThrow();
+		await expect(
+			setVersionRender(as('member'), made.mockup.id, made.version.number, {
+				screen: 'page',
+				width: 1280,
+				checks: [{ kind: 'skip', severity: 'fail', detail: 'x' } as never]
+			})
+		).rejects.toThrow();
+		// A tree stored before the checks existed reads without them
+		const plain = await publishMockup(as('member'), { item: p.ref }, html(4));
+		await setVersionRender(as('member'), plain.mockup.id, plain.version.number, {
+			screen: 'page',
+			width: 1280,
+			elements: [{ ref: 'a', selector: '[data-ref="a"]' }]
+		});
+		const without = await readMockupTrees(as('viewer'), plain.mockup.id, { screen: 'page' });
+		expect(without.trees[0]?.elements).toHaveLength(1);
+		expect(without.trees[0]?.checks).toBeUndefined();
+	});
+
+	it('refuses an undeclared screen before anything is stored, and compares the case (rule R3, B.2)', async () => {
+		const p = await createItem(as('member'), { project: w.projectKey, title: 'Declared', ...PLAN });
+		const made = await publishMockup(
+			as('member'),
+			{ item: p.ref },
+			new TextEncoder().encode(
+				`<html><head><meta name="afb-config" content='{"screens": [["today", "Today"], "consult"]}'></head><body><section data-screen="Cases">Cases</section></body></html>`
+			)
+		);
+		const png = Buffer.from(
+			Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0])
+		).toString('base64');
+		// A declared key in any letter case, a string-form key and a data-screen hook are all accepted
+		await setVersionRender(as('member'), made.mockup.id, 1, {
+			screen: 'TODAY',
+			width: 1280,
+			pngBase64: png
+		});
+		await setVersionRender(as('member'), made.mockup.id, 1, {
+			screen: 'consult',
+			width: 1280,
+			pngBase64: png
+		});
+		await setVersionRender(as('member'), made.mockup.id, 1, {
+			screen: 'cases',
+			width: 1280,
+			pngBase64: png
+		});
+		// The whole page is refused when the version declares screens
+		await expect(
+			setVersionRender(as('member'), made.mockup.id, 1, {
+				screen: 'page',
+				width: 1280,
+				pngBase64: png
+			})
+		).rejects.toMatchObject({
+			code: 'INVALID',
+			message: expect.stringMatching(/declared screens are: today, consult, cases/)
+		});
+		// An undeclared screen is refused too, and a refusal stores nothing
+		const before = await readMockupTrees(as('viewer'), made.mockup.id);
+		await expect(
+			setVersionRender(as('member'), made.mockup.id, 1, {
+				screen: 'nope',
+				width: 1280,
+				pngBase64: png
+			})
+		).rejects.toMatchObject({
+			code: 'INVALID',
+			message: expect.stringMatching(/"nope" is not declared/)
+		});
+		const after = await readMockupTrees(as('viewer'), made.mockup.id);
+		expect(after.trees.map((t) => [t.screen, t.width]).sort()).toEqual(
+			before.trees.map((t) => [t.screen, t.width]).sort()
+		);
+		// A version with no declared screens accepts the page
+		const plain = await publishMockup(as('member'), { item: p.ref }, html(2));
+		await setVersionRender(as('member'), plain.mockup.id, plain.version.number, {
+			screen: 'page',
+			width: 1280,
+			pngBase64: png
+		});
+	});
+
 	it('saves a render (picture and rendered tree) per screen, state and width, and a second one replaces the first (C.2)', async () => {
 		const p = await createItem(as('member'), { project: w.projectKey, title: 'Renders', ...PLAN });
 		const made = await publishMockup(as('member'), { item: p.ref }, html(1));

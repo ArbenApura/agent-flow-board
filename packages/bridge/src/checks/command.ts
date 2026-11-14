@@ -12,6 +12,7 @@ import type { TokenStore } from '../tokenStore.js';
 // -- MODULES -- //
 import { bindFolder } from './bind.js';
 import { ensureBrowser } from './browser.js';
+import { listFlag, strictList } from '../listFlags.js';
 import { connectChecks, loadRunnerToken, runnerAccount } from './connect.js';
 import { forgetConnection, listConnections, recordConnection } from './connections.js';
 import { RunnerBoard } from './board.js';
@@ -97,15 +98,6 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 		if (v === undefined || v.startsWith('--')) throw new Error(`Say ${name} <value>.`);
 		return v;
 	};
-	// A list option takes a comma list ("360,768") or several words ("360 768"): PowerShell turns an unquoted comma list into separate words
-	const listFlag = (name: string): string | undefined => {
-		const first = flag(name);
-		if (first === undefined) return undefined;
-		const rest: string[] = [];
-		for (let i = args.indexOf(name) + 2; i < args.length && !args[i].startsWith('--'); i++)
-			rest.push(args[i]);
-		return [first, ...rest].join(',').trim().replace(/\s+/g, ',');
-	};
 	const has = (name: string) => args.includes(name);
 	const json = has('--json');
 	const need = (name: string): string => {
@@ -131,10 +123,14 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 		if (sub === 'connect') {
 			const s = server();
 			const o = org();
-			const projects = flag('--project')
-				?.split(',')
-				.map((p) => p.trim())
-				.filter(Boolean);
+			// The project keys widen what this runner may serve: comma form or one quoted list, a stray extra word is refused (rule R2)
+			const projects = strictList(
+				args,
+				'--project',
+				/^[A-Z]{2,10}$/,
+				'board project keys (2 to 10 uppercase letters)'
+			);
+			if (projects) log(`Connecting for the projects: ${projects.join(', ')}.`);
 			const done = await connectChecks({
 				server: s,
 				org: o,
@@ -398,7 +394,7 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 			const briefPath = flag('--brief');
 			const briefText = briefPath ? readFileSync(resolve(briefPath), 'utf8') : undefined;
 			const pathArg = flag('--path');
-			const screensRaw = listFlag('--screens');
+			const screensRaw = listFlag(args, '--screens');
 			const screens: CompareScreenSpec[] | undefined = screensRaw
 				? screensRaw
 						.split(',')
@@ -408,14 +404,14 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 				: pathArg
 					? [{ name: 'default', screen: '', path: pathArg }]
 					: undefined;
-			const statesRaw = listFlag('--states');
+			const statesRaw = listFlag(args, '--states');
 			const states = statesRaw
 				? statesRaw
 						.split(',')
 						.map((v) => v.trim())
 						.filter(Boolean)
 				: undefined;
-			const widthsRaw = listFlag('--widths');
+			const widthsRaw = listFlag(args, '--widths');
 			const widths = widthsRaw
 				? widthsRaw.split(',').map((w) => {
 						const n = Number(w.trim());

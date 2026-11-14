@@ -180,7 +180,7 @@ export const mockupRoutes: Route[] = [
 		method: 'PUT',
 		path: '/orgs/{org}/mockups/{id}/versions/{number}/renders',
 		summary:
-			'Save what a browser saw of one screen, state and width of a version: a picture (pngBase64) and the rendered element tree (elements). The same screen, state and width replaces the earlier render',
+			'Save what a browser saw of one screen, state and width of a version: a picture (pngBase64), the rendered element tree (elements) and its advisory quality findings (checks). The same screen, state and width replaces the earlier render',
 		tag: 'Mockups',
 		body: renderInput,
 		handler: ({ ctx, params, body }) =>

@@ -10,6 +10,7 @@ import { appendAudit } from './audit.js';
 import { assertProfileName, DEFAULT_PROFILE, listProfiles, removeProfilesNamed } from './profiles.js';
 import { addRoot, listRoots, readRoots, removeRoot } from './roots.js';
 import { ASK_LIMIT, askOwner, parseEntries } from './askBoard.js';
+import { HOSTNAME_PATTERN } from '../listFlags.js';
 // -- CONSTANTS -- //
 const BOOLEAN_FLAGS = new Set([
     '--recipe',
@@ -170,7 +171,19 @@ export async function projectCommand(args, ctx) {
         }
         if (p.pos.length > 1)
             throw new UsageError(`Unexpected "${p.pos[1]}".\n${PROJECT_USAGE}`);
-        const hosts = text(p, '--extra-hosts');
+        const hostsRaw = text(p, '--extra-hosts');
+        // The extra hosts widen what a check may reach: host names only, and the final list is printed before the registration (rule R2)
+        const extraHosts = hostsRaw
+            ? hostsRaw
+                .split(',')
+                .map((h) => h.trim())
+                .filter(Boolean)
+            : undefined;
+        for (const h of extraHosts ?? [])
+            if (!HOSTNAME_PATTERN.test(h))
+                throw new UsageError(`--extra-hosts takes host names, not "${h.slice(0, 40)}".`);
+        if (extraHosts?.length)
+            ctx.log(`Extra hosts: ${extraHosts.join(', ')}.`);
         const allowlistRaw = text(p, '--write-allowlist');
         const startRaw = text(p, '--start');
         const devUrl = text(p, '--dev-url');
@@ -193,14 +206,7 @@ export async function projectCommand(args, ctx) {
                         .filter(Boolean)
                 }
                 : {}),
-            ...(hosts
-                ? {
-                    extraHosts: hosts
-                        .split(',')
-                        .map((h) => h.trim())
-                        .filter(Boolean)
-                }
-                : {}),
+            ...(extraHosts?.length ? { extraHosts } : {}),
             recipe: p.flags.has('--recipe'),
             adoptEnv: p.flags.has('--adopt-env'),
             uploadSignedInPictures: p.flags.has('--upload-pictures')

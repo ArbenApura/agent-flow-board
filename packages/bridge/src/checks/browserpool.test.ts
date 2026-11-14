@@ -185,6 +185,26 @@ describe('browser pool', () => {
 		await pool.closeAll();
 	});
 
+	it('a burst of mockup captures shares one browser and the dedicated lease never does (rule R4)', async () => {
+		const { made, launcher } = fakeLauncher();
+		const pool = new BrowserPool({ launcher, idleMs: 10_000 });
+		const a = await pool.acquire({ hosts: ['mockups.board.test'] });
+		const b = await pool.acquire({ hosts: ['mockups.board.test'] });
+		expect(made).toHaveLength(1);
+		expect(b.wsEndpoint()).toBe(a.wsEndpoint());
+		// A dedicated lease (a live site, or saved sign-ins) still forces its own browser
+		const d = await pool.acquire({ hosts: ['mockups.board.test'], dedicated: true });
+		expect(d.wsEndpoint()).not.toBe(a.wsEndpoint());
+		expect(made).toHaveLength(2);
+		await d.release();
+		expect(made[1].closed).toBe(true);
+		expect(made[0].closed).toBe(false);
+		await a.release();
+		await b.release();
+		await pool.closeAll();
+		expect(pool.size).toBe(0);
+	});
+
 	it('pins the Playwright version in a constant', () => {
 		expect(PLAYWRIGHT_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
 	});

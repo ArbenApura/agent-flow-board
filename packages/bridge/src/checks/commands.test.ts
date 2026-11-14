@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { approveCommand, projectCommand, rootsCommand } from './commands.js';
 import { devApprovalTarget, devConfigHash } from './devPolicy.js';
+import { readRegistrations } from './registry.js';
 
 // -- FUNCTIONS -- //
 
@@ -194,5 +195,77 @@ describe('commands', () => {
 				ctx(true)
 			)
 		).toBe(0);
+	});
+
+	it('keeps --write-allowlist rules whole and prints --extra-hosts before acting (rule R2)', async () => {
+		const repo = join(work, 'app');
+		await approveCommand(['--action', 'roots', '--target', work], ctx(), { isTTY: true });
+		expect(await rootsCommand(['add', work, '--approval', codeOf()], ctx())).toBe(0);
+		// 'POST /api,DELETE /x' in one quoted word stays exactly two rules
+		const twoHash = devConfigHash({
+			devUrl: 'http://127.0.0.1:4173',
+			startCommand: ['node', 'server.js'],
+			allowWrites: true,
+			writeAllowlist: [
+				{ method: 'POST', pathPrefix: '/api' },
+				{ method: 'DELETE', pathPrefix: '/x' }
+			]
+		});
+		out = [];
+		const approveStatus = await approveCommand(
+			['--action', 'dev', '--target', devApprovalTarget('TWOALWD', twoHash)],
+			ctx(),
+			{ isTTY: true }
+		);
+		expect(approveStatus).toBe(0);
+		const twoCode = codeOf();
+		const status = await projectCommand(
+			[
+				'TWOALWD',
+				'--org',
+				'acme',
+				'--dev-url',
+				'http://127.0.0.1:4173',
+				'--start',
+				'node server.js',
+				'--allow-writes',
+				'--write-allowlist',
+				'POST /api,DELETE /x',
+				'--approval',
+				twoCode
+			],
+			ctx(true)
+		);
+		expect(status).toBe(0);
+		const { registrations } = readRegistrations('acme');
+		expect(
+			registrations
+				.find((r) => r.name === 'TWOALWD')
+				?.writeAllowlist?.map((r) => `${r.method} ${r.pathPrefix}`)
+				.sort()
+		).toEqual(['DELETE /x', 'POST /api']);
+
+		// A trailing positional after --extra-hosts is never swallowed, and an address is not a host name
+		expect(
+			await projectCommand(
+				['XH', '--org', 'acme', '--repo', repo, '--extra-hosts', 'a.test', 'b.test'],
+				ctx()
+			)
+		).toBe(2);
+		expect(
+			await projectCommand(
+				['XH', '--org', 'acme', '--repo', repo, '--extra-hosts', 'https://a.test'],
+				ctx()
+			)
+		).toBe(2);
+		// The final list is printed before the registration
+		log = [];
+		expect(
+			await projectCommand(
+				['XH2', '--org', 'acme', '--repo', repo, '--extra-hosts', 'a.test,b.test'],
+				ctx()
+			)
+		).toBe(0);
+		expect(log.join(' ')).toMatch(/Extra hosts: a\.test, b\.test\./);
 	});
 });

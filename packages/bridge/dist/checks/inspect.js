@@ -6,6 +6,7 @@ import { ensureBrowser, loadPlaywright } from './browser.js';
 import { acquireBrowser } from './browserpool.js';
 import { DEV_READINESS_INIT_SCRIPT, waitForDevReady } from './devReadiness.js';
 import { guardContext, guardDevContext } from './guard.js';
+import { collectQualityFindings, checkCouldNotRun, groupQualityFindings } from './qualityChecks.js';
 import { parseMockupRef, resolveMockupTarget } from './mockupTarget.js';
 import { applyStateDriverToUrl, INSPECT_STYLE_PROPERTIES } from './pairing.js';
 // -- CONSTANTS -- //
@@ -31,7 +32,39 @@ async function withTimeout(promise, label, ms = OP_TIMEOUT_MS) {
             clearTimeout(timer);
     }
 }
+// -- REDACTION (RULE R1, AFB-20261114-0611) -- //
+// -- CONSTANTS -- //
+/** exp= or sig= with its value, after a ? or &, raw or with an URL-encoded equals sign. */
+const SIGNED_QUERY_PARAM = /([?&])(?:exp|sig)(?:=|%3d)[^&\s'"<>`]*/gi;
+/** A signed parameter that lost the ? or & before it (a bare query or a truncated, maybe URL-encoded address). */
+const SIGNED_PARAM = /(?<![A-Za-z0-9])(?:exp|sig)(?:=|%3d)[^&\s'"<>`]*/gi;
+/** A whole URL-encoded address (? became %3F) whose query carries exp or sig: the tail after it goes. */
+const ENCODED_QUERY_TAIL = /(%3f)(?=[^&\s'"<>]*?(?:exp|sig)%3d)[^&\s'"<>]*/gi;
+/** Every address-shaped run of text. */
+const ANY_URL_TEXT = /https?:\/\/[^\s'"<>`\\]+/gi;
+/** A mockup file address (/m/..., /mf/...) or a signed file address of the board. */
+const SIGNED_ADDRESS_PATH = /\/(?:m|mf)(?:\/|$)|\/api\/v1\/files\//;
 // -- FUNCTIONS -- //
+/**
+ * One shared redaction of a signed address (rule R1): the expiry and the signature of a signed address
+ * never reach a log, a failure reason or a result. Applied where an error is thrown or caught and
+ * before any slice.
+ */
+export function redactSignedAddress(text) {
+    // A mockup file or a signed file address loses its whole query; any other address keeps it
+    let out = String(text).replace(ANY_URL_TEXT, (u) => {
+        if (!SIGNED_ADDRESS_PATH.test(u))
+            return u;
+        const at = u.indexOf('?');
+        return at === -1 ? u : `${u.slice(0, at)}?[hidden]`;
+    });
+    // exp= and sig= anywhere else: a bare query, a truncated address, an encoded equals sign, either order
+    out = out.replace(ENCODED_QUERY_TAIL, '$1[hidden]');
+    out = out.replace(SIGNED_QUERY_PARAM, '$1');
+    // When the removed parameters were all the query had, a "?&" stub is left: it goes too
+    out = out.replace(/\?&/g, '?');
+    return out.replace(SIGNED_PARAM, '[hidden]');
+}
 /** Waits for document fonts (capped cleanly) and Vite/dev readiness when inspecting a dev server. */
 export async function waitForInspectReady(page, opts = {}) {
     if (opts.isDev && typeof page.waitForLoadState === 'function') {
@@ -201,10 +234,12 @@ export async function inspectUrl(opts) {
     const isMockup = opts.target === 'mockup';
     const extraHosts = isMockup ? [] : (opts.extraHosts ?? []);
     await ensureBrowser(() => undefined);
+    // The mockup host is the only host of a mockup render, and a fresh context of its own is made for every capture
+    // (rule R4): the browser is shared, never the context
     const lease = await acquireBrowser({
         hosts: [parsedUrl.hostname, ...extraHosts],
         headed: opts.headed,
-        dedicated: Boolean(opts.dedicated) || isMockup || opts.storageState != null
+        dedicated: Boolean(opts.dedicated) || opts.storageState != null
     });
     let browser = null;
     try {
@@ -251,7 +286,15 @@ export async function inspectUrl(opts) {
                 }));
             }
             await page.setViewportSize({ width, height });
-            await page.goto(driven.url, { waitUntil: 'load', timeout: OP_TIMEOUT_MS });
+            try {
+                await page.goto(driven.url, { waitUntil: 'load', timeout: OP_TIMEOUT_MS });
+            }
+            catch (e) {
+                // Playwright names the signed address in its message (also in the Call log of a timeout): redact before it leaves
+                throw new Error(redactSignedAddress(e instanceof Error ? e.message : String(e)), {
+                    cause: e
+                });
+            }
             await waitForInspectReady(page, {
                 isDev: !isMockup && opts.isDev,
                 needles: opts.needles ?? []
@@ -268,7 +311,50 @@ export async function inspectUrl(opts) {
             if (opts.captureScreenshot && typeof page.screenshot === 'function') {
                 screenshot = await withTimeout(page.screenshot({ type: 'jpeg', quality: 70, fullPage: true, timeout: OP_TIMEOUT_MS }), 'page.screenshot');
             }
-            return { dump, screenshot, manualRequired: false };
+            // The advisory quality checks run after the picture and the tree are captured (rule R5): each check has
+            // its own try/catch inside the page and a time budget there, the outside call has a timeout, a failure
+            // gives a 'check could not run' entry and the render is still saved. Warnings only, never a gate.
+            let checks;
+            if (opts.qualityChecks) {
+                try {
+                    const out = await withTimeout(
+                    // The whole check is one self-contained page function (Playwright serialises it whole)
+                    page.evaluate(collectQualityFindings), 'quality checks', 8_000);
+                    const findings = [...out.findings];
+                    if (out.truncated)
+                        findings.push({
+                            kind: 'contrast',
+                            severity: 'unknown',
+                            selector: 'page',
+                            detail: 'A check stopped at its time or element budget; what it saw is reported.'
+                        });
+                    // A check that could not run at all says so with its own entry
+                    for (const message of out.couldNotRun) {
+                        const kind = message.startsWith('overflow check')
+                            ? 'overflow'
+                            : message.startsWith('tap check')
+                                ? 'tap'
+                                : 'contrast';
+                        findings.push({
+                            kind,
+                            severity: 'unknown',
+                            selector: 'page',
+                            detail: `check could not run: ${message}`
+                        });
+                    }
+                    checks = groupQualityFindings(findings);
+                }
+                catch (e) {
+                    // The page itself could not be asked (a hung or crashed check): say so, keep the render
+                    const message = e instanceof Error ? e.message : String(e);
+                    checks = groupQualityFindings([
+                        checkCouldNotRun('overflow', message),
+                        checkCouldNotRun('tap', message),
+                        checkCouldNotRun('contrast', message)
+                    ]);
+                }
+            }
+            return { dump, screenshot, checks, manualRequired: false };
         }
         finally {
             await ctx.close().catch(() => undefined);
@@ -281,26 +367,32 @@ export async function inspectUrl(opts) {
 }
 /** CLI helper for `agent-flow-board mockup inspect ID[@VERSION] --screen S --state T --width W`. */
 export async function inspectMockupCli(opts) {
-    const parsed = parseMockupRef(opts.mockup);
-    const ref = opts.version !== undefined && parsed.version === undefined
-        ? { ...parsed, version: opts.version }
-        : parsed;
-    const minted = await resolveMockupTarget({
-        server: opts.server,
-        org: opts.org,
-        ref,
-        personalToken: opts.token,
-        fetch: opts.fetch,
-        log: opts.log
-    });
-    const result = await inspectUrl({
-        url: minted.url,
-        expectedOrigin: minted.origin,
-        target: 'mockup',
-        screen: opts.screen,
-        state: opts.state,
-        width: opts.width,
-        height: opts.height
-    });
-    return result.dump;
+    try {
+        const parsed = parseMockupRef(opts.mockup);
+        const ref = opts.version !== undefined && parsed.version === undefined
+            ? { ...parsed, version: opts.version }
+            : parsed;
+        const minted = await resolveMockupTarget({
+            server: opts.server,
+            org: opts.org,
+            ref,
+            personalToken: opts.token,
+            fetch: opts.fetch,
+            log: opts.log
+        });
+        const result = await inspectUrl({
+            url: minted.url,
+            expectedOrigin: minted.origin,
+            target: 'mockup',
+            screen: opts.screen,
+            state: opts.state,
+            width: opts.width,
+            height: opts.height
+        });
+        return result.dump;
+    }
+    catch (e) {
+        // The mint and the inspect both see the signed address; nothing of it leaves this command
+        throw new Error(redactSignedAddress(e instanceof Error ? e.message : String(e)), { cause: e });
+    }
 }

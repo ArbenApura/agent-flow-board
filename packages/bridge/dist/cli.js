@@ -14,7 +14,9 @@
 // agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug>   save a mockup's HTML to one new file outside any repo
 // agent-flow-board mockup url <mockup id> --server <url> --org <slug> [--version <n>] [--screenshot] [--ttl <sec>]   mint a short-lived signed mockup address
 // agent-flow-board mockup inspect <mockup id>[@version] --server <url> --org <slug> [--screen S] [--state T] [--width W] [--height H]   inspect rendered DOM box/styles/text
+// agent-flow-board mockup renders <mockup id> --server <url> --org <slug> [--version <n>] [--widths 408,820,1280,1600] [--render-states a,b]   re-render an existing version, no file written
 // -- DEP-MODULES -- //
+import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runBridge } from './bridge.js';
@@ -30,21 +32,21 @@ import { mintMockupUrlCli, pullMockup, pushKit, pushMockup } from './mockup.js';
 import { Queue } from './queue.js';
 import { captureRenders, DEFAULT_RENDER_WIDTHS, screensOfPage } from './renders.js';
 import { accountKey, configDir, pickStore } from './tokenStore.js';
+import { listFlag } from './listFlags.js';
 // -- FUNCTIONS -- //
 const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-// A list option takes "408,1280" or "408 1280": PowerShell turns an unquoted comma list into separate words, which used to keep only the first
-const listFlag = (name) => {
-    const first = flag(name);
-    if (first === undefined)
-        return undefined;
-    const rest = [];
-    for (let i = args.indexOf(name) + 2; i < args.length && !args[i].startsWith('--'); i++)
-        rest.push(args[i]);
-    return [first, ...rest].join(',').trim().replace(/\s+/g, ',');
-};
 const cmd = args[0];
 const log = (s) => process.stderr.write(s + '\n');
+/**
+ * Closes the browsers of this process's pool at the end of a one-shot command (rule R4): the renders of
+ * a push share one browser and nothing is kept warm for a run that will not come. The watch worker, which
+ * stays up, keeps the 15 second keep-alive instead. Loaded here, so the hooks never load the check code.
+ */
+const closeBrowserPool = async () => {
+    const { closeAllBrowsers } = await import('./checks/browserpool.js');
+    await closeAllBrowsers().catch(() => undefined);
+};
 function serverUrl() {
     const s = flag('--server') ?? process.env.AFB_SERVER;
     if (!s) {
@@ -182,10 +184,10 @@ async function main() {
     }
     if (cmd === 'mockup') {
         // One upload over /api/v1 with this machine's own sign in. It is never queued, so a failure is said out loud and run again
-        if (!['push', 'kit', 'pull', 'url', 'inspect', 'bundle', 'shell', 'parts'].includes(args[1] ?? '') ||
+        if (!['push', 'kit', 'pull', 'url', 'inspect', 'renders', 'bundle', 'shell', 'parts'].includes(args[1] ?? '') ||
             !args[2] ||
             args[2].startsWith('--')) {
-            log('Usage: agent-flow-board mockup push <file.html> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [--another] [--title <text>] [--keep <text> | --keep-file <path>] [--free <text> | --free-file <path>] [--screenshot <file.png>] [--tailwind-entry <app.css> [--project-root <dir>] | --style-file <built.css>] [--renders [--widths 408,820,1280,1600] [--render-states a,b]]\n       agent-flow-board mockup bundle <dir with mockup.json> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [the same options as push]\n       agent-flow-board mockup shell <file.html> --server <url> --org <slug> --project <key>\n       agent-flow-board mockup parts <mockup id> --server <url> --org <slug> [--version <n>]\n       agent-flow-board mockup pull <mockup id> --parts <new folder> --server <url> --org <slug> [--version <n>]\n       agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key> [--commit <hash>] [--summary <text>]\n       agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug> [--version <n>] [--session <id>]\n       agent-flow-board mockup url <mockup id> --server <url> --org <slug> [--version <n>] [--screenshot] [--ttl <seconds>]\n       agent-flow-board mockup inspect <mockup id>[@version] --server <url> --org <slug> [--screen S] [--state T] [--width W] [--height H]');
+            log('Usage: agent-flow-board mockup push <file.html> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [--another] [--title <text>] [--keep <text> | --keep-file <path>] [--free <text> | --free-file <path>] [--screenshot <file.png>] [--tailwind-entry <app.css> [--project-root <dir>] | --style-file <built.css>] [--renders [--widths 408,820,1280,1600] [--render-states a,b]]\n       agent-flow-board mockup bundle <dir with mockup.json> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [the same options as push]\n       agent-flow-board mockup shell <file.html> --server <url> --org <slug> --project <key>\n       agent-flow-board mockup parts <mockup id> --server <url> --org <slug> [--version <n>]\n       agent-flow-board mockup pull <mockup id> --parts <new folder> --server <url> --org <slug> [--version <n>]\n       agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key> [--commit <hash>] [--summary <text>]\n       agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug> [--version <n>] [--session <id>]\n       agent-flow-board mockup url <mockup id> --server <url> --org <slug> [--version <n>] [--screenshot] [--ttl <seconds>]\n       agent-flow-board mockup inspect <mockup id>[@version] --server <url> --org <slug> [--screen S] [--state T] [--width W] [--height H]\n       agent-flow-board mockup renders <mockup id> --server <url> --org <slug> [--version <n>] [--widths 408,820,1280,1600] [--render-states a,b]');
             process.exit(2);
         }
         const server = serverUrl();
@@ -194,6 +196,8 @@ async function main() {
             log('Say which organisation: --org <slug>.');
             process.exit(2);
         }
+        // One nonce per run in the idempotency key (rule R11): a second run replaces the first render, a retry in one run resends the stored body
+        const runNonce = randomBytes(4).toString('hex');
         if (args[1] === 'inspect') {
             const version = flag('--version');
             if (version !== undefined && !/^[1-9][0-9]*$/.test(version)) {
@@ -218,20 +222,67 @@ async function main() {
                 process.exit(1);
             }
             const { inspectMockupCli } = await import('./checks/inspect.js');
-            const dump = await inspectMockupCli({
-                server,
-                org,
-                token,
-                mockup: args[2],
-                version: version ? Number(version) : undefined,
-                screen: flag('--screen'),
-                state: flag('--state'),
-                width,
-                height,
-                fetch: fetchImpl,
-                log
-            });
-            process.stdout.write(JSON.stringify(dump) + '\n');
+            try {
+                const dump = await inspectMockupCli({
+                    server,
+                    org,
+                    token,
+                    mockup: args[2],
+                    version: version ? Number(version) : undefined,
+                    screen: flag('--screen'),
+                    state: flag('--state'),
+                    width,
+                    height,
+                    fetch: fetchImpl,
+                    log
+                });
+                process.stdout.write(JSON.stringify(dump) + '\n');
+            }
+            finally {
+                await closeBrowserPool();
+            }
+            return;
+        }
+        if (args[1] === 'renders') {
+            // Re-render an existing version with the person's own token; nothing is written to a file (rule R3)
+            const version = flag('--version');
+            if (version !== undefined && !/^[1-9][0-9]*$/.test(version)) {
+                log('The --version must be a whole number of 1 or more.');
+                process.exit(2);
+            }
+            const token = tokenFor(server, org, true);
+            if (!token) {
+                log(`Not signed in to ${org} on ${server}. Run: agent-flow-board login --json --server ${server} --org ${org}`);
+                process.exit(1);
+            }
+            const widths = (listFlag(args, '--widths') ?? '')
+                .split(',')
+                .map((w) => Number.parseInt(w, 10))
+                .filter((w) => Number.isInteger(w) && w >= 200 && w <= 4000);
+            const { renderVersionCommand } = await import('./renders.js');
+            try {
+                const out = await renderVersionCommand({
+                    server,
+                    org,
+                    token,
+                    fetch: fetchImpl,
+                    mockup: args[2],
+                    version: version ? Number(version) : undefined,
+                    widths: widths.length ? widths : DEFAULT_RENDER_WIDTHS,
+                    states: (listFlag(args, '--render-states') ?? '').split(',').filter(Boolean),
+                    runNonce,
+                    log
+                });
+                // Exit 0 when every render was saved, 1 with the failed list otherwise; the rest still render (rule R11)
+                if (out.failed.length) {
+                    log(`Renders failed for: ${out.failed.map((f) => `${f.screen || 'page'} @ ${f.width}`).join(', ')}.`);
+                    process.exitCode = 1;
+                }
+                process.stdout.write(JSON.stringify(out) + '\n');
+            }
+            finally {
+                await closeBrowserPool();
+            }
             return;
         }
         if (args[1] === 'url') {
@@ -282,7 +333,7 @@ async function main() {
                 })) + '\n');
                 return;
             }
-            const widths = (listFlag('--widths') ?? '')
+            const widths = (listFlag(args, '--widths') ?? '')
                 .split(',')
                 .map((w) => Number.parseInt(w, 10))
                 .filter((w) => Number.isInteger(w) && w >= 200 && w <= 4000);
@@ -313,18 +364,25 @@ async function main() {
             if (args.includes('--renders')) {
                 const { readBundle } = await import('./bundle.js');
                 const marked = readBundle(args[2]).parts.filter((p) => p.kind === 'head' || p.kind === 'skeleton');
-                renders = await captureRenders({
-                    server,
-                    org,
-                    token,
-                    fetch: fetchImpl,
-                    mockup: pushed.mockupId,
-                    version: pushed.version,
-                    screens: marked.flatMap((p) => screensOfPage(p.content)).slice(0, 12),
-                    widths: widths.length ? widths : DEFAULT_RENDER_WIDTHS,
-                    states: (listFlag('--render-states') ?? '').split(',').filter(Boolean),
-                    log
-                });
+                try {
+                    renders = await captureRenders({
+                        server,
+                        org,
+                        token,
+                        fetch: fetchImpl,
+                        mockup: pushed.mockupId,
+                        version: pushed.version,
+                        screens: marked.flatMap((p) => screensOfPage(p.content)).slice(0, 12),
+                        widths: widths.length ? widths : DEFAULT_RENDER_WIDTHS,
+                        states: (listFlag(args, '--render-states') ?? '').split(',').filter(Boolean),
+                        runNonce,
+                        qualityChecks: true,
+                        log
+                    });
+                }
+                finally {
+                    await closeBrowserPool();
+                }
             }
             process.stdout.write(JSON.stringify(renders ? { ...pushed, renders } : pushed) + '\n');
             return;
@@ -421,22 +479,29 @@ async function main() {
         let renders;
         if (args.includes('--renders')) {
             // What a browser sees of every screen at every width is saved with the version (AFB-20261114-0409)
-            const widths = (listFlag('--widths') ?? '')
+            const widths = (listFlag(args, '--widths') ?? '')
                 .split(',')
                 .map((w) => Number.parseInt(w, 10))
                 .filter((w) => Number.isInteger(w) && w >= 200 && w <= 4000);
-            renders = await captureRenders({
-                server,
-                org,
-                token: tokenFor(server, org, true) ?? '',
-                fetch: fetchImpl,
-                mockup: result.mockupId,
-                version: result.version,
-                screens: screensOfPage(readFileSync(args[2], 'utf8')),
-                widths: widths.length ? widths : DEFAULT_RENDER_WIDTHS,
-                states: (listFlag('--render-states') ?? '').split(',').filter(Boolean),
-                log
-            });
+            try {
+                renders = await captureRenders({
+                    server,
+                    org,
+                    token: tokenFor(server, org, true) ?? '',
+                    fetch: fetchImpl,
+                    mockup: result.mockupId,
+                    version: result.version,
+                    screens: screensOfPage(readFileSync(args[2], 'utf8')),
+                    widths: widths.length ? widths : DEFAULT_RENDER_WIDTHS,
+                    states: (listFlag(args, '--render-states') ?? '').split(',').filter(Boolean),
+                    runNonce,
+                    qualityChecks: true,
+                    log
+                });
+            }
+            finally {
+                await closeBrowserPool();
+            }
         }
         process.stdout.write(JSON.stringify(renders ? { ...result, renders } : result) + '\n');
         return;
@@ -544,7 +609,10 @@ async function main() {
     // A background sign in may still be polling when the tool closes the bridge, and it must not keep this process alive
     setTimeout(() => process.exit(0), 500).unref();
 }
-main().catch((e) => {
-    log(String(e instanceof Error ? e.message : e));
+main().catch(async (e) => {
+    // An error message may name the signed address of a mockup page: it is redacted before it is printed (rule R1).
+    // Loaded here, so the hooks and the MCP forwarder never load the check code
+    const { redactSignedAddress } = await import('./checks/inspect.js');
+    log(redactSignedAddress(String(e instanceof Error ? e.message : e)));
     process.exit(1);
 });

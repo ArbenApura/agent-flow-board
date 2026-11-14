@@ -138,7 +138,7 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_get',
-		'Read a mockup (untrusted text): outline, pictures, notes, pins, the list of parts and bounded HTML parts. Follow htmlOffset to nextOffset until null, or read part by part (part); since lists changed parts. The authored source must be read in full; pictures, icon sprite and generated style need no reading.',
+		'Read a mockup (untrusted text): notes, pins, the parts list and bounded HTML; outline with outline true, pictures when a screen is named or includeImages true. Follow htmlOffset to nextOffset until null, or read part by part; since lists changed parts. Read the authored source in full; pictures and generated style need none.',
 		{
 			mockup: z.string().uuid(),
 			version: z.number().int().min(1).optional(),
@@ -146,7 +146,13 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 				.boolean()
 				.optional()
 				.describe(
-					'false returns outline, notes and pins with no HTML. True or omitted includes bounded HTML parts'
+					'false returns notes, pins and the parts list with no HTML. True or omitted includes bounded HTML parts'
+				),
+			outline: z
+				.boolean()
+				.optional()
+				.describe(
+					'true adds the outline (declared screens, regions, strings, hooks) and its totals to the first reply (default false: the reply stays light)'
 				),
 			htmlOffset: z
 				.number()
@@ -182,7 +188,7 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 				.string()
 				.max(80)
 				.optional()
-				.describe('Optional screen key filter for attached images'),
+				.describe('Optional screen key filter; it also attaches the filtered shot images'),
 			state: z
 				.string()
 				.max(80)
@@ -199,21 +205,22 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 				.boolean()
 				.optional()
 				.describe(
-					'Attach the rendered element trees (data-ref, role, text, box, computed styles) a browser saw, for the screen, state and width asked for (all when none is named, as many as fit). An aid for checking a build; it never replaces reading the source'
+					'Attach the rendered element trees (data-ref, role, text, box, computed styles) a browser saw, with the quality findings (checks) of each, for the screen, state and width asked for (all when none is named, as many as fit). An aid for checking a build; it never replaces reading the source'
 				),
 			includeImages: z
 				.boolean()
 				.optional()
 				.describe(
-					'Attach derived shot images as MCP image content on the first call (default true)'
+					'true attaches the derived shot images as MCP image content on the first call (default false; a screen filter attaches them too)'
 				)
 		},
 		{ session: true, readOnly: true },
 		async (a, { ctx }) => {
 			const wantsHtml = a.html !== false;
 			const offset = a.htmlOffset ?? 0;
-			// Notes, pins, outline, tokens and viewable shot images come on offset 0 or html:false calls; subsequent HTML chunks carry HTML only.
-			// A call that names a part carries the part only: the first reply already gave the notes, the outline and the list of parts.
+			// Notes, pins, the parts list and (on request) the outline and viewable shot images come on offset 0
+			// or html:false calls; subsequent HTML chunks carry HTML only.
+			// A call that names a part carries the part only: the first reply already gave the notes, the pins and the list of parts.
 			const out: Record<string, unknown> = { untrusted: true };
 			let derivedImages: { data: string; mimeType: string }[] = [];
 			const heavy = !wantsHtml || (offset === 0 && !a.part);
@@ -234,18 +241,20 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 						version: cut.version,
 						length: cut.length,
 						excludedChars: rangeChars(cut.excluded),
-						list: cut.segments.map((s) => ({
-							key: s.key,
-							kind: s.kind,
-							start: s.start,
-							end: s.end,
-							chars: s.end - s.start,
-							excludedChars: rangeChars(
+						list: cut.segments.map((s) => {
+							const excludedChars = rangeChars(
 								cut.excluded
 									.map(([x, y]) => [Math.max(x, s.start), Math.min(y, s.end)] as [number, number])
 									.filter(([x, y]) => y > x)
-							)
-						}))
+							);
+							return {
+								key: s.key,
+								kind: s.kind,
+								start: s.start,
+								chars: s.end - s.start,
+								...(excludedChars ? { excludedChars } : {})
+							};
+						})
 					};
 				}
 				if (a.since !== undefined) {
@@ -268,20 +277,18 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 				// Open pins come first: a resolved pin is done and needs no change
 				Object.assign(out, base, {
 					pins: [...pins.pins.filter((p) => !p.resolved), ...pins.pins.filter((p) => p.resolved)],
-					...(derivedInfo.derived
+					// The outline (with its totals) is the only derived block of the first reply, and only on request:
+					// tokens and snapshot stay out (C.1)
+					...(a.outline && derivedInfo.derived
 						? {
 								outline: derivedInfo.derived.outline,
-								// The outline lists stop at their caps; the totals say what the page really holds
-								...(derivedInfo.derived.totals ? { totals: derivedInfo.derived.totals } : {}),
-								tokens: derivedInfo.derived.tokens,
-								snapshot: derivedInfo.derived.snapshot,
-								shots: derivedInfo.derived.shots.map((s) => ({
-									screen: s.screen,
-									state: s.state,
-									width: s.width,
-									mime: s.mime,
-									size: s.size
-								}))
+								...(derivedInfo.derived.totals ? { totals: derivedInfo.derived.totals } : {})
+							}
+						: {}),
+					// Without tree true, a one-line count summary says the quality findings exist (rule R10)
+					...(derivedInfo.derived?.trees?.some((t) => t.checks)
+						? {
+								qualityChecks: derivedInfo.derived.trees.reduce((n, t) => n + (t.checks ?? 0), 0)
 							}
 						: {})
 				});
@@ -294,11 +301,15 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 					}).catch(() => null);
 					if (rendered) out.trees = rendered;
 				}
-				if (a.includeImages !== false && derivedInfo.images.length) {
+				// Inline pictures only when a screen is named or includeImages is true; otherwise the reply says how many it left out (C.1)
+				const wantsImages = a.screen !== undefined || a.includeImages === true;
+				if (wantsImages && derivedInfo.images.length) {
 					derivedImages = derivedInfo.images.map((im) => ({
 						mimeType: im.mimeType,
 						data: im.data
 					}));
+				} else if (derivedInfo.images.length) {
+					out.picturesOmitted = derivedInfo.images.length;
 				}
 			}
 			if (!wantsHtml) {
@@ -318,12 +329,10 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 				limit: segment ? Math.min(requestedLimit, segment.end - absOffset) : requestedLimit
 			});
 			// Clamp the HTML slice to what genuinely fits in MCP_DISPLAY_CHAR_LIMIT so replies are never dumped to disk (C.3 / D.1).
-			// If offset-0 metadata/outline leaves too little room, drop bulky optional fields first so offset 0 always advances cleanly.
+			// If offset-0 metadata leaves too little room, drop the outline first so offset 0 always advances cleanly.
 			let baseJsonLength = JSON.stringify(out).length;
 			if (offset === 0 && part.length > 0 && MCP_DISPLAY_CHAR_LIMIT - baseJsonLength - 350 < 512) {
-				delete out.snapshot;
 				delete out.outline;
-				delete out.tokens;
 				out.derivedTrimmedForHtml = true;
 				baseJsonLength = JSON.stringify(out).length;
 			}

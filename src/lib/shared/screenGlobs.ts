@@ -129,7 +129,9 @@ export function extractMockupScreensFromHtml(html: string): NamedMockupScreen[] 
 					const parsed = JSON.parse(raw) as { screens?: unknown };
 					if (Array.isArray(parsed?.screens)) {
 						for (const item of parsed.screens) {
-							if (Array.isArray(item) && typeof item[0] === 'string') {
+							if (typeof item === 'string') {
+								add(item, item);
+							} else if (Array.isArray(item) && typeof item[0] === 'string') {
 								add(item[0], typeof item[1] === 'string' ? item[1] : item[0]);
 							}
 						}
@@ -150,6 +152,23 @@ export function extractMockupScreensFromHtml(html: string): NamedMockupScreen[] 
 	}
 
 	return [...found.values()];
+}
+
+/** At most this many declared screens are ever compared or rendered. */
+export const MAX_DECLARED_MOCKUP_SCREENS = 12;
+
+/**
+ * The declared screen keys of one page, lower-cased, unique and capped (rule R3, AFB-20261114-0611):
+ * the afb-config keys (pairs or plain strings) plus its data-screen hooks. The server compares a
+ * render's screen against this set and the bridge renders exactly these keys; page is allowed when
+ * the set is empty. One grammar, pinned by the agreement test in the bridge.
+ */
+export function declaredMockupScreenKeys(html: string): string[] {
+	return extractMockupScreensFromHtml(html)
+		.map((s) => s.key.trim().toLowerCase())
+		.filter((k) => /^[a-z0-9_-]{1,40}$/.test(k))
+		.filter((k, i, all) => all.indexOf(k) === i)
+		.slice(0, MAX_DECLARED_MOCKUP_SCREENS);
 }
 
 function escapeRegExp(s: string): string {
