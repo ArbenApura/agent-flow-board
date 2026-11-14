@@ -173,4 +173,80 @@ describe('pairing contract (Step B.8)', () => {
 		expect(waived.passed).toBe(true);
 		expect(waived.waived).toHaveLength(4);
 	});
+
+	it('compares motion: transition and animation durations, easing and presence, never colours of time (AFB-20261114-0409, C.3)', () => {
+		const motion = (over: Record<string, string>) => ({
+			transitionProperty: 'transform, opacity',
+			transitionDuration: '0.28s, 0.18s',
+			transitionTimingFunction: 'cubic-bezier(0.2, 0, 0, 1), ease-out',
+			transitionDelay: '0s, 0s',
+			animationName: 'none',
+			animationDuration: '0s',
+			animationIterationCount: '1',
+			...over
+		});
+		const mEl = baseEl('card', '[data-ref="card"]', {
+			styles: { ...baseEl('c', 's').styles, ...motion({}) }
+		});
+		const pair = { pairs: [{ ref: 'card', appSelector: '.card' }] };
+		const run = (over: Record<string, string>) =>
+			compareInspections(
+				dump('mockup', [mEl]),
+				dump('app', [baseEl('card', '.card', { styles: { ...mEl.styles, ...over } })]),
+				pair
+			);
+		// The same motion in another unit and spelling is the same motion; a few milliseconds are inside the tolerance
+		expect(
+			run({
+				transitionDuration: '280ms, 180ms',
+				transitionTimingFunction: 'cubic-bezier(0.2,0,0,1), ease-out'
+			}).passed
+		).toBe(true);
+		expect(run({ transitionDuration: '0.29s, 0.18s' }).passed).toBe(true);
+		// A different duration, easing or a missing transition is a mismatch
+		expect(run({ transitionDuration: '0.5s, 0.18s' }).mismatches.map((m) => m.property)).toEqual([
+			'transitionDuration'
+		]);
+		expect(
+			run({ transitionTimingFunction: 'linear, ease-out' }).mismatches.map((m) => m.property)
+		).toEqual(['transitionTimingFunction']);
+		expect(run({ transitionDuration: '0s, 0s' }).mismatches.map((m) => m.property)).toContain(
+			'transitionDuration'
+		);
+		// With no transition on either side the property list does not matter
+		const still = (over: Record<string, string>) => ({
+			...mEl.styles,
+			transitionDuration: '0s',
+			transitionProperty: 'all',
+			...over
+		});
+		expect(
+			compareInspections(
+				dump('mockup', [{ ...mEl, styles: still({}) }]),
+				dump('app', [baseEl('card', '.card', { styles: still({ transitionProperty: 'color' }) })]),
+				pair
+			).passed
+		).toBe(true);
+		// An animation that runs on one side only, or for another time, is a mismatch
+		expect(
+			run({ animationName: 'drop', animationDuration: '0.3s' })
+				.mismatches.map((m) => m.property)
+				.sort()
+		).toEqual(['animationDuration', 'animationName']);
+		// Motion can be waived like any other property
+		const freed = compareInspections(
+			dump('mockup', [mEl]),
+			dump('app', [
+				baseEl('card', '.card', { styles: { ...mEl.styles, transitionDuration: '0.5s, 0.18s' } })
+			]),
+			{
+				...pair,
+				free: [
+					{ ref: 'card', property: 'transitionDuration', reason: 'Real Tailwind duration scale' }
+				]
+			}
+		);
+		expect(freed.passed).toBe(true);
+		expect(freed.waived).toHaveLength(1);
+	});
 });

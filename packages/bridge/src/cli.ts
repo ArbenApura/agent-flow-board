@@ -31,8 +31,15 @@ import { hookSettings } from './hooks/settings.js';
 import { runSetup } from './hooks/setup.js';
 import { applyStatusFile } from './hooks/statusFile.js';
 import { deviceLogin, type Fetch } from './device.js';
+import { listParts, pullParts, pushBundle, pushShell } from './bundle.js';
 import { mintMockupUrlCli, pullMockup, pushKit, pushMockup } from './mockup.js';
 import { Queue } from './queue.js';
+import {
+	captureRenders,
+	DEFAULT_RENDER_WIDTHS,
+	screensOfPage,
+	type RenderResult
+} from './renders.js';
 import { accountKey, configDir, pickStore } from './tokenStore.js';
 
 // -- FUNCTIONS -- //
@@ -177,12 +184,14 @@ async function main() {
 	if (cmd === 'mockup') {
 		// One upload over /api/v1 with this machine's own sign in. It is never queued, so a failure is said out loud and run again
 		if (
-			!['push', 'kit', 'pull', 'url', 'inspect'].includes(args[1] ?? '') ||
+			!['push', 'kit', 'pull', 'url', 'inspect', 'bundle', 'shell', 'parts'].includes(
+				args[1] ?? ''
+			) ||
 			!args[2] ||
 			args[2].startsWith('--')
 		) {
 			log(
-				'Usage: agent-flow-board mockup push <file.html> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [--another] [--title <text>] [--keep <text> | --keep-file <path>] [--free <text> | --free-file <path>] [--screenshot <file.png>]\n       agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key> [--commit <hash>] [--summary <text>]\n       agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug> [--version <n>] [--session <id>]\n       agent-flow-board mockup url <mockup id> --server <url> --org <slug> [--version <n>] [--screenshot] [--ttl <seconds>]\n       agent-flow-board mockup inspect <mockup id>[@version] --server <url> --org <slug> [--screen S] [--state T] [--width W] [--height H]'
+				'Usage: agent-flow-board mockup push <file.html> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [--another] [--title <text>] [--keep <text> | --keep-file <path>] [--free <text> | --free-file <path>] [--screenshot <file.png>] [--tailwind-entry <app.css> [--project-root <dir>] | --style-file <built.css>] [--renders [--widths 408,820,1280,1600] [--render-states a,b]]\n       agent-flow-board mockup bundle <dir with mockup.json> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [the same options as push]\n       agent-flow-board mockup shell <file.html> --server <url> --org <slug> --project <key>\n       agent-flow-board mockup parts <mockup id> --server <url> --org <slug> [--version <n>]\n       agent-flow-board mockup pull <mockup id> --parts <new folder> --server <url> --org <slug> [--version <n>]\n       agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key> [--commit <hash>] [--summary <text>]\n       agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug> [--version <n>] [--session <id>]\n       agent-flow-board mockup url <mockup id> --server <url> --org <slug> [--version <n>] [--screenshot] [--ttl <seconds>]\n       agent-flow-board mockup inspect <mockup id>[@version] --server <url> --org <slug> [--screen S] [--state T] [--width W] [--height H]'
 			);
 			process.exit(2);
 		}
@@ -258,6 +267,102 @@ async function main() {
 			process.stdout.write(JSON.stringify(minted) + '\n');
 			return;
 		}
+		if (args[1] === 'bundle' || args[1] === 'shell' || args[1] === 'parts') {
+			// A mockup made of parts, the project shell, and the list of a version's parts (AFB-20261114-0409)
+			const token = tokenFor(server, org, true) ?? '';
+			if (args[1] === 'shell') {
+				const project = flag('--project');
+				if (!project) {
+					log('Say which project: --project <key>.');
+					process.exit(2);
+				}
+				process.stdout.write(
+					JSON.stringify(
+						await pushShell({ server, org, token, fetch: fetchImpl, file: args[2], project, log })
+					) + '\n'
+				);
+				return;
+			}
+			if (args[1] === 'parts') {
+				const version = flag('--version');
+				process.stdout.write(
+					JSON.stringify(
+						await listParts({
+							server,
+							org,
+							token,
+							fetch: fetchImpl,
+							mockup: args[2],
+							version: version ? Number(version) : undefined
+						})
+					) + '\n'
+				);
+				return;
+			}
+			const widths = (flag('--widths') ?? '')
+				.split(',')
+				.map((w) => Number.parseInt(w, 10))
+				.filter((w) => Number.isInteger(w) && w >= 200 && w <= 4000);
+			const pushed = await pushBundle({
+				server,
+				org,
+				token,
+				fetch: fetchImpl,
+				dir: args[2],
+				item: flag('--item'),
+				project: flag('--project'),
+				mockup: flag('--mockup'),
+				another: args.includes('--another'),
+				title: flag('--title'),
+				keepNotes: flag('--keep-file')
+					? readFileSync(flag('--keep-file')!, 'utf8')
+					: flag('--keep'),
+				freeNotes: flag('--free-file')
+					? readFileSync(flag('--free-file')!, 'utf8')
+					: flag('--free'),
+				screenshot: flag('--screenshot'),
+				tailwindEntry: flag('--tailwind-entry'),
+				projectRoot: flag('--project-root'),
+				styleFile: flag('--style-file'),
+				log
+			});
+			let renders: RenderResult | undefined;
+			if (args.includes('--renders')) {
+				const { readBundle } = await import('./bundle.js');
+				const marked = readBundle(args[2]).parts.filter(
+					(p) => p.kind === 'head' || p.kind === 'skeleton'
+				);
+				renders = await captureRenders({
+					server,
+					org,
+					token,
+					fetch: fetchImpl,
+					mockup: pushed.mockupId,
+					version: pushed.version,
+					screens: marked.flatMap((p) => screensOfPage(p.content)).slice(0, 12),
+					widths: widths.length ? widths : DEFAULT_RENDER_WIDTHS,
+					states: (flag('--render-states') ?? '').split(',').filter(Boolean),
+					log
+				});
+			}
+			process.stdout.write(JSON.stringify(renders ? { ...pushed, renders } : pushed) + '\n');
+			return;
+		}
+		if (args[1] === 'pull' && flag('--parts')) {
+			const version = flag('--version');
+			const pulled = await pullParts({
+				server,
+				org,
+				token: tokenFor(server, org, true) ?? '',
+				fetch: fetchImpl,
+				mockup: args[2],
+				out: flag('--parts')!,
+				version: version ? Number(version) : undefined,
+				log
+			});
+			process.stdout.write(JSON.stringify(pulled) + '\n');
+			return;
+		}
 		if (args[1] === 'pull') {
 			// The HTML of a mockup, read to the end and saved to one new file outside any repo (AFB-20261111-0017)
 			const out = flag('--out');
@@ -327,9 +432,32 @@ async function main() {
 			keepNotes: text('--keep', '--keep-file'),
 			freeNotes: text('--free', '--free-file'),
 			screenshot: flag('--screenshot'),
+			tailwindEntry: flag('--tailwind-entry'),
+			projectRoot: flag('--project-root'),
+			styleFile: flag('--style-file'),
 			log
 		});
-		process.stdout.write(JSON.stringify(result) + '\n');
+		let renders: RenderResult | undefined;
+		if (args.includes('--renders')) {
+			// What a browser sees of every screen at every width is saved with the version (AFB-20261114-0409)
+			const widths = (flag('--widths') ?? '')
+				.split(',')
+				.map((w) => Number.parseInt(w, 10))
+				.filter((w) => Number.isInteger(w) && w >= 200 && w <= 4000);
+			renders = await captureRenders({
+				server,
+				org,
+				token: tokenFor(server, org, true) ?? '',
+				fetch: fetchImpl,
+				mockup: result.mockupId,
+				version: result.version,
+				screens: screensOfPage(readFileSync(args[2], 'utf8')),
+				widths: widths.length ? widths : DEFAULT_RENDER_WIDTHS,
+				states: (flag('--render-states') ?? '').split(',').filter(Boolean),
+				log
+			});
+		}
+		process.stdout.write(JSON.stringify(renders ? { ...result, renders } : result) + '\n');
 		return;
 	}
 	if (cmd === 'queue') {

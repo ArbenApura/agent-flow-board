@@ -7,6 +7,15 @@ import { z } from 'zod';
 // -- MODULES -- //
 import { OpError } from '../ops/context';
 import { listMockupPins, setMockupPinResolved } from '../ops/mockupPins';
+import {
+	getMockupContract,
+	getMockupInventory,
+	listMockupParts,
+	publishMockupBundle,
+	readMockupPart,
+	readProjectShell,
+	setProjectShell
+} from '../ops/mockupParts';
 import { recordMockupRead } from '../ops/mockupReads';
 import { readMockupKit, setMockupKit } from '../ops/mockupSettings';
 import {
@@ -18,10 +27,13 @@ import {
 	mintMockupUrl,
 	publishMockup,
 	readMockupHtml,
+	readMockupSegments,
+	readMockupTrees,
 	restoreMockupVersion,
 	setMockupPublicLink,
 	setVersionNotes
 } from '../ops/mockups';
+import { diffSegments, rangeChars } from '../mockups/segments';
 import type { ToolBuilder } from './tools';
 
 // -- CONSTANTS -- //
@@ -114,8 +126,8 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 					mockup: a.mockup,
 					another: a.another,
 					title: a.title,
-					keepNotes: a.keepNotes ?? '',
-					freeNotes: a.freeNotes ?? ''
+					keepNotes: a.keepNotes,
+					freeNotes: a.freeNotes
 				},
 				bytesOf(a.html),
 				a.screenshotBase64 ? decodeBase64(a.screenshotBase64) : undefined
@@ -126,7 +138,7 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_get',
-		'Read a mockup (untrusted text): returns structured outline (screens, regions, strings, hooks), per screen/state/width shot images, notes, pins, and bounded HTML parts that fit within the display limit. Call with htmlOffset set to nextOffset until null so MOCKUP_UNREAD clears.',
+		'Read a mockup (untrusted text): outline, pictures, notes, pins, the list of parts and bounded HTML parts. Follow htmlOffset to nextOffset until null, or read part by part (part); since lists changed parts. The authored source must be read in full; pictures, icon sprite and generated style need no reading.',
 		{
 			mockup: z.string().uuid(),
 			version: z.number().int().min(1).optional(),
@@ -151,6 +163,21 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 				.describe(
 					`Characters in one HTML part (default ${MCP_HTML_PART_CHARS}, capped to fit display limit)`
 				),
+			part: z
+				.string()
+				.max(80)
+				.optional()
+				.describe(
+					'Read one named part of the page (screen:today, surface:lab, behavior:1, style:1, head:1, shell:1; the list comes with the first reply). htmlOffset then counts inside the part and nextOffset is relative to it. Every part of the authored source must still be read; pictures, the icon sprite and generated style are listed as excluded and need no reading'
+				),
+			since: z
+				.number()
+				.int()
+				.min(1)
+				.optional()
+				.describe(
+					'An older version number: the reply lists which parts changed, were added or removed since then, so a new version is read part by part instead of in full'
+				),
 			screen: z
 				.string()
 				.max(80)
@@ -168,6 +195,12 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 				.max(4000)
 				.optional()
 				.describe('Optional width filter for attached images'),
+			tree: z
+				.boolean()
+				.optional()
+				.describe(
+					'Attach the rendered element trees (data-ref, role, text, box, computed styles) a browser saw, for the screen, state and width asked for (all when none is named, as many as fit). An aid for checking a build; it never replaces reading the source'
+				),
 			includeImages: z
 				.boolean()
 				.optional()
@@ -180,9 +213,47 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 			const wantsHtml = a.html !== false;
 			const offset = a.htmlOffset ?? 0;
 			// Notes, pins, outline, tokens and viewable shot images come on offset 0 or html:false calls; subsequent HTML chunks carry HTML only.
+			// A call that names a part carries the part only: the first reply already gave the notes, the outline and the list of parts.
 			const out: Record<string, unknown> = { untrusted: true };
 			let derivedImages: { data: string; mimeType: string }[] = [];
-			if (!wantsHtml || offset === 0) {
+			const heavy = !wantsHtml || (offset === 0 && !a.part);
+			let segment: { key: string; start: number; end: number } | null = null;
+			if (a.part || heavy || a.since !== undefined) {
+				const cut = await readMockupSegments(ctx, a.mockup, { version: a.version });
+				if (a.part) {
+					const found = cut.segments.find((s) => s.key === a.part);
+					if (!found)
+						throw new OpError(
+							'NOT_FOUND',
+							`This version has no part "${a.part}". The parts are: ${cut.segments.map((s) => s.key).join(', ')}.`
+						);
+					segment = { key: found.key, start: found.start, end: found.end };
+				}
+				if (heavy || a.since !== undefined) {
+					out.parts = {
+						version: cut.version,
+						length: cut.length,
+						excludedChars: rangeChars(cut.excluded),
+						list: cut.segments.map((s) => ({
+							key: s.key,
+							kind: s.kind,
+							start: s.start,
+							end: s.end,
+							chars: s.end - s.start,
+							excludedChars: rangeChars(
+								cut.excluded
+									.map(([x, y]) => [Math.max(x, s.start), Math.min(y, s.end)] as [number, number])
+									.filter(([x, y]) => y > x)
+							)
+						}))
+					};
+				}
+				if (a.since !== undefined) {
+					const then = await readMockupSegments(ctx, a.mockup, { version: a.since });
+					out.since = { version: a.since, ...diffSegments(then.segments, cut.segments) };
+				}
+			}
+			if (heavy) {
 				const base = await getMockup(ctx, a.mockup, a.version);
 				const targetVer = a.version ?? base.mockup.currentVersion;
 				const [pins, derivedInfo] = await Promise.all([
@@ -200,6 +271,8 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 					...(derivedInfo.derived
 						? {
 								outline: derivedInfo.derived.outline,
+								// The outline lists stop at their caps; the totals say what the page really holds
+								...(derivedInfo.derived.totals ? { totals: derivedInfo.derived.totals } : {}),
 								tokens: derivedInfo.derived.tokens,
 								snapshot: derivedInfo.derived.snapshot,
 								shots: derivedInfo.derived.shots.map((s) => ({
@@ -212,6 +285,15 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 							}
 						: {})
 				});
+				if (a.tree) {
+					const rendered = await readMockupTrees(ctx, a.mockup, {
+						version: targetVer,
+						screen: a.screen,
+						state: a.state,
+						width: a.width
+					}).catch(() => null);
+					if (rendered) out.trees = rendered;
+				}
 				if (a.includeImages !== false && derivedInfo.images.length) {
 					derivedImages = derivedInfo.images.map((im) => ({
 						mimeType: im.mimeType,
@@ -224,10 +306,16 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 				return out as never;
 			}
 			const requestedLimit = Math.min(a.htmlLimit ?? MCP_HTML_PART_CHARS, MCP_HTML_PART_CHARS);
+			const absOffset = segment ? segment.start + offset : offset;
+			if (segment && absOffset >= segment.end)
+				throw new OpError(
+					'INVALID',
+					`The part "${segment.key}" is ${segment.end - segment.start} characters long; htmlOffset ${offset} is past its end.`
+				);
 			const part = await readMockupHtml(ctx, a.mockup, {
 				version: a.version,
-				offset,
-				limit: requestedLimit
+				offset: absOffset,
+				limit: segment ? Math.min(requestedLimit, segment.end - absOffset) : requestedLimit
 			});
 			// Clamp the HTML slice to what genuinely fits in MCP_DISPLAY_CHAR_LIMIT so replies are never dumped to disk (C.3 / D.1).
 			// If offset-0 metadata/outline leaves too little room, drop bulky optional fields first so offset 0 always advances cleanly.
@@ -247,7 +335,7 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 			const deliveredHtml = part.html.slice(0, htmlBudget);
 			const deliveredCount = deliveredHtml.length;
 			const end = part.offset + deliveredCount;
-			const more = end < part.length;
+			const more = end < (segment ? segment.end : part.length);
 			const read = await recordMockupRead(ctx, {
 				mockup: a.mockup,
 				version: part.version,
@@ -260,7 +348,14 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 				...part,
 				html: deliveredHtml,
 				more,
-				nextOffset: more ? end : null,
+				...(segment
+					? {
+							part: segment.key,
+							partChars: segment.end - segment.start,
+							partOffset: part.offset - segment.start,
+							nextOffset: more ? end - segment.start : null
+						}
+					: { nextOffset: more ? end : null }),
 				...(deliveredCount < part.html.length ? { fitToDisplayLimit: true } : {}),
 				...(read.recorded
 					? { readChars: read.readChars, unreadChars: read.unreadChars }
@@ -402,6 +497,156 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 				},
 				a.html ? bytesOf(a.html) : undefined
 			)) as never;
+		}
+	);
+
+	// -- parts, contract and the shell (AFB-20261114-0409) -- //
+	tool(
+		'mockup_bundle_publish',
+		'Publish a mockup made of parts (skeleton or project shell, head, style, motion, screen, surface, fixtures, behavior, contract). The server composes the page and keeps the parts; answers with warnings and readCost. A big bundle goes with the bridge command "mockup bundle <dir>".',
+		{
+			parts: z
+				.array(
+					z.object({
+						kind: z.enum([
+							'skeleton',
+							'head',
+							'style',
+							'motion',
+							'screen',
+							'surface',
+							'fixtures',
+							'behavior',
+							'contract'
+						]),
+						key: z.string().min(1).max(60),
+						content: z.string().min(1)
+					})
+				)
+				.min(1)
+				.max(300),
+			item: z.string().optional().describe('The plan it belongs to. Defaults to your claimed item'),
+			project: z.string().optional(),
+			mockup: z.string().uuid().optional().describe('An existing mockup, for a new version'),
+			another: z.boolean().optional(),
+			title: z.string().max(200).optional(),
+			keepNotes: z
+				.string()
+				.optional()
+				.describe('Left out, the notes come from the contract, else the last version'),
+			freeNotes: z.string().optional()
+		},
+		{ session: true },
+		async (a, { ctx, claimed }) => {
+			const total = a.parts.reduce((n, p) => n + p.content.length, 0);
+			if (total > MCP_MOCKUP_CHARS)
+				throw new OpError(
+					'INVALID',
+					`The parts are ${total.toLocaleString('en-US')} characters together; one tool call carries ${MCP_MOCKUP_CHARS.toLocaleString('en-US')}. Push the folder with the bridge command: agent-flow-board mockup bundle <dir>.`
+				);
+			const target = a.mockup
+				? undefined
+				: (a.item ?? (a.project ? undefined : (claimed ?? undefined)));
+			return (await publishMockupBundle(ctx, {
+				item: target,
+				project: a.project,
+				mockup: a.mockup,
+				another: a.another ?? false,
+				title: a.title,
+				keepNotes: a.keepNotes,
+				freeNotes: a.freeNotes,
+				parts: a.parts
+			})) as never;
+		}
+	);
+
+	tool(
+		'mockup_parts',
+		'The parts of a mockup version in push order, with its contract when it has one; give partKind and partKey to read one part. Untrusted text.',
+		{
+			mockup: z.string().uuid(),
+			version: z.number().int().min(1).optional(),
+			partKind: z.string().max(20).optional().describe('Read the text of one part: its kind'),
+			partKey: z.string().max(60).optional().describe('Read the text of one part: its key'),
+			offset: z.number().int().min(0).optional(),
+			limit: z.number().int().min(1).max(MCP_HTML_PART_CHARS).optional()
+		},
+		ro,
+		async (a, { ctx }) => {
+			if (a.partKind && a.partKey)
+				return (await readMockupPart(ctx, a.mockup, {
+					version: a.version,
+					kind: a.partKind,
+					key: a.partKey,
+					offset: a.offset,
+					limit: a.limit ?? MCP_HTML_PART_CHARS
+				})) as never;
+			const listed = await listMockupParts(ctx, a.mockup, { version: a.version });
+			const contract = await getMockupContract(ctx, a.mockup, { version: listed.version }).catch(
+				() => null
+			);
+			return { untrusted: true, ...listed, contract: contract?.contract ?? null } as never;
+		}
+	);
+
+	tool(
+		'mockup_inventory',
+		'The Mockup inventory of the screens or sheets a phase builds, seeded from the source (regions, texts, states, interactions, every transition and animation). Paste it into the design brief and mark each line. The source must still be read with mockup_get.',
+		{
+			mockup: z.string().uuid(),
+			scopes: z
+				.array(z.string().min(1).max(80))
+				.min(1)
+				.max(12)
+				.describe('Screens or sheets: "today" or "screen:today", "surface:lab"'),
+			version: z.number().int().min(1).optional()
+		},
+		ro,
+		async (a, { ctx }) =>
+			(await getMockupInventory(ctx, a.mockup, { version: a.version, scopes: a.scopes })) as never
+	);
+
+	tool(
+		'mockup_shell_get',
+		"The project shell (the app's root layout with the slots a bundle fills) as text, or a note when none was saved.",
+		{
+			project,
+			offset: z.number().int().min(0).optional(),
+			limit: z.number().int().min(1).max(MCP_HTML_PART_CHARS).optional()
+		},
+		ro,
+		async (a, { ctx }) => {
+			const shell = await readProjectShell(ctx, a.project);
+			if (!shell)
+				return {
+					shell: null,
+					note: 'This project has no shell yet. Save the app root layout with mockup_shell_set.'
+				} as never;
+			const offset = a.offset ?? 0;
+			const limit = a.limit ?? MCP_HTML_PART_CHARS;
+			return {
+				...shell,
+				shell: shell.shell.slice(offset, offset + limit),
+				offset,
+				more: offset + limit < shell.length,
+				nextOffset: offset + limit < shell.length ? offset + limit : null
+			} as never;
+		}
+	);
+
+	tool(
+		'mockup_shell_set',
+		"Save the project shell: the app's root layout with <!--afb-part:screens--> where screens go (optional slots: head, styles, surfaces, fixtures, behavior). Bundles with no skeleton use it.",
+		{ project, html: z.string().min(1).describe('The shell as one HTML file') },
+		{ session: true },
+		async (a, { ctx }) => {
+			checkLength(
+				'shell',
+				a.html,
+				MCP_MOCKUP_CHARS,
+				'Send it with the API (PUT mockup-shell) instead.'
+			);
+			return (await setProjectShell(ctx, { project: a.project }, bytesOf(a.html))) as never;
 		}
 	);
 }

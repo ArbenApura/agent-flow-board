@@ -1,3 +1,19 @@
+# LOGS: A SIGNED MOCKUP ADDRESS CARRIES ITS SIGNATURE IN THE QUERY (sig), SO CADDY'S OWN LOG (ERRORS CARRY THE FULL REQUEST) NEVER WRITES IT, NOR A COOKIE OR AN AUTHORIZATION HEADER
+{
+	log {
+		format filter {
+			wrap json
+			fields {
+				request>uri query {
+					replace sig REDACTED
+				}
+				request>headers>Cookie delete
+				request>headers>Authorization delete
+			}
+		}
+	}
+}
+
 # THE REVERSE PROXY: HTTPS FROM LET'S ENCRYPT, COMPRESSION, AND LIVE UPDATES THAT ARE NEVER BUFFERED
 {$AFB_DOMAIN} {
 	encode zstd gzip
@@ -13,6 +29,24 @@
 	header {
 		-Server
 		Referrer-Policy strict-origin-when-cross-origin
+		X-Content-Type-Options nosniff
+		Strict-Transport-Security "max-age=31536000"
+	}
+}
+
+# THE ISOLATED MOCKUP HOSTNAME: SAME APP, BUT THE APP ONLY SERVES SIGNED MOCKUP FILES AND PUBLIC MOCKUP LINKS ON THIS HOST
+{$MOCKUP_DOMAIN} {
+	encode zstd gzip
+
+	reverse_proxy app:3000 {
+		flush_interval -1
+		health_uri /healthz
+		health_interval 15s
+	}
+
+	header {
+		-Server
+		Referrer-Policy no-referrer
 		X-Content-Type-Options nosniff
 		Strict-Transport-Security "max-age=31536000"
 	}

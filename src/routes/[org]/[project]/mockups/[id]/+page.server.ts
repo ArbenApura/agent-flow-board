@@ -5,6 +5,7 @@ import { error } from '@sveltejs/kit';
 import { ALL_SCREENS } from '#lib/board/mockups.js';
 import { OpError } from '#lib/server/ops/context.js';
 import { listMockupPins } from '#lib/server/ops/mockupPins.js';
+import { getMockupSource } from '#lib/server/ops/mockupParts.js';
 import { getMockup, listMockups, mockupFileGrant } from '#lib/server/ops/mockups.js';
 import { childContext, pageError } from '#lib/server/web/ctx.js';
 import { memberMockupUrl } from '#lib/server/web/mockupLinks.js';
@@ -26,10 +27,12 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 			Number.isInteger(asked) && first.versions.some((v) => v.number === asked)
 				? asked
 				: first.mockup.currentVersion;
-		const [detail, pins, grant] = await Promise.all([
+		const [detail, pins, grant, source] = await Promise.all([
 			version === first.mockup.currentVersion ? first : getMockup(ctx, params.id, version),
 			listMockupPins(ctx, params.id),
-			mockupFileGrant(ctx, params.id, { version })
+			mockupFileGrant(ctx, params.id, { version }),
+			// What the page costs to read. A failure here only hides the card, never the mockup
+			getMockupSource(ctx, params.id, { version }).catch(() => null)
 		]);
 		// The other mockups of the same plan, for the switch in the header. A mockup with no plan has none
 		const siblings = detail.plan
@@ -42,6 +45,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 			siblings,
 			version,
 			pins: pins.pins,
+			source,
 			screens: ALL_SCREENS,
 			src: memberMockupUrl(grant),
 			denied: null

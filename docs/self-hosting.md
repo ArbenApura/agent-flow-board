@@ -26,6 +26,7 @@ openssl rand -base64 48 | tr -d '/+=' | cut -c1-40
 | `AFB_MASTER_KEY`                                                    | At least 32 characters. Wraps the keys that seal test account passwords.                                                                                                               |
 | `EMAIL_PROVIDER` and its key                                        | `resend`, `postmark` or `smtp`. With `log`, mail is only kept in memory (and in the file named by `AFB_OUTBOX_FILE`, when set), so nobody receives a verification or invitation email. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                          | Optional Google sign in.                                                                                                                                                               |
+| `MOCKUP_ORIGIN`, `MOCKUP_DOMAIN`                                    | Optional, recommended. A second hostname that serves mockups (see "Mockup hostname" below). Leave both empty to serve mockups from the board host, for local development only.         |
 
 ## 2. Start it
 
@@ -108,6 +109,16 @@ The `migrate` step runs first and the app starts only when it succeeded. Migrati
 ## 7. Browser checks
 
 The runner is a separate program (see [runners.md](runners.md)). Hosted runs use a supervisor that starts one throwaway container for each waiting run. Run it on a different machine from the board, on a network that cannot reach your private network.
+
+## Mockup hostname
+
+Mockups are untrusted pages, so they are served from a second hostname that has its own DNS record and certificate. The board's session cookie is host-only, so the browser never sends it to the mockup host, and the app answers only signed mockup files and public mockup links there (everything else is a 404).
+
+1. Add a DNS record for the new name that points to the same server as the board. If the board's record is DNS only (not proxied), keep this one DNS only too, so Caddy gets its own certificate. A proxied name two levels below the zone (`mockups.board.example.com`) is not covered by a free proxy certificate.
+2. In `deploy/vps/.env` set `MOCKUP_ORIGIN=https://mockups.board.example.com` and `MOCKUP_DOMAIN=mockups.board.example.com` (the same name, with and without `https://`). The name must differ from `AFB_BASE_URL`'s host, not only by port. A wrong value stops the app at start with a plain message.
+3. Run `docker compose up -d --build`. Caddy now answers the new name, and the board's own page for a mockup loads it from there.
+
+Raw mockup file addresses on the board host stop working once this is on; addresses the board gives out come from the mockup host. Caddy's log never writes the `sig` of a signed address, a cookie or an authorization header (see the `log` block of the Caddyfile).
 
 ## 8. Behind another proxy
 

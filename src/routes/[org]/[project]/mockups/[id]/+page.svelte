@@ -15,6 +15,7 @@
 	import MockupHistoryDrawer from '#lib/board/MockupHistoryDrawer.svelte';
 	import MockupLinkDialog from '#lib/board/MockupLinkDialog.svelte';
 	import MockupPreview from '#lib/board/MockupPreview.svelte';
+	import MockupSource from '#lib/board/MockupSource.svelte';
 	import MockupShareDrawer from '#lib/board/MockupShareDrawer.svelte';
 	import MockupSwitcher from '#lib/board/MockupSwitcher.svelte';
 	import NotesCard from '#lib/board/notes/NotesCard.svelte';
@@ -530,6 +531,9 @@
 			{/snippet}
 		</MockupPreview>
 	</Card>
+
+	<!-- WHAT THIS VERSION COSTS TO READ AND THE PARTS IT COMES IN -->
+	<MockupSource source={data.source} />
 
 	<!-- NOTES THAT LINK TO THIS MOCKUP, UNDER THE PREVIEW -->
 	<NotesCard

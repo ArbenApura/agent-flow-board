@@ -178,6 +178,9 @@ export async function exportOrg(
 				 union all select "screenshot_key", 'image/png', null, null, null from "mockup_version" where "org_id" = $1 and "screenshot_key" is not null
 				 union all select "storage_key", 'text/html', "size", null, null from "mockup_kit" where "org_id" = $1
 				 union all select "storage_key", "mime", "size", "checksum", null from "mockup_kit_asset" where "org_id" = $1
+				 union all select "storage_key", 'text/plain', "size", "checksum", null from "mockup_part" where "org_id" = $1
+				 union select s->>'storageKey', coalesce(s->>'mime', 'image/png'), null, null, null from "mockup_version", jsonb_array_elements(case when jsonb_typeof("derived"->'shots') = 'array' then "derived"->'shots' else '[]'::jsonb end) s where "org_id" = $1
+				 union select s->>'storageKey', 'application/json', null, null, null from "mockup_version", jsonb_array_elements(case when jsonb_typeof("derived"->'trees') = 'array' then "derived"->'trees' else '[]'::jsonb end) s where "org_id" = $1
 				 union all select "storage_key", "mime", "size", "checksum", null from "note_file" where "org_id" = $1
 				 order by 1`,
 				[orgId]

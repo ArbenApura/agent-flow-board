@@ -2,6 +2,7 @@
 
 // -- MODULES -- //
 import { extractMockupScreensFromHtml, type NamedMockupScreen } from '../../shared/screenGlobs';
+import { segmentMockupHtml, type CharRange, type MockupSegment } from './segments';
 
 // -- TYPES -- //
 
@@ -29,10 +30,22 @@ export type MockupShotAsset = {
 	size: number;
 };
 
+/** The rendered element tree of one screen, state and width, stored as a file (AFB-20261114-0409, C.2). */
+export type MockupTreeAsset = {
+	screen: string;
+	state: string;
+	width: number;
+	storageKey: string;
+	size: number;
+	elements: number;
+};
+
 export type MockupDerivedAssets = {
 	schema: 1;
 	outline: MockupOutline;
 	shots: MockupShotAsset[];
+	/** Rendered trees (data-ref, role, text, box, computed styles) made by the bridge in a browser, which also sees markup built by script. */
+	trees?: MockupTreeAsset[];
 	tokens: string[];
 	snapshot: {
 		htmlLength: number;
@@ -43,6 +56,12 @@ export type MockupDerivedAssets = {
 		stringCount: number;
 		computedAt: string;
 	};
+	/** The named parts of the page (B.2). Missing on a version stored before parts existed. */
+	segments?: MockupSegment[];
+	/** Machine output that never has to be read (B.3): pictures, icon sprite, generated style. */
+	excluded?: CharRange[];
+	/** The outline lists stop at these caps; the totals say how much the page really holds. */
+	totals?: { regions: number; strings: number; hooks: number };
 };
 
 // -- CONSTANTS -- //
@@ -64,6 +83,12 @@ function decodeBasicEntities(text: string): string {
 		.replace(/&amp;/gi, '&')
 		.replace(/\s+/g, ' ')
 		.trim();
+}
+
+function countMatches(text: string, rx: RegExp): number {
+	let n = 0;
+	for (const _ of text.matchAll(rx)) n++;
+	return n;
 }
 
 /** Extracts all inspectable hooks (`data-ref`, `data-screen`, `data-state`, `data-testid`, `id`) from mockup HTML. */
@@ -143,9 +168,17 @@ export function extractMockupDerived(
 		if (name) tokenSet.add(name);
 	}
 	const tokens = [...tokenSet];
+	const cut = segmentMockupHtml(rawHtml);
 
 	return {
 		schema: 1,
+		segments: cut.segments,
+		excluded: cut.excluded,
+		totals: {
+			regions: countMatches(html, /<(header|nav|main|aside|section|footer|dialog|form)\b/gi),
+			strings: countMatches(stripped, />[^<]{2,400}</g),
+			hooks: countMatches(html, /\b(?:data-ref|data-screen|data-state|data-testid|id)\s*=\s*["']/gi)
+		},
 		outline: { screens, regions, strings, hooks },
 		shots,
 		tokens,

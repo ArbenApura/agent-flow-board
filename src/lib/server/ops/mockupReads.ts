@@ -13,6 +13,7 @@ import { event, mockup, mockupRead, mockupVersion, session } from '../db/schema'
 import { OpError, requireCap, run } from './context';
 import { canSeeMockup, loadMockup } from './mockups';
 import { findItem } from './resolve';
+import { rangeChars, subtractRanges } from '../mockups/segments';
 
 // -- TYPES -- //
 
@@ -27,6 +28,8 @@ export type MockupReadState = {
 	/** The length of the HTML in characters, known once a part was read. */
 	htmlLength: number | null;
 	readChars: number;
+	/** Authored characters still unread: the page without what was read and without machine output (B.3). */
+	unreadChars: number;
 	readComplete: boolean;
 };
 
@@ -57,6 +60,23 @@ export const coveredChars = (ranges: ReadRange[]) => ranges.reduce((n, [a, b]) =
 /** True when the parts cover the whole HTML. An empty page has nothing to read. */
 export const coversAll = (ranges: ReadRange[], length: number) =>
 	length <= 0 || (ranges.length === 1 && ranges[0][0] === 0 && ranges[0][1] >= length);
+
+/** What is still unread of the authored source: not read, and not machine output (pictures, icon sprite, generated style). */
+export const unreadAuthored = (ranges: ReadRange[], length: number, excluded: ReadRange[]) =>
+	length <= 0 ? [] : subtractRanges(0, length, [...ranges, ...excluded]);
+
+/** True when every authored character was delivered. Machine output never has to be read. */
+export const coversRequired = (ranges: ReadRange[], length: number, excluded: ReadRange[]) =>
+	unreadAuthored(ranges, length, excluded).length === 0;
+
+/** The machine output ranges stored with a version (none for a version stored before parts existed). */
+async function excludedOf(tx: Tx, mockupId: string, version: number): Promise<ReadRange[]> {
+	const [v] = await tx
+		.select({ excluded: sql<ReadRange[] | null>`${mockupVersion.derived}->'excluded'` })
+		.from(mockupVersion)
+		.where(and(eq(mockupVersion.mockupId, mockupId), eq(mockupVersion.number, version)));
+	return Array.isArray(v?.excluded) ? v.excluded : [];
+}
 
 /**
  * Writes down that this session was served one part of a mockup version. It needs only the right to read the mockup: the row
@@ -158,14 +178,16 @@ export async function recordMockupRead(
 							ne(mockupRead.id, row.id)
 						)
 					);
-				const complete = coversAll(
+				const excluded = await excludedOf(tx, m.id, input.version);
+				const complete = coversRequired(
 					unionRanges([
 						ranges,
 						...others
 							.filter((o) => o.htmlLength === length)
 							.map((o) => (o.ranges ?? []) as ReadRange[])
 					]),
-					length
+					length,
+					excluded
 				);
 				await tx
 					.update(mockupRead)
@@ -177,7 +199,11 @@ export async function recordMockupRead(
 					})
 					.where(eq(mockupRead.id, row.id));
 				const readChars = coveredChars(ranges);
-				return { recorded: true, readChars, unreadChars: Math.max(0, length - readChars) };
+				return {
+					recorded: true,
+					readChars,
+					unreadChars: rangeChars(unreadAuthored(ranges, length, excluded))
+				};
 			})
 		);
 	} catch (e) {
@@ -200,14 +226,17 @@ export async function readStateOf(
 			.select({
 				mockupId: mockupVersion.mockupId,
 				number: mockupVersion.number,
-				size: mockupVersion.size
+				size: mockupVersion.size,
+				excluded: sql<ReadRange[] | null>`${mockupVersion.derived}->'excluded'`
 			})
 			.from(mockupVersion)
 			.where(inArray(mockupVersion.mockupId, ids)),
 		tx.select().from(mockupRead).where(inArray(mockupRead.mockupId, ids))
 	]);
 	for (const m of rows) {
-		const size = versions.find((v) => v.mockupId === m.id && v.number === m.currentVersion)?.size;
+		const current = versions.find((v) => v.mockupId === m.id && v.number === m.currentVersion);
+		const size = current?.size;
+		const excluded: ReadRange[] = Array.isArray(current?.excluded) ? current.excluded : [];
 		const mine = reads.filter((r) => r.mockupId === m.id && r.versionNumber === m.currentVersion);
 		// Records made against another length belong to a file that is gone, so only the newest length counts
 		const length = mine.length
@@ -223,8 +252,10 @@ export async function readStateOf(
 			sizeBytes: size ?? 0,
 			htmlLength: length,
 			readChars,
-			// An empty page has nothing to read; otherwise the parts must cover the whole length a read reported
-			readComplete: size === 0 || (length !== null && coversAll(ranges, length))
+			unreadChars:
+				length === null ? (size ?? 0) : rangeChars(unreadAuthored(ranges, length, excluded)),
+			// An empty page has nothing to read; otherwise the parts must cover the authored source of the length a read reported
+			readComplete: size === 0 || (length !== null && coversRequired(ranges, length, excluded))
 		});
 	}
 	return out;
@@ -310,7 +341,7 @@ export function unreadLine(states: MockupReadState[]): string | null {
 	const parts = unread.map((s) =>
 		s.htmlLength === null
 			? `${s.id} v${s.currentVersion} (not opened, ${s.sizeBytes.toLocaleString('en-US')} bytes)`
-			: `${s.id} v${s.currentVersion} (${Math.max(0, s.htmlLength - s.readChars).toLocaleString('en-US')} of ${s.htmlLength.toLocaleString('en-US')} characters unread)`
+			: `${s.id} v${s.currentVersion} (${s.unreadChars.toLocaleString('en-US')} authored characters unread of ${s.htmlLength.toLocaleString('en-US')})`
 	);
 	return `This plan's mockup is not read to the end: ${parts.join('; ')}. Read it with mockup_get, passing your sessionId, until nextOffset is null.`;
 }

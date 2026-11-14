@@ -5,6 +5,7 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
+import { compileTailwind, injectGeneratedStyle } from './tailwind.js';
 // -- CONSTANTS -- //
 /** The server's own cap for one version (50 MB). The server checks it again, this only stops a hopeless upload early. */
 export const MAX_MOCKUP_BYTES = 50 * 1024 * 1024;
@@ -16,7 +17,7 @@ const PULL_PART_CHARS = 200_000;
 const MAX_KIT_SUMMARY = 4000;
 // -- FUNCTIONS -- //
 /** The message of a failed call: the server's own words when it sent them. */
-async function failure(res) {
+export async function failure(res) {
     try {
         const j = (await res.json());
         if (j.error?.message)
@@ -43,7 +44,7 @@ function readFileChecked(path, kinds, max, what) {
     return new Uint8Array(readFileSync(path));
 }
 /** One call, tried again on a network failure or a 5xx with the same request id, so a repeat can never publish twice. */
-async function call(o, method, path, body, headers, requestId) {
+export async function call(o, method, path, body, headers, requestId) {
     let last = 'The server could not be reached.';
     for (let i = 0; i < TRIES; i++) {
         try {
@@ -168,7 +169,29 @@ export async function pushMockup(o) {
         throw new Error('Not signed in. Run: agent-flow-board login --server <url> --org <slug>');
     if (!o.item && !o.project && !o.mockup)
         throw new Error('Name the plan (--item), a project (--project) or the mockup (--mockup).');
-    const html = readFileChecked(o.file, ['.html', '.htm'], MAX_MOCKUP_BYTES, 'mockup');
+    let html = readFileChecked(o.file, ['.html', '.htm'], MAX_MOCKUP_BYTES, 'mockup');
+    // The utilities the page uses are compiled with the project's own Tailwind (or taken from a style the person built), and kept
+    // as a generated style that nobody has to read (AFB-20261114-0409)
+    if (o.tailwindEntry || o.styleFile) {
+        const text = new TextDecoder().decode(html);
+        let css;
+        if (o.styleFile) {
+            css = new TextDecoder().decode(readFileChecked(o.styleFile, ['.css'], MAX_MOCKUP_BYTES, 'style'));
+            o.log(`Using the style in ${o.styleFile} (${css.length.toLocaleString('en-US')} characters).`);
+        }
+        else {
+            const built = await compileTailwind({
+                entry: o.tailwindEntry,
+                html: text,
+                root: o.projectRoot
+            });
+            css = built.css;
+            o.log(`Compiled ${built.candidates.toLocaleString('en-US')} candidate classes with the project's Tailwind ${built.version}: ${css.length.toLocaleString('en-US')} characters of generated style.`);
+        }
+        html = new TextEncoder().encode(injectGeneratedStyle(text, css));
+        if (html.byteLength > MAX_MOCKUP_BYTES)
+            throw new Error('The page with its generated style is over the size limit of a mockup.');
+    }
     const shot = o.screenshot
         ? readFileChecked(o.screenshot, ['.png'], MAX_SCREENSHOT_BYTES, 'screenshot')
         : null;
@@ -192,7 +215,10 @@ export async function pushMockup(o) {
     const at = `${base}/mockups/${made.mockup.id}/versions/${made.version.number}`;
     let notes = false;
     if (o.keepNotes || o.freeNotes) {
-        const n = await call(o, 'PUT', `${at}/notes`, JSON.stringify({ keepNotes: o.keepNotes ?? '', freeNotes: o.freeNotes ?? '' }), { 'content-type': 'application/json' }, `mockup-notes-${id}`);
+        const n = await call(o, 'PUT', `${at}/notes`, JSON.stringify({
+            ...(o.keepNotes ? { keepNotes: o.keepNotes } : {}),
+            ...(o.freeNotes ? { freeNotes: o.freeNotes } : {})
+        }), { 'content-type': 'application/json' }, `mockup-notes-${id}`);
         if (!n.ok)
             o.log(`The mockup is published, but its notes were not saved: ${await failure(n)}`);
         else

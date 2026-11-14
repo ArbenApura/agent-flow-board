@@ -22,6 +22,7 @@ import {
 	mockup,
 	mockupKit,
 	mockupKitAsset,
+	mockupPart,
 	mockupPin,
 	mockupProject,
 	mockupRead,
@@ -79,6 +80,7 @@ export const mockupProjectSelect = createSelectSchema(mockupProject);
 export const mockupTemplateSelect = createSelectSchema(mockupTemplate);
 export const mockupKitSelect = createSelectSchema(mockupKit);
 export const mockupKitAssetSelect = createSelectSchema(mockupKitAsset);
+export const mockupPartSelect = createSelectSchema(mockupPart);
 export const noteSelect = createSelectSchema(note);
 export const noteFolderSelect = createSelectSchema(noteFolder);
 export const noteVersionSelect = createSelectSchema(noteVersion);

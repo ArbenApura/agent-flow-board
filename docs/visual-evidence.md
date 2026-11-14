@@ -22,6 +22,7 @@ This note records the architecture decisions and acceptance baseline for picture
 - `check compare` launches isolated browser contexts for the hosted mockup (zero cookies or local storage) and the target app registration across matching screens, states, and widths (`1280` by default; pass `--widths 390,1280` or step `widths` for multi-width parity).
 - Default tolerances flag drift above `2 px` on element bounding boxes (`x`, `y`, `width`, `height`), above `1 px` on radius/padding/gap, or any mismatch on normalized colours, font family, font size, font weight, or visible text unless explicitly documented under `## Free` in `design-brief` (`ref | property | reason`).
 - Code-mode critics under Design Fit must inspect the attached screenshot pairs and `compare-diff.json` output, refusing approval when a mockup exists without pair evidence.
+- A mockup is served from its own hostname (`MOCKUP_ORIGIN`, for the AFB board `https://mockups.afb.arbenger.com`, a DNS-only record). The board's page frames it in a sandboxed iframe, the signed address is short lived, and no board cookie or referrer reaches it. Setup is in [self-hosting.md](self-hosting.md) ("Mockup hostname").
 
 ### 4. Vertical-slice gate for redesign plans
 

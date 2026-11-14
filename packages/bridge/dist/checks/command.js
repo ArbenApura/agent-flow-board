@@ -18,7 +18,7 @@ import { listRegistrations } from './registry.js';
 import { rerunOnChange } from './rerun.js';
 import { registrationHeader } from './routing.js';
 import { inspectAppRegistration } from './inspectApp.js';
-import { runCompare } from './compare.js';
+import { fetchMockupContract, manifestFromContract, runCompare } from './compare.js';
 import { runCheck } from './run.js';
 import { watchChecks } from './watch.js';
 import { approveCommand, projectCommand, rootsCommand } from './commands.js';
@@ -310,9 +310,25 @@ export async function checkMain(ctx) {
             if (isBoard && !runnerTok)
                 throw new Error(`This machine is not connected to ${o} on ${s}. Run: agent-flow-board check connect --server ${s} --org ${o} --json`);
             const manifestPath = flag('--manifest');
-            const manifest = manifestPath
+            let manifest = manifestPath
                 ? JSON.parse(readFileSync(resolve(manifestPath), 'utf8'))
                 : undefined;
+            // A mockup that carries a contract gives compare its pairs, its free lines and how each state is reached; the command line wins
+            const personal = ctx.personalToken(s, o);
+            const contract = personal
+                ? await fetchMockupContract({
+                    server: s,
+                    org: o,
+                    token: personal,
+                    fetch: ctx.fetch,
+                    mockup: mockupArg,
+                    log
+                })
+                : null;
+            if (contract) {
+                manifest = manifestFromContract(contract, manifest);
+                log('Using the pairing, free lines and states of the mockup contract.');
+            }
             const briefPath = flag('--brief');
             const briefText = briefPath ? readFileSync(resolve(briefPath), 'utf8') : undefined;
             const pathArg = flag('--path');
@@ -341,7 +357,9 @@ export async function checkMain(ctx) {
                         throw new Error(`Invalid width "${w}" in --widths (must be 240..3840).`);
                     return n;
                 })
-                : undefined;
+                : contract?.widths?.length
+                    ? contract.widths
+                    : undefined;
             const outcome = await runCompare({
                 mode: isBoard ? 'board' : 'local',
                 server: s,
@@ -363,7 +381,8 @@ export async function checkMain(ctx) {
                 personalToken: ctx.personalToken(s, o),
                 fetch: ctx.fetch,
                 log,
-                headed: has('--headed')
+                headed: has('--headed'),
+                reducedMotion: has('--reduced-motion')
             });
             if (json)
                 out(JSON.stringify({

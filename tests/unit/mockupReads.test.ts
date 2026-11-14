@@ -6,8 +6,10 @@ import { describe, expect, it } from 'vitest';
 import {
 	coveredChars,
 	coversAll,
+	coversRequired,
 	mergeRange,
 	unionRanges,
+	unreadAuthored,
 	unreadLine,
 	type ReadRange
 } from '../../src/lib/server/ops/mockupReads';
@@ -66,6 +68,26 @@ describe('the read ranges of a mockup', () => {
 		expect(coversAll(unionRanges([a, b, [[70, 90]]]), 100)).toBe(true);
 	});
 
+	it('does not ask for machine output to be read, but asks for every authored character (B.3)', () => {
+		const excluded: ReadRange[] = [[40, 90]];
+		// 0 to 40 and 90 to 100 are authored; 40 to 90 is a picture, the sprite or generated style
+		expect(coversRequired([[0, 40]], 100, excluded)).toBe(false);
+		expect(
+			coversRequired(
+				[
+					[0, 40],
+					[90, 100]
+				],
+				100,
+				excluded
+			)
+		).toBe(true);
+		expect(unreadAuthored([[0, 40]], 100, excluded)).toEqual([[90, 100]]);
+		// A page with no stored machine output (a version from before parts existed) still needs the whole page
+		expect(coversRequired([[0, 99]], 100, [])).toBe(false);
+		expect(coversRequired([[0, 100]], 100, [])).toBe(true);
+	});
+
 	it('writes the notice from ids, versions and counts only', () => {
 		const line = unreadLine([
 			{
@@ -74,6 +96,7 @@ describe('the read ranges of a mockup', () => {
 				sizeBytes: 5000,
 				htmlLength: null,
 				readChars: 0,
+				unreadChars: 5000,
 				readComplete: false
 			},
 			{
@@ -82,6 +105,7 @@ describe('the read ranges of a mockup', () => {
 				sizeBytes: 900,
 				htmlLength: 800,
 				readChars: 300,
+				unreadChars: 500,
 				readComplete: false
 			},
 			{
@@ -90,11 +114,12 @@ describe('the read ranges of a mockup', () => {
 				sizeBytes: 10,
 				htmlLength: 10,
 				readChars: 10,
+				unreadChars: 0,
 				readComplete: true
 			}
 		]);
 		expect(line).toContain('m-1 v2 (not opened, 5,000 bytes)');
-		expect(line).toContain('m-2 v1 (500 of 800 characters unread)');
+		expect(line).toContain('m-2 v1 (500 authored characters unread of 800)');
 		expect(line).not.toContain('m-3');
 		expect(unreadLine([])).toBeNull();
 	});

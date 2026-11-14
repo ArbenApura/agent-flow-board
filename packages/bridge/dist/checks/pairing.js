@@ -28,7 +28,15 @@ export const INSPECT_STYLE_PROPERTIES = [
     'gap',
     'rowGap',
     'columnGap',
-    'opacity'
+    'opacity',
+    'transitionProperty',
+    'transitionDuration',
+    'transitionTimingFunction',
+    'transitionDelay',
+    'animationName',
+    'animationDuration',
+    'animationTimingFunction',
+    'animationIterationCount'
 ];
 // -- CONSTANTS -- //
 export const DEFAULT_COMPARE_TOLERANCES = {
@@ -39,7 +47,8 @@ export const DEFAULT_COMPARE_TOLERANCES = {
     gapPx: 1,
     colorChannelDelta: 0,
     opacityDelta: 0.01,
-    fontSizePx: 0
+    fontSizePx: 0,
+    motionMs: 20
 };
 const COMPARE_PROPERTY_SEVERITY = {
     text: 'high',
@@ -57,8 +66,62 @@ const COMPARE_PROPERTY_SEVERITY = {
     borderRadius: 'low',
     padding: 'low',
     gap: 'low',
-    opacity: 'low'
+    opacity: 'low',
+    transitionDuration: 'medium',
+    transitionTimingFunction: 'medium',
+    transitionProperty: 'low',
+    transitionDelay: 'low',
+    animationName: 'medium',
+    animationDuration: 'medium',
+    animationTimingFunction: 'low',
+    animationIterationCount: 'low'
 };
+const EASING_KEYWORDS = {
+    ease: 'cubic-bezier(0.25,0.1,0.25,1)',
+    'ease-in': 'cubic-bezier(0.42,0,1,1)',
+    'ease-out': 'cubic-bezier(0,0,0.58,1)',
+    'ease-in-out': 'cubic-bezier(0.42,0,0.58,1)'
+};
+// -- FUNCTIONS: MOTION -- //
+/** A computed time list ("0.28s, 180ms") as milliseconds, one number per item. */
+export function parseTimeList(raw) {
+    return raw
+        .split(',')
+        .map((part) => part.trim().toLowerCase())
+        .filter(Boolean)
+        .map((part) => {
+        const n = Number.parseFloat(part);
+        if (!Number.isFinite(n))
+            return 0;
+        return part.endsWith('ms') ? n : n * 1000;
+    });
+}
+/** An easing list with keywords written as their curves and spaces removed, so the same motion is spelled one way. */
+export function normalizeEasingList(raw) {
+    const out = [];
+    let depth = 0;
+    let cur = '';
+    for (const ch of raw) {
+        if (ch === '(')
+            depth++;
+        if (ch === ')')
+            depth--;
+        if (ch === ',' && depth === 0) {
+            out.push(cur);
+            cur = '';
+        }
+        else
+            cur += ch;
+    }
+    if (cur.trim())
+        out.push(cur);
+    return out
+        .map((part) => part.trim().toLowerCase().replace(/\s+/g, ''))
+        .filter(Boolean)
+        .map((part) => EASING_KEYWORDS[part] ?? part);
+}
+/** True when a transition or an animation actually runs: some duration is more than zero. */
+const runs = (durations) => durations.some((d) => d > 0);
 // -- FUNCTIONS: STATE DRIVING -- //
 /**
  * Builds the URL to reach a given screen/state on either the mockup or the app under the pairing contract.
@@ -563,6 +626,63 @@ export function compareInspections(mockup, app, manifest) {
             const diff = Math.round(Math.abs(mOp - aOp) * 1000) / 1000;
             if (diff > tol.opacityDelta) {
                 recordDiff(pair.ref, pair.appSelector, 'opacity', String(mOp), String(aOp), diff, tol.opacityDelta);
+            }
+        }
+        // Motion: durations within a few milliseconds, the same easing, and a transition or animation present on both sides or on neither
+        if (mEl.styles.transitionDuration !== undefined ||
+            aEl.styles.transitionDuration !== undefined ||
+            mEl.styles.animationName !== undefined ||
+            aEl.styles.animationName !== undefined) {
+            const mDur = parseTimeList(mEl.styles.transitionDuration ?? '0s');
+            const aDur = parseTimeList(aEl.styles.transitionDuration ?? '0s');
+            const mRuns = runs(mDur);
+            const aRuns = runs(aDur);
+            if (mRuns || aRuns) {
+                const len = Math.max(mDur.length, aDur.length);
+                const pad = (list) => Array.from({ length: len }, (_, i) => list[i % Math.max(1, list.length)] ?? 0);
+                const mp = pad(mDur);
+                const ap = pad(aDur);
+                const worst = Math.max(...mp.map((v, i) => Math.abs(v - ap[i])));
+                if (worst > tol.motionMs)
+                    recordDiff(pair.ref, pair.appSelector, 'transitionDuration', mEl.styles.transitionDuration ?? '0s', aEl.styles.transitionDuration ?? '0s', worst, tol.motionMs);
+                if (mRuns && aRuns) {
+                    const me = normalizeEasingList(mEl.styles.transitionTimingFunction ?? '');
+                    const ae = normalizeEasingList(aEl.styles.transitionTimingFunction ?? '');
+                    if (me.length && ae.length && me.join('|') !== ae.join('|'))
+                        recordDiff(pair.ref, pair.appSelector, 'transitionTimingFunction', mEl.styles.transitionTimingFunction ?? '', aEl.styles.transitionTimingFunction ?? '');
+                    const mProps = (mEl.styles.transitionProperty ?? '')
+                        .toLowerCase()
+                        .split(/\s*,\s*/)
+                        .sort();
+                    const aProps = (aEl.styles.transitionProperty ?? '')
+                        .toLowerCase()
+                        .split(/\s*,\s*/)
+                        .sort();
+                    if (mProps.join(',') !== aProps.join(','))
+                        recordDiff(pair.ref, pair.appSelector, 'transitionProperty', mEl.styles.transitionProperty ?? '', aEl.styles.transitionProperty ?? '');
+                }
+            }
+            const mAnim = (mEl.styles.animationName ?? 'none').trim().toLowerCase();
+            const aAnim = (aEl.styles.animationName ?? 'none').trim().toLowerCase();
+            const mAnimOn = mAnim !== 'none';
+            const aAnimOn = aAnim !== 'none';
+            // Another name for the same animation is still a mismatch the person can waive with a reason; none against some is one for sure
+            if (mAnimOn !== aAnimOn || (mAnimOn && aAnimOn && mAnim !== aAnim))
+                recordDiff(pair.ref, pair.appSelector, 'animationName', mAnim, aAnim);
+            if (mAnimOn || aAnimOn) {
+                const mAd = parseTimeList(mEl.styles.animationDuration ?? '0s');
+                const aAd = parseTimeList(aEl.styles.animationDuration ?? '0s');
+                const len = Math.max(mAd.length, aAd.length);
+                const pad = (list) => Array.from({ length: len }, (_, i) => list[i % Math.max(1, list.length)] ?? 0);
+                const mp = pad(mAd);
+                const ap = pad(aAd);
+                const worst = Math.max(...mp.map((v, i) => Math.abs(v - ap[i])));
+                if (worst > tol.motionMs)
+                    recordDiff(pair.ref, pair.appSelector, 'animationDuration', mEl.styles.animationDuration ?? '0s', aEl.styles.animationDuration ?? '0s', worst, tol.motionMs);
+                const mi = (mEl.styles.animationIterationCount ?? '1').trim();
+                const ai = (aEl.styles.animationIterationCount ?? '1').trim();
+                if (mi !== ai)
+                    recordDiff(pair.ref, pair.appSelector, 'animationIterationCount', mi, ai);
             }
         }
         if (mismatches.length === mismatchesBefore)

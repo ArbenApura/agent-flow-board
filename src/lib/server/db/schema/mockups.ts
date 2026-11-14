@@ -263,3 +263,50 @@ export const mockupKitAsset = tenantTable(
 		uniqueIndex('mockup_kit_asset_key_uq').on(t.storageKey)
 	]
 );
+
+// -- THE PARTS OF A MOCKUP VERSION AND THE PROJECT SHELL (AFB-20261114-0409) -- //
+
+/** What a part of a mockup is. The page is composed from these in a fixed order (see mockups/compose.ts). */
+export const MOCKUP_PART_KINDS = [
+	'skeleton',
+	'head',
+	'style',
+	'motion',
+	'screen',
+	'surface',
+	'fixtures',
+	'behavior',
+	'contract',
+	'shell'
+] as const;
+export type MockupPartKind = (typeof MOCKUP_PART_KINDS)[number];
+
+/**
+ * One authored part of a mockup version, stored as its own file, or the project's shell (kind shell, no mockup: the app's root
+ * layout with named slots, saved once and used by every mockup of the project). The composed page is also stored as the version's
+ * html, so serving and reading never depend on this table; the parts are what a bundle was pushed as and what a pull returns.
+ */
+export const mockupPart = tenantTable(
+	'mockup_part',
+	'project',
+	{
+		id: id(),
+		orgId: orgId(),
+		projectId: projectId(),
+		/** Null for the project shell. */
+		mockupId: uuid('mockup_id').references(() => mockup.id, { onDelete: 'cascade' }),
+		versionNumber: integer('version_number'),
+		kind: text('kind').notNull(),
+		key: text('key').notNull(),
+		position: integer('position').notNull().default(0),
+		storageKey: text('storage_key').notNull(),
+		size: bigint('size', { mode: 'number' }).notNull(),
+		checksum: text('checksum').notNull(),
+		createdBy: text('created_by'),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [
+		index('mockup_part_version_idx').on(t.mockupId, t.versionNumber),
+		uniqueIndex('mockup_part_key_uq').on(t.storageKey)
+	]
+);

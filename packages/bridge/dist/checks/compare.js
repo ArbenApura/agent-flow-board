@@ -12,6 +12,7 @@ import { ensureBrowser } from './browser.js';
 import { ensureDevServer } from './devServer.js';
 import { JPEG_MAGIC, MAX_SHOT_BYTES, readPlainFile } from './evidence.js';
 import { inspectUrl } from './inspect.js';
+import { call } from '../mockup.js';
 import { liveSiteGuardOptions } from './live.js';
 import { LocalSink } from './localSink.js';
 import { pictureUploadAllowed } from './login.js';
@@ -58,6 +59,42 @@ export function formatRankedMismatches(diff, limit = MAX_RANKED_LINES) {
         lines.push(`[NOT-COMPARED] ${nc.ref} (${nc.reason}): ${nc.detail}`);
     }
     return lines;
+}
+/**
+ * The pairing manifest a contract implies: its pairs, its free lines (a property, or every property when none is named) and the
+ * way each state is reached. What the person passed on the command line wins: their pairs replace the contract's, and their free
+ * rules are added to it.
+ */
+export function manifestFromContract(contract, explicit) {
+    const fromContract = (contract.refs ?? [])
+        .filter((r) => r.binding === 'free')
+        .map((r) => ({ ref: r.ref, property: r.property ?? '*', reason: r.reason ?? '' }));
+    const drivers = (contract.states ?? []).map((s) => ({
+        state: s.name,
+        mode: s.hook === 'manual' ? 'manual' : s.hook === 'hash' ? 'hash' : 'query'
+    }));
+    return {
+        ...(explicit ?? { pairs: [] }),
+        pairs: explicit?.pairs?.length ? explicit.pairs : (contract.pairs ?? []),
+        free: [...(explicit?.free ?? []), ...fromContract],
+        stateDrivers: explicit?.stateDrivers?.length ? explicit.stateDrivers : drivers
+    };
+}
+/** Reads the contract of a mockup version from the board, or null when it has none or cannot be read (compare then needs its own manifest). */
+export async function fetchMockupContract(o) {
+    try {
+        const ref = parseMockupRef(o.mockup);
+        const version = o.version ?? ref.version;
+        const res = await call({ server: o.server, token: o.token, fetch: o.fetch }, 'GET', `/orgs/${encodeURIComponent(o.org)}/mockups/${encodeURIComponent(ref.id)}/contract${version ? `?version=${version}` : ''}`, undefined, {}, `mockup-contract-${ref.id}`);
+        if (!res.ok)
+            return null;
+        const body = (await res.json());
+        return body?.contract ?? null;
+    }
+    catch (e) {
+        o.log(`The contract of the mockup could not be read (${e instanceof Error ? e.message : 'error'}); compare needs a manifest of its own.`);
+        return null;
+    }
 }
 /** Merges design-brief `Free:` exemptions and manifest rules, checking every override has an explicit reason. */
 export function buildEffectiveManifest(manifest, briefText) {
@@ -335,7 +372,8 @@ export async function runCompare(o) {
                         pairs: effectiveManifest.pairs,
                         driver,
                         captureScreenshot: true,
-                        headed: o.headed
+                        headed: o.headed,
+                        reducedMotion: o.reducedMotion
                     });
                     const appRes = await inspectUrl({
                         url: appEntryUrl,
@@ -354,7 +392,8 @@ export async function runCompare(o) {
                         extraHosts,
                         needles,
                         captureScreenshot: true,
-                        headed: o.headed
+                        headed: o.headed,
+                        reducedMotion: o.reducedMotion
                     });
                     const cellManual = mockupRes.manualRequired || appRes.manualRequired;
                     if (!cellManual && (!mockupRes.screenshot || !appRes.screenshot)) {

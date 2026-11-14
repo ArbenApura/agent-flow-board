@@ -567,6 +567,18 @@ export function lintMockupHooks(html: string): string[] {
 				'The mockup has no data-ref hooks. Add stable data-ref="<id>" attributes to key regions and controls so inspect and check compare can pair elements unambiguously.'
 			);
 		}
+		// A state the page draws has to be reachable by a hook, or compare can only photograph the state the page opens in
+		const drawn = unique(
+			[...text.matchAll(/\bdata-state\s*=\s*["']([a-z0-9_-]{1,40})["']/gi)]
+				.map((m) => m[1].toLowerCase())
+				.filter((s) => s !== 'default')
+		);
+		const reads =
+			/['"]state['"]/.test(text.replace(/\bdata-state\b/gi, '')) || /[?&#]state=/i.test(text);
+		if (drawn.length && !reads)
+			warnings.push(
+				`The mockup draws the states ${drawn.slice(0, 6).join(', ')} but nothing opens them. Read state=<name> from the URL (query or hash) or handle window.afbSet('state', name), so inspect and check compare can show each one.`
+			);
 		return warnings;
 	} catch {
 		return [];

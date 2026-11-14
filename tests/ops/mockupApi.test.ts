@@ -343,4 +343,116 @@ describe('mockup endpoints', () => {
 			stale: true
 		});
 	});
+
+	it('takes a bundle of parts, lists and reads them, gives the contract and the seeded inventory, and saves the shell (AFB-20261114-0409)', async () => {
+		const shell = new TextEncoder().encode(
+			'<html><head><!--afb-part:styles--></head><body><main><!--afb-part:screens--></main><!--afb-part:behavior--></body></html>'
+		);
+		const saveShell = `${base()}/projects/${w.projectKey}/mockup-shell`;
+		expect((await call('PUT', saveShell, { bytes: shell })).status).toBe(401);
+		expect((await call('PUT', saveShell, { as: 'viewer', bytes: shell })).status).toBe(403);
+		expect((await call('PUT', saveShell, { as: 'member', bytes: shell })).status).toBe(200);
+		expect(b(await call('GET', saveShell, { as: 'viewer' }))).toMatchObject({ untrusted: true });
+		const planRef = (
+			await createItem(w.ctx('member'), { project: w.projectKey, title: 'Bundle api', ...PLAN })
+		).ref;
+		const parts = [
+			{ kind: 'style', key: 'page', content: '.card{transition:opacity .2s ease-out}' },
+			{
+				kind: 'screen',
+				key: 'today',
+				content: '<section data-ref="screen-today"><h1 data-ref="title">Today</h1></section>'
+			},
+			{ kind: 'behavior', key: 'main', content: 'const go = 1;' },
+			{
+				kind: 'contract',
+				key: 'contract',
+				content: JSON.stringify({ refs: [{ ref: 'title', binding: 'keep' }] })
+			}
+		];
+		expect(
+			(await call('POST', `${base()}/mockups/bundle`, { body: { item: planRef, parts } })).status
+		).toBe(401);
+		expect(
+			(
+				await call('POST', `${base()}/mockups/bundle`, {
+					as: 'viewer',
+					body: { item: planRef, parts }
+				})
+			).status
+		).toBe(403);
+		const made = await call('POST', `${base()}/mockups/bundle`, {
+			as: 'member',
+			body: { item: planRef, parts }
+		});
+		expect(made.status).toBe(200);
+		const id = b(made).mockup.id as string;
+		expect(b(made).composed.parts).toBe(5);
+		expect(b(made).readCost.parts).toBeGreaterThan(2);
+		const listed = await call('GET', `${base()}/mockups/${id}/parts`, { as: 'viewer' });
+		expect(b(listed).parts.map((p: { kind: string }) => p.kind)).toEqual([
+			'skeleton',
+			'style',
+			'screen',
+			'behavior',
+			'contract'
+		]);
+		const one = await call('GET', `${base()}/mockups/${id}/parts/screen/today`, { as: 'viewer' });
+		expect(b(one).content).toContain('Today');
+		expect(
+			(await call('GET', `${base()}/mockups/${id}/parts/screen/nope`, { as: 'viewer' })).status
+		).toBe(404);
+		expect(
+			b(await call('GET', `${base()}/mockups/${id}/contract`, { as: 'viewer' })).contract.refs
+		).toHaveLength(1);
+		const inventory = await call('GET', `${base()}/mockups/${id}/inventory`, {
+			as: 'viewer',
+			query: { scopes: 'today' }
+		});
+		expect(b(inventory).markdown).toContain('region data-ref=title');
+		expect(b(inventory).markdown).toContain('motion css .card: transition opacity .2s ease-out');
+		expect(
+			(
+				await call('GET', `${base()}/mockups/${id}/inventory`, {
+					as: 'viewer',
+					query: { scopes: 'nope' }
+				})
+			).status
+		).toBe(404);
+		expect((await call('GET', `${base()}/mockups/${id}/inventory`, { as: 'viewer' })).status).toBe(
+			400
+		);
+	});
+
+	it('takes a render of a screen at a width, and the routes are in the table', async () => {
+		expect(match('POST', '/orgs/acme/mockups/bundle')).toMatchObject({ route: {} });
+		expect(match('PUT', '/orgs/acme/mockups/x/versions/2/renders')).toMatchObject({ route: {} });
+		expect(bodyLimit('POST', '/orgs/a/mockups/bundle')).toBeGreaterThan(MAX_MOCKUP_BYTES);
+		expect(bodyLimit('PUT', '/orgs/a/mockups/x/versions/2/renders')).toBeGreaterThan(
+			MAX_SCREENSHOT_BYTES
+		);
+		const made = await call('POST', `${base()}/mockups`, {
+			as: 'member',
+			query: { item: ref },
+			bytes: PAGE
+		});
+		const id = b(made).mockup.id as string;
+		const put = await call(
+			'PUT',
+			`${base()}/mockups/${id}/versions/${b(made).version.number}/renders`,
+			{
+				as: 'member',
+				body: { screen: 'main', width: 1280, elements: [{ ref: 'greeting', text: 'api page' }] }
+			}
+		);
+		expect(b(put)).toMatchObject({ screen: 'main', state: 'default', width: 1280, elements: 1 });
+		expect(
+			(
+				await call('PUT', `${base()}/mockups/${id}/versions/${b(made).version.number}/renders`, {
+					as: 'viewer',
+					body: { screen: 'main', width: 1280, elements: [] }
+				})
+			).status
+		).toBe(403);
+	});
 });

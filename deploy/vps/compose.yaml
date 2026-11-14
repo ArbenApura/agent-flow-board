@@ -46,6 +46,8 @@ services:
     environment:
       AFB_BASE_URL: ${AFB_BASE_URL:?Set AFB_BASE_URL in .env, for example https://board.example.com}
       # The app works out its own address from these headers, which the proxy sets. Without PROTOCOL_HEADER it assumes https
+      # Optional second hostname that serves mockups, so the board's cookies never reach mockup pages (empty = same host, local development only)
+      MOCKUP_ORIGIN: ${MOCKUP_ORIGIN:-}
       PROTOCOL_HEADER: x-forwarded-proto
       HOST_HEADER: x-forwarded-host
       # The public mockup link is limited per client address, which is the last address Caddy added to X-Forwarded-For
@@ -81,6 +83,8 @@ services:
       - '443:443'
     environment:
       AFB_DOMAIN: ${AFB_DOMAIN:?Set AFB_DOMAIN in .env, for example board.example.com}
+      # The mockup hostname without https://, the same host as MOCKUP_ORIGIN. The default only keeps the Caddyfile valid
+      MOCKUP_DOMAIN: ${MOCKUP_DOMAIN:-mockups.localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

@@ -213,7 +213,9 @@ export async function inspectUrl(opts) {
         const ctxOptions = {
             baseURL: parsedUrl.origin,
             viewport: { width, height },
-            serviceWorkers: 'block'
+            serviceWorkers: 'block',
+            // Emulates the person's "reduce motion" setting, so the reduced-motion rule of both sides is what gets measured
+            ...(opts.reducedMotion ? { reducedMotion: 'reduce' } : {})
         };
         if (!isMockup && opts.storageState != null) {
             ctxOptions.storageState = opts.storageState;

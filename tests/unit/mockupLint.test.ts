@@ -351,4 +351,28 @@ describe('the options and screens a page declares', () => {
 			)
 		).toEqual([]);
 	});
+
+	it('lintMockupHooks warns when a page draws states that no URL hook can open (AFB-20261114-0409, C.4)', () => {
+		const drawn =
+			'<main data-screen="home" data-state="default"><section data-ref="list" data-state="loading"></section><section data-ref="none" data-state="empty"></section><section data-ref="bad" data-state="error"></section></main>';
+		const stuck = lintMockupHooks(`${drawn}<script>function go(){}</script>`);
+		expect(stuck).toHaveLength(1);
+		expect(stuck[0]).toMatch(/loading, empty, error/);
+		expect(stuck[0]).toMatch(/state=<name>/);
+		// A page whose script reads the hook, in the URL or through afbSet, is reachable
+		expect(
+			lintMockupHooks(
+				`${drawn}<script>const s=new URLSearchParams(location.search).get('state')</script>`
+			)
+		).toEqual([]);
+		expect(
+			lintMockupHooks(
+				`${drawn}<script>window.afbSet=function(k,v){if(k==='state')show(v)}</script>`
+			)
+		).toEqual([]);
+		// A page that only has the default state has nothing to reach
+		expect(
+			lintMockupHooks('<main data-screen="a" data-state="default"><i data-ref="x"></i></main>')
+		).toEqual([]);
+	});
 });

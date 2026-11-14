@@ -14,6 +14,7 @@ import {
 	deviceCode,
 	mockupKit,
 	mockupKitAsset,
+	mockupPart,
 	mockupVersion,
 	noteFile,
 	org,
@@ -84,6 +85,14 @@ export async function purgeOrg(
 			.from(mockupVersion);
 		const kitFiles = await tx.select({ key: mockupKit.storageKey }).from(mockupKit);
 		const kitAssets = await tx.select({ key: mockupKitAsset.storageKey }).from(mockupKitAsset);
+		// The parts of mockup versions, and the pictures and rendered trees a browser saved with them (AFB-20261114-0409)
+		const partFiles = await tx.select({ key: mockupPart.storageKey }).from(mockupPart);
+		const renderFiles = await tx
+			.select({
+				shots: sql<{ storageKey?: string }[] | null>`${mockupVersion.derived}->'shots'`,
+				trees: sql<{ storageKey?: string }[] | null>`${mockupVersion.derived}->'trees'`
+			})
+			.from(mockupVersion);
 		// The pictures of notes
 		const pictures = await tx.select({ key: noteFile.storageKey }).from(noteFile);
 		const archives = await tx
@@ -96,6 +105,12 @@ export async function purgeOrg(
 				...mockupFiles.flatMap((f) => (f.shot ? [f.key, f.shot] : [f.key])),
 				...kitFiles.map((f) => f.key),
 				...kitAssets.map((f) => f.key),
+				...partFiles.map((f) => f.key),
+				...renderFiles.flatMap((f) =>
+					[...(Array.isArray(f.shots) ? f.shots : []), ...(Array.isArray(f.trees) ? f.trees : [])]
+						.map((s) => s.storageKey)
+						.filter((k): k is string => typeof k === 'string')
+				),
 				...pictures.map((f) => f.key)
 			],
 			archives: archives.map((a) => a.key!).filter(Boolean)

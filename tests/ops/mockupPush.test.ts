@@ -157,6 +157,16 @@ describe('mockup push over http', () => {
 		const read = await getMockup(as('viewer'), first.mockupId, 1);
 		expect(read.notes).toMatchObject({ keep: 'Keep it.', free: 'Free it.' });
 		expect(read.versions).toHaveLength(2);
+		// A version pushed with no notes carries the previous version's notes, and one field alone changes only that field
+		expect((await getMockup(as('viewer'), first.mockupId, 2)).notes).toMatchObject({
+			keep: 'Keep it.',
+			free: 'Free it.'
+		});
+		await pushMockup(opts(page, memberToken, { mockup: first.mockupId, freeNotes: 'Free two.' }));
+		expect((await getMockup(as('viewer'), first.mockupId, 3)).notes).toMatchObject({
+			keep: 'Keep it.',
+			free: 'Free two.'
+		});
 		expect((await readMockupHtml(as('viewer'), first.mockupId, { version: 1 })).html).toContain(
 			'Pushed'
 		);

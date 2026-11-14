@@ -16,6 +16,7 @@ import {
 import { dirname, extname, join, resolve } from 'node:path';
 // -- MODULES -- //
 import type { Fetch } from './device.js';
+import { compileTailwind, injectGeneratedStyle } from './tailwind.js';
 
 // -- TYPES -- //
 
@@ -36,6 +37,12 @@ export type PushOptions = {
 	keepNotes?: string;
 	freeNotes?: string;
 	screenshot?: string;
+	/** The project's entry CSS (theme, tokens, base layer): the page's utilities are compiled against it with the project's Tailwind 4. */
+	tailwindEntry?: string;
+	/** Where the project's node_modules live, when they are not above the entry file. */
+	projectRoot?: string;
+	/** A stylesheet built with the project's own command, used instead of a compile (any tool). */
+	styleFile?: string;
 	log: (line: string) => void;
 	/** For tests: how long to wait between tries. */
 	wait?: (ms: number) => Promise<unknown>;
@@ -126,7 +133,7 @@ const MAX_KIT_SUMMARY = 4000;
 // -- FUNCTIONS -- //
 
 /** The message of a failed call: the server's own words when it sent them. */
-async function failure(res: Response): Promise<string> {
+export async function failure(res: Response): Promise<string> {
 	try {
 		const j = (await res.json()) as { error?: { message?: string } };
 		if (j.error?.message) return `${j.error.message} (${res.status})`;
@@ -152,7 +159,7 @@ function readFileChecked(path: string, kinds: string[], max: number, what: strin
 }
 
 /** One call, tried again on a network failure or a 5xx with the same request id, so a repeat can never publish twice. */
-async function call(
+export async function call(
 	o: Pick<PushOptions, 'server' | 'token' | 'fetch' | 'wait'>,
 	method: string,
 	path: string,
@@ -287,7 +294,34 @@ export async function pushMockup(o: PushOptions): Promise<PushResult> {
 		throw new Error('Not signed in. Run: agent-flow-board login --server <url> --org <slug>');
 	if (!o.item && !o.project && !o.mockup)
 		throw new Error('Name the plan (--item), a project (--project) or the mockup (--mockup).');
-	const html = readFileChecked(o.file, ['.html', '.htm'], MAX_MOCKUP_BYTES, 'mockup');
+	let html = readFileChecked(o.file, ['.html', '.htm'], MAX_MOCKUP_BYTES, 'mockup');
+	// The utilities the page uses are compiled with the project's own Tailwind (or taken from a style the person built), and kept
+	// as a generated style that nobody has to read (AFB-20261114-0409)
+	if (o.tailwindEntry || o.styleFile) {
+		const text = new TextDecoder().decode(html);
+		let css: string;
+		if (o.styleFile) {
+			css = new TextDecoder().decode(
+				readFileChecked(o.styleFile, ['.css'], MAX_MOCKUP_BYTES, 'style')
+			);
+			o.log(
+				`Using the style in ${o.styleFile} (${css.length.toLocaleString('en-US')} characters).`
+			);
+		} else {
+			const built = await compileTailwind({
+				entry: o.tailwindEntry!,
+				html: text,
+				root: o.projectRoot
+			});
+			css = built.css;
+			o.log(
+				`Compiled ${built.candidates.toLocaleString('en-US')} candidate classes with the project's Tailwind ${built.version}: ${css.length.toLocaleString('en-US')} characters of generated style.`
+			);
+		}
+		html = new TextEncoder().encode(injectGeneratedStyle(text, css));
+		if (html.byteLength > MAX_MOCKUP_BYTES)
+			throw new Error('The page with its generated style is over the size limit of a mockup.');
+	}
 	const shot = o.screenshot
 		? readFileChecked(o.screenshot, ['.png'], MAX_SCREENSHOT_BYTES, 'screenshot')
 		: null;
@@ -324,7 +358,10 @@ export async function pushMockup(o: PushOptions): Promise<PushResult> {
 			o,
 			'PUT',
 			`${at}/notes`,
-			JSON.stringify({ keepNotes: o.keepNotes ?? '', freeNotes: o.freeNotes ?? '' }),
+			JSON.stringify({
+				...(o.keepNotes ? { keepNotes: o.keepNotes } : {}),
+				...(o.freeNotes ? { freeNotes: o.freeNotes } : {})
+			}),
 			{ 'content-type': 'application/json' },
 			`mockup-notes-${id}`
 		);

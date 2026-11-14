@@ -26,10 +26,16 @@ export function bodyLimit(method: string, path: string): number {
 	if (/^\/orgs\/[^/]+\/projects\/[^/]+\/notes\/[^/]+\/live\//.test(path)) return LIVE_JSON_BYTES;
 	if (/^\/orgs\/[^/]+\/mockups\/?$/.test(path) && method === 'POST')
 		return MAX_MOCKUP_BYTES + SLACK;
+	// A bundle is JSON that holds the parts as strings, so escaping makes it a little bigger than the page it makes
+	if (/^\/orgs\/[^/]+\/mockups\/bundle\/?$/.test(path) && method === 'POST')
+		return MAX_MOCKUP_BYTES * 2 + SLACK;
 	if (/^\/orgs\/[^/]+\/projects\/[^/]+\/mockup-kit\/?$/.test(path) && method === 'PUT')
 		return MAX_MOCKUP_BYTES + SLACK;
 	if (/^\/orgs\/[^/]+\/mockups\/[^/]+\/versions\/\d+\/screenshot\/?$/.test(path))
 		return MAX_SCREENSHOT_BYTES + SLACK;
+	// A render is a picture as base64 text and the rendered tree, in one JSON body
+	if (/^\/orgs\/[^/]+\/mockups\/[^/]+\/versions\/\d+\/renders\/?$/.test(path) && method === 'PUT')
+		return Math.ceil(MAX_SCREENSHOT_BYTES * 1.4) + MOCKUP_JSON_BYTES + SLACK;
 	if (/^\/orgs\/[^/]+\/(mockups|mockup-pins|projects\/[^/]+\/mockup-)/.test(path))
 		return MOCKUP_JSON_BYTES;
 	return MAX_BODY_BYTES + 1;

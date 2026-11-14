@@ -15,6 +15,16 @@ import {
 	removeMockupPin,
 	setMockupPinResolved
 } from '../ops/mockupPins';
+import {
+	bundleInput,
+	getMockupContract,
+	getMockupInventory,
+	listMockupParts,
+	publishMockupBundle,
+	readMockupPart,
+	readProjectShell,
+	setProjectShell
+} from '../ops/mockupParts';
 import { recordMockupRead } from '../ops/mockupReads';
 import { kitInput, readMockupKit, setMockupKit } from '../ops/mockupSettings';
 import {
@@ -29,7 +39,9 @@ import {
 	restoreMockupFromTrash,
 	restoreMockupVersion,
 	setMockupPublicLink,
+	renderInput,
 	setVersionNotes,
+	setVersionRender,
 	setVersionScreenshot,
 	trashMockup
 } from '../ops/mockups';
@@ -165,6 +177,16 @@ export const mockupRoutes: Route[] = [
 			)
 	},
 	{
+		method: 'PUT',
+		path: '/orgs/{org}/mockups/{id}/versions/{number}/renders',
+		summary:
+			'Save what a browser saw of one screen, state and width of a version: a picture (pngBase64) and the rendered element tree (elements). The same screen, state and width replaces the earlier render',
+		tag: 'Mockups',
+		body: renderInput,
+		handler: ({ ctx, params, body }) =>
+			setVersionRender(ctx, params.id, num(params.number, 'version number')!, body as never)
+	},
+	{
 		method: 'POST',
 		path: '/orgs/{org}/mockups/{id}/link',
 		summary: 'Link a mockup to a plan, or unlink it with item null',
@@ -266,5 +288,79 @@ export const mockupRoutes: Route[] = [
 				},
 				bytes
 			)
+	},
+
+	// -- parts, contract and the project shell (AFB-20261114-0409) -- //
+	{
+		method: 'POST',
+		path: '/orgs/{org}/mockups/bundle',
+		summary:
+			'Publish a mockup made of parts (a skeleton or the project shell, screens, sheets, styles, motion, behaviour, fixtures and a contract). The server composes the page and keeps the parts. Name the plan with item, or a project, or an existing mockup for a new version. The answer carries the same warnings and readCost as a single file',
+		tag: 'Mockups',
+		body: bundleInput,
+		handler: ({ ctx, body }) => publishMockupBundle(ctx, body as never)
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/mockups/{id}/parts',
+		summary: 'The parts of a version in the order they were pushed (empty for a single file)',
+		tag: 'Mockups',
+		handler: ({ ctx, params, query }) =>
+			listMockupParts(ctx, params.id, { version: num(query.version, 'version') })
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/mockups/{id}/parts/{kind}/{key}',
+		summary: 'The text of one part of a version, or a piece of it (untrusted text)',
+		tag: 'Mockups',
+		handler: ({ ctx, params, query }) =>
+			readMockupPart(ctx, params.id, {
+				version: num(query.version, 'version'),
+				kind: params.kind,
+				key: params.key,
+				offset: num(query.offset, 'offset', 0),
+				limit: num(query.limit, 'limit')
+			})
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/mockups/{id}/inventory',
+		summary:
+			'The Mockup inventory of some screens or sheets (scopes, comma separated, for example today,surface:lab), seeded from the source: regions, texts, states, what opens what, and every transition and animation. Mark each line built, free or differs in the design brief',
+		tag: 'Mockups',
+		handler: ({ ctx, params, query }) =>
+			getMockupInventory(ctx, params.id, {
+				version: num(query.version, 'version'),
+				scopes: (query.scopes ?? '')
+					.split(',')
+					.map((s) => s.trim())
+					.filter(Boolean)
+			})
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/mockups/{id}/contract',
+		summary:
+			'The contract of a version (bound, keep and free regions, the app pairing, widths and states), or null when it has none',
+		tag: 'Mockups',
+		handler: ({ ctx, params, query }) =>
+			getMockupContract(ctx, params.id, { version: num(query.version, 'version') })
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/projects/{project}/mockup-shell',
+		summary: 'The newest project shell as text, or null when none was saved (untrusted text)',
+		tag: 'Mockups',
+		handler: ({ ctx, params }) => readProjectShell(ctx, params.project)
+	},
+	{
+		method: 'PUT',
+		path: '/orgs/{org}/projects/{project}/mockup-shell',
+		summary:
+			"Save the project shell: the app's root layout as the body, with <!--afb-part:screens--> where the screens go (and optional slots for head, styles, surfaces, fixtures and behaviour). A bundle that sends no skeleton uses it",
+		tag: 'Mockups',
+		upload: true,
+		handler: ({ ctx, params, bytes }) =>
+			setProjectShell(ctx, { project: params.project }, bytes ?? new Uint8Array())
 	}
 ];

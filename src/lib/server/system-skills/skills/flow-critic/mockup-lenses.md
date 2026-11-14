@@ -140,9 +140,10 @@ Six lenses. By default three subagents split them M1 + M2, M3 + M4 and M5 + M6 (
 - [ ] **Text.** No line that wraps by one word, no heading that breaks badly at a declared width, no truncated label without a way to read it.
 - [ ] **Control states.** Hover, focus, pressed, disabled and selected look as the real components do; the focus ring is visible.
 - [ ] **Touch.** Tap targets at the phone width have the size the product's rules ask for.
+- [ ] **Motion.** Every transition and animation the source declares has a named duration and easing from the product's motion tokens or scale, `@keyframes`, easing and the reduced-motion rule sit in an authored style (never only in generated CSS), nothing animates a property that causes layout shift, and the reduced-motion rule turns the motion off. Read the source for the stagger, the loading hold and the drag behaviour: a picture cannot show them.
 
 ### Lens M6 - The board's contract
-- [ ] **The kit marker** is in the head, and the page carries no stylesheet, font or icon set of its own beyond the compiled rules for classes the kit lacks.
+- [ ] **The kit marker** is in the head, and the page carries no stylesheet, font or icon set of its own beyond the compiled rules for classes the kit lacks (a generated style from the project's own Tailwind counts as compiled rules). A page that carries a large hand-written stylesheet next to a kit, pictures embedded in the markup, or states that no URL hook can open is a finding; `{PUBLISH_WARNINGS}` and the read cost in the publish answer say so.
 - [ ] **Nothing from a network address**: no script, style, font, image or frame loaded by address, and `{PUBLISH_WARNINGS}` is empty or each warning is explained.
 - [ ] **The declaration is right.** The config tag declares exactly the screens and options the real app offers, each within the limits, and every declared value is drawn. An option that does not apply to every screen carries `screens`, and each declared option and screen really changes the page when switched (the page reads `data-<key>` on the root element, or defines `window.afbSet`): switch each one and look, because a control that does nothing is a defect.
 - [ ] **No viewer tools and no device.** The page draws no theme or device switch, no screen pills, no step bar, no browser window or phone body.

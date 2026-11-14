@@ -8,7 +8,7 @@ import type { Ctx } from './context';
 import type { RunnerAuth } from './environments';
 // -- DEP-MODULES -- //
 import { createHash, randomBytes } from 'node:crypto';
-import { and, desc, eq, ilike, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { extractMockupScreensFromHtml } from '../../shared/screenGlobs';
@@ -18,6 +18,7 @@ import {
 	item,
 	member,
 	mockup,
+	mockupPart,
 	mockupPin,
 	mockupVersion,
 	org,
@@ -33,6 +34,10 @@ import { mockupKey } from '../mockups/keys';
 import { lintMockupHooks, lintMockupHtml } from '../mockups/lint';
 import { buildMockupUrl, mockupOriginStatus } from '../mockups/origin';
 import { extractMockupDerived, type MockupDerivedAssets } from '../mockups/derived';
+import { lintMockupBudgets, readCostOf } from '../mockups/budgets';
+import { notesFromContract } from '../mockups/compose';
+import { contractProblems, parseContract, type MockupContract } from '../mockups/contract';
+import { segmentMockupHtml } from '../mockups/segments';
 import { MOCKUP_LINK_SECONDS, signMockupGrant } from '../mockups/serve';
 import { ORG_LOCKED_MESSAGE, OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields } from './items';
@@ -67,8 +72,9 @@ export const publishInput = z.object({
 	/** A second mockup on a plan that already has one, only when the person asked for it. */
 	another: z.boolean().default(false),
 	title: z.string().min(1).max(200).optional(),
-	keepNotes: z.string().max(20_000).default(''),
-	freeNotes: z.string().max(20_000).default('')
+	/** Left out on a new version, the previous version's notes are carried forward. */
+	keepNotes: z.string().max(20_000).optional(),
+	freeNotes: z.string().max(20_000).optional()
 });
 export type PublishInput = z.input<typeof publishInput>;
 
@@ -152,7 +158,11 @@ export function checkLength(label: string, text: string | undefined, max: number
 /** The warnings of the faithful rendering check for a page, with the marker notes. Only the start of a very large page is read. */
 function warningsFor(bytes: Uint8Array, kit: LoadedKit | null): string[] {
 	const html = new TextDecoder().decode(bytes.subarray(0, LINT_BYTES));
-	const warnings = [...lintMockupHtml(html, kit?.facts), ...lintMockupHooks(html)];
+	const warnings = [
+		...lintMockupHtml(html, kit?.facts),
+		...lintMockupHooks(html),
+		...lintMockupBudgets(html, kit !== null && kit.head !== null)
+	];
 	if (bytes.byteLength > LINT_BYTES)
 		warnings.push(
 			`The page is larger than ${LINT_BYTES / 1_000_000} MB, so only its first ${LINT_BYTES / 1_000_000} MB was checked for what will not render. The rest was saved but not checked.`
@@ -208,11 +218,24 @@ export async function publishMockup(
 	ctx: Ctx,
 	raw: PublishInput,
 	bytes: Uint8Array,
-	screenshot?: Uint8Array
+	screenshot?: Uint8Array,
+	/** The parts a composed page was made from (a bundle), stored with the version in the same transaction. */
+	extra?: { parts?: { kind: string; key: string; content: string }[] }
 ) {
 	// Every limit is checked here in plain words, before the schema, so the person or tool is told what to do and not a schema path
 	checkLength('Keep notes', raw.keepNotes, MAX_NOTES_CHARS, 'Shorten them.');
 	checkLength('Free notes', raw.freeNotes, MAX_NOTES_CHARS, 'Shorten them.');
+	// A contract in the bundle gives the notes their words when none were sent, and is checked against the page below
+	let contract: MockupContract | null = null;
+	const contractPart = extra?.parts?.find((p) => p.kind === 'contract');
+	if (contractPart) {
+		try {
+			contract = parseContract(contractPart.content);
+		} catch (e) {
+			throw new OpError('INVALID', e instanceof Error ? e.message : 'The contract is not valid.');
+		}
+	}
+	const contractNotes = contract ? notesFromContract(contract) : null;
 	if (!bytes || bytes.byteLength === 0)
 		throw new OpError(
 			'INVALID',
@@ -262,6 +285,18 @@ export async function publishMockup(
 				}
 				await requireCap(tx, ctx, 'write', projectId);
 				await rateLimit(tx, ctx, 'write');
+				// Notes left out of a new version are the previous version's, so a push never drops them silently
+				const [prevNotes] = target
+					? await tx
+							.select({ keep: mockupVersion.keepNotes, free: mockupVersion.freeNotes })
+							.from(mockupVersion)
+							.where(
+								and(
+									eq(mockupVersion.mockupId, target.id),
+									eq(mockupVersion.number, target.currentVersion)
+								)
+							)
+					: [];
 				const number = target
 					? ((
 							await tx
@@ -333,14 +368,36 @@ export async function publishMockup(
 						storageKey: key,
 						size: bytes.byteLength,
 						checksum: versionChecksum,
-						keepNotes: input.keepNotes,
-						freeNotes: input.freeNotes,
+						// A contract with no keep (or no free) lines gives an empty side, which must not wipe the previous version's notes
+						keepNotes: input.keepNotes ?? (contractNotes?.keep || prevNotes?.keep || ''),
+						freeNotes: input.freeNotes ?? (contractNotes?.free || prevNotes?.free || ''),
 						screenshotKey: shotKey,
 						screens: declaredScreens,
 						derived: derivedAssets as unknown as Record<string, unknown>,
 						createdBy: ctx.actor.userId
 					})
 					.returning();
+				// The parts the page was composed from are files of their own, listed in the order they were given
+				let position = 0;
+				for (const p of extra?.parts ?? []) {
+					const partBytes = new TextEncoder().encode(p.content);
+					const partKey = mockupKey(ctx.orgId, projectId, 'asset', 'txt');
+					written.push(partKey);
+					await store.put(partKey, partBytes, 'text/plain');
+					await tx.insert(mockupPart).values({
+						orgId: ctx.orgId,
+						projectId,
+						mockupId: target.id,
+						versionNumber: number,
+						kind: p.kind,
+						key: p.key,
+						position: position++,
+						storageKey: partKey,
+						size: partBytes.byteLength,
+						checksum: sha256(partBytes),
+						createdBy: ctx.actor.userId
+					});
+				}
 				await appendEvent(tx, {
 					orgId: ctx.orgId,
 					projectId,
@@ -364,7 +421,12 @@ export async function publishMockup(
 					mockup: publicMockup(target),
 					version: publicVersion(row),
 					projectKey: pk?.key ?? '',
-					warnings: warningsFor(bytes, kit)
+					warnings: [
+						...warningsFor(bytes, kit),
+						...(contract ? contractProblems(contract, htmlText) : [])
+					],
+					// What the page costs to read, so bloat shows the moment it is published (B.4)
+					readCost: readCostOf(htmlText)
 				};
 			})
 		)
@@ -381,6 +443,12 @@ export function publicMockup(m: MockupRow) {
 export function publicVersion(v: typeof mockupVersion.$inferSelect) {
 	const { storageKey: _storageKey, screenshotKey, derived: _derived, ...rest } = v;
 	return { ...rest, hasScreenshot: screenshotKey !== null };
+}
+
+/** A version in a list: no notes (read one version's notes with the version number), only how long they are. */
+export function versionSummary(v: typeof mockupVersion.$inferSelect) {
+	const { keepNotes, freeNotes, ...rest } = publicVersion(v);
+	return { ...rest, notesChars: { keep: keepNotes.length, free: freeNotes.length } };
 }
 
 /** Marks written notes as untrusted text with their author, for an agent that reads them. */
@@ -414,7 +482,7 @@ export async function getMockup(ctx: Ctx, id: string, version?: number) {
 			plan: plan
 				? { id: plan.id, ref: plan.ref, title: plan.title, visibility: plan.visibility }
 				: null,
-			versions: versions.map(publicVersion),
+			versions: versions.map(versionSummary),
 			notes: current ? await notesOf(tx, current) : null,
 			canWrite: ['owner', 'admin', 'member'].includes(role),
 			canManage: role === 'owner' || role === 'admin'
@@ -526,6 +594,54 @@ export async function readMockupHtml(
 		html: text.slice(offset, offset + limit),
 		more: offset + limit < text.length
 	};
+}
+
+/**
+ * The named parts of one version and its machine output (B.2). A version published after parts existed stores them with its
+ * derived assets; an older one is cut from the stored page on the spot, so every version can be read part by part.
+ */
+export async function readMockupSegments(ctx: Ctx, id: string, options: { version?: number } = {}) {
+	const store = storage(ctx);
+	const found = await run(ctx, async (tx) => {
+		const { m } = await loadMockup(tx, ctx, id);
+		const n = options.version ?? m.currentVersion;
+		const [v] = await tx
+			.select()
+			.from(mockupVersion)
+			.where(and(eq(mockupVersion.mockupId, m.id), eq(mockupVersion.number, n)));
+		if (!v) throw new OpError('NOT_FOUND', `This mockup has no version ${n}.`);
+		return v;
+	});
+	const stored = found.derived as MockupDerivedAssets | null;
+	if (stored?.segments && stored.excluded && stored.snapshot?.htmlLength !== undefined)
+		return {
+			version: found.number,
+			length: stored.snapshot.htmlLength,
+			segments: stored.segments,
+			excluded: stored.excluded
+		};
+	const text = textOf(await store.get(found.storageKey));
+	if (text === null) throw new OpError('NOT_FOUND', 'The stored file of this version is missing.');
+	const cut = segmentMockupHtml(text);
+	return { version: found.number, length: text.length, ...cut };
+}
+
+/** The whole page of one version as text, for the checks that read all of it on the server (the seeded inventory). Never returned as is. */
+export async function loadMockupPage(ctx: Ctx, id: string, options: { version?: number } = {}) {
+	const store = storage(ctx);
+	const found = await run(ctx, async (tx) => {
+		const { m } = await loadMockup(tx, ctx, id);
+		const n = options.version ?? m.currentVersion;
+		const [v] = await tx
+			.select({ number: mockupVersion.number, storageKey: mockupVersion.storageKey })
+			.from(mockupVersion)
+			.where(and(eq(mockupVersion.mockupId, m.id), eq(mockupVersion.number, n)));
+		if (!v) throw new OpError('NOT_FOUND', `This mockup has no version ${n}.`);
+		return v;
+	});
+	const text = textOf(await store.get(found.storageKey));
+	if (text === null) throw new OpError('NOT_FOUND', 'The stored file of this version is missing.');
+	return { version: found.number, text };
 }
 
 export const listInput = z.object({
@@ -1110,6 +1226,228 @@ export async function setVersionScreenshot(
 	);
 	if (out.replaced) await store.delete(out.replaced).catch(() => undefined);
 	return { version: out.version, hasScreenshot: true as const };
+}
+
+export const renderInput = z.object({
+	screen: z
+		.string()
+		.min(1)
+		.max(80)
+		.regex(/^[a-z0-9_-]+$/i),
+	state: z
+		.string()
+		.min(1)
+		.max(40)
+		.regex(/^[a-z0-9_-]+$/i)
+		.default('default'),
+	width: z.number().int().min(200).max(4000),
+	/** The picture of the screen as base64 of a PNG. */
+	pngBase64: z.string().max(7_000_000).optional(),
+	/** The rendered tree: what a browser saw (data-ref, role, text, box, whitelisted computed styles). */
+	elements: z.array(z.record(z.string(), z.unknown())).max(600).optional()
+});
+
+/**
+ * Saves what a browser saw of one screen, state and width of a version: a picture and the rendered tree. They are written as files
+ * and listed in the version's derived assets, so a new session starts from them instead of the page (AFB-20261114-0409, C.2). A
+ * second call for the same screen, state and width replaces the first.
+ */
+export async function setVersionRender(
+	ctx: Ctx,
+	id: string,
+	number: number,
+	raw: z.input<typeof renderInput>
+) {
+	const input = renderInput.parse(raw);
+	if (!input.pngBase64 && !input.elements)
+		throw new OpError('INVALID', 'Send a picture (pngBase64), the rendered elements, or both.');
+	let png: Uint8Array | undefined;
+	let pictureMime: 'image/png' | 'image/jpeg' = 'image/png';
+	if (input.pngBase64) {
+		try {
+			png = Uint8Array.from(Buffer.from(input.pngBase64, 'base64'));
+		} catch {
+			throw new OpError('INVALID', 'The picture is not valid base64.');
+		}
+		if (png.byteLength === 0) throw new OpError('INVALID', 'The picture is empty.');
+		if (png.byteLength > MAX_SCREENSHOT_BYTES)
+			throw new OpError('INVALID', 'The picture is larger than 5 MB.');
+		// The bridge takes its renders as JPEG (like check compare); a PNG is fine too
+		if (PNG_SIGNATURE.every((b, i) => png![i] === b)) pictureMime = 'image/png';
+		else if (png[0] === 0xff && png[1] === 0xd8 && png[2] === 0xff) pictureMime = 'image/jpeg';
+		else throw new OpError('INVALID', 'The picture must be a PNG or a JPEG image.');
+	}
+	const store = storage(ctx);
+	const written: string[] = [];
+	const out = await withFileCleanup(store, written, () =>
+		run(ctx, (tx) =>
+			idempotent(ctx, tx, async () => {
+				const { m } = await loadMockup(tx, ctx, id, { lock: true });
+				await requireCap(tx, ctx, 'write', m.projectId);
+				await rateLimit(tx, ctx, 'write');
+				const [v] = await tx
+					.select()
+					.from(mockupVersion)
+					.where(and(eq(mockupVersion.mockupId, m.id), eq(mockupVersion.number, number)));
+				if (!v) throw new OpError('NOT_FOUND', `This mockup has no version ${number}.`);
+				let derived = v.derived as MockupDerivedAssets | null;
+				if (!derived) {
+					const text = textOf(await store.get(v.storageKey));
+					if (text === null)
+						throw new OpError('NOT_FOUND', 'The stored file of this version is missing.');
+					// A version stored before parts existed keeps the whole-page read rule: the parts and the machine output are not
+					// recorded for it by an unrelated write such as a render
+					derived = {
+						...extractMockupDerived(text, v.checksum),
+						segments: undefined,
+						excluded: undefined
+					};
+				}
+				const same = (s: { screen: string; state: string; width: number }) =>
+					s.screen === input.screen && s.state === input.state && s.width === input.width;
+				const replaced: string[] = [];
+				let shots = derived.shots ?? [];
+				let trees = derived.trees ?? [];
+				if (png) {
+					const key =
+						pictureMime === 'image/png'
+							? mockupKey(ctx.orgId, m.projectId, 'png')
+							: mockupKey(ctx.orgId, m.projectId, 'asset', 'jpg');
+					written.push(key);
+					await store.put(key, png, pictureMime);
+					replaced.push(...shots.filter(same).map((s) => s.storageKey));
+					shots = [
+						...shots.filter((s) => !same(s)),
+						{
+							screen: input.screen,
+							state: input.state,
+							width: input.width,
+							storageKey: key,
+							mime: pictureMime,
+							size: png.byteLength
+						}
+					];
+				}
+				if (input.elements) {
+					const key = mockupKey(ctx.orgId, m.projectId, 'asset', 'json');
+					const body = new TextEncoder().encode(
+						JSON.stringify({
+							screen: input.screen,
+							state: input.state,
+							width: input.width,
+							elements: input.elements
+						})
+					);
+					written.push(key);
+					await store.put(key, body, 'application/json');
+					replaced.push(...trees.filter(same).map((s) => s.storageKey));
+					trees = [
+						...trees.filter((s) => !same(s)),
+						{
+							screen: input.screen,
+							state: input.state,
+							width: input.width,
+							storageKey: key,
+							size: body.byteLength,
+							elements: input.elements.length
+						}
+					];
+				}
+				await tx
+					.update(mockupVersion)
+					.set({ derived: { ...derived, shots, trees } as unknown as Record<string, unknown> })
+					.where(eq(mockupVersion.id, v.id));
+				await appendEvent(tx, {
+					orgId: ctx.orgId,
+					projectId: m.projectId,
+					itemId: m.itemId,
+					...actorFields(ctx),
+					verb: 'mockup.render',
+					targetType: 'mockup',
+					targetId: m.id,
+					after: {
+						version: number,
+						screen: input.screen,
+						state: input.state,
+						width: input.width
+					} as never,
+					undoable: false
+				});
+				// A restored version shares the files of the one it was copied from, so only a file no other version lists is deleted
+				const deletable: string[] = [];
+				for (const k of replaced) {
+					const [used] = await tx
+						.select({ n: sql<number>`count(*)::int` })
+						.from(mockupVersion)
+						.where(
+							and(
+								eq(mockupVersion.projectId, m.projectId),
+								ne(mockupVersion.id, v.id),
+								sql`${mockupVersion.derived}::text like ${'%' + k + '%'}`
+							)
+						);
+					if (!used?.n) deletable.push(k);
+				}
+				return { replaced: deletable };
+			})
+		)
+	);
+	await Promise.all(out.replaced.map((k) => store.delete(k).catch(() => undefined)));
+	return {
+		version: number,
+		screen: input.screen,
+		state: input.state,
+		width: input.width,
+		picture: Boolean(png),
+		elements: input.elements?.length ?? 0
+	};
+}
+
+/** The stored rendered trees of a version, for the screens, states and widths asked for. A tree that is gone is skipped. */
+export async function readMockupTrees(
+	ctx: Ctx,
+	id: string,
+	options: {
+		version?: number;
+		screen?: string;
+		state?: string;
+		width?: number;
+		maxChars?: number;
+	} = {}
+) {
+	const store = storage(ctx);
+	const found = await run(ctx, async (tx) => {
+		const { m } = await loadMockup(tx, ctx, id);
+		const n = options.version ?? m.currentVersion;
+		const [v] = await tx
+			.select()
+			.from(mockupVersion)
+			.where(and(eq(mockupVersion.mockupId, m.id), eq(mockupVersion.number, n)));
+		if (!v) throw new OpError('NOT_FOUND', `This mockup has no version ${n}.`);
+		return v;
+	});
+	const listed = ((found.derived as MockupDerivedAssets | null)?.trees ?? []).filter(
+		(t) =>
+			(!options.screen || t.screen.toLowerCase() === options.screen.toLowerCase()) &&
+			(!options.state || t.state.toLowerCase() === options.state.toLowerCase()) &&
+			(!options.width || t.width === options.width)
+	);
+	const budget = options.maxChars ?? 9_000;
+	const trees: { screen: string; state: string; width: number; elements: unknown[] }[] = [];
+	let used = 0;
+	let omitted = 0;
+	for (const t of listed) {
+		const text = textOf(await store.get(t.storageKey).catch(() => null));
+		if (!text) continue;
+		if (used + text.length > budget && trees.length > 0) {
+			omitted++;
+			continue;
+		}
+		used += text.length;
+		const parsed = JSON.parse(text) as { elements: unknown[] };
+		trees.push({ screen: t.screen, state: t.state, width: t.width, elements: parsed.elements });
+	}
+	return { version: found.number, available: listed.length, omitted, trees };
 }
 
 export const mintMockupUrlInput = z.object({

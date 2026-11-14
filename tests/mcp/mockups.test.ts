@@ -252,6 +252,154 @@ describe('mockup tools', () => {
 		expect(claimed.mockupNotice).not.toMatch(/Rooms/);
 	});
 
+	it('reads a page part by part, lists its machine output and holds only for the authored source (AFB-20261114-0409, B.2 and B.3)', async () => {
+		const plan = (
+			await createItem(w.ctx('member'), { project: w.projectKey, title: 'Parts read', ...PLAN })
+		).ref;
+		const s = await call(member, 'session_start', { tool: 'claude-code' });
+		const payload = 'B'.repeat(5000);
+		const page = (consult: string) =>
+			`<!doctype html><html><head><style>.a{color:red}</style></head><body><div class="shell"><img alt="logo" src="data:image/webp;base64,${payload}"></div><section data-ref="screen-today">Today</section><section data-ref="screen-consult">${consult}</section><script>go()</script></body></html>`;
+		const made = await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			item: plan,
+			html: page('Consult')
+		});
+		const id = made.mockup.id as string;
+		const state = async () =>
+			(await call(member, 'mockup_list', { project: w.projectKey, item: plan })).mockups[0];
+		const first = await call(member, 'mockup_get', {
+			sessionId: s.sessionId,
+			mockup: id,
+			html: false
+		});
+		const keys = first.parts.list.map((p: { key: string }) => p.key);
+		expect(keys).toEqual(
+			expect.arrayContaining(['screen:today', 'screen:consult', 'behavior:1', 'style:1'])
+		);
+		expect(first.parts.excludedChars).toBe(5000);
+		// html:false reads nothing
+		expect(await state()).toMatchObject({ readChars: 0, readComplete: false });
+		const full = page('Consult');
+		const at = full.indexOf(payload);
+		for (const p of first.parts.list as {
+			key: string;
+			start: number;
+			end: number;
+			excludedChars: number;
+		}[]) {
+			// The part that holds the picture is read before and after its payload, never through it
+			const slices: [number, number][] =
+				p.excludedChars > 0
+					? [
+							[0, at - p.start],
+							[at + payload.length - p.start, p.end - p.start]
+						]
+					: [[0, p.end - p.start]];
+			for (const [from, to] of slices) {
+				if (to <= from) continue;
+				const r = await call(member, 'mockup_get', {
+					sessionId: s.sessionId,
+					mockup: id,
+					part: p.key,
+					htmlOffset: from,
+					htmlLimit: to - from
+				});
+				expect(r.error).toBeUndefined();
+				expect(r.html.part).toBe(p.key);
+				expect(r.notes).toBeUndefined();
+			}
+		}
+		const done = await state();
+		expect(done.readComplete).toBe(true);
+		expect(done.readChars).toBe(full.length - payload.length);
+		await expect(
+			call(member, 'mockup_get', { sessionId: s.sessionId, mockup: id, part: 'screen:nope' })
+		).resolves.toMatchObject({
+			error: { message: expect.stringMatching(/no part "screen:nope"/) }
+		});
+
+		// A new version lists what changed, so it is read part by part and not in full
+		await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			mockup: id,
+			html: page('Consultation')
+		});
+		const next = await call(member, 'mockup_get', {
+			sessionId: s.sessionId,
+			mockup: id,
+			html: false,
+			since: 1
+		});
+		expect(next.since).toMatchObject({
+			version: 1,
+			changed: ['screen:consult'],
+			added: [],
+			removed: []
+		});
+		expect(await state()).toMatchObject({ readComplete: false });
+	});
+
+	it('publishes a bundle, lists its parts, seeds the inventory and keeps the shell through the tools (AFB-20261114-0409, D)', async () => {
+		const names = (await member.listTools()).tools.map((t) => t.name);
+		for (const n of [
+			'mockup_bundle_publish',
+			'mockup_parts',
+			'mockup_inventory',
+			'mockup_shell_get',
+			'mockup_shell_set'
+		])
+			expect(names).toContain(n);
+		const plan = (
+			await createItem(w.ctx('member'), { project: w.projectKey, title: 'Bundle tools', ...PLAN })
+		).ref;
+		const s = await call(member, 'session_start', { tool: 'claude-code' });
+		const none = await call(member, 'mockup_shell_get', { project: w.projectKey });
+		expect(none.shell).toBeNull();
+		const denied = await call(reader, 'mockup_shell_set', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			html: '<main><!--afb-part:screens--></main>'
+		});
+		expect(denied.error).toBeDefined();
+		const saved = await call(member, 'mockup_shell_set', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			html: '<html><head><!--afb-part:styles--></head><body><!--afb-part:screens--></body></html>'
+		});
+		expect(saved.error).toBeUndefined();
+		expect((await call(member, 'mockup_shell_get', { project: w.projectKey })).slots).toContain(
+			'<!--afb-part:screens-->'
+		);
+		const made = await call(member, 'mockup_bundle_publish', {
+			sessionId: s.sessionId,
+			item: plan,
+			parts: [
+				{ kind: 'style', key: 'page', content: '.a{transition:opacity .2s}' },
+				{
+					kind: 'screen',
+					key: 'rooms',
+					content: '<section data-ref="screen-rooms"><p data-ref="x">Rooms</p></section>'
+				}
+			]
+		});
+		expect(made.error).toBeUndefined();
+		const id = made.mockup.id as string;
+		const listed = await call(member, 'mockup_parts', { mockup: id });
+		expect(listed.parts.map((p: { key: string }) => p.key)).toEqual(['shell', 'page', 'rooms']);
+		const one = await call(member, 'mockup_parts', {
+			mockup: id,
+			partKind: 'screen',
+			partKey: 'rooms'
+		});
+		expect(one.content).toContain('Rooms');
+		const inv = await call(member, 'mockup_inventory', { mockup: id, scopes: ['rooms'] });
+		expect(inv.markdown).toContain('region data-ref=x');
+		expect(inv.markdown).toContain('motion css .a: transition opacity .2s');
+		const unknown = await call(member, 'mockup_inventory', { mockup: id, scopes: ['nope'] });
+		expect(unknown.error.message).toMatch(/no part screen:nope/);
+	});
+
 	it('refuses an agent the last step of a phase while the plan mockup is unread, and never a person or the runner', async () => {
 		const made = await createItem(w.ctx('member'), {
 			project: w.projectKey,

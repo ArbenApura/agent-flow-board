@@ -58,6 +58,8 @@ export type InspectUrlOptions = {
 	extraHosts?: string[];
 	needles?: string[];
 	headed?: boolean;
+	/** Open the page with the reduced-motion preference on (compare --reduced-motion). */
+	reducedMotion?: boolean;
 	/** Optional already-acquired browser websocket endpoint and capture option. */
 	captureScreenshot?: boolean;
 };
@@ -308,7 +310,9 @@ export async function inspectUrl(opts: InspectUrlOptions): Promise<InspectUrlRes
 		const ctxOptions: NonNullable<Parameters<typeof browser.newContext>[0]> = {
 			baseURL: parsedUrl.origin,
 			viewport: { width, height },
-			serviceWorkers: 'block'
+			serviceWorkers: 'block',
+			// Emulates the person's "reduce motion" setting, so the reduced-motion rule of both sides is what gets measured
+			...(opts.reducedMotion ? { reducedMotion: 'reduce' as const } : {})
 		};
 		if (!isMockup && opts.storageState != null) {
 			ctxOptions.storageState = opts.storageState as NonNullable<
