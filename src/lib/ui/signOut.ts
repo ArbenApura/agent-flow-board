@@ -37,7 +37,11 @@ export async function signOut(event: SubmitEvent) {
 			success: 'Signed out.',
 			error: FAILED
 		});
-		await goto('/sign-in', { invalidateAll: true });
+		// A form that asks to come back to a page (?next=/settings) sends the person to sign in with it. The sign in page validates it
+		const next = new URL(form.action).searchParams.get('next');
+		await goto(next ? `/sign-in?next=${encodeURIComponent(next)}` : '/sign-in', {
+			invalidateAll: true
+		});
 	} catch {
 		// The error toast already shows the failure
 	} finally {

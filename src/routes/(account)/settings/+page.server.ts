@@ -6,6 +6,7 @@ import { sql } from 'drizzle-orm';
 // IMPORTED MODULES
 import { avatarVersion } from '#lib/board/pictures.js';
 import { getAuth } from '#lib/server/auth/index.js';
+import { listOrStale } from '#lib/server/auth/fresh.js';
 import { getDb } from '#lib/server/db/index.js';
 import { continueChoice } from '#lib/server/db/zod.js';
 import { userPref } from '#lib/server/db/schema/index.js';
@@ -32,8 +33,9 @@ export const load: PageServerLoad = async ({ locals, request, url, depends }) =>
 	const user = requireUser(locals, url.pathname);
 	const handle = await getDb();
 	const auth = await getAuth();
-	const [sessions, accounts, orgs, pref] = await Promise.all([
-		auth.api.listSessions({ headers: request.headers }),
+	// The session list is the one call Better Auth refuses for a sign in older than a day. The page opens without it
+	const [{ rows: sessions, stale: sessionsStale }, accounts, orgs, pref] = await Promise.all([
+		listOrStale(() => auth.api.listSessions({ headers: request.headers })),
 		auth.api.listUserAccounts({ headers: request.headers }),
 		listMyOrgs(handle, user.id),
 		withTenant(handle, { userId: user.id }, (tx) => tx.select().from(userPref))
@@ -55,6 +57,7 @@ export const load: PageServerLoad = async ({ locals, request, url, depends }) =>
 	const p = pref[0];
 	return {
 		me: { id: user.id, name: user.name, email: user.email, imageV: avatarVersion(user) },
+		sessionsStale,
 		sessions: sessions.map((s) => ({
 			token: s.token,
 			current: s.token === locals.session?.token,

@@ -13,11 +13,11 @@ vi.mock('$app/navigation', () => nav);
 import { signOut } from './signOut';
 
 // The real browser navigation is not covered here, only what the handler asks for
-const submit = () => {
+const submit = (action = 'http://localhost/sign-out') => {
 	const preventDefault = vi.fn();
 	const event = {
 		preventDefault,
-		currentTarget: { action: 'http://localhost/sign-out' }
+		currentTarget: { action }
 	} as unknown as SubmitEvent;
 	return { event, preventDefault };
 };
@@ -41,6 +41,11 @@ describe('signOut', () => {
 		});
 		expect(toast.promise).toHaveBeenCalledOnce();
 		expect(nav.goto).toHaveBeenCalledWith('/sign-in', { invalidateAll: true });
+	});
+
+	it('keeps the page to come back to (?next) on the way to the sign in page', async () => {
+		await signOut(submit('http://localhost/sign-out?next=/settings').event);
+		expect(nav.goto).toHaveBeenCalledWith('/sign-in?next=%2Fsettings', { invalidateAll: true });
 	});
 
 	it('stays on the page when the server fails', async () => {

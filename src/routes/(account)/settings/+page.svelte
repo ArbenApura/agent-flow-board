@@ -35,6 +35,7 @@
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
+	import Notice from '#lib/ui/Notice.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import GoogleLogo from '#lib/ui/GoogleLogo.svelte';
 	import PasswordStrength from '#lib/ui/PasswordStrength.svelte';
@@ -44,6 +45,7 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
+	import { signOut } from '#lib/ui/signOut.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import OrgTile from '#lib/board/OrgTile.svelte';
 	// IMPORTED DEP-COMPONENTS
@@ -401,41 +403,51 @@
 			title="Where you are signed in"
 			text="End a session you do not recognise. It stops working at once."
 		>
-			<ul class="overflow-hidden rounded-lg border border-line" data-testid="session-list">
-				{#each data.sessions as s (s.token)}
-					{@const device = parseDevice(s.userAgent)}
-					{@const DeviceIcon = DEVICE_ICON[device.kind]}
-					<SettingsRow data-testid="session">
-						{#snippet lead()}
-							<span
-								class="inline-flex size-8 items-center justify-center rounded-md border border-line bg-surface text-muted"
-								aria-hidden="true"><DeviceIcon size={16} /></span
-							>
-						{/snippet}
-						<span class="block truncate font-medium text-ink" title={s.userAgent || undefined}
-							>{device.name}</span
-						>
-						<span class="block truncate text-xs text-muted"
-							>{s.ipAddress || 'Unknown place'}, started {ago(s.createdAt)}</span
-						>
-						{#snippet trail()}
-							{#if s.current}
-								<Badge tone="success" dot>This device</Badge>
-							{:else}
-								<Button variant="ghost" tone="danger" onclick={() => endSession(s.token)}
-									>End it</Button
+			<!-- A SIGN IN OLDER THAN A DAY CANNOT LIST SESSIONS: SAY SO AND OFFER A FRESH SIGN IN THAT COMES BACK HERE -->
+			{#if data.sessionsStale}
+				<Notice tone="info" data-testid="sessions-stale">
+					<p>For your safety, your sessions are listed only after a recent sign in.</p>
+					<form method="POST" action="/sign-out?next=/settings" onsubmit={signOut} class="mt-2">
+						<Button type="submit" size="sm">Sign in again</Button>
+					</form>
+				</Notice>
+			{:else}
+				<ul class="overflow-hidden rounded-lg border border-line" data-testid="session-list">
+					{#each data.sessions as s (s.token)}
+						{@const device = parseDevice(s.userAgent)}
+						{@const DeviceIcon = DEVICE_ICON[device.kind]}
+						<SettingsRow data-testid="session">
+							{#snippet lead()}
+								<span
+									class="inline-flex size-8 items-center justify-center rounded-md border border-line bg-surface text-muted"
+									aria-hidden="true"><DeviceIcon size={16} /></span
 								>
-							{/if}
-						{/snippet}
-					</SettingsRow>
-				{/each}
-			</ul>
-			{#if data.sessions.length > 1}
-				<div>
-					<Button size="sm" onclick={endOthers} data-testid="end-others"
-						>End every other session</Button
-					>
-				</div>
+							{/snippet}
+							<span class="block truncate font-medium text-ink" title={s.userAgent || undefined}
+								>{device.name}</span
+							>
+							<span class="block truncate text-xs text-muted"
+								>{s.ipAddress || 'Unknown place'}, started {ago(s.createdAt)}</span
+							>
+							{#snippet trail()}
+								{#if s.current}
+									<Badge tone="success" dot>This device</Badge>
+								{:else}
+									<Button variant="ghost" tone="danger" onclick={() => endSession(s.token)}
+										>End it</Button
+									>
+								{/if}
+							{/snippet}
+						</SettingsRow>
+					{/each}
+				</ul>
+				{#if data.sessions.length > 1}
+					<div>
+						<Button size="sm" onclick={endOthers} data-testid="end-others"
+							>End every other session</Button
+						>
+					</div>
+				{/if}
 			{/if}
 		</Section>
 
