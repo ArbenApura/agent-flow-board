@@ -4,17 +4,19 @@
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
 import { createHash, randomUUID } from 'node:crypto';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { appendEvent } from '../db/events';
-import { attachment, item } from '../db/schema';
+import { attachment, checkRun, item, org, step } from '../db/schema';
+import { isMockupKey, mockupEvidenceKey } from '../mockups/keys';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields, canSeeItem } from './items';
 import { findItem } from './resolve';
 
 // -- CONSTANTS -- //
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
 export const SIGNED_URL_SECONDS = 300;
 /** File types allowed as attachments, by extension. Anything else is refused, whatever its content type says. */
@@ -66,11 +68,13 @@ export const attachInput = z.object({
 
 // -- FUNCTIONS -- //
 
-const clean = (name: string) =>
+/** Normalizes an uploaded attachment filename consistently for both storage and validation. */
+export const cleanAttachmentName = (name: string) =>
 	name
 		.replace(/[^A-Za-z0-9._-]+/g, '_')
 		.replace(/^\.+/, '')
 		.slice(0, 120) || 'file';
+const clean = cleanAttachmentName;
 const extOf = (name: string) => name.split('.').pop()?.toLowerCase() ?? '';
 
 function storage(ctx: Ctx) {
@@ -80,8 +84,22 @@ function storage(ctx: Ctx) {
 }
 
 /** Stores a file for an item. The type comes from the extension, never from what the sender claims. */
-export async function addAttachment(ctx: Ctx, raw: z.input<typeof attachInput>, bytes: Uint8Array) {
+export async function addAttachment(
+	ctx: Ctx,
+	raw: z.input<typeof attachInput>,
+	bytes: Uint8Array,
+	opts?: { allowEvidenceKind?: boolean }
+) {
 	const input = attachInput.parse(raw);
+	if (input.kind === 'check-evidence') {
+		if (!opts?.allowEvidenceKind)
+			throw new OpError(
+				'FORBIDDEN',
+				'Check evidence attachments may only be stored by a running browser check.'
+			);
+		if (input.visibility === 'public')
+			throw new OpError('FORBIDDEN', 'Check evidence cannot be made public.');
+	}
 	const ext = extOf(input.filename);
 	if (!ALLOWED.has(ext))
 		throw new OpError(
@@ -97,38 +115,47 @@ export async function addAttachment(ctx: Ctx, raw: z.input<typeof attachInput>, 
 			const it = await findItem(tx, ctx, input.item);
 			await requireCap(tx, ctx, 'write', it.projectId);
 			await rateLimit(tx, ctx, 'write');
-			const key = `${ctx.orgId}/${it.projectId}/${randomUUID()}-${clean(input.filename)}`;
+			const cleaned = clean(input.filename);
+			const key =
+				input.kind === 'check-evidence'
+					? mockupEvidenceKey(ctx.orgId, it.projectId, cleaned)
+					: `${ctx.orgId}/${it.projectId}/${randomUUID()}-${cleaned}`;
 			const checksum = createHash('sha256').update(bytes).digest('hex');
-			// The file is written first: a failed write leaves no row, and a failed row leaves a file nothing points at, which the purge removes
+			// Write object first; remove it immediately if the database insert or event write fails
 			await store.put(key, bytes, MIME[ext]);
-			const [row] = await tx
-				.insert(attachment)
-				.values({
+			try {
+				const [row] = await tx
+					.insert(attachment)
+					.values({
+						orgId: ctx.orgId,
+						projectId: it.projectId,
+						itemId: it.id,
+						visibility: input.visibility,
+						caption: input.caption,
+						kind: input.kind,
+						refs: input.refs,
+						filename: cleaned,
+						mime: MIME[ext],
+						size: bytes.byteLength,
+						checksum,
+						storageKey: key
+					})
+					.returning();
+				await appendEvent(tx, {
 					orgId: ctx.orgId,
 					projectId: it.projectId,
 					itemId: it.id,
-					visibility: input.visibility,
-					caption: input.caption,
-					kind: input.kind,
-					refs: input.refs,
-					filename: clean(input.filename),
-					mime: MIME[ext],
-					size: bytes.byteLength,
-					checksum,
-					storageKey: key
-				})
-				.returning();
-			await appendEvent(tx, {
-				orgId: ctx.orgId,
-				projectId: it.projectId,
-				itemId: it.id,
-				...actorFields(ctx),
-				verb: 'attachment.create',
-				targetType: 'attachment',
-				targetId: row.id,
-				after: { filename: row.filename, size: row.size, visibility: row.visibility } as never
-			});
-			return { attachment: row };
+					...actorFields(ctx),
+					verb: 'attachment.create',
+					targetType: 'attachment',
+					targetId: row.id,
+					after: { filename: row.filename, size: row.size, visibility: row.visibility } as never
+				});
+				return { attachment: row };
+			} catch (err) {
+				await store.delete(key).catch(() => undefined);
+				throw err;
+			}
 		})
 	);
 }
@@ -150,13 +177,9 @@ export async function listAttachments(ctx: Ctx, nameOrId: string) {
 	});
 }
 
-/** A link to one file that works for 5 minutes. The caller needs read access to the item and to the file's visibility. */
-export async function attachmentLink(ctx: Ctx, attachmentId: string) {
-	const store = storage(ctx);
-	if (!ctx.services?.baseUrl)
-		throw new OpError('INVALID', 'The public address of the server is not configured.');
-	const baseUrl = ctx.services.baseUrl;
-	const row = await run(ctx, async (tx) => {
+async function accessibleAttachment(ctx: Ctx, attachmentId: string) {
+	if (!UUID_RE.test(attachmentId)) throw new OpError('NOT_FOUND', 'No such attachment.');
+	return run(ctx, async (tx) => {
 		const [a] = await tx
 			.select()
 			.from(attachment)
@@ -169,14 +192,86 @@ export async function attachmentLink(ctx: Ctx, attachmentId: string) {
 			(a.visibility === 'private' && !(role === 'owner' || role === 'admin' || role === 'member'))
 		)
 			throw new OpError('NOT_FOUND', 'No such attachment.');
-		return a;
+		const [o] = await tx.select({ slug: org.slug }).from(org).where(eq(org.id, ctx.orgId));
+		return { row: a, orgSlug: o?.slug ?? '' };
 	});
+}
+
+/** Reads metadata of one accessible attachment without fetching its storage bytes. */
+export async function readAttachmentMeta(ctx: Ctx, attachmentId: string) {
+	const { row } = await accessibleAttachment(ctx, attachmentId);
 	return {
-		url: await store.signedUrl(baseUrl, row.storageKey, SIGNED_URL_SECONDS),
+		id: row.id,
+		filename: row.filename,
+		mime: row.mime,
+		kind: row.kind,
+		checksum: row.checksum,
+		storageKey: row.storageKey
+	};
+}
+
+/** Reads bytes and metadata of one accessible attachment through storage. */
+export async function readAttachmentBytes(ctx: Ctx, attachmentId: string) {
+	const store = storage(ctx);
+	const { row } = await accessibleAttachment(ctx, attachmentId);
+	const bytes = await store.get(row.storageKey);
+	if (!bytes) throw new OpError('NOT_FOUND', 'No such attachment.');
+	return {
+		bytes,
+		filename: row.filename,
+		mime: row.mime,
+		kind: row.kind,
+		checksum: row.checksum,
+		storageKey: row.storageKey
+	};
+}
+
+/** A link to one file that works for 5 minutes. The caller needs read access to the item and to the file's visibility. */
+export async function attachmentLink(ctx: Ctx, attachmentId: string) {
+	const store = storage(ctx);
+	if (!ctx.services?.baseUrl)
+		throw new OpError('INVALID', 'The public address of the server is not configured.');
+	const baseUrl = ctx.services.baseUrl;
+	const { row, orgSlug } = await accessibleAttachment(ctx, attachmentId);
+	const url = isMockupKey(row.storageKey)
+		? `${baseUrl.replace(/\/$/, '')}/${orgSlug}/attachment/${row.id}`
+		: await store.signedUrl(baseUrl, row.storageKey, SIGNED_URL_SECONDS);
+	return {
+		url,
 		expiresInSeconds: SIGNED_URL_SECONDS,
 		filename: row.filename,
 		mime: row.mime
 	};
+}
+
+/** Builds the HTTP response for /[org]/attachment/[id], serving check-evidence and mockup-derived files directly with sandbox+nosniff headers. */
+export async function serveAttachmentResponse(
+	ctx: Ctx,
+	attachmentId: string,
+	ifNoneMatch?: string | null
+): Promise<Response> {
+	const meta = await readAttachmentMeta(ctx, attachmentId);
+	if (meta.kind === 'check-evidence' || isMockupKey(meta.storageKey)) {
+		const etag = `"${meta.checksum}"`;
+		const mime = meta.mime === 'text/html' ? 'text/plain; charset=utf-8' : meta.mime;
+		const headers = {
+			etag,
+			'content-type': mime,
+			'x-content-type-options': 'nosniff',
+			'content-security-policy': "default-src 'none'; img-src 'self' data:; sandbox",
+			'cache-control': 'private, no-cache',
+			vary: 'cookie'
+		};
+		if (ifNoneMatch === etag) return new Response(null, { status: 304, headers });
+		const file = await readAttachmentBytes(ctx, attachmentId);
+		return new Response(file.bytes as BodyInit, { status: 200, headers });
+	}
+	const link = await attachmentLink(ctx, attachmentId);
+	// A plain response, because the link may point at another address (object storage), which redirect() refuses
+	return new Response(null, {
+		status: 302,
+		headers: { location: link.url, 'cache-control': 'private, max-age=60' }
+	});
 }
 
 /** Making a file public is a normal write for an agent inside its project (ADR-006). */
@@ -196,6 +291,8 @@ export async function setAttachmentVisibility(
 			await requireCap(tx, ctx, 'write', a.projectId);
 			// A file of an item this person cannot see answers like a file that does not exist
 			if (a.itemId) await findItem(tx, ctx, a.itemId, { includeTrashed: true });
+			if (a.kind === 'check-evidence' && visibility === 'public')
+				throw new OpError('FORBIDDEN', 'Check evidence cannot be made public.');
 			if (a.visibility === visibility) return { attachment: a, changed: false };
 			const [row] = await tx
 				.update(attachment)
@@ -268,6 +365,42 @@ export async function deleteAttachment(ctx: Ctx, attachmentId: string) {
 		await requireCap(tx, ctx, 'delete', a.projectId);
 		// A file of an item this person cannot see answers like a file that does not exist
 		if (a.itemId) await findItem(tx, ctx, a.itemId, { includeTrashed: true });
+		if (a.kind === 'check-evidence' && a.itemId) {
+			const pinnedRows = await tx
+				.select({ evidence: step.evidence })
+				.from(step)
+				.innerJoin(item, eq(item.id, step.itemId))
+				.where(
+					and(
+						eq(step.itemId, a.itemId),
+						sql`${item.deletedAt} is null`,
+						sql`(${step.evidence}->>'checkRunId' is not null or jsonb_array_length(coalesce(${step.evidence}->'runIds', '[]'::jsonb)) > 0)`
+					)
+				);
+			const pinnedIds = new Set<string>();
+			for (const row of pinnedRows) {
+				if (row.evidence?.checkRunId) pinnedIds.add(row.evidence.checkRunId);
+				for (const rid of row.evidence?.runIds ?? []) {
+					if (rid) pinnedIds.add(rid);
+				}
+			}
+			const pinnedEvidenceIds = new Set<string>();
+			if (pinnedIds.size) {
+				const pinnedRuns = await tx
+					.select({ evidence: checkRun.evidence })
+					.from(checkRun)
+					.where(inArray(checkRun.id, [...pinnedIds]));
+				for (const pr of pinnedRuns) {
+					for (const eid of pr.evidence) pinnedEvidenceIds.add(eid);
+				}
+			}
+			const refs = Array.isArray(a.refs) ? a.refs : [];
+			if (refs.some((r) => pinnedIds.has(r)) || pinnedEvidenceIds.has(a.id))
+				throw new OpError(
+					'CONFLICT',
+					'This evidence belongs to a run pinned by a plan step and cannot be deleted.'
+				);
+		}
 		await tx
 			.update(attachment)
 			.set({ deletedAt: sql`now()` })

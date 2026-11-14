@@ -144,6 +144,15 @@ export const project = tenantTable(
 			.array()
 			.notNull()
 			.default(sql`'{}'::text[]`),
+		/** File globs that infer a step is visually verifiable when the item has a linked mockup. */
+		screenGlobs: text('screen_globs')
+			.array()
+			.notNull()
+			.default(
+				sql`ARRAY['**/*.svelte','**/*.tsx','**/*.vue','**/*.css','**/routes/**','**/components/**']::text[]`
+			),
+		/** Per-project switch turning the Phase C visible-step compare evidence gate on or off. */
+		visualEvidenceGate: boolean('visual_evidence_gate').notNull().default(false),
 		...stamps(),
 		version: version()
 	},

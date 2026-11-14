@@ -63,6 +63,10 @@ export type Ctx = {
 		masterKey?: string;
 		/** Minutes a run waits for a runner before it is reported stuck. */
 		runnerQueueMinutes?: number;
+		/** Secret used for HKDF-derived mockup file URL signing (BETTER_AUTH_SECRET in appServices). */
+		mockupSecret?: string;
+		/** Optional isolated second origin (MOCKUP_ORIGIN) for hosted mockup URLs. */
+		mockupOrigin?: string;
 	};
 };
 
@@ -75,6 +79,8 @@ export type OpErrorCode =
 	| 'CONFLICT'
 	| 'COMPLETED_REFUSED'
 	| 'MOCKUP_UNREAD'
+	| 'VISUAL_EVIDENCE_REQUIRED'
+	| 'MISSING_PICTURE_PAIR'
 	| 'CONFIRM_REQUIRED'
 	| 'ORG_LOCKED';
 
@@ -102,6 +108,16 @@ const ROLE_CAPS: Record<Role, Capability[]> = {
 export const ALL_CAPS: Capability[] = ['read', 'comment', 'write', 'complete', 'delete', 'manage'];
 
 // -- FUNCTIONS -- //
+
+/** True only for a person acting through a live web session (never an agent or any API/MCP token). */
+export function isLivePersonSession(ctx: Pick<Ctx, 'actor'>): boolean {
+	return (
+		ctx.actor.kind === 'person' &&
+		!ctx.actor.tokenId &&
+		!ctx.actor.tokenCaps &&
+		!ctx.actor.tokenProjects?.length
+	);
+}
 
 /** What a role may do, before any token limit. */
 export const capsOf = (role: Role | null): Capability[] => (role ? ROLE_CAPS[role] : []);

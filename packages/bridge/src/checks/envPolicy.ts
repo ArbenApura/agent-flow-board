@@ -192,6 +192,16 @@ export function buildPreviewEnv(input: PreviewEnvInput): PreviewEnv {
 	return { env, stripped, notes };
 }
 
+/**
+ * Filtered environment for starting an owned dev server. Uses the exact same database/mail stripping as
+ * `buildPreviewEnv`, but keeps `NODE_ENV=development` so Vite HMR and dev tooling behave normally.
+ */
+export function buildDevEnv(input: PreviewEnvInput): PreviewEnv {
+	const out = buildPreviewEnv(input);
+	out.env.NODE_ENV = 'development';
+	return out;
+}
+
 // -- THE ADOPTED ENVIRONMENT (step 3.4 and 3.7) -- //
 
 export type AdoptedEnvInput = Omit<PreviewEnvInput, 'readRepoEnv'> & {

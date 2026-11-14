@@ -10,7 +10,8 @@
 		checked = $bindable(false),
 		disabled = false,
 		onchange,
-		class: extra
+		class: extra,
+		'data-testid': testid
 	}: {
 		label: string;
 		hint?: string;
@@ -18,6 +19,7 @@
 		disabled?: boolean;
 		onchange?: (next: boolean) => void;
 		class?: string;
+		'data-testid'?: string;
 	} = $props();
 
 	// -- FUNCTIONS -- //
@@ -38,6 +40,7 @@
 	<button
 		type="button"
 		role="switch"
+		data-testid={testid}
 		aria-checked={checked}
 		aria-label={label}
 		{disabled}

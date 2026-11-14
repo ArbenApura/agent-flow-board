@@ -82,12 +82,52 @@ const sameOrigin = (url, origin) => {
         return false;
     }
 };
+const sameWsOrigin = (wsUrl, origin) => {
+    try {
+        const ws = new URL(wsUrl);
+        const orig = new URL(origin);
+        const expectedProto = orig.protocol === 'https:' ? 'wss:' : 'ws:';
+        return ws.protocol === expectedProto && ws.host === orig.host;
+    }
+    catch {
+        return false;
+    }
+};
+const VITE_HMR_PATHS = new Set(['/', '/@vite/client', '/vite-hmr']);
+function isStrictVitePing(url, origin, msg) {
+    if (typeof msg !== 'string')
+        return false;
+    if (!sameWsOrigin(url, origin))
+        return false;
+    try {
+        const parsedUrl = new URL(url);
+        if (!VITE_HMR_PATHS.has(parsedUrl.pathname))
+            return false;
+        const parsed = JSON.parse(msg);
+        return (typeof parsed === 'object' &&
+            parsed !== null &&
+            parsed.type === 'ping' &&
+            Object.keys(parsed).length === 1);
+    }
+    catch {
+        return false;
+    }
+}
 /**
  * Stops every write and counts what it stopped. A page that submits a form is answered with nothing so it stays where it is.
  * Writes are only let through when the person said so for this run (allowWrites).
  */
-export async function guardContext(ctx, { origin, allowWrites = false, extraHosts = [], onBlocked = () => { } }) {
+export async function guardContext(ctx, { origin, allowWrites = false, writeAllowlist, extraHosts = [], onBlocked = () => { } }) {
     const counts = { writes: 0, outside: 0 };
+    const matchAllowlist = (method, pathname) => {
+        if (!writeAllowlist)
+            return true;
+        const m = method.toUpperCase();
+        return writeAllowlist.some((r) => r.method.toUpperCase() === m &&
+            (pathname === r.pathPrefix ||
+                r.pathPrefix === '/' ||
+                pathname.startsWith(r.pathPrefix.endsWith('/') ? r.pathPrefix : `${r.pathPrefix}/`)));
+    };
     await ctx.route('**/*', async (route) => {
         const req = route.request();
         const url = req.url();
@@ -98,16 +138,71 @@ export async function guardContext(ctx, { origin, allowWrites = false, extraHost
             onBlocked(`blocked a request to ${hostOf(url)}`);
             return route.abort();
         }
-        if (!READ_METHODS.has(req.method()) && !allowWrites) {
-            counts.writes++;
-            onBlocked(`stopped a ${req.method()} to ${new URL(url).pathname}`);
-            return req.resourceType() === 'document'
-                ? route.fulfill({ status: 204, body: '' })
-                : route.abort();
+        if (!READ_METHODS.has(req.method())) {
+            const pathname = new URL(url).pathname;
+            const permitted = allowWrites && sameOrigin(url, origin) && matchAllowlist(req.method(), pathname);
+            if (!permitted) {
+                counts.writes++;
+                onBlocked(`stopped a ${req.method()} to ${pathname}`);
+                return req.resourceType() === 'document'
+                    ? route.fulfill({ status: 204, body: '' })
+                    : route.abort();
+            }
         }
         return route.continue();
     });
+    // WebSockets route through the same origin and write guard (Vite HMR server pushes stay open; client writes stop when allowWrites is off)
+    if (ctx.routeWebSocket) {
+        await ctx.routeWebSocket('**/*', (ws) => {
+            const url = ws.url();
+            if (!sameWsOrigin(url, origin) && !extraHosts.includes(hostOf(url))) {
+                counts.outside++;
+                onBlocked(`blocked a WebSocket to ${hostOf(url)}`);
+                void ws.close({ code: 1008, reason: 'Blocked outside origin' });
+                return;
+            }
+            const server = ws.connectToServer?.();
+            if (server) {
+                const wsPathname = (() => {
+                    try {
+                        return new URL(url).pathname;
+                    }
+                    catch {
+                        return '/';
+                    }
+                })();
+                server.onMessage?.((msg) => ws.send?.(msg));
+                ws.onMessage?.((msg) => {
+                    const pingOnly = isStrictVitePing(url, origin, msg);
+                    const allowedWsWrite = allowWrites &&
+                        sameWsOrigin(url, origin) &&
+                        (!writeAllowlist || matchAllowlist('WS', wsPathname));
+                    if (!pingOnly && !allowedWsWrite) {
+                        counts.writes++;
+                        onBlocked(`stopped a WebSocket message to ${wsPathname}`);
+                        return;
+                    }
+                    server.send?.(msg);
+                });
+            }
+        });
+    }
     return counts;
+}
+/** Write-guard helper for dev targets: writes are permitted ONLY for explicitly allowlisted non-GET rules. */
+export async function guardDevContext(ctx, opts) {
+    const safeRules = (opts.writeAllowlist ?? []).filter((rule) => !READ_METHODS.has(String(rule.method).toUpperCase()));
+    return guardContext(ctx, {
+        origin: opts.origin,
+        allowWrites: safeRules.length > 0,
+        writeAllowlist: safeRules,
+        extraHosts: opts.extraHosts ? [...opts.extraHosts] : undefined,
+        onBlocked: opts.onBlocked
+    });
+}
+/** Browser-layer write guard note (Step A.9): service workers blocked, all HTTP methods, sendBeacon and WebSocket routed through the guard. */
+export function describeWriteGuard(counts) {
+    return `Browser-layer write guard (service workers blocked, HTTP methods, sendBeacon and WebSocket routed): stopped ${counts.writes} write(s), blocked ${counts.outside} outside request(s).`;
 }
 const refuse = (prop) => () => {
     throw new Error(`${prop} is not available to a check. Checks drive the page; the tool keeps the session and the network rules.`);

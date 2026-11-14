@@ -1,6 +1,8 @@
 // ENVIRONMENT VARIABLES, VALIDATED WHEN THE APP STARTS. A MISSING OR BAD VALUE FAILS LOUDLY, NEVER SILENTLY.
 // -- DEP-MODULES -- //
 import { defineEnvVars } from '@sveltejs/kit/env';
+// -- MODULES -- //
+import { parseMockupOrigin } from './lib/server/mockups/origin';
 
 // -- FUNCTIONS -- //
 
@@ -42,6 +44,11 @@ export const variables = defineEnvVars({
 			}
 			return value.replace(/\/$/, '');
 		}
+	},
+	MOCKUP_ORIGIN: {
+		description:
+			'Optional isolated origin for hosted mockups, for example https://mockups.example.com. Unset uses the same host for local development only.',
+		schema: (value) => parseMockupOrigin(value, process.env.AFB_BASE_URL)
 	},
 	BETTER_AUTH_SECRET: {
 		description:

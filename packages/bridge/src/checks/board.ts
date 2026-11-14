@@ -38,6 +38,8 @@ export type RunReport = {
 	registration?: string;
 	repoName?: string;
 	branch?: string;
+	signedIn?: boolean;
+	uploadSignedInPictures?: boolean;
 };
 
 export type ApprovalState = {
@@ -71,12 +73,13 @@ export const CALL_TIMEOUT_MS = 120_000;
 /** Asking for a run waits a short while only. */
 export const CLAIM_TIMEOUT_MS = 20_000;
 
-/** Raised when the board refuses a call. Carries the board's own words and code. */
+/** Raised when the board refuses a call. Carries the board's own words, code and optional details. */
 export class BoardError extends Error {
 	constructor(
 		readonly status: number,
 		readonly code: string,
-		message: string
+		message: string,
+		readonly details?: Record<string, unknown>
 	) {
 		super(message);
 		this.name = 'BoardError';
@@ -134,7 +137,11 @@ export class RunnerBoard {
 			/* Not JSON */
 		}
 		if (!res.ok) {
-			const err = (json as { error?: { code?: string; message?: string } } | null)?.error;
+			const err = (
+				json as {
+					error?: { code?: string; message?: string; details?: Record<string, unknown> };
+				} | null
+			)?.error;
 			if (res.status === 401)
 				throw new BoardError(
 					401,
@@ -144,7 +151,8 @@ export class RunnerBoard {
 			throw new BoardError(
 				res.status,
 				err?.code ?? 'ERROR',
-				err?.message ?? `The board answered ${res.status}.`
+				err?.message ?? `The board answered ${res.status}.`,
+				err?.details
 			);
 		}
 		return json as T;
@@ -200,9 +208,18 @@ export class RunnerBoard {
 	/** Stores a file of a run as evidence and returns its attachment id. */
 	async upload(
 		runId: string,
-		file: { filename: string; caption: string; bytes: Uint8Array }
+		file: {
+			filename: string;
+			caption: string;
+			bytes: Uint8Array;
+			signedIn?: boolean;
+			uploadSignedInPictures?: boolean;
+		}
 	): Promise<string> {
-		const q = `filename=${encodeURIComponent(file.filename)}&caption=${encodeURIComponent(file.caption)}`;
+		let q = `filename=${encodeURIComponent(file.filename)}&caption=${encodeURIComponent(file.caption)}`;
+		if (file.signedIn !== undefined) q += `&signedIn=${file.signedIn ? '1' : '0'}`;
+		if (file.uploadSignedInPictures !== undefined)
+			q += `&uploadSignedInPictures=${file.uploadSignedInPictures ? '1' : '0'}`;
 		const out = await this.call<{ attachmentId: string }>(
 			'POST',
 			`/runs/${encodeURIComponent(runId)}/artifacts?${q}`,
@@ -305,6 +322,31 @@ export class RunnerBoard {
 			'POST',
 			`/runs/${encodeURIComponent(runId)}/finish`,
 			JSON.stringify(report),
+			'application/json'
+		);
+	}
+
+	/** Mints a short-lived signed mockup URL via the runner token for a project this runner serves. */
+	mintMockupUrl(
+		mockupId: string,
+		opts: { version?: number; screenshot?: boolean; ttlSeconds?: number } = {}
+	) {
+		return this.call<{
+			url: string;
+			relativePath: string;
+			mockupId: string;
+			projectId: string;
+			version: number;
+			kind: 'html' | 'shot';
+			expiresAt: string;
+			isolatedOrigin: boolean;
+			devOnlySameHost: boolean;
+			notice: string | null;
+			isPublic: boolean;
+		}>(
+			'POST',
+			`/mockups/${encodeURIComponent(mockupId)}/url`,
+			JSON.stringify(opts),
 			'application/json'
 		);
 	}

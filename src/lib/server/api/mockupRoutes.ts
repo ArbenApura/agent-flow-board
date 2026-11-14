@@ -21,6 +21,8 @@ import {
 	getMockup,
 	linkMockup,
 	listMockups,
+	mintMockupUrl,
+	mintMockupUrlInput,
 	publishInput,
 	publishMockup,
 	readMockupHtml,
@@ -88,6 +90,15 @@ export const mockupRoutes: Route[] = [
 		summary: 'One mockup with its versions and the build notes of the current one (untrusted text)',
 		tag: 'Mockups',
 		handler: ({ ctx, params }) => getMockup(ctx, params.id)
+	},
+	{
+		method: 'POST',
+		path: '/orgs/{org}/mockups/{id}/url',
+		summary: 'Mint a short-lived signed mockup URL for inspection or visual checks',
+		tag: 'Mockups',
+		body: mintMockupUrlInput,
+		handler: ({ ctx, params, body }) =>
+			mintMockupUrl(ctx, params.id, (body ?? {}) as z.input<typeof mintMockupUrlInput>)
 	},
 	{
 		method: 'GET',

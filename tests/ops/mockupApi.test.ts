@@ -16,7 +16,9 @@ import { PLAN, makeWorld, type World } from '../support/ops';
 // -- CONSTANTS -- //
 
 const BASE = 'http://localhost:5180';
-const PAGE = new TextEncoder().encode('<html><body>api page</body></html>');
+const PAGE = new TextEncoder().encode(
+	'<html><body><main data-screen="main" data-state="default"><p data-ref="greeting">api page</p></main></body></html>'
+);
 const PNG = Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 0]);
 
 // -- FUNCTIONS -- //
@@ -305,11 +307,11 @@ describe('mockup endpoints', () => {
 		expect((await call('GET', settings, { as: 'viewer' })).status).toBe(404);
 		const kit = `${base()}/projects/${w.projectKey}/mockup-kit`;
 		expect(
-			(await call('PUT', kit, { as: 'member', query: { builtFromCommit: 'a' }, bytes: PAGE }))
+			(await call('PUT', kit, { as: 'viewer', query: { builtFromCommit: 'a' }, bytes: PAGE }))
 				.status
 		).toBe(403);
 		const saved = await call('PUT', kit, {
-			as: 'admin',
+			as: 'member',
 			query: { builtFromCommit: 'abc', summary: 'One' },
 			bytes: PAGE
 		});

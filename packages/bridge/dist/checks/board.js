@@ -7,14 +7,16 @@ import { TOOL_PROTOCOL } from './paths.js';
 export const CALL_TIMEOUT_MS = 120_000;
 /** Asking for a run waits a short while only. */
 export const CLAIM_TIMEOUT_MS = 20_000;
-/** Raised when the board refuses a call. Carries the board's own words and code. */
+/** Raised when the board refuses a call. Carries the board's own words, code and optional details. */
 export class BoardError extends Error {
     status;
     code;
-    constructor(status, code, message) {
+    details;
+    constructor(status, code, message, details) {
         super(message);
         this.status = status;
         this.code = code;
+        this.details = details;
         this.name = 'BoardError';
     }
 }
@@ -67,7 +69,7 @@ export class RunnerBoard {
             const err = json?.error;
             if (res.status === 401)
                 throw new BoardError(401, 'UNAUTHENTICATED', 'The board no longer accepts this machine for checks. Run: agent-flow-board check connect --server <url> --org <slug> --json');
-            throw new BoardError(res.status, err?.code ?? 'ERROR', err?.message ?? `The board answered ${res.status}.`);
+            throw new BoardError(res.status, err?.code ?? 'ERROR', err?.message ?? `The board answered ${res.status}.`, err?.details);
         }
         return json;
     }
@@ -97,7 +99,11 @@ export class RunnerBoard {
     }
     /** Stores a file of a run as evidence and returns its attachment id. */
     async upload(runId, file) {
-        const q = `filename=${encodeURIComponent(file.filename)}&caption=${encodeURIComponent(file.caption)}`;
+        let q = `filename=${encodeURIComponent(file.filename)}&caption=${encodeURIComponent(file.caption)}`;
+        if (file.signedIn !== undefined)
+            q += `&signedIn=${file.signedIn ? '1' : '0'}`;
+        if (file.uploadSignedInPictures !== undefined)
+            q += `&uploadSignedInPictures=${file.uploadSignedInPictures ? '1' : '0'}`;
         const out = await this.call('POST', `/runs/${encodeURIComponent(runId)}/artifacts?${q}`, file.bytes, 'application/octet-stream');
         return out.attachmentId;
     }
@@ -133,5 +139,9 @@ export class RunnerBoard {
     }
     finish(runId, report) {
         return this.call('POST', `/runs/${encodeURIComponent(runId)}/finish`, JSON.stringify(report), 'application/json');
+    }
+    /** Mints a short-lived signed mockup URL via the runner token for a project this runner serves. */
+    mintMockupUrl(mockupId, opts = {}) {
+        return this.call('POST', `/mockups/${encodeURIComponent(mockupId)}/url`, JSON.stringify(opts), 'application/json');
     }
 }

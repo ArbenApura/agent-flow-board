@@ -4,28 +4,21 @@ import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
 // -- MODULES -- //
 import { OpError } from '#lib/server/ops/context.js';
-import { attachmentLink } from '#lib/server/ops/attachments.js';
+import { serveAttachmentResponse } from '#lib/server/ops/attachments.js';
 import { orgContext } from '#lib/server/web/ctx.js';
 
 // -- FUNCTIONS -- //
 
 /**
- * An attachment picture, for an image tag (the screenshots of a browser check). It checks that the signed in person may see the
- * item and the private file, then sends them to the short lived signed link. A file of an item they may not see answers 404,
- * the same as one that does not exist.
+ * Serves one attachment picture or evidence file. Check-evidence and mockup-derived assets are served directly with the same
+ * sandbox and nosniff headers as /pictures instead of a redirect. Other files redirect through a short-lived signed link.
  */
-export const GET: RequestHandler = async ({ params, locals, url }) => {
+export const GET: RequestHandler = async ({ params, locals, url, request }) => {
 	const { ctx } = await orgContext(locals, params.org, url.pathname);
-	let link;
 	try {
-		link = await attachmentLink(ctx, params.id);
+		return await serveAttachmentResponse(ctx, params.id, request.headers.get('if-none-match'));
 	} catch (e) {
 		if (e instanceof OpError) error(404, 'Not found');
 		throw e;
 	}
-	// A plain response, because the link may point at another address (object storage), which redirect() refuses
-	return new Response(null, {
-		status: 302,
-		headers: { location: link.url, 'cache-control': 'private, max-age=60' }
-	});
 };

@@ -42,6 +42,8 @@ export type ApiDeps = {
 	/** Wraps the org data keys for test account secrets, and the wait for a runner. */
 	masterKey?: string;
 	runnerQueueMinutes?: number;
+	mockupSecret?: string;
+	mockupOrigin?: string;
 };
 
 // -- CONSTANTS -- //
@@ -181,7 +183,9 @@ export async function handleApi(req: ApiRequest, deps: ApiDeps): Promise<ApiResp
 				mailer: deps.mailer,
 				jobs: deps.jobs,
 				masterKey: deps.masterKey,
-				runnerQueueMinutes: deps.runnerQueueMinutes
+				runnerQueueMinutes: deps.runnerQueueMinutes,
+				mockupSecret: deps.mockupSecret,
+				mockupOrigin: deps.mockupOrigin
 			},
 			actor: token
 				? {

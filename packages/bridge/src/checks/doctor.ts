@@ -33,7 +33,23 @@ import {
 	runsDir,
 	under
 } from './paths.js';
-import { fileNameFor, listProfiles, removeProfile } from './profiles.js';
+import {
+	DEV_WRITE_GUARD_NOTE,
+	type DevProbeResult,
+	cleanDevUrl,
+	devConfigHash,
+	devStatusFixLine,
+	inspectDevEnvDatabase,
+	probeDevUrl
+} from './devPolicy.js';
+import {
+	DEFAULT_PROFILE,
+	expiryNote,
+	fileNameFor,
+	listProfiles,
+	loadProfileChecked,
+	removeProfile
+} from './profiles.js';
 import type { DockerRun } from './provision.js';
 import {
 	findRegistration,
@@ -50,6 +66,7 @@ import { allRunIds, clearRuns, readMarker, removeTree, sweepOrphans } from './sc
 import { listSecrets, storeProblems } from './secrets.js';
 import { readServiceStatus } from './service.js';
 import { sweepWarm } from './warm.js';
+import { checkWindowsEnvironment } from './windowsEnv.js';
 
 // -- TYPES -- //
 
@@ -65,6 +82,7 @@ export type DoctorResult = {
 	ok: boolean;
 	fixed: string[];
 	problems: Problem[];
+	notes?: string[];
 };
 export type StatusResult = DoctorResult & {
 	home: string;
@@ -75,17 +93,32 @@ export type StatusResult = DoctorResult & {
 	audit: { ok: boolean; lines: number };
 	browser: boolean;
 };
+export type DevTargetStatus = {
+	name: string;
+	devUrl: string;
+	reachable: boolean;
+	status: 'reachable' | 'unreachable' | 'unknown';
+	readinessMode: 'vite' | 'fallback' | 'unknown';
+	signedIn: boolean;
+	activeProfile: string | null;
+	profiles: string[];
+	code: string | null;
+	fixLine: string | null;
+	writeGuardNote: string;
+	databaseWarning: string | null;
+};
 export type RegistrationStatus = {
 	org: string;
 	name: string;
 	boardProject: string;
-	kind: 'repo' | 'site';
+	kind: 'repo' | 'site' | 'dev';
 	folder?: string;
 	appDir?: string;
 	pin: string;
 	signIns: number;
 	secrets: number | null;
 	adoptEnv: boolean;
+	dev?: DevTargetStatus;
 };
 export type HealthDeps = {
 	docker?: DockerRun;
@@ -96,6 +129,9 @@ export type HealthDeps = {
 	hasPermissionModel?: () => boolean;
 	trustedBoard?: (server: string) => boolean;
 	token?: (server: string, org: string) => string | null;
+	probeDevUrl?: (devUrl: string) => Promise<DevProbeResult>;
+	devEnvWarning?: (repo: string, appDir?: string) => { nonThrowaway: boolean; problems: string[] };
+	cwd?: string;
 	/** Stand-ins for the pool sweeps of the other modules. */
 	sweepPools?: () => Promise<string[]>;
 	sweepWarm?: () => Promise<number>;
@@ -326,8 +362,10 @@ export async function runDoctor(
 	const keep = deps.keepRuns ?? KEEP_RUNS;
 	const fixed: string[] = [];
 	const problems: Problem[] = [];
+	const notes: string[] = [];
 	const found = (problem: string, next: string) => problems.push({ problem, next });
 	const did = (text: string) => fixed.push(text);
+	const note = (text: string) => notes.push(text);
 	const guard = async (what: string, fn: () => Promise<void> | void) => {
 		try {
 			await fn();
@@ -354,6 +392,13 @@ export async function runDoctor(
 			'This Node has no permission model, so check scripts cannot be sandboxed.',
 			'Install Node 20.18 or later (or any Node 22).'
 		);
+
+	// -- WINDOWS CRLF AND GIT BASH GUIDANCE -- //
+	await guard('Windows environment', () => {
+		const win = checkWindowsEnvironment(deps.cwd ?? process.cwd());
+		for (const p of win.problems) found(p.problem, p.next);
+		for (const n of win.notes) note(n);
+	});
 
 	// -- THE BROWSER INSTALL -- //
 	await guard('The browser install', async () => {
@@ -498,7 +543,7 @@ export async function runDoctor(
 	});
 
 	// -- THE REGISTRATIONS: DAMAGE, COLLISIONS, FOLDERS, PIN, SEALED STORES -- //
-	await guard('The registrations', () => {
+	await guard('The registrations', async () => {
 		const { registrations, problems: damaged } = readRegistrations();
 		for (const d of damaged)
 			found(
@@ -547,6 +592,42 @@ export async function runDoctor(
 					}
 				}
 			}
+			if (r.devUrl) {
+				const devCheck = await inspectDevRegistration(r, deps);
+				if (devCheck.status.reachable && devCheck.status.readinessMode === 'fallback') {
+					note(`${id}: DEV_FALLBACK_READINESS: ${devStatusFixLine('DEV_FALLBACK_READINESS')}`);
+				}
+				if (devCheck.code && devCheck.fixLine) {
+					found(`${id}: ${devCheck.code} (${r.devUrl})`, devCheck.fixLine);
+				}
+				if (devCheck.databaseWarning) {
+					found(
+						`${id}: DEV_DB_NOT_THROWAWAY: Dev database is not throwaway (${cut(devCheck.databaseWarning)}).`,
+						devStatusFixLine('DEV_DB_NOT_THROWAWAY')!
+					);
+				}
+				if (devCheck.allowlistHasReadMethod) {
+					found(
+						`${id}: DEV_ALLOWLIST_GET_REFUSED: An allowlist entry on a GET/HEAD/OPTIONS path is not covered by the approval.`,
+						devStatusFixLine('DEV_ALLOWLIST_GET_REFUSED')!
+					);
+				}
+				if (devCheck.approvalMismatch) {
+					found(
+						`${id}: DEV_APPROVAL_REQUIRED: Sealed dev start command or write allowlist lacks matching owner approval.`,
+						devStatusFixLine('DEV_APPROVAL_REQUIRED')!.replace('<NAME>', r.name)
+					);
+				}
+				if (devCheck.expiredProfile) {
+					found(
+						`${id}: DEV_PROFILE_EXPIRED: Saved sign-in profile "${devCheck.expiredProfile}" is expired.`,
+						devStatusFixLine('DEV_PROFILE_EXPIRED')!
+							.replace('<NAME>', r.name)
+							.replace('<PROFILE>', devCheck.expiredProfile)
+							.replace('<slug>', r.org)
+					);
+				}
+			}
 			for (const p of storeProblems(r.org, r.name))
 				found(
 					cut(p),
@@ -565,7 +646,7 @@ export async function runDoctor(
 			);
 	});
 
-	return { ok: problems.length === 0, fixed, problems };
+	return { ok: problems.length === 0, fixed, problems, ...(notes.length ? { notes } : {}) };
 }
 
 /** Plain sentences for every uniqueness rule this registration breaks (a file edited by hand, or a rule added after it was made). */
@@ -586,9 +667,110 @@ function collisionsOf(r: Registration): string[] {
 	return out;
 }
 
+export async function inspectDevRegistration(r: Registration, deps: HealthDeps = {}) {
+	const rawUrl = r.devUrl!;
+	let normalizedUrl = rawUrl;
+	let probe: DevProbeResult;
+	try {
+		normalizedUrl = cleanDevUrl(rawUrl);
+		probe = await (deps.probeDevUrl ?? probeDevUrl)(normalizedUrl);
+	} catch {
+		probe = {
+			ok: false,
+			code: 'DEV_URL_UNREACHABLE',
+			message: `Dev URL "${rawUrl}" is invalid.`
+		};
+	}
+	const profiles = listProfiles(r.org, r.name);
+	const profileNames: string[] = [];
+	let activeProfile: string | null = null;
+	let expiredProfile: string | null = null;
+	for (const p of profiles) {
+		const loaded = loadProfileChecked(r.org, r.name, p.bindKey);
+		const label = p.profile || DEFAULT_PROFILE;
+		profileNames.push(label);
+		if (loaded.profile) {
+			if (expiryNote(loaded.profile)) {
+				if (expiredProfile === null) expiredProfile = label;
+			} else if (activeProfile === null) {
+				activeProfile = label;
+			}
+		}
+	}
+	const dbRoot = r.repo ?? deps.cwd;
+	const dbCheck = dbRoot
+		? (deps.devEnvWarning ?? inspectDevEnvDatabase)(dbRoot, r.appDir)
+		: deps.devEnvWarning
+			? deps.devEnvWarning('', r.appDir)
+			: { nonThrowaway: false, problems: [] };
+	const databaseWarning = dbCheck.nonThrowaway ? dbCheck.problems.join('; ') : null;
+	const allowlistHasReadMethod = Boolean(
+		r.writeAllowlist?.some((rule) =>
+			['GET', 'HEAD', 'OPTIONS'].includes(String(rule.method).toUpperCase())
+		)
+	);
+	let approvalMismatch = false;
+	if ((r.startCommand && r.startCommand.length > 0) || r.allowWrites) {
+		if (!allowlistHasReadMethod) {
+			try {
+				const expected = devConfigHash({
+					devUrl: normalizedUrl,
+					startCommand: r.startCommand,
+					allowWrites: r.allowWrites,
+					writeAllowlist: r.writeAllowlist
+				});
+				approvalMismatch = r.devApprovalHash !== expected;
+			} catch {
+				approvalMismatch = true;
+			}
+		}
+	}
+	const code = !probe.ok
+		? probe.code
+		: allowlistHasReadMethod
+			? 'DEV_ALLOWLIST_GET_REFUSED'
+			: approvalMismatch
+				? 'DEV_APPROVAL_REQUIRED'
+				: expiredProfile
+					? 'DEV_PROFILE_EXPIRED'
+					: null;
+	const fixLine = code
+		? (devStatusFixLine(code) ?? '')
+				.replace('<NAME>', r.name)
+				.replace('<PROFILE>', expiredProfile ?? DEFAULT_PROFILE)
+				.replace('<slug>', r.org)
+		: null;
+	return {
+		status: {
+			name: r.name,
+			devUrl: normalizedUrl,
+			reachable: probe.ok,
+			status: (probe.ok ? 'reachable' : 'unreachable') as 'reachable' | 'unreachable',
+			readinessMode: (probe.ok ? (probe.mode ?? 'fallback') : 'unknown') as
+				'vite' | 'fallback' | 'unknown',
+			signedIn: activeProfile !== null,
+			activeProfile,
+			profiles: profileNames,
+			code,
+			fixLine,
+			writeGuardNote: DEV_WRITE_GUARD_NOTE,
+			databaseWarning
+		},
+		code,
+		fixLine,
+		databaseWarning,
+		allowlistHasReadMethod,
+		approvalMismatch,
+		expiredProfile
+	};
+}
+
 // -- FUNCTIONS: STATUS -- //
 
-function registrationStatus(r: Registration): RegistrationStatus {
+async function registrationStatus(
+	r: Registration,
+	deps: HealthDeps = {}
+): Promise<RegistrationStatus> {
 	const count = <T>(fn: () => T[], fallback: number | null): number | null => {
 		try {
 			return fn().length;
@@ -606,17 +788,19 @@ function registrationStatus(r: Registration): RegistrationStatus {
 			pin = 'unreadable';
 		}
 	}
+	const dev = r.devUrl ? (await inspectDevRegistration(r, deps)).status : undefined;
 	return {
 		org: r.org,
 		name: r.name,
 		boardProject: r.boardProject,
-		kind: r.url ? 'site' : 'repo',
+		kind: r.devUrl ? 'dev' : r.url ? 'site' : 'repo',
 		...(r.repo ? { folder: basename(r.repo) } : {}),
 		...(r.appDir ? { appDir: r.appDir } : {}),
 		pin,
 		signIns,
 		secrets,
-		adoptEnv: r.adoptEnv
+		adoptEnv: r.adoptEnv,
+		...(dev ? { dev } : {})
 	};
 }
 
@@ -635,10 +819,13 @@ export async function runStatus(ctx: HealthContext, deps: HealthDeps = {}): Prom
 	})();
 	const svc = readServiceStatus();
 	const audit = verifyAudit();
+	const registrations = await Promise.all(
+		readRegistrations().registrations.map((r) => registrationStatus(r, deps))
+	);
 	return {
 		...base,
 		home: checksHome(),
-		registrations: readRegistrations().registrations.map(registrationStatus),
+		registrations,
 		slots,
 		service: svc ? { state: svc.state, message: svc.message } : null,
 		connections: listConnections().map((c) => ({
@@ -686,6 +873,7 @@ export async function healthCommand(
 				const r = await runDoctor(ctx, { fix }, deps);
 				emit(ctx, json, r, [
 					...r.fixed.map((f) => `Fixed: ${f}`),
+					...(r.notes ?? []).map((n) => `Note: ${n}`),
 					...r.problems.map((p) => `Problem: ${p.problem} Next: ${p.next}`),
 					r.ok
 						? 'Nothing is wrong.'
@@ -697,13 +885,23 @@ export async function healthCommand(
 			}
 		}
 		const s = await runStatus(ctx, deps);
+		const devLines = s.registrations
+			.filter((r) => r.dev)
+			.map((r) => {
+				const d = r.dev!;
+				const reach = d.reachable ? `reachable (${d.readinessMode})` : `unreachable`;
+				const auth = d.signedIn ? `signed in (${d.activeProfile})` : 'signed out';
+				const issue = d.code && d.fixLine ? ` [${d.code}] ${d.fixLine}` : '';
+				return `Dev ${r.org}/${r.name}: ${d.devUrl} ${reach}, ${auth}; write guard: ${d.writeGuardNote}${issue}`;
+			});
 		emit(
 			ctx,
 			json,
 			s,
 			[
 				`State folder: ${s.home}`,
-				`Registrations: ${s.registrations.map((r) => `${r.org}/${r.name} -> ${r.boardProject} (${r.kind === 'site' ? 'live site' : (r.folder ?? '')}${r.appDir ? `/${r.appDir}` : ''}, pin ${r.pin})`).join('; ') || 'none'}`,
+				`Registrations: ${s.registrations.map((r) => `${r.org}/${r.name} -> ${r.boardProject} (${r.kind === 'site' ? 'live site' : r.kind === 'dev' ? `dev ${r.dev?.devUrl ?? ''}` : (r.folder ?? '')}${r.appDir ? `/${r.appDir}` : ''}, pin ${r.pin})`).join('; ') || 'none'}`,
+				...devLines,
 				`Slots: ${s.slots ? `${s.slots.busy} of ${s.slots.slots} busy` : 'unknown'}`,
 				`Service: ${s.service ? s.service.state : 'not installed'}`,
 				`Connections: ${s.connections.map((c) => `${c.org}@${c.server}${c.connected === false ? ' (no token)' : ''}`).join(', ') || 'none'}`,

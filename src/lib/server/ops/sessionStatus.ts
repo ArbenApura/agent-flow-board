@@ -4,6 +4,7 @@
 
 // -- TYPES -- //
 import type { Tx } from '../db/client';
+import type { WaitingBlocker } from '../db/schema/activity';
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
 import { createHash } from 'node:crypto';
@@ -36,6 +37,7 @@ export type SessionStatus = {
 	tool: string;
 	externalId: string;
 	etag: string;
+	waiting: WaitingBlocker | null;
 	item: {
 		ref: string;
 		aliases: string[];
@@ -67,7 +69,12 @@ async function buildStatus(
 	ctx: Ctx,
 	row: typeof session.$inferSelect
 ): Promise<SessionStatus> {
-	const base = { sessionId: row.id, tool: row.tool, externalId: row.externalId ?? '' };
+	const base = {
+		sessionId: row.id,
+		tool: row.tool,
+		externalId: row.externalId ?? '',
+		waiting: row.waiting ?? null
+	};
 	let out: Omit<SessionStatus, 'etag'> = { ...base, item: null };
 
 	const [it] = row.claimedItemId

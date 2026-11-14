@@ -6,16 +6,23 @@
 // Nothing here starts a preview itself: the caller injects `target`, and the sign in function is injected too, so tests launch no browser.
 // A cookie, a password or a token is never printed.
 // -- DEP-MODULES -- //
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 // -- MODULES -- //
 import { consumeApproval, peekApproval } from './approve.js';
 import { appendAudit } from './audit.js';
 import { loadPlaywright } from './browser.js';
-import { ORG_SLUG, registrationsDir } from './paths.js';
+import { parseStartCommand } from './devPolicy.js';
+import { ensureDevServer } from './devServer.js';
+import { buildPreviewEnv } from './envPolicy.js';
+import { pathOf, programArgv } from './install.js';
+import { ORG_SLUG } from './paths.js';
 import { assertProfileName, bindBaseFor, DEFAULT_PROFILE, expiryNote, loadProfileChecked, profileKey, saveProfile } from './profiles.js';
-import { redact } from './redact.js';
+import { needlesFromEnv, redact } from './redact.js';
+import { findRegistration } from './registry.js';
+import { newRunId, RunScope } from './scope.js';
 import { openSignin } from './signinKey.js';
 import { signInWithPassword } from './signin.js';
 // -- CONSTANTS -- //
@@ -28,8 +35,18 @@ export function envNames(name) {
     const n = String(name).toUpperCase().replace(/-/g, '_');
     return { email: `AFB_CHECKS_${n}_EMAIL`, password: `AFB_CHECKS_${n}_PASSWORD` };
 }
-/** The seeded account of a registration from the environment, or null when either variable is missing or empty. */
-export function seededAccount(name, env = process.env) {
+/** The seeded account of a registration (and optional profile) from the environment, or null when missing. */
+export function seededAccount(name, env = process.env, profile) {
+    if (profile && profile !== DEFAULT_PROFILE) {
+        const p = String(profile)
+            .toUpperCase()
+            .replace(/[^A-Z0-9]/g, '_');
+        const n = String(name).toUpperCase().replace(/-/g, '_');
+        const pEmail = env[`AFB_CHECKS_${n}_${p}_EMAIL`];
+        const pPass = env[`AFB_CHECKS_${n}_${p}_PASSWORD`];
+        if (pEmail && pPass)
+            return { email: pEmail, password: pPass };
+    }
     const n = envNames(name);
     const email = env[n.email];
     const password = env[n.password];
@@ -266,16 +283,66 @@ async function headedLogin(target, say, timeoutMs, ask = askLine) {
         rmSync(profile, { recursive: true, force: true });
     }
 }
-function loadRegistrationFile(org, name) {
-    try {
-        return JSON.parse(readFileSync(join(registrationsDir(), org, `${name}.json`), 'utf8'));
+/** Default one-line URL seeder: opens seedUrl only on baseUrl's origin in a throwaway context and returns storage state. */
+async function defaultSeedFromUrl(baseUrl, seedUrl) {
+    const base = new URL(baseUrl);
+    const seed = new URL(seedUrl, base);
+    if (seed.origin !== base.origin) {
+        throw new Error(`Seed URL origin ${seed.origin} does not match target ${base.origin}.`);
     }
-    catch {
-        return null;
+    const { chromium } = await loadPlaywright();
+    const browser = await chromium.launch({ headless: true });
+    try {
+        const context = await browser.newContext();
+        await context.route('**/*', async (route) => {
+            try {
+                if (new URL(route.request().url()).origin !== base.origin)
+                    return route.abort();
+            }
+            catch {
+                return route.abort();
+            }
+            return route.continue();
+        });
+        const page = await context.newPage();
+        await page.goto(seed.toString(), { waitUntil: 'networkidle', timeout: 15_000 }).catch(() => { });
+        return await context.storageState({ indexedDB: true });
+    }
+    finally {
+        await browser.close();
     }
 }
-/** The default target: a live site is its own address; a repo registration is its own preview, started like a run starts it. */
+/** Default one-line demo DB seed command runner: shell:false, filtered env, redacted error output. */
+function defaultSeedCommand(argv, opts) {
+    const [file, ...rest] = programArgv(argv, { pathEnv: pathOf(opts.env) });
+    if (!file)
+        return Promise.reject(new Error('Seed command has no executable program.'));
+    return new Promise((resolve, reject) => {
+        execFile(file, rest, { cwd: opts.cwd, env: opts.env, windowsHide: true, timeout: 60_000 }, (err, _stdout, stderr) => {
+            if (!err)
+                return resolve();
+            const msg = redact(String(stderr || err.message || 'Seed command failed.'), opts.needles);
+            reject(new Error(msg.slice(0, 200)));
+        });
+    });
+}
+/** The default target: a dev registration probes/starts its dev server; a live site uses its address; a repo registration starts its preview. */
 async function defaultTarget(registration, say) {
+    if (registration.devUrl) {
+        const scope = new RunScope(newRunId(), say);
+        try {
+            const dev = await ensureDevServer(registration, scope, { log: say });
+            return {
+                baseUrl: dev.origin,
+                hosts: registration.extraHosts ?? [],
+                stop: () => scope.close()
+            };
+        }
+        catch (e) {
+            await scope.close().catch(() => undefined);
+            throw e;
+        }
+    }
     if (!registration.url) {
         const { repoLoginTarget } = await import('./loginPreview.js');
         return repoLoginTarget(registration, say);
@@ -288,9 +355,12 @@ async function defaultTarget(registration, say) {
 }
 function flagValue(args, flag) {
     const i = args.indexOf(flag);
-    return i >= 0 ? args[i + 1] : undefined;
+    if (i < 0)
+        return undefined;
+    const next = args[i + 1];
+    return next !== undefined && !next.startsWith('--') ? next : undefined;
 }
-/** `check login <NAME> --org <slug> [--seeded]`. Exit code 0 saved, 1 a problem with what was asked, 2 could not run. */
+/** `check login <NAME> --org <slug> [--profile P] [--seeded [url|cmd]]`. Exit code 0 saved, 1 a problem with what was asked, 2 could not run. */
 export async function loginCommand(args, ctx) {
     const deps = {
         signIn: (baseUrl, account) => signInWithPassword(baseUrl, account),
@@ -301,7 +371,7 @@ export async function loginCommand(args, ctx) {
             consume: (target, code) => consumeApproval('login', target, code)
         },
         env: process.env,
-        loadRegistration: loadRegistrationFile,
+        loadRegistration: findRegistration,
         target: defaultTarget,
         save: saveProfile,
         ask: askLine,
@@ -316,25 +386,39 @@ export async function loginCommand(args, ctx) {
         ...ctx.deps
     };
     const say = (line) => ctx.log(line);
-    const flags = new Set(['--org', '--as', '--approval', '--timeout']);
-    const positional = args.filter((a, i) => !a.startsWith('--') && !flags.has(args[i - 1] ?? ''));
+    const flags = new Set(['--org', '--as', '--profile', '--approval', '--timeout']);
+    const seededIdx = args.indexOf('--seeded');
+    const seededEquals = args.find((a) => a.startsWith('--seeded='));
+    const nextAfterSeeded = seededIdx >= 0 && seededIdx + 1 < args.length ? args[seededIdx + 1] : undefined;
+    // Treat the token after `--seeded` as its value when it looks like a URL or command (never swallowing bare positional <NAME> when boolean `--seeded` is used before NAME).
+    const consumeSeededNext = Boolean(nextAfterSeeded &&
+        !nextAfterSeeded.startsWith('--') &&
+        (/^(https?:\/\/)/i.test(nextAfterSeeded) || /[\s/\\:]/.test(nextAfterSeeded)));
+    const positional = args.filter((a, i) => !a.startsWith('--') &&
+        !flags.has(args[i - 1] ?? '') &&
+        !(consumeSeededNext && i === seededIdx + 1));
     const name = positional[0];
     const org = flagValue(args, '--org');
-    const seeded = args.includes('--seeded');
+    const seeded = args.some((a) => a === '--seeded' || a.startsWith('--seeded='));
+    const seededArg = seededEquals
+        ? seededEquals.slice('--seeded='.length)
+        : consumeSeededNext
+            ? nextAfterSeeded
+            : undefined;
     // The sign in the owner typed on the board, encrypted to this machine: opened here in memory, never shown to the agent
     const fromBoard = args.includes('--from-board');
     if (!name || !org) {
-        say('Usage: check login <NAME> --org <slug> [--as <profile>] [--seeded | --from-board | --approval <code>]');
+        say('Usage: check login <NAME> --org <slug> [--profile <profile>] [--seeded [url|cmd] | --from-board | --approval <code>]');
         return 1;
     }
     if (!NAME.test(name) || !ORG_SLUG.test(org)) {
         say('The registration name or the organisation is not a plain name.');
         return 1;
     }
-    // A second sign-in of the same registration (a role to prove, for example read-only) is a named profile
+    // A second sign-in of the same registration (a role to prove, for example patient, doctor, staff) is a named profile
     let profile;
     try {
-        profile = assertProfileName(flagValue(args, '--as') ?? DEFAULT_PROFILE);
+        profile = assertProfileName(flagValue(args, '--profile') ?? flagValue(args, '--as') ?? DEFAULT_PROFILE);
     }
     catch (e) {
         say(e instanceof Error ? e.message : 'That is not a profile name.');
@@ -412,14 +496,54 @@ export async function loginCommand(args, ctx) {
             await board.ackSignin({ id: envelope.id, result: 'pass' }).catch(() => undefined);
         }
         else if (seeded) {
-            const account = seededAccount(name, deps.env) ?? target.testUser ?? null;
-            if (!account) {
-                const n = envNames(name);
-                say(`No account to sign in with. Set ${n.email} and ${n.password}, or give the recipe a test user.`);
-                return 1;
+            if (seededArg && /^https?:\/\//i.test(seededArg)) {
+                const base = new URL(target.baseUrl);
+                let parsedSeed;
+                try {
+                    parsedSeed = new URL(seededArg);
+                }
+                catch {
+                    say('That --seeded URL is not a valid address.');
+                    return 1;
+                }
+                if (parsedSeed.origin !== base.origin) {
+                    say(`Seeded URL origin ${parsedSeed.origin} must match the registration target ${base.origin}.`);
+                    return 1;
+                }
+                state = await (deps.seedFromUrl ?? defaultSeedFromUrl)(target.baseUrl, parsedSeed.toString(), profile);
             }
-            secrets.push(account.password);
-            state = await deps.signIn(target.baseUrl, account);
+            else {
+                if (seededArg) {
+                    if (!approval || !deps.approval.consume(`${org}/${name}`, approval)) {
+                        say(`Running a local --seeded command requires a fresh single-use owner approval. Ask for it: agent-flow-board check approve --request --action login --target ${org}/${name}, then pass --approval <code>.`);
+                        return 1;
+                    }
+                    const argv = parseStartCommand(seededArg);
+                    const cwd = registration.repo ?? process.cwd();
+                    const port = Number(new URL(target.baseUrl).port) || 3000;
+                    const filtered = buildPreviewEnv({
+                        repo: cwd,
+                        recipeEnv: {},
+                        port,
+                        baseUrl: target.baseUrl,
+                        readRepoEnv: false
+                    });
+                    const needles = [...needlesFromEnv(process.env), ...needlesFromEnv(filtered.env)];
+                    await (deps.seedCommand ?? defaultSeedCommand)(argv, {
+                        cwd,
+                        env: filtered.env,
+                        needles
+                    });
+                }
+                const account = seededAccount(name, deps.env, profile) ?? target.testUser ?? null;
+                if (!account) {
+                    const n = envNames(name);
+                    say(`No account to sign in with. Set ${n.email} and ${n.password}, or pass a same-origin --seeded URL.`);
+                    return 1;
+                }
+                secrets.push(account.password);
+                state = await deps.signIn(target.baseUrl, account);
+            }
         }
         else {
             // A mailed-link sign-in reads the pasted link from a terminal. Without one the window could never finish, so say it

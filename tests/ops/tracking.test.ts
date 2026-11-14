@@ -10,7 +10,9 @@ import { withTenant } from '../../src/lib/server/db/tenant';
 import { run } from '../../src/lib/server/ops/context';
 import { canonicalTool } from '../../src/lib/shared/tool';
 import { handleHook } from '../../src/lib/server/ops/hooks';
+import { sessionStatusByExternal } from '../../src/lib/server/ops/sessionStatus';
 import { projectSummary } from '../../src/lib/server/ops/board';
+import { clearWaitingForPerson, setWaitingForPerson } from '../../src/lib/server/ops/waiting';
 import { listSessionEvents } from '../../src/lib/server/ops/sessionEvents';
 import { createItem, updateItem } from '../../src/lib/server/ops/items';
 import { recordSteps } from '../../src/lib/server/ops/steps';
@@ -985,5 +987,82 @@ describe('tracking', () => {
 		const after = await sessionRow(id);
 		expect(after.claimedItemId).toBeNull();
 		expect(JSON.stringify(after.notices)).toMatch(/made private by its creator/);
+	});
+
+	it('D.5 waiting for a person: first-class blocker respected by Stop hook, cleared to resume normal open-step reminder', async () => {
+		const it = await newItem('Waiting gate');
+		const extId = 'conv-waiting-d5-001';
+		const ctx = () => w.ctx('member', { kind: 'agent', tool: 'claude-code' });
+		await handleHook(ctx(), { tool: 'claude-code', externalId: extId, event: 'start' });
+		const rows = await withTenant(db, { orgId: w.orgId }, (tx) =>
+			tx.select().from(session).where(eq(session.externalId, extId))
+		);
+		const sid = rows[0].id;
+		await claim(agent('member', sid), sid, it.ref, '1');
+		await recordSteps(agent('member', sid), {
+			item: it.ref,
+			marks: [{ key: '1.1', mark: 'done' }]
+		});
+
+		// Setting waiting for sign-in, approval or decision makes Stop return waiting instead of blocking with "Carry on"
+		for (const kind of ['sign-in', 'approval', 'decision'] as const) {
+			const res = await setWaitingForPerson(agent('member', sid), {
+				kind,
+				detail: `Need human ${kind} before proceeding`,
+				target: '1.2'
+			});
+			expect(res.waiting?.kind).toBe(kind);
+			const status = await sessionStatusByExternal(w.ctx('member'), {
+				externalId: extId,
+				tool: 'claude-code'
+			});
+			if ('unchanged' in status) throw new Error('expected full status');
+			expect(status.waiting?.kind).toBe(kind);
+			expect(status.waiting?.detail).toContain(`Need human ${kind}`);
+			const summary = await projectSummary(person('member'), w.projectKey);
+			expect(summary.running.some((r) => r.sessionId === sid && r.waiting?.kind === kind)).toBe(
+				true
+			);
+
+			const stopOut = await handleHook(ctx(), {
+				tool: 'claude-code',
+				externalId: extId,
+				event: 'stop'
+			});
+			expect(stopOut.waiting).toContain(it.ref);
+			expect(stopOut.waiting).toContain(`(${kind})`);
+			expect(stopOut.waiting).toContain(`Need human ${kind} before proceeding`);
+			expect(stopOut.block).toBeUndefined();
+		}
+
+		// Clearing waiting resumes normal Stop behaviour: the plain open-step reminder fires once
+		await clearWaitingForPerson(agent('member', sid));
+		expect((await sessionRow(sid)).waiting).toBeNull();
+		const resumedStop = await handleHook(ctx(), {
+			tool: 'claude-code',
+			externalId: extId,
+			event: 'stop'
+		});
+		expect(resumedStop.waiting).toBeUndefined();
+		expect(resumedStop.block).toContain('still has open steps');
+		expect(resumedStop.block).toContain('Carry on');
+
+		// Foreign session refusal writes nothing
+		await expect(
+			setWaitingForPerson(w.ctx('admin', { kind: 'agent', sessionId: sid }), {
+				sessionId: sid,
+				kind: 'approval',
+				detail: 'Unauthorized attempt'
+			})
+		).rejects.toMatchObject({ code: 'INVALID' });
+		expect((await sessionRow(sid)).waiting).toBeNull();
+
+		// Release clears any active waiting blocker
+		await setWaitingForPerson(agent('member', sid), {
+			kind: 'decision',
+			detail: 'Waiting before release'
+		});
+		await claim(agent('member', sid), sid, null);
+		expect((await sessionRow(sid)).waiting).toBeNull();
 	});
 });

@@ -52,6 +52,7 @@ const BOOLEAN_FLAGS = new Set([
 	'--remove',
 	'--adopt-env',
 	'--upload-pictures',
+	'--allow-writes',
 	'--request',
 	'--json'
 ]);
@@ -114,6 +115,7 @@ const show = (ctx: CommandContext, value: unknown, lines: string[]) => {
 export const PROJECT_USAGE = [
 	'  project <NAME> --org <slug> --repo <dir> [--app-dir web] [--board-project KEY] [--recipe] [--extra-hosts a,b]',
 	'  project <NAME> --org <slug> --url https://site [--board-project KEY] [--extra-hosts a,b] --approval <code>',
+	'  project <NAME> --org <slug> --dev-url http://localhost:5173 [--start "<cmd>"] [--allow-writes --write-allowlist "POST /api"] [--dev-approval <code>] [--board-project KEY]',
 	'  project list [--org <slug>]  |  project forget <NAME> --org <slug> [--remove | --profile <name>]  |  project pin <NAME> --org <slug>  |  project profiles <NAME> --org <slug>'
 ].join('\n');
 
@@ -132,10 +134,11 @@ export async function projectCommand(args: string[], ctx: CommandContext): Promi
 				org: r.org,
 				name: r.name,
 				boardProject: r.boardProject,
-				kind: r.url ? 'site' : 'repo',
+				kind: r.devUrl ? 'dev' : r.url ? 'site' : 'repo',
 				repo: r.repo ?? null,
 				appDir: r.appDir ?? null,
 				url: r.url ?? null,
+				devUrl: r.devUrl ?? null,
 				pin: pinState(r),
 				adoptEnv: r.adoptEnv,
 				state: hasState(r.org, r.name)
@@ -143,7 +146,7 @@ export async function projectCommand(args: string[], ctx: CommandContext): Promi
 			show(c, { registrations: rows, problems }, [
 				...rows.map(
 					(r) =>
-						`${r.org}/${r.name}  serves ${r.boardProject}  ${r.url ?? `${r.repo}${r.appDir ? ` (${r.appDir})` : ''}`}  pin ${r.pin}${r.adoptEnv ? '  adopts .env' : ''}${r.state ? '  holds state' : ''}`
+						`${r.org}/${r.name}  serves ${r.boardProject}  ${r.devUrl ?? r.url ?? `${r.repo}${r.appDir ? ` (${r.appDir})` : ''}`}  pin ${r.pin}${r.adoptEnv ? '  adopts .env' : ''}${r.state ? '  holds state' : ''}`
 				),
 				...(rows.length ? [] : ['No registrations.']),
 				...problems
@@ -204,6 +207,10 @@ export async function projectCommand(args: string[], ctx: CommandContext): Promi
 		}
 		if (p.pos.length > 1) throw new UsageError(`Unexpected "${p.pos[1]}".\n${PROJECT_USAGE}`);
 		const hosts = text(p, '--extra-hosts');
+		const allowlistRaw = text(p, '--write-allowlist');
+		const startRaw = text(p, '--start');
+		const devUrl = text(p, '--dev-url');
+		const devApproval = text(p, '--dev-approval') ?? (devUrl ? text(p, '--approval') : undefined);
 		const input = {
 			org: need(p, '--org'),
 			name: sub,
@@ -211,6 +218,17 @@ export async function projectCommand(args: string[], ctx: CommandContext): Promi
 			...(text(p, '--repo') ? { repo: text(p, '--repo') as string } : {}),
 			...(text(p, '--app-dir') ? { appDir: text(p, '--app-dir') as string } : {}),
 			...(text(p, '--url') ? { url: text(p, '--url') as string } : {}),
+			...(devUrl ? { devUrl } : {}),
+			...(startRaw ? { startCommand: startRaw } : {}),
+			...(p.flags.has('--allow-writes') ? { allowWrites: true } : {}),
+			...(allowlistRaw
+				? {
+						writeAllowlist: allowlistRaw
+							.split(',')
+							.map((entry) => entry.trim())
+							.filter(Boolean)
+					}
+				: {}),
 			...(hosts
 				? {
 						extraHosts: hosts
@@ -224,7 +242,8 @@ export async function projectCommand(args: string[], ctx: CommandContext): Promi
 			uploadSignedInPictures: p.flags.has('--upload-pictures')
 		};
 		const approvals = {
-			...(text(p, '--approval') ? { register: text(p, '--approval') as string } : {}),
+			...(text(p, '--approval') && !devUrl ? { register: text(p, '--approval') as string } : {}),
+			...(devApproval ? { dev: devApproval } : {}),
 			...(text(p, '--adopt-env-approval')
 				? { adoptEnv: text(p, '--adopt-env-approval') as string }
 				: {}),
@@ -235,9 +254,17 @@ export async function projectCommand(args: string[], ctx: CommandContext): Promi
 		const reg = registerProject(input, approvals);
 		show(
 			c,
-			{ org: reg.org, name: reg.name, boardProject: reg.boardProject, database: reg.database },
+			{
+				org: reg.org,
+				name: reg.name,
+				boardProject: reg.boardProject,
+				database: reg.database,
+				...(reg.devUrl ? { devUrl: reg.devUrl } : {})
+			},
 			[
-				`Registered ${reg.org}/${reg.name} for ${reg.boardProject}${reg.url ? ` (live site ${new URL(reg.url).hostname})` : ''}. The files that decide what runs are pinned by "check project pin ${reg.name} --org ${reg.org}" or the first run in the folder.`
+				reg.devUrl
+					? `Registered ${reg.org}/${reg.name} for ${reg.boardProject} (dev server ${reg.devUrl}).`
+					: `Registered ${reg.org}/${reg.name} for ${reg.boardProject}${reg.url ? ` (live site ${new URL(reg.url).hostname})` : ''}. The files that decide what runs are pinned by "check project pin ${reg.name} --org ${reg.org}" or the first run in the folder.`
 			]
 		);
 		return 0;

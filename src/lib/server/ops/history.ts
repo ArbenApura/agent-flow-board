@@ -3,12 +3,15 @@
 // -- TYPES -- //
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
-import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
+import { effectiveStepVisible } from '../../shared/screenGlobs';
+import { recalcItem } from '../db/calc';
 import { undoEvent, type UndoResult } from '../db/events';
 import {
 	attachment,
+	checkRun,
 	event,
 	item,
 	mockup,
@@ -16,12 +19,20 @@ import {
 	note,
 	noteFile,
 	noteFolder,
+	project,
+	step,
 	task
 } from '../db/schema';
 import { mockupUnreadError, planWorked, unreadForGate } from './mockupReads';
 import { canSeeMockup } from './mockups';
-import { OpError, requireCap, run } from './context';
+import { OpError, isLivePersonSession, requireCap, run } from './context';
 import { lockTree } from './noteFolders';
+import {
+	checkSliceGateHold,
+	compareCommandHint,
+	loadItemVisualContext,
+	verifyCompareEvidenceForStep
+} from './visibleSteps';
 import {
 	canSeeItem,
 	findItem,
@@ -131,6 +142,12 @@ const changesVisibility = (ev: { before: unknown; after: unknown }) =>
 		(v) => typeof v === 'object' && v !== null && Object.hasOwn(v as object, 'visibility')
 	);
 
+/** Does this change alter item.sliceGate? Only a person in a live web session can reverse a vertical-slice gate change. */
+const changesSliceGate = (ev: { before: unknown; after: unknown }) =>
+	[ev.before, ev.after].some(
+		(v) => typeof v === 'object' && v !== null && Object.hasOwn(v as object, 'sliceGate')
+	);
+
 /**
  * May this person undo a change to this item? A hidden item answers not-found, and a change of its visibility is the
  * creator's alone, the same rule as updateItem.
@@ -178,6 +195,118 @@ async function undoMockupHold(
 	return unread.length ? unread : null;
 }
 
+/**
+ * Holds undo for non-live-person callers when reversing an action would close/remove a visible step without valid compare evidence (C.6).
+ */
+async function undoVisualHold(
+	tx: Parameters<Parameters<typeof run>[1]>[0],
+	ctx: Ctx,
+	ev: {
+		itemId: string | null;
+		targetId?: string | null;
+		verb: string;
+		before: unknown;
+		after: unknown;
+	}
+): Promise<OpError | null> {
+	if (isLivePersonSession(ctx) || !ev.itemId) return null;
+	if (changesSliceGate(ev)) {
+		return new OpError(
+			'FORBIDDEN',
+			'Only a person in a live web session can undo a vertical-slice gate change.'
+		);
+	}
+	const [it] = await tx
+		.select({ id: item.id, ref: item.ref, projectId: item.projectId, sliceGate: item.sliceGate })
+		.from(item)
+		.where(eq(item.id, ev.itemId));
+	if (!it) return null;
+	const [proj] = await tx
+		.select({ visualEvidenceGate: project.visualEvidenceGate })
+		.from(project)
+		.where(eq(project.id, it.projectId));
+	if (!proj?.visualEvidenceGate && !it.sliceGate) return null;
+
+	const before = ev.before as {
+		state?: string;
+		evidence?: { checkRunId?: string; runIds?: string[]; waived?: unknown } | null;
+	} | null;
+	const after = ev.after as { state?: string; key?: string } | null;
+	if (
+		ev.verb === 'step.update' &&
+		after?.state === 'open' &&
+		typeof after.key === 'string' &&
+		['done', 'waived', 'superseded'].includes(before?.state ?? '') &&
+		ev.targetId
+	) {
+		const [st] = await tx
+			.select({
+				key: step.key,
+				visible: step.visible,
+				visibleInferred: step.visibleInferred,
+				screens: step.screens,
+				widths: step.widths
+			})
+			.from(step)
+			.where(eq(step.id, ev.targetId));
+		if (st && it.sliceGate) {
+			const sliceHold = await checkSliceGateHold(tx, ctx, it, [ev.targetId]);
+			if (sliceHold) return sliceHold.error;
+		}
+		if (proj?.visualEvidenceGate && st && effectiveStepVisible(st)) {
+			const hadCompare =
+				before?.state === 'done' &&
+				Boolean(before?.evidence?.checkRunId || before?.evidence?.runIds?.length);
+			if (!hadCompare) {
+				const cmd = compareCommandHint(it.ref, st.key, st.screens ?? [], st.widths ?? []);
+				return new OpError(
+					'VISUAL_EVIDENCE_REQUIRED',
+					`Undoing reopen of visible step ${st.key} on ${it.ref} requires compare evidence or a live person web session. Run: ${cmd}`,
+					{ reason: 'visual-evidence', step: st.key, nextCommand: cmd }
+				);
+			}
+			try {
+				const vis = await loadItemVisualContext(tx, ctx, it.id, it.projectId);
+				await verifyCompareEvidenceForStep(
+					tx,
+					ctx,
+					it,
+					{
+						key: st.key,
+						screens: st.screens ?? [],
+						widths: st.widths ?? [],
+						evidence: null
+					},
+					vis,
+					{
+						checkRunId: before?.evidence?.checkRunId,
+						runIds: before?.evidence?.runIds
+					}
+				);
+			} catch (e) {
+				if (e instanceof OpError) return e;
+				throw e;
+			}
+		}
+	}
+
+	if (ev.verb === 'phase.create' || ev.verb === 'step.create') {
+		const visibleRows = await tx
+			.select({ key: step.key, visible: step.visible, visibleInferred: step.visibleInferred })
+			.from(step)
+			.where(and(eq(step.itemId, it.id), eq(step.state, 'open')));
+		const firstVisible = visibleRows.find((s) => effectiveStepVisible(s));
+		if (firstVisible) {
+			return new OpError(
+				'VISUAL_EVIDENCE_REQUIRED',
+				`Undoing ${ev.verb} on ${it.ref} could remove or bypass open visible step ${firstVisible.key}. Leave it to a person in a live web session.`,
+				{ reason: 'visual-evidence', step: firstVisible.key }
+			);
+		}
+	}
+	return null;
+}
+
 /** Reverses one change with a compensating event. A conflict (the thing changed again since) is reported, not forced. */
 export async function undoChange(
 	ctx: Ctx,
@@ -189,6 +318,7 @@ export async function undoChange(
 			.select({
 				projectId: event.projectId,
 				itemId: event.itemId,
+				targetId: event.targetId,
 				verb: event.verb,
 				before: event.before,
 				after: event.after
@@ -200,9 +330,11 @@ export async function undoChange(
 		// A change to an item this person cannot see is not theirs to undo, and looks the same as one that does not exist
 		const refused = await undoGate(tx, ctx, ev);
 		if (refused) return refused;
+		const visualHold = await undoVisualHold(tx, ctx, ev);
+		if (visualHold) throw visualHold;
 		const held = await undoMockupHold(tx, ctx, ev);
 		if (held) throw mockupUnreadError(held, 'change');
-		return undoEvent(
+		const res = await undoEvent(
 			tx,
 			{
 				actorUserId: ctx.actor.userId,
@@ -213,6 +345,10 @@ export async function undoChange(
 			eventId,
 			options
 		);
+		if (res.ok && ev.itemId && (ev.verb.startsWith('step.') || ev.verb.startsWith('phase.'))) {
+			await recalcItem(tx, ev.itemId);
+		}
+		return res;
 	});
 }
 
@@ -227,6 +363,7 @@ export async function undoSession(ctx: Ctx, sessionId: string) {
 				id: event.id,
 				projectId: event.projectId,
 				itemId: event.itemId,
+				targetId: event.targetId,
 				verb: event.verb,
 				before: event.before,
 				after: event.after,
@@ -259,6 +396,11 @@ export async function undoSession(ctx: Ctx, sessionId: string) {
 				skipped.push({ id: e.id, reason: refused.reason });
 				continue;
 			}
+			// A visible step reopened without verified compare evidence stays open for non-live-person callers
+			if (await undoVisualHold(tx, ctx, e)) {
+				skipped.push({ id: e.id, reason: 'visual-evidence-required' });
+				continue;
+			}
 			// A step an agent would close again while the plan's mockup is unread stays as it is
 			if (await undoMockupHold(tx, ctx, e)) {
 				skipped.push({ id: e.id, reason: 'mockup-unread' });
@@ -274,8 +416,12 @@ export async function undoSession(ctx: Ctx, sessionId: string) {
 				},
 				e.id
 			);
-			if (r.ok) undone.push(e.id);
-			else {
+			if (r.ok) {
+				undone.push(e.id);
+				if (e.itemId && (e.verb.startsWith('step.') || e.verb.startsWith('phase.'))) {
+					await recalcItem(tx, e.itemId);
+				}
+			} else {
 				skipped.push({ id: e.id, reason: r.reason });
 				// Later undos would build on a change that is still in place, so stop here and say so
 				if (r.reason === 'conflict') break;
@@ -444,16 +590,103 @@ async function purgeTrashRows(ctx: Ctx, days: number, checkRole: boolean) {
 	const cutoff = new Date(Date.now() - days * 86_400_000);
 	const removed = await run(ctx, async (tx) => {
 		if (checkRole) await requireCap(tx, ctx, 'manage');
-		const files = await tx
+		// Runs referenced by any active or not-yet-purged trashed item step stay pinned (B.9), so restoring a recently trashed item preserves its evidence
+		const pinnedRunRows = await tx
+			.select({ evidence: step.evidence })
+			.from(step)
+			.innerJoin(item, eq(item.id, step.itemId))
+			.where(
+				and(
+					or(isNull(item.deletedAt), gte(item.deletedAt, cutoff)),
+					sql`(${step.evidence}->>'checkRunId' is not null or jsonb_array_length(coalesce(${step.evidence}->'runIds', '[]'::jsonb)) > 0)`
+				)
+			);
+		const pinnedRunIds = new Set<string>();
+		for (const row of pinnedRunRows) {
+			if (row.evidence?.checkRunId) pinnedRunIds.add(row.evidence.checkRunId);
+			for (const rid of row.evidence?.runIds ?? []) {
+				if (rid) pinnedRunIds.add(rid);
+			}
+		}
+		const pinnedEvidenceIds = new Set<string>();
+		// Also keep attachments referenced by any non-expired run (avoid cross-run deletion when an attachment is shared)
+		const survivingRuns = await tx
+			.select({ evidence: checkRun.evidence })
+			.from(checkRun)
+			.where(sql`coalesce(${checkRun.finishedAt}, ${checkRun.createdAt}) >= ${cutoff}`);
+		for (const sr of survivingRuns) {
+			for (const eid of sr.evidence) pinnedEvidenceIds.add(eid);
+		}
+		if (pinnedRunIds.size) {
+			const pinnedRuns = await tx
+				.select({ id: checkRun.id, evidence: checkRun.evidence })
+				.from(checkRun)
+				.where(inArray(checkRun.id, [...pinnedRunIds]));
+			for (const pr of pinnedRuns) {
+				for (const eid of pr.evidence) pinnedEvidenceIds.add(eid);
+			}
+			const pinnedTagged = await tx
+				.select({ id: attachment.id, refs: attachment.refs })
+				.from(attachment)
+				.where(eq(attachment.kind, 'check-evidence'));
+			for (const att of pinnedTagged) {
+				if ((att.refs ?? []).some((r) => pinnedRunIds.has(r))) pinnedEvidenceIds.add(att.id);
+			}
+		}
+		const trashedFiles = await tx
 			.select({ id: attachment.id, key: attachment.storageKey })
 			.from(attachment)
 			.where(and(isNotNull(attachment.deletedAt), lt(attachment.deletedAt, cutoff)));
+		const files = trashedFiles.filter((f) => !pinnedEvidenceIds.has(f.id));
 		const itemFiles = await tx
 			.select({ id: attachment.id, key: attachment.storageKey })
 			.from(attachment)
 			.innerJoin(item, eq(item.id, attachment.itemId))
 			.where(and(isNotNull(item.deletedAt), lt(item.deletedAt, cutoff)));
-		const keys = [...files, ...itemFiles];
+		const expiredRuns = await tx
+			.select({ id: checkRun.id, evidence: checkRun.evidence })
+			.from(checkRun)
+			.where(sql`coalesce(${checkRun.finishedAt}, ${checkRun.createdAt}) < ${cutoff}`);
+		const unpinnedRunIds = expiredRuns.map((r) => r.id).filter((id) => !pinnedRunIds.has(id));
+		let prunedRunFiles: { id: string; key: string }[] = [];
+		if (unpinnedRunIds.length) {
+			const unpinnedEvIds = [
+				...new Set(
+					expiredRuns
+						.filter((r) => !pinnedRunIds.has(r.id))
+						.flatMap((r) => r.evidence)
+						.filter((eid) => !pinnedEvidenceIds.has(eid))
+				)
+			];
+			const byEv = unpinnedEvIds.length
+				? await tx
+						.select({ id: attachment.id, key: attachment.storageKey })
+						.from(attachment)
+						.where(
+							and(inArray(attachment.id, unpinnedEvIds), eq(attachment.kind, 'check-evidence'))
+						)
+				: [];
+			const checkEvidenceRows = await tx
+				.select({ id: attachment.id, key: attachment.storageKey, refs: attachment.refs })
+				.from(attachment)
+				.where(eq(attachment.kind, 'check-evidence'));
+			const unpinnedSet = new Set(unpinnedRunIds);
+			const byRef = checkEvidenceRows
+				.filter(
+					(a) => !pinnedEvidenceIds.has(a.id) && (a.refs ?? []).some((r) => unpinnedSet.has(r))
+				)
+				.map((a) => ({ id: a.id, key: a.key }));
+			const seen = new Set<string>();
+			prunedRunFiles = [...byEv, ...byRef].filter((f) => {
+				if (seen.has(f.id)) return false;
+				seen.add(f.id);
+				return true;
+			});
+			const prunedIds = prunedRunFiles.map((f) => f.id);
+			if (prunedIds.length) await tx.delete(attachment).where(inArray(attachment.id, prunedIds));
+			await tx.delete(checkRun).where(inArray(checkRun.id, unpinnedRunIds));
+		}
+		const keys = [...files, ...itemFiles, ...prunedRunFiles];
 		// A purged plan's mockups go to the mockup trash first (AFB-20261110-2338): the plan link is dropped with the row, and
 		// without this they would come back as standalone mockups. Their files stay until the mockup itself is purged
 		await tx

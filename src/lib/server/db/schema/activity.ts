@@ -23,6 +23,15 @@ import { id, stamps, tenantTable } from './helpers';
 
 export type Patch = Record<string, unknown> | null;
 
+export const WAITING_KINDS = ['sign-in', 'approval', 'decision'] as const;
+export type WaitingKind = (typeof WAITING_KINDS)[number];
+export type WaitingBlocker = {
+	kind: WaitingKind;
+	detail: string;
+	target?: string;
+	setAt: string;
+};
+
 // -- EVENT (APPEND ONLY) -- //
 
 export const event = tenantTable(
@@ -104,6 +113,8 @@ export const session = tenantTable(
 			.$type<string[]>()
 			.notNull()
 			.default(sql`'[]'::jsonb`),
+		/** First-class waiting-for-a-person blocker (sign-in, approval, decision), cleared when resolved or claim released. */
+		waiting: jsonb('waiting').$type<WaitingBlocker | null>(),
 		...stamps()
 	},
 	(t) => [

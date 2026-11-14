@@ -15,7 +15,8 @@ import { renameRetry } from './fsretry.js';
 
 // -- TYPES -- //
 
-export type ApprovalAction = 'register' | 'secrets' | 'adopt-env' | 'roots' | 'pictures' | 'login';
+export type ApprovalAction =
+	'register' | 'secrets' | 'adopt-env' | 'roots' | 'pictures' | 'login' | 'dev';
 /** Who decided a code that came from the board. The local audit line records it, but this file is user-writable: the board's own history is the authoritative audit. */
 export type DecisionNote = { by: string; at: string };
 type Entry = {
@@ -42,7 +43,8 @@ export const APPROVAL_ACTIONS: readonly ApprovalAction[] = [
 	'adopt-env',
 	'roots',
 	'pictures',
-	'login'
+	'login',
+	'dev'
 ];
 /** A code is valid for ten minutes. */
 export const APPROVAL_TTL_MS = 10 * 60 * 1000;

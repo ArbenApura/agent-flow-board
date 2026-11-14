@@ -1,6 +1,7 @@
 // THE SHARED SHAPES OF THE CHECK COMMANDS. EVERY MODULE IN THIS FOLDER IMPORTS FROM HERE, SO THE PARTS FIT.
 
 // -- TYPES -- //
+import type { WriteRule } from './devPolicy.js';
 
 /** What a run needs to know about the repo it builds and previews. Built by recipe.ts from `.afb-checks.json` or plain detection. */
 export type ProjectConfig = {
@@ -32,6 +33,12 @@ export type ProjectConfig = {
 	url?: string;
 	/** Exact host names the browser may reach besides the preview. */
 	extraHosts?: string[];
+	/** Running or bridge-started local dev server origin, never 5180/5190/5433. */
+	devUrl?: string;
+	/** Write opt-in for dev checks. Off by default. */
+	allowWrites?: boolean;
+	/** Method+path prefixes allowed when allowWrites is true on a dev run. */
+	writeAllowlist?: WriteRule[];
 };
 
 /** One registration, saved as registrations/<org>/<NAME>.json (the name is the bare NAME the board knows, 1 to 32 letters, digits, dash, underscore). */
@@ -48,6 +55,16 @@ export type Registration = {
 	/** A live site (http or https), no repo. */
 	url?: string;
 	extraHosts?: string[];
+	/** A running or locally-started dev server (localhost / 127.0.0.1 / [::1] with explicit port). */
+	devUrl?: string;
+	/** Local-only start argv (shell:false), sealed by `check approve --action dev`. Never sent to or accepted from the board. */
+	startCommand?: string[];
+	/** Dev write opt-in, sealed locally by `check approve --action dev`. Off by default. */
+	allowWrites?: boolean;
+	/** Method+path prefixes permitted when allowWrites is true on a dev registration. */
+	writeAllowlist?: WriteRule[];
+	/** SHA-256 hash of (devUrl, startCommand, allowWrites, writeAllowlist) binding the owner's dev approval. */
+	devApprovalHash?: string;
 	/** Whole-.env adoption approved by the owner with a code. Off by default. */
 	adoptEnv: boolean;
 	/** Pictures of a signed-in run are uploaded only when the owner opted in. */
@@ -106,6 +123,14 @@ export type ChildJob = {
 	extraHosts: string[];
 	/** Exact strings to remove from everything the child prints or saves. */
 	needles: string[];
+	/** True when targeting a local dev registration. */
+	isDev?: boolean;
+	/** True when running against an isolated hosted mockup URL (no storageState, no writes, same-origin only). */
+	mockupMode?: boolean;
+	/** Write opt-in from local sealed registration (off by default). */
+	allowWrites?: boolean;
+	/** Method+path prefixes permitted when allowWrites is true on a dev run. */
+	writeAllowlist?: WriteRule[];
 };
 
 /** What the child writes to result.json. */
@@ -114,6 +139,19 @@ export type ChildResult = {
 	result: 'pass' | 'fail';
 	reason: string | null;
 	durationMs: number;
+	/** First cold navigation/sweep timing vs subsequent warm timing (ms), when measured on a dev run. */
+	coldMs?: number;
+	warmMs?: number;
+	/** Detected readiness mode on dev runs: 'vite' (HMR) or 'fallback' (load+settle). */
+	readinessMode?: 'vite' | 'fallback';
+	/** Summary of early stock checks (CLS + tap targets under 44px) collected across dev shots/sweeps. */
+	earlyChecks?: {
+		shotsChecked: number;
+		maxCls: number;
+		clsViolations: number;
+		tapViolations: number;
+		passed: boolean;
+	};
 	steps: {
 		name: string;
 		status: 'pass' | 'fail' | 'shot';

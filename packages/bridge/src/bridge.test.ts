@@ -206,6 +206,22 @@ describe('bridge', () => {
 		expect(store.get(accountKey('https://board.example.com', 'mangoman'))).toBe('b');
 	});
 
+	it('negotiates protocol 2 without warning and warns once when the server speaks protocol 3', async () => {
+		const okBridge = start({ fetch: shim({ protocol: '2' }) });
+		await init(okBridge);
+		await okBridge.rpc('tools/list');
+		expect(okBridge.logs).toEqual([]);
+		await okBridge.end();
+
+		const oldBridge = start({ fetch: shim({ protocol: '3' }) });
+		await init(oldBridge);
+		await oldBridge.rpc('tools/list');
+		expect(oldBridge.logs.filter((l) => l.includes('protocol 3'))).toHaveLength(1);
+		expect(oldBridge.logs[0]).toContain('up to 2');
+		expect(oldBridge.logs[0]).toContain('npx -y @agent-flow-board/bridge@latest');
+		await oldBridge.end();
+	});
+
 	it('warns once when the server speaks a newer protocol than the bridge', async () => {
 		const b = start({ fetch: shim({ protocol: '9' }) });
 		await init(b);

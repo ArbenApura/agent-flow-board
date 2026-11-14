@@ -20,12 +20,65 @@ function pairs(a,max){
  return r
 }
 function has(list,v){return list.some(function(p){return p[0]===v})}
+var HOOK_KEYS=['screen','state','surface','person','offline'];
+function parseParams(raw){
+ var out=Object.create(null);
+ if(!raw||typeof raw!=='string')return out;
+ var s=raw.charAt(0)==='?'||raw.charAt(0)==='#'?raw.slice(1):raw;
+ if(!s)return out;
+ s.split('&').forEach(function(part){
+  if(!part)return;
+  var eq=part.indexOf('=');
+  if(eq===-1)return;
+  var k,v;
+  try{k=decodeURIComponent(part.slice(0,eq).replace(/\\+/g,' '));v=decodeURIComponent(part.slice(eq+1).replace(/\\+/g,' '))}catch(_){return}
+  if(!KEY.test(k))return;
+  var clean=v.trim().toLowerCase();
+  if(k==='offline')clean=(clean==='1'||clean==='true'||clean==='offline')?'true':(clean==='0'||clean==='false'||clean==='online')?'false':'';
+  if(KEY.test(clean))out[k]=clean
+ });
+ return out
+}
+function urlState(){
+ var loc=typeof location!=='undefined'?location:null;
+ var q=parseParams(loc&&loc.search||''),h=parseParams(loc&&loc.hash||''),merged=Object.create(null);
+ Object.keys(q).forEach(function(k){merged[k]=q[k]});
+ Object.keys(h).forEach(function(k){merged[k]=h[k]});
+ return merged
+}
+function applyHookValue(key,value){
+ var root=document.documentElement;
+ root.setAttribute('data-'+key,value);
+ if(typeof window.afbSet==='function'){
+  try{window.afbSet(key,value)}catch(_){}
+ }
+}
+function applyUrlHooks(current){
+ var merged=urlState();
+ HOOK_KEYS.forEach(function(k){
+  if(!merged[k])return;
+  if(k==='screen'&&cfg&&cfg.screens&&cfg.screens.length&&!has(cfg.screens,merged[k]))return;
+  applyHookValue(k,merged[k]);
+  if(current&&(k==='screen'||k==='state'))current[k]=merged[k]
+ });
+ if(cfg&&Array.isArray(cfg.options))cfg.options.forEach(function(o){
+  var v=merged[o.key];
+  if(!v||!has(o.values,v))return;
+  applyHookValue(o.key,v);
+  if(current)current[o.key]=v
+ })
+}
 function setup(){
  var m=document.querySelector('meta[name="afb-config"]'),c;
- if(!m)return;
- try{c=JSON.parse(m.getAttribute('content')||'')}catch(_){return}
- if(!c||typeof c!=='object')return;
- var seen={},root=document.documentElement,current={};
+ var root=document.documentElement,current={};
+ if(m){
+  try{c=JSON.parse(m.getAttribute('content')||'')}catch(_){c=null}
+ }
+ if(!c||typeof c!=='object'){
+  applyUrlHooks(null);
+  return
+ }
+ var seen={};
  cfg={screens:pairs(c.screens,12),options:[]};
  if(Array.isArray(c.options))c.options.slice(0,6).forEach(function(o){
   if(!o||typeof o.key!=='string'||!KEY.test(o.key)||o.key==='screen'||seen[o.key]||typeof o.label!=='string')return;
@@ -56,8 +109,10 @@ function setup(){
   var s=root.getAttribute('data-screen');
   current.screen=s&&has(cfg.screens,s)?s:cfg.screens[0][0]
  }
+ applyUrlHooks(current);
  sendConfig=function(){parent.postMessage({type:'afb-config',config:cfg,current:current},'*')}
 }
+addEventListener('hashchange',function(){applyUrlHooks(null);again()});
 // A bounded look at the page: the size of the document and a few computed styles of at most about 600 elements, enough to tell whether a choice changed anything
 var probe=0;
 function look(){

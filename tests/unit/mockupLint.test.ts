@@ -4,7 +4,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 // -- MODULES -- //
-import { kitFacts, lintKitHtml, lintMockupHtml } from '../../src/lib/server/mockups/lint';
+import {
+	kitFacts,
+	lintKitHtml,
+	lintMockupHooks,
+	lintMockupHtml
+} from '../../src/lib/server/mockups/lint';
 
 // -- CONSTANTS -- //
 
@@ -332,5 +337,18 @@ describe('the options and screens a page declares', () => {
 			)
 		);
 		expect(w.some((x) => x.includes('fonts.googleapis.com'))).toBe(true);
+	});
+
+	it('lintMockupHooks warns when data-screen, data-state or data-ref hooks are missing and passes when all three exist', () => {
+		const missing = lintMockupHooks('<main><h1>No hooks</h1></main>');
+		expect(missing).toHaveLength(3);
+		expect(missing.join(' ')).toContain('data-screen');
+		expect(missing.join(' ')).toContain('data-state');
+		expect(missing.join(' ')).toContain('data-ref');
+		expect(
+			lintMockupHooks(
+				'<main data-screen="home" data-state="default"><button data-ref="save">Save</button></main>'
+			)
+		).toEqual([]);
 	});
 });

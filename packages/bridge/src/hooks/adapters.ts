@@ -114,6 +114,7 @@ export const claude: Adapter = {
 					permissionDecisionReason: a.ask
 				}
 			};
+		if (event === 'stop' && a.waiting) return { systemMessage: a.waiting };
 		if (event === 'stop' && a.block) return { decision: 'block', reason: a.block };
 		return {};
 	}
@@ -158,6 +159,8 @@ export const antigravity: Adapter = {
 		// GAP: no PostToolUse output was captured for Antigravity, so the nudge is not sent here. Its sessions still hear the
 		// progress line in every board reply and the Stop reminder, which name the steps that are not recorded.
 		// A Stop "continue" re-enters the agent loop. The server sends at most one per distinct code change.
+		// When waiting for a person, never re-enter the loop: show the blocker message instead.
+		if (event === 'stop' && a.waiting) return { systemMessage: a.waiting };
 		if (event === 'stop' && a.block) return { decision: 'continue', reason: a.block };
 		return {};
 	}
@@ -208,6 +211,7 @@ export const gemini: Adapter = {
 			return { hookSpecificOutput: { hookEventName: 'AfterTool', additionalContext: a.nudge } };
 		// Gemini cannot ask before a tool call, so the close question is a message, never a block
 		if (event === 'closing' && a.ask) return { systemMessage: a.ask };
+		if (event === 'stop' && a.waiting) return { systemMessage: a.waiting };
 		if (event === 'stop' && a.block) return { decision: 'deny', reason: a.block };
 		return {};
 	}

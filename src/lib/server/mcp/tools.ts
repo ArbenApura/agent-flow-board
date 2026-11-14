@@ -34,6 +34,7 @@ import { OpError, fingerprintOf, run, runCall, subRequest } from '../ops/context
 import { listEvents, undoChange, undoSession } from '../ops/history';
 import { pinProject, unpinProject } from '../ops/pins';
 import { addManualChecks, addPhase, addSteps, updateStep } from '../ops/plan';
+import { parseLensPack } from '../ops/planRules';
 import {
 	DEFAULT_SCOPE,
 	DEFAULT_STREAM,
@@ -60,6 +61,11 @@ import { readItemDoc } from '../ops/itemDocs';
 import { recordSteps } from '../ops/steps';
 import { setStatus } from '../ops/status';
 import { trackingNotes } from '../ops/tracking';
+import { clearWaitingForPerson, setWaitingForPerson } from '../ops/waiting';
+import { WAITING_KINDS } from '../db/schema/activity';
+import { computeVisualProgress, findUnverifiedBuiltClaims } from '../../shared/progress';
+import { effectiveStepVisible } from '../../shared/screenGlobs';
+import { evidenceWaive } from '../ops/visibleSteps';
 import { claim, renewedSession, requireSession, startSession } from './sessions';
 import { MANIFEST, servedSkillFile, systemSkills } from '../system-skills';
 import {
@@ -78,10 +84,14 @@ export type McpDeps = {
 	handle: DbHandle;
 	storage?: Storage;
 	baseUrl: string;
+	mockupSecret?: string;
+	mockupOrigin?: string;
 };
 type Shape = z.ZodRawShape;
+type ReplyContent =
+	{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
 type Reply = {
-	content: { type: 'text'; text: string }[];
+	content: ReplyContent[];
 	structuredContent?: Record<string, unknown>;
 	isError?: boolean;
 };
@@ -152,6 +162,8 @@ const marks = z
 				.object({
 					commit: z.string().optional(),
 					checkRunId: z.string().optional(),
+					runIds: z.array(z.string()).optional(),
+					diffReportId: z.string().optional(),
 					target: z.enum(['dev', 'preview', 'deployed']).optional(),
 					note: z.string().optional()
 				})
@@ -208,11 +220,23 @@ const SKILLS_RULES = [
 
 // -- FUNCTIONS -- //
 
-export const reply = (obj: Record<string, unknown>, isError = false): Reply => ({
-	content: [{ type: 'text', text: JSON.stringify(obj) }],
-	structuredContent: obj,
-	...(isError ? { isError: true } : {})
-});
+export const reply = (obj: Record<string, unknown>, isError = false): Reply => {
+	const rawImages = Array.isArray(obj._mcpImages) ? obj._mcpImages : [];
+	const { _mcpImages: _drop, ...clean } = obj;
+	void _drop;
+	const images: ReplyContent[] = rawImages
+		.filter((i): i is { data: string; mimeType: string } =>
+			Boolean(
+				i && typeof i === 'object' && typeof i.data === 'string' && typeof i.mimeType === 'string'
+			)
+		)
+		.map((i) => ({ type: 'image', data: i.data, mimeType: i.mimeType }));
+	return {
+		content: [{ type: 'text', text: JSON.stringify(clean) }, ...images],
+		structuredContent: clean,
+		...(isError ? { isError: true } : {})
+	};
+};
 
 export function errorReply(e: unknown): Reply {
 	if (e instanceof OpError)
@@ -232,7 +256,11 @@ export function errorReply(e: unknown): Reply {
 			},
 			true
 		);
-	console.error('MCP tool error', e instanceof Error ? (e.stack ?? e.message) : e);
+	console.error(
+		'MCP tool error',
+		e instanceof Error ? (e.stack ?? e.message) : e,
+		e instanceof Error && 'cause' in e ? (e as { cause?: unknown }).cause : ''
+	);
 	return reply(
 		{ error: { code: 'INTERNAL', message: 'Something went wrong on the server.' } },
 		true
@@ -246,6 +274,21 @@ const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0
 export function summarize(d: ItemDetail, fields: string[] = []) {
 	const steps = d.phases.flatMap((p) => p.steps.map((s) => ({ ...s, phase: p.key })));
 	const open = steps.filter((s) => s.state === 'open');
+	const progress = computeVisualProgress(steps, {
+		legacyPercent: d.item.legacyPercent,
+		status: d.item.status
+	});
+	const asBuilt = d.sections.find((s) => s.slug === 'as-built');
+	const builtClaimWarnings = asBuilt
+		? findUnverifiedBuiltClaims(asBuilt.body, {
+				files: steps.flatMap((s) => s.files ?? []),
+				runIds: steps.flatMap((s) => [
+					...(s.evidence?.checkRunId ? [s.evidence.checkRunId] : []),
+					...(s.evidence?.runIds ?? []),
+					...(s.evidence?.diffReportId ? [s.evidence.diffReportId] : [])
+				])
+			})
+		: [];
 	const out: Record<string, unknown> = {
 		ref: d.item.ref,
 		id: d.item.id,
@@ -253,6 +296,11 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 		tabName: d.item.tabName,
 		status: d.item.status,
 		percent: d.item.percent,
+		writtenPercent: progress.writtenPercent,
+		verifiedPercent: progress.verifiedPercent,
+		unverifiedVisually: progress.unverifiedVisually,
+		...(builtClaimWarnings.length ? { unverifiedBuiltClaims: builtClaimWarnings } : {}),
+		...(d.item.sliceGate ? { sliceGate: true } : {}),
 		version: d.item.version,
 		visibility: d.item.visibility,
 		createdBy: d.creator?.name ?? null,
@@ -265,7 +313,11 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 			total: p.steps.filter((s) => s.state === 'open' || s.state === 'done').length
 		})),
 		// A long step text is cut: item_doc phase:<key> reads the whole step list
-		nextOpen: open.slice(0, 5).map((s) => ({ key: s.key, text: clip(s.text, STEP_CHARS) })),
+		nextOpen: open.slice(0, 5).map((s) => ({
+			key: s.key,
+			text: clip(s.text, STEP_CHARS),
+			visible: effectiveStepVisible(s)
+		})),
 		openChecks: d.manualChecks
 			.filter((c) => c.state === 'open')
 			.map((c) => ({ key: c.key, text: c.text, auto: c.auto }))
@@ -275,6 +327,13 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 			key: s.key,
 			state: s.state,
 			text: s.text,
+			visible: effectiveStepVisible(s),
+			visibleAuthor: s.visible,
+			visibleInferred: s.visibleInferred,
+			...(s.files?.length ? { files: s.files } : {}),
+			...(s.screens?.length ? { screens: s.screens } : {}),
+			...(s.widths?.length ? { widths: s.widths } : {}),
+			...(s.evidence ? { evidence: s.evidence } : {}),
 			...(s.reason ? { reason: s.reason } : {})
 		}));
 	if (fields.includes('checks'))
@@ -324,7 +383,12 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		handle: deps.handle,
 		orgId: auth.orgId,
 		requestId: rid,
-		services: { storage: deps.storage, baseUrl: deps.baseUrl },
+		services: {
+			storage: deps.storage,
+			baseUrl: deps.baseUrl,
+			mockupSecret: deps.mockupSecret,
+			mockupOrigin: deps.mockupOrigin
+		},
 		actor: {
 			userId: auth.userId,
 			kind: 'agent',
@@ -519,6 +583,39 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		async (a, { ctx }) => {
 			const c = await claim(ctx, ctx.actor.sessionId ?? a.sessionId!, null);
 			return { released: true, displayTitle: c.displayTitle };
+		}
+	);
+
+	tool(
+		'work_waiting',
+		'Mark or clear a waiting-for-a-person blocker on this session so Stop hooks respect the pause instead of asking you to carry on.',
+		{
+			kind: z
+				.enum(WAITING_KINDS)
+				.optional()
+				.describe('What is waited for: sign-in, approval or decision'),
+			detail: z.string().min(3).max(240).optional().describe('The exact thing waited for'),
+			target: z.string().max(120).optional().describe('Optional step key or target'),
+			clear: z
+				.boolean()
+				.optional()
+				.describe('True to clear the waiting blocker and resume normal stop reminders')
+		},
+		{ session: true },
+		async (a, { ctx }) => {
+			const sid = ctx.actor.sessionId ?? a.sessionId!;
+			if (a.clear) return clearWaitingForPerson(ctx, { sessionId: sid });
+			if (!a.kind || !a.detail)
+				throw new OpError(
+					'INVALID',
+					'Pass kind and detail to set a waiting blocker, or clear: true to clear it.'
+				);
+			return setWaitingForPerson(ctx, {
+				sessionId: sid,
+				kind: a.kind,
+				detail: a.detail,
+				target: a.target
+			});
 		}
 	);
 
@@ -732,6 +829,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				agentsMayComplete: p.agentsMayComplete,
 				webApp: p.webApp,
 				workflows: WORKFLOWS.map((w) => ({ name: w.name, summary: w.summary })),
+				lensPack: parseLensPack(p.rules ?? ''),
 				// Tool names follow the name the person registered the connection under, which this call cannot see
 				connection:
 					'Each organisation has its own connection named afb-<org-slug>, so its tools start with mcp__afb-<org-slug>__ (an older connection named agent-flow-board uses mcp__agent-flow-board__). Rule files and permission lists that name tools must use the prefix of the connection in use.'
@@ -888,6 +986,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			stream: z.string().optional(),
 			scope: z.string().optional(),
 			visibility: z.enum(['public', 'private']).optional(),
+			sliceGate: z.boolean().optional(),
 			phases: z
 				.array(
 					z.object({
@@ -898,7 +997,11 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 								z.object({
 									text: z.string(),
 									key: z.string().optional(),
-									requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional()
+									requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional(),
+									visible: z.boolean().nullable().optional(),
+									files: z.array(z.string()).optional(),
+									screens: z.array(z.string()).optional(),
+									widths: z.array(z.number().int()).optional()
 								})
 							)
 							.default([])
@@ -942,6 +1045,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			visibility: z.enum(['public', 'private']).optional(),
 			branchNote: z.string().nullable().optional(),
 			assigneeId: z.string().nullable().optional(),
+			sliceGate: z.boolean().optional(),
 			sections: sectionsIn,
 			decisions: decisionsIn
 		},
@@ -1000,6 +1104,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				.object({
 					commit: z.string().optional(),
 					checkRunId: z.string().optional(),
+					runIds: z.array(z.string()).optional(),
+					diffReportId: z.string().optional(),
 					target: z.enum(['dev', 'preview', 'deployed']).optional(),
 					note: z.string().optional()
 				})
@@ -1066,7 +1172,11 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 	const stepShape = z.object({
 		text: z.string().min(1),
 		key: z.string().optional(),
-		requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional()
+		requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional(),
+		visible: z.boolean().nullable().optional(),
+		files: z.array(z.string()).optional(),
+		screens: z.array(z.string()).optional(),
+		widths: z.array(z.number().int()).optional()
 	});
 	const expectVersion = z
 		.number()
@@ -1137,12 +1247,16 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'step_update',
-		'Change the wording of an open step, or remove it from the plan. Done, waived and superseded steps cannot be changed.',
+		'Change the wording or scope of an open step, or remove it from the plan. Done, waived and superseded steps cannot be changed.',
 		{
 			item: itemName.optional(),
 			key: z.string().describe('The step key, such as 3.2'),
 			text: z.string().optional().describe('The new wording'),
 			remove: z.boolean().optional().describe('Take the step out of the plan'),
+			visible: z.boolean().nullable().optional(),
+			files: z.array(z.string()).optional(),
+			screens: z.array(z.string()).optional(),
+			widths: z.array(z.number().int()).optional(),
 			expectVersion
 		},
 		{ session: true },
@@ -1152,8 +1266,31 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				key: a.key,
 				text: a.text,
 				remove: a.remove,
+				visible: a.visible,
+				files: a.files,
+				screens: a.screens,
+				widths: a.widths,
 				expectVersion: a.expectVersion
 			} as never)
+	);
+
+	tool(
+		'evidence_waive',
+		'Owner-only waiver of visual evidence on a visible step (requires a live person web session and live owner role).',
+		{
+			item: itemName.optional(),
+			key: z.string().describe('The step key, such as 1.1'),
+			reason: z.string().min(3).max(500),
+			expectVersion
+		},
+		{ session: true },
+		async (a, { ctx, claimed }) =>
+			evidenceWaive(ctx, {
+				item: need(a.item, claimed),
+				key: a.key,
+				reason: a.reason,
+				expectVersion: a.expectVersion
+			})
 	);
 
 	tool(
@@ -1584,6 +1721,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			return {
 				item: v.item.ref,
 				targets: v.targets,
+				devTargets: v.devTargets,
 				checks: v.checks.map((c) => ({
 					key: c.key,
 					state: c.state,

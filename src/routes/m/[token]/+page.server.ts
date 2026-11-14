@@ -1,8 +1,11 @@
 // -- DEP-TYPES -- //
 import type { PageServerLoad } from './$types';
+// -- ENVS -- //
+import { MOCKUP_ORIGIN } from '$app/env/private';
 // -- MODULES -- //
 import { getDb } from '#lib/server/db/index.js';
 import { publicRateAllowed } from '#lib/server/mockups/limit.js';
+import { buildMockupUrl, parseMockupOrigin } from '#lib/server/mockups/origin.js';
 import { findPublicMockup } from '#lib/server/mockups/serve.js';
 
 // -- FUNCTIONS -- //
@@ -26,6 +29,8 @@ export const load: PageServerLoad = async ({ params, getClientAddress, setHeader
 	if (!publicRateAllowed(address)) return { available: false as const };
 	const found = await findPublicMockup(await getDb(), params.token);
 	if (!found) return { available: false as const };
+	const filePath = `/m/${params.token}/file`;
+	const origin = parseMockupOrigin(MOCKUP_ORIGIN);
 	return {
 		available: true as const,
 		title: found.title,
@@ -33,6 +38,7 @@ export const load: PageServerLoad = async ({ params, getClientAddress, setHeader
 		projectName: found.projectName,
 		planRef: found.planRef,
 		version: found.version,
-		screens: found.screens
+		screens: found.screens,
+		fileSrc: buildMockupUrl(filePath, origin)
 	};
 };

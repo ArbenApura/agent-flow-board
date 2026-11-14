@@ -9,7 +9,9 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 // -- MODULES -- //
-import { guardContext, pageForCheck, unwrap } from './guard.js';
+import { DEV_READINESS_INIT_SCRIPT, DevReadinessError, waitForDevReady } from './devReadiness.js';
+import { EARLY_CLS_INIT_SCRIPT, measureEarlyStockChecks, resetEarlyCls } from './earlyStockChecks.js';
+import { describeWriteGuard, guardContext, guardDevContext, pageForCheck, unwrap } from './guard.js';
 import { redact } from './redact.js';
 // -- CONSTANTS -- //
 const CHECK_LIMIT_MS = 120_000;
@@ -25,7 +27,10 @@ const messageOf = (e) => (e instanceof Error ? e.message : String(e));
 async function main() {
     const job = JSON.parse(await readStdin());
     const needles = job.needles ?? [];
-    const extraHosts = job.extraHosts ?? [];
+    const isMockup = Boolean(job.mockupMode);
+    if (isMockup && job.storageState != null)
+        throw new Error('A mockup check context cannot accept saved sign-ins or storageState.');
+    const extraHosts = isMockup ? [] : (job.extraHosts ?? []);
     const origin = new URL(job.baseUrl).origin;
     // PLAYWRIGHT: the parent names the node_modules folder that holds it; it is the only place outside the run folder this process can read
     const pwDir = process.env.AFB_PLAYWRIGHT_DIR;
@@ -58,11 +63,46 @@ async function main() {
     let page;
     let expiredSeen = false;
     let counts = { writes: 0, outside: 0 };
-    async function takeShot(caption) {
+    let readinessMode = 'fallback';
+    const earlyReports = [];
+    const runStarted = Date.now();
+    let firstShotDone = false;
+    let coldMs;
+    let warmStarted;
+    async function measureBeforeShot() {
+        if (!page || !job.isDev)
+            return;
+        if (typeof page.waitForLoadState === 'function') {
+            const ready = await waitForDevReady(page, {
+                redactionNeedles: needles
+            });
+            if (ready.mode === 'vite')
+                readinessMode = 'vite';
+        }
+        if (typeof page.evaluate === 'function') {
+            try {
+                const report = await measureEarlyStockChecks(page);
+                earlyReports.push(report);
+                if (!report.cls.passed) {
+                    say(`CLS violation (${report.cls.score} > ${report.cls.maxCls})`);
+                }
+                if (!report.tapTargets.passed) {
+                    say(`Small tap targets (<${report.tapTargets.minTapPx}px): ${report.tapTargets.smallCount}`);
+                }
+                await resetEarlyCls(page);
+            }
+            catch {
+                // Ignore pages that navigated mid-evaluation
+            }
+        }
+    }
+    async function takeShot(caption, opts) {
         if (!page)
             return null;
         const file = `${String(++n).padStart(2, '0')}.jpg`;
         try {
+            if (!opts?.skipReady)
+                await measureBeforeShot();
             const height = await page.evaluate(() => document.documentElement.scrollHeight);
             const bytes = await page.screenshot({
                 type: 'jpeg',
@@ -73,9 +113,16 @@ async function main() {
                     : {})
             });
             writeFileSync(join(shotsDir, file), bytes);
+            if (!firstShotDone) {
+                firstShotDone = true;
+                coldMs = Date.now() - runStarted;
+                warmStarted = Date.now();
+            }
             return { file, caption };
         }
-        catch {
+        catch (e) {
+            if (e instanceof DevReadinessError || (e instanceof Error && e.name === 'DevReadinessError'))
+                throw e;
             return null;
         }
     }
@@ -88,11 +135,27 @@ async function main() {
         const ctx = await browser.newContext({
             baseURL: job.baseUrl,
             viewport: job.viewport,
-            storageState: job.storageState ?? undefined,
+            storageState: isMockup ? undefined : (job.storageState ?? undefined),
             serviceWorkers: 'block'
         });
-        // ChildJob has no allowWrites: a check run in the sandbox never writes
-        counts = await guardContext(ctx, { origin, allowWrites: false, extraHosts, onBlocked: say });
+        if (!isMockup && job.isDev && ctx.addInitScript) {
+            await ctx.addInitScript(DEV_READINESS_INIT_SCRIPT);
+            await ctx.addInitScript(EARLY_CLS_INIT_SCRIPT);
+        }
+        counts =
+            !isMockup && job.isDev
+                ? await guardDevContext(ctx, {
+                    origin,
+                    writeAllowlist: job.allowWrites ? (job.writeAllowlist ?? []) : [],
+                    extraHosts,
+                    onBlocked: say
+                })
+                : await guardContext(ctx, {
+                    origin,
+                    allowWrites: false,
+                    extraHosts,
+                    onBlocked: say
+                });
         const real = await ctx.newPage();
         page = real;
         let violation = null;
@@ -130,7 +193,7 @@ async function main() {
                 out({ type: 'step', name, status: 'pass', ms: Date.now() - t0 });
             }
             catch (e) {
-                const shot = await takeShot(`${name} (failed)`);
+                const shot = await takeShot(`${name} (failed)`, { skipReady: true });
                 const error = redact(messageOf(e).split('\n').slice(0, 4).join(' '), needles).slice(0, 500);
                 steps.push({ name, status: 'fail', ms: Date.now() - t0, shot: shot?.file ?? null, error });
                 out({ type: 'step', name, status: 'fail', ms: Date.now() - t0, error });
@@ -147,9 +210,43 @@ async function main() {
             lines.push(t);
             say(t);
         };
+        const sweep = async (opts) => {
+            const widths = opts.widths?.length ? opts.widths : [390, 768, 1280, 1440];
+            const height = opts.height ?? job.viewport.height;
+            for (const screen of opts.screens) {
+                let targetUrl;
+                if (isMockup && screen.path.startsWith('?')) {
+                    // Preserve signed query params (`sig`, `exp`) on the mockup URL when adding `?screen=...&state=...`
+                    targetUrl = new URL(job.baseUrl);
+                    const extra = new URLSearchParams(screen.path.slice(1));
+                    for (const [k, v] of extra)
+                        targetUrl.searchParams.set(k, v);
+                }
+                else {
+                    targetUrl = new URL(screen.path, job.baseUrl);
+                }
+                if (targetUrl.origin !== origin && !extraHosts.includes(targetUrl.hostname)) {
+                    throw new Error(`Sweep refused off-origin screen path "${screen.path}".`);
+                }
+                const url = targetUrl.href;
+                let navigated = false;
+                for (const width of widths) {
+                    const t0 = Date.now();
+                    if (real.setViewportSize)
+                        await real.setViewportSize({ width, height });
+                    if (!navigated && real.goto) {
+                        await real.goto(url, { waitUntil: 'domcontentloaded' });
+                        navigated = true;
+                    }
+                    const label = `${screen.name} @ ${width}px`;
+                    const s = await takeShot(label);
+                    steps.push({ name: label, status: 'shot', ms: Date.now() - t0, shot: s?.file ?? null });
+                }
+            }
+        };
         const fn = (await import(pathToFileURL(job.checkFile).href)).default;
         if (typeof fn !== 'function')
-            throw new Error('A check file must export default an async function({ page, step, shot, expect, log, baseUrl }).');
+            throw new Error('A check file must export default an async function({ page, step, shot, expect, log, baseUrl, sweep }).');
         let timer;
         try {
             await Promise.race([
@@ -159,7 +256,8 @@ async function main() {
                     shot,
                     expect: checkExpect,
                     log,
-                    baseUrl: job.baseUrl
+                    baseUrl: job.baseUrl,
+                    sweep
                 }),
                 new Promise((_, rej) => (timer = setTimeout(() => rej(new Error('The check took longer than 2 minutes.')), CHECK_LIMIT_MS)))
             ]);
@@ -179,7 +277,7 @@ async function main() {
         result = 'fail';
         reason = redact(messageOf(e).split('\n').slice(0, 4).join(' '), needles).slice(0, 700);
         if (!steps.some((s) => s.status === 'fail') && page) {
-            const s = await takeShot('Where it stopped');
+            const s = await takeShot('Where it stopped', { skipReady: true });
             if (s)
                 steps.push({ name: 'Where it stopped', status: 'shot', ms: 0, shot: s.file });
         }
@@ -187,14 +285,33 @@ async function main() {
     finally {
         await browser.close().catch(() => { });
     }
+    if (job.isDev) {
+        const guardLine = describeWriteGuard(counts);
+        lines.push(guardLine);
+        say(guardLine);
+    }
     if (result === 'fail' && expiredSeen)
         reason =
             `The saved sign-in no longer works: the app sent the browser to its sign-in page. Sign in again and rerun. (${reason ?? ''})`.trim();
+    const warmMs = warmStarted !== undefined ? Date.now() - warmStarted : undefined;
+    const earlyChecksSummary = earlyReports.length
+        ? {
+            shotsChecked: earlyReports.length,
+            maxCls: Number(earlyReports.reduce((m, r) => Math.max(m, r.cls.score), 0).toFixed(4)),
+            clsViolations: earlyReports.filter((r) => !r.cls.passed).length,
+            tapViolations: earlyReports.reduce((total, r) => total + r.tapTargets.smallCount, 0),
+            passed: earlyReports.every((r) => r.passed)
+        }
+        : undefined;
     const final = {
         schema: 1,
         result,
         reason: reason ?? null,
         durationMs: Date.now() - started,
+        ...(coldMs !== undefined ? { coldMs } : {}),
+        ...(warmMs !== undefined ? { warmMs } : {}),
+        ...(job.isDev ? { readinessMode } : {}),
+        ...(earlyChecksSummary ? { earlyChecks: earlyChecksSummary } : {}),
         steps,
         log: lines.join('\n'),
         blockedWrites: counts.writes,

@@ -240,3 +240,19 @@ export async function pushKit(o) {
         o.log(`Warning: ${w}`);
     return { number: made.number, warnings };
 }
+/** Mints a short-lived signed mockup address for inspection or visual checks via the user or bridge token. */
+export async function mintMockupUrlCli(o) {
+    if (!o.token)
+        throw new Error('Not signed in. Run: agent-flow-board login --server <url> --org <slug>');
+    const body = {};
+    if (o.version !== undefined)
+        body.version = o.version;
+    if (o.screenshot !== undefined)
+        body.screenshot = o.screenshot;
+    if (o.ttlSeconds !== undefined)
+        body.ttlSeconds = o.ttlSeconds;
+    const res = await call(o, 'POST', `/orgs/${encodeURIComponent(o.org)}/mockups/${encodeURIComponent(o.mockup)}/url`, JSON.stringify(body), { 'content-type': 'application/json' }, `mockup-url-${randomBytes(8).toString('hex')}`);
+    if (!res.ok)
+        throw new Error(await failure(res));
+    return (await res.json());
+}

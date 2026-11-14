@@ -11,8 +11,9 @@ import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { appendEvent } from '../db/events';
-import { mockupKit } from '../db/schema';
+import { mockupKit, mockupKitAsset } from '../db/schema';
 import { mockupKey } from '../mockups/keys';
+import { extractKitAssets } from '../mockups/kitAssets';
 import { lintKitHtml } from '../mockups/lint';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields } from './items';
@@ -63,7 +64,7 @@ export async function setMockupKit(ctx: Ctx, raw: z.input<typeof kitInput>, byte
 		run(ctx, (tx) =>
 			idempotent(ctx, tx, async () => {
 				const proj = await findProject(tx, ctx, input.project);
-				await requireCap(tx, ctx, 'manage', proj.id);
+				await requireCap(tx, ctx, 'write', proj.id);
 				await rateLimit(tx, ctx, 'write');
 				// The project row is the lock, so two kits saved together never share a number
 				await tx.execute(sql`select id from project where id = ${proj.id} for update`);
@@ -85,6 +86,8 @@ export async function setMockupKit(ctx: Ctx, raw: z.input<typeof kitInput>, byte
 				const key = mockupKey(ctx.orgId, proj.id, 'kit');
 				written.push(key);
 				await store.put(key, bytes, 'text/html');
+				const rawText = new TextDecoder().decode(bytes);
+				const extracted = extractKitAssets(rawText);
 				const [row] = await tx
 					.insert(mockupKit)
 					.values({
@@ -100,6 +103,21 @@ export async function setMockupKit(ctx: Ctx, raw: z.input<typeof kitInput>, byte
 						createdByLabel: who
 					})
 					.returning();
+				for (const asset of extracted.assets) {
+					const assetKey = mockupKey(ctx.orgId, proj.id, 'asset', asset.ext);
+					written.push(assetKey);
+					await store.put(assetKey, asset.bytes, asset.mime);
+					await tx.insert(mockupKitAsset).values({
+						orgId: ctx.orgId,
+						projectId: proj.id,
+						kitId: row.id,
+						name: asset.name,
+						mime: asset.mime,
+						storageKey: assetKey,
+						size: asset.size,
+						checksum: asset.checksum
+					});
+				}
 				await appendEvent(tx, {
 					orgId: ctx.orgId,
 					projectId: proj.id,
@@ -118,17 +136,19 @@ export async function setMockupKit(ctx: Ctx, raw: z.input<typeof kitInput>, byte
 						and(eq(mockupKit.projectId, proj.id), lt(mockupKit.number, row.number - KEEP_KITS + 1))
 					);
 				if (old.length) {
-					await tx.delete(mockupKit).where(
-						inArray(
-							mockupKit.id,
-							old.map((o) => o.id)
-						)
-					);
+					const oldIds = old.map((o) => o.id);
+					const oldAssets = await tx
+						.select({ key: mockupKitAsset.storageKey })
+						.from(mockupKitAsset)
+						.where(inArray(mockupKitAsset.kitId, oldIds));
+					pruned.push(...oldAssets.map((a) => a.key));
+					await tx.delete(mockupKit).where(inArray(mockupKit.id, oldIds));
 					pruned.push(...old.map((o) => o.key));
 				}
 				return {
 					number: row.number,
 					stale: false,
+					assetCount: extracted.assets.length,
 					checksum: createHash('sha256').update(bytes).digest('hex'),
 					// The check never blocks the save and is never stored: it tells the tool what will not render in a mockup
 					warnings: [
@@ -163,22 +183,28 @@ export async function readMockupKit(
 			.where(eq(mockupKit.projectId, proj.id))
 			.orderBy(desc(mockupKit.number))
 			.limit(1);
-		return kit ?? null;
+		if (!kit) return null;
+		const assets = await tx
+			.select({ name: mockupKitAsset.name, mime: mockupKitAsset.mime, size: mockupKitAsset.size })
+			.from(mockupKitAsset)
+			.where(eq(mockupKitAsset.kitId, kit.id));
+		return { kit, assets };
 	});
 	if (!found) return null;
-	const bytes = await store.get(found.storageKey);
+	const bytes = await store.get(found.kit.storageKey);
 	if (!bytes) throw new OpError('NOT_FOUND', 'The stored kit file is missing.');
 	const text = new TextDecoder().decode(bytes);
 	const offset = Math.max(0, options.offset ?? 0);
 	const limit = Math.min(200_000, Math.max(1, options.limit ?? 200_000));
 	return {
 		untrusted: true as const,
-		number: found.number,
-		builtFromCommit: found.builtFromCommit,
-		builtAt: found.builtAt,
-		summary: found.summary,
-		stale: found.stale,
-		builtBy: found.createdByLabel,
+		number: found.kit.number,
+		builtFromCommit: found.kit.builtFromCommit,
+		builtAt: found.kit.builtAt,
+		summary: found.kit.summary,
+		stale: found.kit.stale,
+		builtBy: found.kit.createdByLabel,
+		assets: found.assets,
 		length: text.length,
 		offset,
 		html: text.slice(offset, offset + limit),

@@ -44,7 +44,8 @@ const AUTO_PER_HOUR: Record<ApprovalAction, number> = {
 	register: 30,
 	secrets: 30,
 	'adopt-env': 30,
-	pictures: 30
+	pictures: 30,
+	dev: 20
 };
 const WHY_MAX = 300;
 const TARGET_MAX = 400;

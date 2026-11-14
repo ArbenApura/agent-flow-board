@@ -42,7 +42,7 @@ type Rpc = {
 
 // -- CONSTANTS -- //
 
-export const BRIDGE_PROTOCOL_MAX = 1;
+export const BRIDGE_PROTOCOL_MAX = 2;
 /** The longest one request may take. A tool call can wait up to 50 seconds for a run, so this sits above that. */
 export const POST_TIMEOUT_MS = 90_000;
 const NETWORK_CODES = new Set([

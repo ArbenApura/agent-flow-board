@@ -10,7 +10,13 @@ import { appServices } from '#lib/server/services.js';
 /** The deps of one request: the database and the outside services the tools may need. */
 async function deps() {
 	const s = await appServices();
-	return { handle: await getDb(), storage: s.storage, baseUrl: s.baseUrl! };
+	return {
+		handle: await getDb(),
+		storage: s.storage,
+		baseUrl: s.baseUrl!,
+		mockupSecret: s.mockupSecret,
+		mockupOrigin: s.mockupOrigin
+	};
 }
 
 /** The MCP endpoint of one organisation (/mcp/<slug>). The token must belong to that org, see handleMcp. */

@@ -6,14 +6,16 @@ import type { Ctx } from './context';
 import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
+import { effectiveStepVisible } from '../../shared/screenGlobs';
 import { recalcItem } from '../db/calc';
 import { appendEvent } from '../db/events';
 import { comment, manualCheck, phase, step } from '../db/schema';
-import { OpError, idempotent, rateLimit, requireCap, run } from './context';
+import { OpError, idempotent, isLivePersonSession, rateLimit, requireCap, run } from './context';
 import { actorFields, checkVersion } from './items';
 import { mockupUnreadError, unreadForGate } from './mockupReads';
 import { enforcePlanRules } from './planRules';
 import { findItem } from './resolve';
+import { clearSliceWaitingForItem, inferStepVisible, loadItemVisualContext } from './visibleSteps';
 
 // -- CONSTANTS -- //
 
@@ -23,7 +25,11 @@ const stepIn = z.object({
 		.regex(/^[0-9A-Za-z]+\.[0-9]+[a-z]?$/)
 		.optional(),
 	text: z.string().min(1).max(2000),
-	requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional()
+	requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional(),
+	visible: z.boolean().nullable().optional(),
+	files: z.array(z.string().trim().min(1).max(300)).max(50).optional(),
+	screens: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
+	widths: z.array(z.number().int().min(200).max(4000)).max(10).optional()
 });
 
 export const addPhaseInput = z.object({
@@ -65,11 +71,22 @@ export const updateStepBody = z.object({
 	text: z.string().min(1).max(2000).optional(),
 	/** Takes the step out of the plan. */
 	remove: z.boolean().optional(),
+	visible: z.boolean().nullable().optional(),
+	files: z.array(z.string().trim().min(1).max(300)).max(50).optional(),
+	screens: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
+	widths: z.array(z.number().int().min(200).max(4000)).max(10).optional(),
 	expectVersion: z.number().int().optional()
 });
 export const updateStepInput = updateStepBody.refine(
-	(i) => (i.text !== undefined) !== (i.remove === true),
-	{ message: 'Give the new text, or remove: true. Not both and not neither.' }
+	(i) =>
+		!(i.remove === true && i.text !== undefined) &&
+		(i.text !== undefined ||
+			i.remove === true ||
+			i.visible !== undefined ||
+			i.files !== undefined ||
+			i.screens !== undefined ||
+			i.widths !== undefined),
+	{ message: 'Give the new text, visibility/scope fields, or remove: true.' }
 );
 
 // -- FUNCTIONS -- //
@@ -87,6 +104,12 @@ export async function addPhase(ctx: Ctx, raw: z.input<typeof addPhaseInput>) {
 				texts: [input.title, ...input.steps.map((x) => x.text)],
 				browser: input.steps.some((x) => !!x.requiredTarget)
 			});
+			if (!isLivePersonSession(ctx) && input.steps.some((s) => s.visible === false)) {
+				throw new OpError(
+					'FORBIDDEN',
+					'Only a person in a live web session can mark a step as not visible.'
+				);
+			}
 			const [dupe] = await tx
 				.select({ id: phase.id })
 				.from(phase)
@@ -107,18 +130,62 @@ export async function addPhase(ctx: Ctx, raw: z.input<typeof addPhaseInput>) {
 					position: last.n + 1
 				})
 				.returning();
+			const vis = await loadItemVisualContext(tx, ctx, it.id, it.projectId);
 			let n = 0;
-			for (const s of input.steps)
-				await tx.insert(step).values({
-					orgId: ctx.orgId,
-					projectId: it.projectId,
-					itemId: it.id,
-					phaseId: ph.id,
-					key: s.key ?? `${input.key}.${++n}`,
-					text: s.text,
-					requiredTarget: s.requiredTarget ?? null,
-					position: n || 1
-				});
+			for (const s of input.steps) {
+				const files = s.files ?? [];
+				const screens = s.screens ?? [];
+				const widths = s.widths ?? [];
+				const visibleInferred = inferStepVisible(vis, { text: s.text, files, screens });
+				if (!isLivePersonSession(ctx) && s.visible === false && visibleInferred) {
+					throw new OpError(
+						'FORBIDDEN',
+						'Only a person in a live web session can mark an inferred-visible step as not visible.'
+					);
+				}
+				const [inserted] = await tx
+					.insert(step)
+					.values({
+						orgId: ctx.orgId,
+						projectId: it.projectId,
+						itemId: it.id,
+						phaseId: ph.id,
+						key: s.key ?? `${input.key}.${++n}`,
+						text: s.text,
+						requiredTarget: s.requiredTarget ?? null,
+						visible: s.visible ?? null,
+						visibleInferred,
+						files,
+						screens,
+						widths,
+						position: n || 1
+					})
+					.returning({
+						id: step.id,
+						key: step.key,
+						visible: step.visible,
+						visibleInferred: step.visibleInferred
+					});
+				if (visibleInferred || (s.visible !== undefined && s.visible !== null)) {
+					await appendEvent(tx, {
+						orgId: ctx.orgId,
+						projectId: it.projectId,
+						itemId: it.id,
+						...actorFields(ctx),
+						verb: 'step.visibility',
+						targetType: 'step',
+						targetId: inserted.id,
+						after: {
+							key: inserted.key,
+							visible: inserted.visible,
+							visibleInferred: inserted.visibleInferred,
+							effectiveVisible: effectiveStepVisible(inserted),
+							source: s.visible !== undefined && s.visible !== null ? 'author' : 'inference'
+						} as never,
+						undoable: false
+					});
+				}
+			}
 			const calc = await recalcItem(tx, it.id);
 			await appendEvent(tx, {
 				orgId: ctx.orgId,
@@ -164,6 +231,13 @@ export async function addSteps(ctx: Ctx, raw: z.input<typeof addStepsInput>) {
 				const n = Number(/\.(\d+)[a-z]?$/.exec(e.key)?.[1]);
 				return Number.isFinite(n) ? Math.max(m, n) : m;
 			}, 0);
+			const vis = await loadItemVisualContext(tx, ctx, it.id, it.projectId);
+			if (!isLivePersonSession(ctx) && input.steps.some((s) => s.visible === false)) {
+				throw new OpError(
+					'FORBIDDEN',
+					'Only a person in a live web session can mark a step as not visible.'
+				);
+			}
 			const made: string[] = [];
 			for (const s of input.steps) {
 				next++;
@@ -171,16 +245,58 @@ export async function addSteps(ctx: Ctx, raw: z.input<typeof addStepsInput>) {
 				const key = s.key ?? `${input.phase}.${next}`;
 				if (existing.some((e) => e.key === key) || made.includes(key))
 					throw new OpError('CONFLICT', `${it.ref} already has a step ${key}.`);
-				await tx.insert(step).values({
-					orgId: ctx.orgId,
-					projectId: it.projectId,
-					itemId: it.id,
-					phaseId: ph.id,
-					key,
-					text: s.text,
-					requiredTarget: s.requiredTarget ?? null,
-					position
-				});
+				const files = s.files ?? [];
+				const screens = s.screens ?? [];
+				const widths = s.widths ?? [];
+				const visibleInferred = inferStepVisible(vis, { text: s.text, files, screens });
+				if (!isLivePersonSession(ctx) && s.visible === false && visibleInferred) {
+					throw new OpError(
+						'FORBIDDEN',
+						`Step ${key}: only a person in a live web session can mark an inferred-visible step as not visible.`
+					);
+				}
+				const [inserted] = await tx
+					.insert(step)
+					.values({
+						orgId: ctx.orgId,
+						projectId: it.projectId,
+						itemId: it.id,
+						phaseId: ph.id,
+						key,
+						text: s.text,
+						requiredTarget: s.requiredTarget ?? null,
+						visible: s.visible ?? null,
+						visibleInferred,
+						files,
+						screens,
+						widths,
+						position
+					})
+					.returning({
+						id: step.id,
+						key: step.key,
+						visible: step.visible,
+						visibleInferred: step.visibleInferred
+					});
+				if (visibleInferred || (s.visible !== undefined && s.visible !== null)) {
+					await appendEvent(tx, {
+						orgId: ctx.orgId,
+						projectId: it.projectId,
+						itemId: it.id,
+						...actorFields(ctx),
+						verb: 'step.visibility',
+						targetType: 'step',
+						targetId: inserted.id,
+						after: {
+							key: inserted.key,
+							visible: inserted.visible,
+							visibleInferred: inserted.visibleInferred,
+							effectiveVisible: effectiveStepVisible(inserted),
+							source: s.visible !== undefined && s.visible !== null ? 'author' : 'inference'
+						} as never,
+						undoable: false
+					});
+				}
 				made.push(key);
 			}
 			const calc = await recalcItem(tx, it.id);
@@ -274,6 +390,12 @@ export async function updateStep(ctx: Ctx, raw: z.input<typeof updateStepInput>)
 					`Step ${input.key} of ${it.ref} is ${st.state}. Only an open step can be changed.`
 				);
 			if (input.remove) {
+				if (!isLivePersonSession(ctx) && effectiveStepVisible(st)) {
+					throw new OpError(
+						'FORBIDDEN',
+						`Step ${input.key} of ${it.ref} is visible. Only a person in a live web session can remove a visible step.`
+					);
+				}
 				// Comments on a step go with it (the column cascades), so a step that has any is kept
 				const [talk] = await tx
 					.select({ n: sql<number>`count(*)::int` })
@@ -302,6 +424,7 @@ export async function updateStep(ctx: Ctx, raw: z.input<typeof updateStepInput>)
 					}
 				}
 				await tx.delete(step).where(eq(step.id, st.id));
+				if (it.sliceGate) await clearSliceWaitingForItem(tx, ctx, it.id, it.projectId);
 				const calc = await recalcItem(tx, it.id);
 				await appendEvent(tx, {
 					orgId: ctx.orgId,
@@ -316,23 +439,137 @@ export async function updateStep(ctx: Ctx, raw: z.input<typeof updateStepInput>)
 				});
 				return { key: st.key, removed: true, percent: calc.percent };
 			}
-			if (input.text === st.text) return { key: st.key, changed: false, percent: it.percent };
+			if (!isLivePersonSession(ctx) && effectiveStepVisible(st)) {
+				if (input.text !== undefined && input.text !== st.text) {
+					throw new OpError(
+						'FORBIDDEN',
+						`Step ${input.key} of ${it.ref} is visible. Only a person in a live web session can reword a visible step.`
+					);
+				}
+				if (input.visible !== undefined && input.visible !== st.visible) {
+					throw new OpError(
+						'FORBIDDEN',
+						`Step ${input.key} of ${it.ref} is visible. Only a person in a live web session can change its visibility.`
+					);
+				}
+				const droppedFile =
+					input.files !== undefined && (st.files ?? []).some((f) => !input.files!.includes(f));
+				const droppedScreen =
+					input.screens !== undefined &&
+					(st.screens ?? []).some((s) => !input.screens!.includes(s));
+				const droppedWidth =
+					input.widths !== undefined && (st.widths ?? []).some((w) => !input.widths!.includes(w));
+				if (droppedFile || droppedScreen || droppedWidth) {
+					throw new OpError(
+						'FORBIDDEN',
+						`Step ${input.key} of ${it.ref} is visible. Only a person in a live web session can remove files, screens, or widths from it.`
+					);
+				}
+			}
+			const nextText = input.text ?? st.text;
+			const nextFiles = input.files ?? st.files ?? [];
+			const nextScreens = input.screens ?? st.screens ?? [];
+			const nextWidths = input.widths ?? st.widths ?? [];
+			const nextVisible = input.visible !== undefined ? input.visible : st.visible;
+			const vis = await loadItemVisualContext(tx, ctx, it.id, it.projectId);
+			const nextInferred = inferStepVisible(vis, {
+				text: nextText,
+				files: nextFiles,
+				screens: nextScreens
+			});
+			if (
+				!isLivePersonSession(ctx) &&
+				effectiveStepVisible(st) &&
+				!effectiveStepVisible({ visible: nextVisible, visibleInferred: nextInferred })
+			) {
+				throw new OpError(
+					'FORBIDDEN',
+					`Step ${input.key} of ${it.ref} is visible. Only a person in a live web session can turn visibility off.`
+				);
+			}
+			if (!isLivePersonSession(ctx) && input.visible === false) {
+				throw new OpError(
+					'FORBIDDEN',
+					`Step ${input.key} of ${it.ref}: only a person in a live web session can set visible to false.`
+				);
+			}
+			if (
+				!isLivePersonSession(ctx) &&
+				nextVisible === false &&
+				(st.visibleInferred || nextInferred)
+			) {
+				throw new OpError(
+					'FORBIDDEN',
+					`Step ${input.key} of ${it.ref} is inferred visible. Only a person in a live web session can set visible to false.`
+				);
+			}
+			const visChanged = nextVisible !== st.visible || nextInferred !== st.visibleInferred;
+			const textChanged = nextText !== st.text;
+			const metaChanged =
+				JSON.stringify(nextFiles) !== JSON.stringify(st.files ?? []) ||
+				JSON.stringify(nextScreens) !== JSON.stringify(st.screens ?? []) ||
+				JSON.stringify(nextWidths) !== JSON.stringify(st.widths ?? []);
+			if (!visChanged && !textChanged && !metaChanged)
+				return { key: st.key, changed: false, percent: it.percent };
 			await tx
 				.update(step)
-				.set({ text: input.text, updatedAt: sql`now()`, version: sql`${step.version} + 1` })
+				.set({
+					text: nextText,
+					visible: nextVisible,
+					visibleInferred: nextInferred,
+					files: nextFiles,
+					screens: nextScreens,
+					widths: nextWidths,
+					updatedAt: sql`now()`,
+					version: sql`${step.version} + 1`
+				})
 				.where(eq(step.id, st.id));
+			if (it.sliceGate && visChanged) {
+				await clearSliceWaitingForItem(tx, ctx, it.id, it.projectId);
+			}
 			const calc = await recalcItem(tx, it.id);
-			await appendEvent(tx, {
-				orgId: ctx.orgId,
-				projectId: it.projectId,
-				itemId: it.id,
-				...actorFields(ctx),
-				verb: 'step.update',
-				targetType: 'step',
-				targetId: st.id,
-				before: { text: st.text } as never,
-				after: { text: input.text } as never
-			});
+			if (textChanged) {
+				await appendEvent(tx, {
+					orgId: ctx.orgId,
+					projectId: it.projectId,
+					itemId: it.id,
+					...actorFields(ctx),
+					verb: 'step.update',
+					targetType: 'step',
+					targetId: st.id,
+					before: { text: st.text } as never,
+					after: { text: nextText } as never,
+					undoable: !effectiveStepVisible(st)
+				});
+			}
+			if (visChanged) {
+				await appendEvent(tx, {
+					orgId: ctx.orgId,
+					projectId: it.projectId,
+					itemId: it.id,
+					...actorFields(ctx),
+					verb: 'step.visibility',
+					targetType: 'step',
+					targetId: st.id,
+					before: {
+						key: st.key,
+						visible: st.visible,
+						visibleInferred: st.visibleInferred,
+						effectiveVisible: effectiveStepVisible(st)
+					} as never,
+					after: {
+						key: st.key,
+						visible: nextVisible,
+						visibleInferred: nextInferred,
+						effectiveVisible: effectiveStepVisible({
+							visible: nextVisible,
+							visibleInferred: nextInferred
+						}),
+						source: input.visible !== undefined ? 'override' : 'inference'
+					} as never,
+					undoable: false
+				});
+			}
 			return { key: st.key, changed: true, percent: calc.percent };
 		})
 	);

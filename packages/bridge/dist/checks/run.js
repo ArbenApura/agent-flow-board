@@ -10,6 +10,7 @@ import { bindFolder } from './bind.js';
 import { BoardError, RunnerBoard } from './board.js';
 import { ensureBrowser } from './browser.js';
 import { acquireBrowser } from './browserpool.js';
+import { ensureDevServer } from './devServer.js';
 import { JPEG_MAGIC, MAX_SHOT_BYTES, readPlainFile } from './evidence.js';
 import { acquireSlot, slotsHeader } from './broker.js';
 import { closePoolIfIdle } from './dbpool.js';
@@ -20,7 +21,7 @@ import { pictureUploadAllowed } from './login.js';
 import { startPreview } from './preview.js';
 import { redact } from './redact.js';
 import { pinFiles, resolveProjectConfig } from './recipe.js';
-import { configFor, listRegistrations, pinRegistration, pinState, readRegistrations } from './registry.js';
+import { configFor, listRegistrations, pinRegistration, pinState, readRegistrations, verifyDevConfigApproval } from './registry.js';
 import { profileHeader, registrationHeader, routeRun } from './routing.js';
 import { chooseSignin, sealedKey } from './signinChoice.js';
 import { registrationsHeader, sanitiseReport, withBranch } from './wire.js';
@@ -29,6 +30,7 @@ import { installSignalHandlers, newLocalRunId, RunScope, sweepOrphans } from './
 import { signInWithPassword, stateNeedles } from './signin.js';
 import { LocalSink } from './localSink.js';
 import { lockHolderPid } from './lock.js';
+import { parseMockupRef, resolveMockupTarget } from './mockupTarget.js';
 // -- CONSTANTS -- //
 const BEAT_EVERY_MS = 30_000;
 const MAX_EVIDENCE = 8;
@@ -116,7 +118,7 @@ export function auditHeaders() {
         return {};
     }
 }
-/** Asks the board for a preview run of this check. Returns the run id, or throws one plain sentence. */
+/** Asks the board for a run of this check (preview by default). Returns the run id, or throws one plain sentence. */
 export async function requestRunOnBoard(o) {
     if (!o.personalToken)
         throw new Error(`Not signed in to ${o.org} on ${o.server}, so the run cannot be asked for. Run: agent-flow-board login --json --server ${o.server} --org ${o.org}, or ask for the run with check_run and pass --run <id>.`);
@@ -128,7 +130,7 @@ export async function requestRunOnBoard(o) {
         },
         body: JSON.stringify({
             check: o.key,
-            target: 'preview',
+            target: o.target ?? 'preview',
             ...(o.step ? { step: o.step } : {})
         }),
         signal: AbortSignal.timeout(30_000)
@@ -206,6 +208,11 @@ export async function runCheck(o) {
         const unsafe = lintCheck(source);
         if (unsafe.length)
             return stop(`This check uses ${unsafe.join(', ')}, which a check has no business doing, so it was not run. Rewrite it.`);
+        const mockupRef = o.mockup !== undefined ? parseMockupRef(o.mockup) : null;
+        if (mockupRef && local)
+            return stop('--local runs here with no board, so it cannot fetch a hosted --mockup URL from the board.');
+        if (mockupRef && o.profile)
+            return stop('--mockup runs in an isolated context with no saved sign-ins, so --profile cannot be used.');
         // -- THE RUN -- //
         // A local run has a stand-in for the board that does nothing and has no address: no call can reach a network on any path of the run
         board = local
@@ -274,16 +281,28 @@ export async function runCheck(o) {
                     .finally(() => process.exit(2));
             });
         // -- WHICH REGISTRATION, AND A PLACE ON THIS MACHINE -- //
-        // A registration the board or the script names is chosen here, never guessed; a refusal ends the run with its code and the list
-        const routed = job
-            ? configForRun(o, job, source, o.log, Boolean(o.claimed))
-            : configForLocal(o, source);
+        // Mockup checks target a signed hosted mockup URL directly with no repo build or saved sign-ins; app checks route to a registration first.
+        const routed = mockupRef
+            ? {
+                cfg: {
+                    repo: o.dir,
+                    start: '',
+                    needsDatabase: false,
+                    env: {},
+                    appPaths: []
+                },
+                registration: null,
+                scriptRegistration: null
+            }
+            : job
+                ? configForRun(o, job, source, o.log, Boolean(o.claimed))
+                : configForLocal(o, source);
         const cfg = routed.cfg;
         const registration = routed.registration;
         runRegistration = registration?.name;
         // The saved sign-in this run needs: --profile, else the script's "// afb-profile:" line, else the default. A named one that cannot be used ends the run before anything is built
-        const wantedProfile = o.profile ?? profileHeader(source) ?? undefined;
-        const signinNamed = Boolean(o.profile) || Boolean(wantedProfile) || Boolean(o.registration);
+        const wantedProfile = mockupRef ? undefined : (o.profile ?? profileHeader(source) ?? undefined);
+        const signinNamed = !mockupRef && (Boolean(o.profile) || Boolean(wantedProfile) || Boolean(o.registration));
         if (registration && wantedProfile) {
             const early = chooseSignin({
                 org: o.org,
@@ -303,16 +322,63 @@ export async function runCheck(o) {
             slot = await acquireSlot({
                 runId,
                 kind: local ? 'local' : 'check',
-                registration: registration?.name ?? job?.project.key ?? 'local'
+                registration: registration?.name ?? job?.project.key ?? (mockupRef ? 'mockup' : 'local')
             }, { signal: abort.signal });
         await ensureBrowser(o.log);
-        const preview = await startPreview(cfg, {
-            runId,
-            scope,
-            log: o.log,
-            signal: abort.signal,
-            needles: needlesAll
-        });
+        let mintedMockup = null;
+        if (mockupRef) {
+            mintedMockup = await resolveMockupTarget({
+                server: o.server,
+                org: o.org,
+                ref: mockupRef,
+                runnerToken: o.runnerToken,
+                personalToken: o.personalToken,
+                fetch: o.fetch,
+                log: o.log
+            });
+        }
+        const isDevTarget = !mockupRef && Boolean(cfg.devUrl && registration);
+        if (isDevTarget && registration) {
+            verifyDevConfigApproval(registration);
+        }
+        const preview = mintedMockup
+            ? {
+                baseUrl: mintedMockup.url,
+                commit: null,
+                diffHash: null,
+                testUser: null,
+                secrets: [],
+                note: `Running against hosted mockup ${mintedMockup.mockupId} v${mintedMockup.version} (${mintedMockup.isolatedOrigin ? 'isolated origin' : 'shared origin'}).`,
+                extraHosts: undefined,
+                throwawayDatabase: false
+            }
+            : isDevTarget
+                ? await (async () => {
+                    const dev = await ensureDevServer(registration, thisScope, {
+                        cwd: cfg.repo || o.dir,
+                        log: o.log,
+                        signal: abort.signal
+                    });
+                    return {
+                        baseUrl: dev.origin,
+                        commit: null,
+                        diffHash: null,
+                        testUser: null,
+                        secrets: [],
+                        note: dev.owned
+                            ? `Started local dev server at ${dev.origin}.`
+                            : `Reusing running dev server at ${dev.origin}.`,
+                        extraHosts: undefined,
+                        throwawayDatabase: false
+                    };
+                })()
+                : await startPreview(cfg, {
+                    runId,
+                    scope,
+                    log: o.log,
+                    signal: abort.signal,
+                    needles: needlesAll
+                });
         needlesAll.push(...preview.secrets);
         if (preview.note)
             o.log(preview.note);
@@ -320,7 +386,7 @@ export async function runCheck(o) {
         let state = null;
         // Only a sign in the owner SAVED counts for the picture rule: the recipe's test user belongs to a throwaway preview and holds nothing worth hiding
         let usedSavedSignIn = false;
-        if (registration) {
+        if (!mockupRef && registration) {
             const choice = chooseSignin({
                 org: o.org,
                 registration,
@@ -338,40 +404,52 @@ export async function runCheck(o) {
             if (choice.note)
                 o.log(choice.note);
         }
-        if (!state && preview.testUser) {
+        if (!mockupRef && !state && preview.testUser) {
             o.log(`Signing in as ${preview.testUser.email.replace(/^(.).*(@.*)$/, '$1***$2')}...`);
             state = await signInWithPassword(preview.baseUrl, preview.testUser);
         }
-        const needles = [
-            ...preview.secrets,
-            ...(preview.testUser ? [preview.testUser.password, preview.testUser.email] : []),
-            ...stateNeedles(state)
-        ];
+        const needles = mockupRef
+            ? []
+            : [
+                ...preview.secrets,
+                ...(preview.testUser ? [preview.testUser.password, preview.testUser.email] : []),
+                ...stateNeedles(state)
+            ];
         needlesAll.push(...needles);
         const runDir = join(runsDir(), runId);
         // The browser may reach this machine and the hosts of this registration only (a live site's hosts, the sealed test project's host); a live
-        // site or a signed in run always has its own browser, and a live site never allows writes
-        const extraHosts = [
-            ...new Set([
-                ...(cfg.url ? liveSiteGuardOptions(cfg).extraHosts : (cfg.extraHosts ?? [])),
-                ...(preview.extraHosts ?? [])
-            ])
-        ];
+        // site, a hosted mockup or a signed in run always has its own browser, and a live site or mockup never allows writes
+        const extraHosts = mockupRef
+            ? []
+            : [
+                ...new Set([
+                    ...(cfg.url ? liveSiteGuardOptions(cfg).extraHosts : (cfg.extraHosts ?? [])),
+                    ...(preview.extraHosts ?? [])
+                ])
+            ];
         const browser = await acquireBrowser({
-            hosts: extraHosts,
+            hosts: mintedMockup ? [mintedMockup.hostname] : extraHosts,
             headed: o.headed,
-            dedicated: Boolean(cfg.url) || state !== null
+            dedicated: Boolean(mockupRef) || Boolean(cfg.url) || state !== null
         });
         thisScope.add('browser', () => browser.release());
         const childJob = {
             baseUrl: preview.baseUrl,
             ws: browser.wsEndpoint(),
-            storageState: state,
+            storageState: mockupRef ? null : state,
             checkFile: script,
             runDir,
             viewport: { width: 1280, height: 800 },
             extraHosts,
-            needles
+            needles,
+            ...(mockupRef ? { mockupMode: true } : {}),
+            ...(isDevTarget
+                ? {
+                    isDev: true,
+                    allowWrites: Boolean(cfg.allowWrites),
+                    ...(cfg.writeAllowlist ? { writeAllowlist: cfg.writeAllowlist } : {})
+                }
+                : {})
         };
         const ran = await runCheckInSandbox({
             job: childJob,
@@ -439,7 +517,7 @@ export async function runCheck(o) {
                 }
                 : {}),
             durationMs: Math.min(result.durationMs, 24 * 3600 * 1000),
-            url: preview.baseUrl.slice(0, 300),
+            url: (mintedMockup ? mintedMockup.origin : preview.baseUrl).slice(0, 300),
             commit: preview.commit,
             diffHash: preview.diffHash,
             ...(result.result === 'pass'

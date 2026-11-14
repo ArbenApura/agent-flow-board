@@ -6,6 +6,7 @@
 	import { LIST_COLS, STATUS_STYLE, ago } from '#lib/board/status.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Progress from '#lib/ui/Progress.svelte';
+	import Badge from '#lib/ui/Badge.svelte';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
 	// -- DEP-COMPONENTS -- //
 	import Lock from '@lucide/svelte/icons/lock';
@@ -82,11 +83,17 @@
 				>
 			</span>
 			<span class="flex items-center justify-between gap-2.5 text-xs text-muted">
-				<span class="tabular-nums">{row.doneSteps} of {row.totalSteps} steps</span>
+				<span class="tabular-nums">
+					{row.doneSteps} of {row.totalSteps} steps{#if !row.isLegacy}
+						· Verified {row.verifiedPercent !== null ? `${row.verifiedPercent}%` : 'n/a'}{/if}
+				</span>
 				<span class="whitespace-nowrap">{ago(row.lastActivityAt)}</span>
 			</span>
 			<span class="flex flex-wrap items-center gap-2 text-xs text-muted">
 				<span class="rounded-md bg-raised px-1.5 font-medium">{row.stream}/{row.scope}</span>
+				{#if row.unverifiedVisually}
+					<Badge tone="warning" data-testid="unverified-visually-badge">UNVERIFIED VISUALLY</Badge>
+				{/if}
 				{#each running as r (r.sessionId)}<RunningBadge
 						tool={r.tool}
 						title={r.title}
@@ -94,6 +101,7 @@
 						staleMinutes={r.staleMinutes}
 						mockupUnread={r.mockupUnread}
 						reviewIdle={r.reviewIdle}
+						waiting={r.waiting}
 					/>{/each}
 			</span>
 		</a>
@@ -117,7 +125,7 @@
 		{href}
 		data-testid="item-row"
 		data-row
-		class="flex h-full items-center gap-4 border-b border-line px-5 hover:bg-raised max-sm:px-4"
+		class="flex h-full items-center gap-4 overflow-hidden border-b border-line px-5 py-2 hover:bg-raised max-sm:px-4"
 	>
 		<span
 			class={cn('font-mono text-xs leading-4 [overflow-wrap:anywhere] text-muted', LIST_COLS.ref)}
@@ -137,8 +145,14 @@
 						aria-label="Needs attention"
 					/>{/if}
 			</span>
-			<span class="flex items-center gap-2 text-xs text-muted">
-				<span class="tabular-nums">{row.doneSteps} of {row.totalSteps} steps</span>
+			<span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+				<span class="tabular-nums">
+					{row.doneSteps} of {row.totalSteps} steps{#if !row.isLegacy}
+						· Verified {row.verifiedPercent !== null ? `${row.verifiedPercent}%` : 'n/a'}{/if}
+				</span>
+				{#if row.unverifiedVisually}
+					<Badge tone="warning" data-testid="unverified-visually-badge">UNVERIFIED VISUALLY</Badge>
+				{/if}
 				{#each running as r (r.sessionId)}<RunningBadge
 						tool={r.tool}
 						title={r.title}
@@ -146,6 +160,7 @@
 						staleMinutes={r.staleMinutes}
 						mockupUnread={r.mockupUnread}
 						reviewIdle={r.reviewIdle}
+						waiting={r.waiting}
 					/>{/each}
 			</span>
 		</span>

@@ -20,7 +20,7 @@ import { SERVER_INSTRUCTIONS } from './workflows';
 // -- CONSTANTS -- //
 
 /** Bumped when a tool's input changes in a way an old bridge cannot send (ADR-030, the bridge checks it on start). */
-export const MCP_PROTOCOL_VERSION = 1;
+export const MCP_PROTOCOL_VERSION = 2;
 
 // -- FUNCTIONS -- //
 

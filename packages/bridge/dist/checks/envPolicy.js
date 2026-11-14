@@ -166,6 +166,15 @@ export function buildPreviewEnv(input) {
     return { env, stripped, notes };
 }
 /**
+ * Filtered environment for starting an owned dev server. Uses the exact same database/mail stripping as
+ * `buildPreviewEnv`, but keeps `NODE_ENV=development` so Vite HMR and dev tooling behave normally.
+ */
+export function buildDevEnv(input) {
+    const out = buildPreviewEnv(input);
+    out.env.NODE_ENV = 'development';
+    return out;
+}
+/**
  * The environment of a registration that adopts its repo's whole .env. `env` is the START environment (system, adopted, recipe, run's own; later wins), `buildEnv` is
  * the same WITHOUT the adopted values. Rules: the deny list is never adopted (repoenv.ts), every adopted database or address value is checked by databaseProblems and a
  * problem fails the run (the caller refuses to start when `problems` is not empty), and mail settings that did not come from the sealed store are stripped.

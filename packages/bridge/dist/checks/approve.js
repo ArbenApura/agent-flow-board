@@ -18,7 +18,8 @@ export const APPROVAL_ACTIONS = [
     'adopt-env',
     'roots',
     'pictures',
-    'login'
+    'login',
+    'dev'
 ];
 /** A code is valid for ten minutes. */
 export const APPROVAL_TTL_MS = 10 * 60 * 1000;

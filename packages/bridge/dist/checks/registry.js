@@ -9,6 +9,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { appendAudit } from './audit.js';
 import { appDirText, normalizeAppDir, walkAppDir } from './appdir.js';
 import { Refusal, consumeApproval, peekApproval, sameMac, seal } from './approve.js';
+import { cleanDevUrl, cleanWriteAllowlist, devApprovalTarget, devConfigHash, parseStartCommand, rejectBoardStartCommand } from './devPolicy.js';
 import { FORBIDDEN_PORTS, checkRepoFolder } from './guardrails.js';
 import { withLockSync } from './lock.js';
 import { ORG_SLUG, ensureDir, registrationsDir, stateDirFor } from './paths.js';
@@ -116,6 +117,11 @@ const canon = (r) => ({
     database: r.database,
     ...(r.url !== undefined ? { url: r.url } : {}),
     ...(r.extraHosts !== undefined ? { extraHosts: r.extraHosts } : {}),
+    ...(r.devUrl !== undefined ? { devUrl: r.devUrl } : {}),
+    ...(r.startCommand !== undefined ? { startCommand: r.startCommand } : {}),
+    ...(r.allowWrites !== undefined ? { allowWrites: r.allowWrites } : {}),
+    ...(r.writeAllowlist !== undefined ? { writeAllowlist: r.writeAllowlist } : {}),
+    ...(r.devApprovalHash !== undefined ? { devApprovalHash: r.devApprovalHash } : {}),
     adoptEnv: r.adoptEnv,
     uploadSignedInPictures: r.uploadSignedInPictures,
     ...(r.pin !== undefined ? { pin: r.pin } : {}),
@@ -155,9 +161,20 @@ function parseRegistration(v, org) {
         uploadSignedInPictures: v.uploadSignedInPictures,
         createdAt
     };
+    if (v.startCommand !== undefined &&
+        !(Array.isArray(v.startCommand) && v.startCommand.every((s) => typeof s === 'string')))
+        return null;
+    if (v.allowWrites !== undefined && typeof v.allowWrites !== 'boolean')
+        return null;
+    if (v.writeAllowlist !== undefined &&
+        !(Array.isArray(v.writeAllowlist) &&
+            v.writeAllowlist.every((r) => isRecord(r) && typeof r.method === 'string' && typeof r.pathPrefix === 'string')))
+        return null;
     const repo = str('repo');
     const appDir = str('appDir');
     const url = str('url');
+    const devUrl = str('devUrl');
+    const devApprovalHash = str('devApprovalHash');
     const pin = str('pin');
     if (repo !== undefined)
         reg.repo = repo;
@@ -165,6 +182,16 @@ function parseRegistration(v, org) {
         reg.appDir = appDir;
     if (url !== undefined)
         reg.url = url;
+    if (devUrl !== undefined)
+        reg.devUrl = devUrl;
+    if (Array.isArray(v.startCommand))
+        reg.startCommand = v.startCommand;
+    if (typeof v.allowWrites === 'boolean')
+        reg.allowWrites = v.allowWrites;
+    if (Array.isArray(v.writeAllowlist))
+        reg.writeAllowlist = v.writeAllowlist;
+    if (devApprovalHash !== undefined)
+        reg.devApprovalHash = devApprovalHash;
     if (pin !== undefined)
         reg.pin = pin;
     if (Array.isArray(v.extraHosts))
@@ -299,6 +326,20 @@ export function nameShadowsBoard(org, name, boardProject) {
  */
 export function configFor(reg) {
     const registration = { org: reg.org, name: reg.name };
+    if (reg.devUrl) {
+        return {
+            repo: reg.repo ?? '',
+            start: '',
+            needsDatabase: false,
+            env: {},
+            appPaths: [],
+            devUrl: reg.devUrl,
+            allowWrites: reg.allowWrites === true,
+            writeAllowlist: reg.writeAllowlist ?? [],
+            extraHosts: reg.extraHosts ?? [],
+            registration
+        };
+    }
     if (reg.url) {
         return {
             repo: '',
@@ -312,7 +353,7 @@ export function configFor(reg) {
         };
     }
     if (!reg.repo)
-        throw new Refusal(`The registration ${reg.name} has neither a repo folder nor a live site.`);
+        throw new Refusal(`The registration ${reg.name} has neither a repo folder, a live site nor a dev URL.`);
     if (!rootHolding(reg.repo))
         throw new Refusal(`The repo of ${reg.name} is not inside a folder the owner approved (check roots list). Ask for its parent folder: agent-flow-board check approve --request --action roots --target <parent folder>, then check roots add <parent folder> --approval <code>.`);
     let appRoot = reg.repo;
@@ -341,6 +382,44 @@ export function configFor(reg) {
     if (reg.extraHosts?.length)
         cfg.extraHosts = reg.extraHosts;
     return cfg;
+}
+/**
+ * Verifies any sealed dev execution settings (start command, allowWrites or write allowlist) against the owner's
+ * SHA-256 `devApprovalHash`, even when reusing an already-running dev server. Refuses board-supplied execution fields.
+ */
+export function verifyDevConfigApproval(reg, untrustedBoardPayload) {
+    try {
+        rejectBoardStartCommand(untrustedBoardPayload);
+    }
+    catch (e) {
+        throw new Refusal(e instanceof Error ? e.message : String(e));
+    }
+    if (!reg.devUrl)
+        return;
+    const hasRestrictedConfig = Boolean(reg.startCommand?.length) ||
+        reg.allowWrites === true ||
+        Boolean(reg.writeAllowlist?.length);
+    if (!hasRestrictedConfig)
+        return;
+    const expected = devConfigHash({
+        devUrl: reg.devUrl,
+        startCommand: reg.startCommand ?? [],
+        allowWrites: reg.allowWrites === true,
+        writeAllowlist: reg.writeAllowlist ?? []
+    });
+    if (reg.devApprovalHash !== expected) {
+        throw new Refusal(`Dev configuration of ${reg.name} is not approved for its current URL, command or write allowlist. Ask the owner: check approve --request --action dev --target ${devApprovalTarget(reg.name, expected)}.`);
+    }
+}
+/**
+ * Returns the local sealed start command argv (never with shell:true) ONLY if its SHA-256 hash matches the owner's dev approval.
+ * Refuses loudly if an untrusted board/MCP/API payload attempts to supply startCommand, allowWrites or writeAllowlist.
+ */
+export function verifySealedDevCommand(reg, untrustedBoardPayload) {
+    verifyDevConfigApproval(reg, untrustedBoardPayload);
+    if (!reg.devUrl || !reg.startCommand?.length)
+        return null;
+    return [...reg.startCommand];
 }
 // -- FUNCTIONS: PIN -- //
 const appRootOf = (reg) => reg.repo && reg.appDir ? join(reg.repo, reg.appDir) : (reg.repo ?? '');
@@ -400,8 +479,9 @@ export function registerProject(input, approvals = {}) {
         throw new Refusal(`The board project "${boardProject.slice(0, 20)}" must be 2 to 10 capital letters or digits, starting with a letter. Give --board-project.`);
     const hasRepo = input.repo !== undefined && input.repo !== '';
     const hasUrl = input.url !== undefined && input.url !== '';
-    if (hasRepo === hasUrl)
-        throw new Refusal('Give either a repo folder (--repo) or a live site (--url), not both and not neither.');
+    const hasDevUrl = input.devUrl !== undefined && input.devUrl !== '';
+    if ([hasRepo, hasUrl, hasDevUrl].filter(Boolean).length !== 1)
+        throw new Refusal('Give either a repo folder (--repo), a live site (--url) or a dev server (--dev-url), not both and not neither.');
     const clash = nameClash(org, name);
     if (clash)
         throw new Refusal(`${clash} already exists; names are unique without regard to letter case.`);
@@ -428,7 +508,50 @@ export function registerProject(input, approvals = {}) {
     let needRegister;
     /** True when the registration now points at another repo, app folder or site than the one it had. */
     let repointed;
-    if (hasUrl) {
+    let devApproval = null;
+    if (hasDevUrl) {
+        if (input.appDir)
+            throw new Refusal('A dev-server registration has no app folder.');
+        if (input.adoptEnv)
+            throw new Refusal('A dev-server registration does not adopt a repo .env.');
+        try {
+            reg.devUrl = cleanDevUrl(input.devUrl);
+            if (input.startCommand !== undefined)
+                reg.startCommand = parseStartCommand(input.startCommand);
+            const allowWrites = input.allowWrites === true;
+            const writeAllowlist = input.writeAllowlist?.length
+                ? cleanWriteAllowlist(input.writeAllowlist)
+                : [];
+            if (writeAllowlist.length && !allowWrites)
+                throw new Refusal('A write allowlist requires allowWrites to be explicitly opted in.');
+            if (allowWrites)
+                reg.allowWrites = true;
+            if (writeAllowlist.length)
+                reg.writeAllowlist = writeAllowlist;
+        }
+        catch (e) {
+            if (e instanceof Refusal)
+                throw e;
+            throw new Refusal(e instanceof Error ? e.message : String(e));
+        }
+        repointed = existing?.devUrl !== reg.devUrl;
+        needRegister = false;
+        if (reg.startCommand?.length || reg.allowWrites || reg.writeAllowlist?.length) {
+            const hash = devConfigHash({
+                devUrl: reg.devUrl,
+                startCommand: reg.startCommand,
+                allowWrites: reg.allowWrites === true,
+                writeAllowlist: reg.writeAllowlist ?? []
+            });
+            reg.devApprovalHash = hash;
+            if (existing?.devApprovalHash !== hash) {
+                devApproval = { target: devApprovalTarget(name, hash), hash };
+            }
+        }
+        if (existing?.pin)
+            reg.pin = existing.pin;
+    }
+    else if (hasUrl) {
         if (input.appDir)
             throw new Refusal('A live site has no app folder.');
         if (input.adoptEnv)
@@ -492,12 +615,16 @@ export function registerProject(input, approvals = {}) {
         throw new Refusal(`Adopting the whole repo .env needs a code from the owner: check approve --request --action adopt-env --target ${name}, then --adopt-env-approval <code>.`);
     if (needPictures && !approvals.pictures)
         throw new Refusal(`Uploading pictures of a signed-in run needs a code from the owner: check approve --request --action pictures --target ${name}, then --pictures-approval <code>.`);
+    if (devApproval && !approvals.dev)
+        throw new Refusal(`Dev command or write settings for ${name} need a code from the owner bound to hash ${devApproval.hash.slice(0, 12)}: check approve --request --action dev --target ${devApproval.target}, then --dev-approval <code>.`);
     if (needRegister && !peekApproval('register', registerTarget, approvals.register ?? ''))
         throw new Refusal('That approval code is wrong, used or expired. Nothing was changed.');
     if (needAdopt && !peekApproval('adopt-env', name, approvals.adoptEnv ?? ''))
         throw new Refusal('The adopt-env approval code is wrong, used or expired. Nothing was changed.');
     if (needPictures && !peekApproval('pictures', name, approvals.pictures ?? ''))
         throw new Refusal('The pictures approval code is wrong, used or expired. Nothing was changed.');
+    if (devApproval && !peekApproval('dev', devApproval.target, approvals.dev ?? ''))
+        throw new Refusal('The dev approval code is wrong, used or expired, or does not match the exact URL, command and write allowlist. Nothing was changed.');
     // Used last. A code that fails here was used or expired in the instant after the look: the others are already spent, and the sentence says so
     const spent = [];
     const use = (action, target, code, label) => {
@@ -511,6 +638,8 @@ export function registerProject(input, approvals = {}) {
         use('adopt-env', name, approvals.adoptEnv ?? '', 'adopt-env');
     if (needPictures)
         use('pictures', name, approvals.pictures ?? '', 'pictures');
+    if (devApproval)
+        use('dev', devApproval.target, approvals.dev ?? '', 'dev');
     ensureDir(join(registrationsDir(), org));
     saveRegistration(reg);
     appendAudit(existing ? 'registration updated' : 'registration added', {
@@ -518,7 +647,9 @@ export function registerProject(input, approvals = {}) {
         boardProject,
         ...(reg.repo
             ? { folder: basename(reg.repo) }
-            : { site: new URL(reg.url ?? 'http://x').hostname }),
+            : reg.devUrl
+                ? { devUrl: reg.devUrl }
+                : { site: new URL(reg.url ?? 'http://x').hostname }),
         ...(reg.appDir ? { appDir: reg.appDir } : {}),
         adoptEnv: reg.adoptEnv,
         pictures: reg.uploadSignedInPictures

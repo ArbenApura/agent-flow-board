@@ -19,6 +19,12 @@ import type { AskBoard } from './askBoard.js';
 import { publishSigninKey, type SigninBoard } from './signinKey.js';
 import { ORG_SLUG, scriptPath, scriptsDir } from './paths.js';
 import { pinFiles, resolveProjectConfig } from './recipe.js';
+import { listRegistrations } from './registry.js';
+import { rerunOnChange } from './rerun.js';
+import { registrationHeader } from './routing.js';
+import { inspectAppRegistration } from './inspectApp.js';
+import { runCompare, type CompareScreenSpec } from './compare.js';
+import type { PairingManifest } from './pairing.js';
 import { runCheck } from './run.js';
 import { watchChecks } from './watch.js';
 import { approveCommand, projectCommand, rootsCommand } from './commands.js';
@@ -50,13 +56,16 @@ export const CHECK_USAGE = [
 	'  pull <item> <key> --server <url> --org <slug> [--accept-hash <sha256>]   read the board copy of a script; accept it by hash',
 	'  bind --org <slug> --project <KEY> [--dir <repo>]   remember the folder of a board project for "check watch"',
 	'  watch [--parallel N] [--once]   take queued runs from the boards this machine is connected to',
-	'  run ... also takes [--registration NAME] [--profile NAME] [--file <script inside the scripts folder>] [--headed] [--local]   (--local runs here with no board call: no --server, no connection, any key such as D2 or WHO)',
+	'  rerun-on-change <PATH> --check <KEY> --item <ITEM> --org <slug> [--registration NAME] [--profile NAME]   re-run a local dev check on file changes (distinct from watch)',
+	'  inspect <REGISTRATION> --org <slug> [--profile NAME] [--path /route] [--screen S] [--state T] [--width W] [--height H]   dump rendered DOM box/styles/text from the app',
+	'  compare --mockup ID[@VERSION] --registration NAME --org <slug> [--server <url>] [--profile NAME] [--screens s1,s2] [--states t1,t2] [--widths 390,1280] [--manifest <file.json>] [--brief <file.md>] [--item <ref> --key <KEY>]   compare mockup vs app',
+	'  run ... also takes [--registration NAME] [--profile NAME] [--mockup ID[@VERSION]] [--file <script inside the scripts folder>] [--headed] [--local]   (--local runs here with no board call; automatic by default for a dev registration)',
 	'  project <NAME> --org <slug> (--repo <dir> [--app-dir web] [--board-project KEY] [--recipe] | --url <address> [--extra-hosts a,b]) [--adopt-env --adopt-env-approval <code>] [--upload-pictures --pictures-approval <code>] [--approval <code>] | project list|forget|pin',
-	'  approve --request --action <roots|register|secrets|adopt-env|pictures|login> --target <name> [--why "<sentence>"] [--wait <minutes>]   (asks the owner on the board; no terminal)',
+	'  approve --request --action <roots|register|secrets|adopt-env|pictures|login|dev> --target <name> [--why "<sentence>"] [--wait <minutes>]   (asks the owner on the board; no terminal)',
 	'  approve --request-many "<action>:<target>;<action>:<target>"  |  approve --resume <id,id> [--wait <minutes>]   (exit 3 = still waiting)',
-	'  approve --action <roots|register|secrets|adopt-env|pictures|login> --target <name>   (the owner, on a terminal)  |  roots add|list|remove <dir> [--approval <code>]',
+	'  approve --action <roots|register|secrets|adopt-env|pictures|login|dev> --target <name>   (the owner, on a terminal)  |  roots add|list|remove <dir> [--approval <code>]',
 	'  secrets import|list|forget --org <slug> --project <NAME> [--from <file> --keys A,B --test-ref <ref> --test-inbox <email> --owner-said "<sentence>" --allow-service-role --approval <code>]',
-	'  login <NAME> --org <slug> [--as <profile>] [--seeded | --approval <code>] [--timeout <minutes>]   (a repo registration signs in on its own preview; --as saves a second sign-in, for example a read-only role)',
+	'  login <NAME> --org <slug> [--profile <profile>] [--seeded [url|cmd] | --approval <code>] [--timeout <minutes>]   (--profile saves sealed per-role state, e.g. patient, doctor, staff)',
 	'  service install|uninstall|status [--no-start]  |  import-legacy --from <afb-checks folder> --org <slug> [--dry-run]',
 	'  status [--json]  |  doctor [--fix] [--json]  |  clear [runs|profiles|auth|dbs|previews|all] [--all] [--yes]  |  setup  |  disconnect --server <url> --org <slug>'
 ].join('\n');
@@ -148,7 +157,8 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 				'--file',
 				'--step',
 				'--run',
-				'--dir'
+				'--dir',
+				'--mockup'
 			]);
 			const words = args
 				.slice(1)
@@ -184,9 +194,35 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 				throw new Error(
 					`--file is a script of the organisation ${fileOrg.slice(0, 40)}, but --org says ${o}. Use the same organisation in both.`
 				);
+			const mockupFlag = flag('--mockup');
+			if (localRun && mockupFlag)
+				throw new Error(
+					'--local runs here with no board, so it cannot fetch a hosted --mockup URL from the board.'
+				);
+			// On a dev registration with no --server/--run/--step, local mode is the default loop
+			let effectiveLocal = localRun;
+			if (
+				!effectiveLocal &&
+				!mockupFlag &&
+				!flag('--server') &&
+				!flag('--run') &&
+				!flag('--step')
+			) {
+				const targetFile = scriptPath(o, item, key);
+				const scriptReg = existsSync(targetFile)
+					? registrationHeader(readFileSync(targetFile, 'utf8'))
+					: null;
+				const wantedReg = flag('--registration') ?? scriptReg;
+				if (wantedReg) {
+					const foundReg = listRegistrations(o).find(
+						(r) => r.name.toLowerCase() === wantedReg.toLowerCase()
+					);
+					if (foundReg?.devUrl) effectiveLocal = true;
+				}
+			}
 			let s = '';
 			let token = '';
-			if (!localRun) {
+			if (!effectiveLocal) {
 				s = server();
 				const held = loadRunnerToken(ctx.store, s, o);
 				if (!held)
@@ -196,18 +232,19 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 				token = held;
 			}
 			const outcome = await runCheck({
-				mode: localRun ? 'local' : 'board',
+				mode: effectiveLocal ? 'local' : 'board',
 				server: s,
 				org: o,
 				item,
 				key,
 				dir: resolve(flag('--dir') ?? process.cwd()),
 				step: flag('--step'),
-				runId: localRun ? undefined : flag('--run'),
+				runId: effectiveLocal ? undefined : flag('--run'),
 				registration: flag('--registration'),
 				profile: flag('--profile'),
+				mockup: mockupFlag,
 				runnerToken: token,
-				personalToken: localRun ? null : ctx.personalToken(s, o),
+				personalToken: effectiveLocal ? null : ctx.personalToken(s, o),
 				fetch: ctx.fetch,
 				log,
 				headed: has('--headed')
@@ -282,6 +319,118 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 		}
 		// The registration, approval, sign in and service commands live in their own modules; each takes the arguments after its word
 		if (sub === 'project') return await projectCommand(args.slice(1), { log, out, json });
+		if (sub === 'inspect') {
+			const regName = args[1];
+			if (!regName || regName.startsWith('--'))
+				throw new Error(
+					'Usage: agent-flow-board check inspect <registration> --org <slug> [--profile NAME] [--path /route] [--screen S] [--state T] [--width W] [--height H]'
+				);
+			const widthRaw = flag('--width');
+			const heightRaw = flag('--height');
+			const width = widthRaw !== undefined ? Number(widthRaw) : undefined;
+			const height = heightRaw !== undefined ? Number(heightRaw) : undefined;
+			if (width !== undefined && (!Number.isInteger(width) || width < 240 || width > 3840))
+				throw new Error('--width must be a whole number between 240 and 3840.');
+			if (height !== undefined && (!Number.isInteger(height) || height < 240 || height > 3840))
+				throw new Error('--height must be a whole number between 240 and 3840.');
+			const res = await inspectAppRegistration({
+				org: org(),
+				registration: regName,
+				profile: flag('--profile'),
+				routePath: flag('--path'),
+				screen: flag('--screen'),
+				state: flag('--state'),
+				width,
+				height,
+				headed: has('--headed'),
+				log
+			});
+			out(JSON.stringify(res.dump));
+			return 0;
+		}
+		if (sub === 'compare') {
+			const mockupArg = need('--mockup');
+			const regName = need('--registration');
+			const o = org();
+			const s = server();
+			const itemArg = flag('--item');
+			const keyArg = flag('--key');
+			const isBoard = !has('--local') && Boolean(itemArg && keyArg);
+			const runnerTok = isBoard ? loadRunnerToken(ctx.store, s, o) : null;
+			if (isBoard && !runnerTok)
+				throw new Error(
+					`This machine is not connected to ${o} on ${s}. Run: agent-flow-board check connect --server ${s} --org ${o} --json`
+				);
+			const manifestPath = flag('--manifest');
+			const manifest = manifestPath
+				? (JSON.parse(readFileSync(resolve(manifestPath), 'utf8')) as PairingManifest)
+				: undefined;
+			const briefPath = flag('--brief');
+			const briefText = briefPath ? readFileSync(resolve(briefPath), 'utf8') : undefined;
+			const pathArg = flag('--path');
+			const screensRaw = flag('--screens');
+			const screens: CompareScreenSpec[] | undefined = screensRaw
+				? screensRaw
+						.split(',')
+						.map((v) => v.trim())
+						.filter(Boolean)
+						.map((name) => ({ name, screen: name, ...(pathArg ? { path: pathArg } : {}) }))
+				: pathArg
+					? [{ name: 'default', screen: '', path: pathArg }]
+					: undefined;
+			const statesRaw = flag('--states');
+			const states = statesRaw
+				? statesRaw
+						.split(',')
+						.map((v) => v.trim())
+						.filter(Boolean)
+				: undefined;
+			const widthsRaw = flag('--widths');
+			const widths = widthsRaw
+				? widthsRaw.split(',').map((w) => {
+						const n = Number(w.trim());
+						if (!Number.isInteger(n) || n < 240 || n > 3840)
+							throw new Error(`Invalid width "${w}" in --widths (must be 240..3840).`);
+						return n;
+					})
+				: undefined;
+			const outcome = await runCompare({
+				mode: isBoard ? 'board' : 'local',
+				server: s,
+				org: o,
+				mockup: mockupArg,
+				registration: regName,
+				profile: flag('--profile'),
+				screens,
+				states,
+				widths,
+				manifest,
+				briefText,
+				dir: resolve(flag('--dir') ?? process.cwd()),
+				item: itemArg,
+				key: keyArg,
+				step: flag('--step'),
+				runId: flag('--run'),
+				runnerToken: runnerTok ?? '',
+				personalToken: ctx.personalToken(s, o),
+				fetch: ctx.fetch,
+				log,
+				headed: has('--headed')
+			});
+			if (json)
+				out(
+					JSON.stringify({
+						ok: outcome.exitCode === 0,
+						runId: outcome.runId,
+						resultPath: outcome.resultPath,
+						message: outcome.message,
+						report: outcome.report
+					})
+				);
+			else log(outcome.message);
+			if (outcome.resultPath) out(`RESULT ${outcome.resultPath}`);
+			return outcome.exitCode;
+		}
 		if (sub === 'approve') {
 			// Asking on the board uses this machine's own runner connection; with one connection --server and --org may be left out
 			const only = listConnections();
@@ -362,6 +511,67 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 			log(`Bound ${o}/${project} to ${cfg.repo}.`);
 			return 0;
 		}
+		if (sub === 'rerun-on-change') {
+			const watchPathArg = args[1];
+			if (!watchPathArg || watchPathArg.startsWith('--'))
+				throw new Error(
+					'Usage: agent-flow-board check rerun-on-change <PATH> --check <KEY> --item <ITEM> --org <slug> [--registration NAME] [--profile NAME]'
+				);
+			const checkKey = need('--check');
+			const itemRef = need('--item');
+			const o = org();
+			const registrationName = flag('--registration');
+			const profileName = flag('--profile');
+			const rawDebounce = flag('--debounce-ms');
+			const debounceMs = rawDebounce !== undefined ? Number(rawDebounce) : undefined;
+			if (debounceMs !== undefined && (!Number.isFinite(debounceMs) || debounceMs < 0))
+				throw new Error('--debounce-ms takes a non-negative number.');
+			const ac = new AbortController();
+			const stop = () => ac.abort();
+			process.once('SIGINT', stop);
+			process.once('SIGTERM', stop);
+			try {
+				const summary = await rerunOnChange({
+					watchPath: watchPathArg,
+					checkKey,
+					item: itemRef,
+					org: o,
+					registration: registrationName,
+					profile: profileName,
+					debounceMs,
+					signal: ac.signal,
+					log,
+					runCheck: async ({ runNumber }) => {
+						const t0 = Date.now();
+						const outcome = await runCheck({
+							mode: 'local',
+							server: '',
+							org: o,
+							item: itemRef,
+							key: checkKey,
+							dir: resolve(flag('--dir') ?? process.cwd()),
+							registration: registrationName,
+							profile: profileName,
+							runnerToken: '',
+							personalToken: null,
+							fetch: ctx.fetch,
+							log,
+							headed: has('--headed')
+						});
+						const elapsedMs = Date.now() - t0;
+						log(
+							`[${runNumber === 1 ? 'cold' : 'warm'}] ${itemRef} ${checkKey} finished in ${elapsedMs}ms (${outcome.message})`
+						);
+						return outcome.exitCode;
+					}
+				});
+				if (json) out(JSON.stringify({ ok: true, ...summary }));
+				return 0;
+			} finally {
+				process.off('SIGINT', stop);
+				process.off('SIGTERM', stop);
+			}
+		}
 		if (sub === 'watch') {
 			const ac = new AbortController();
 			const stop = () => ac.abort();
@@ -388,8 +598,30 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 		return 2;
 	} catch (e) {
 		const message = e instanceof Error ? e.message : String(e);
-		if (json) out(JSON.stringify({ ok: false, event: 'error', error: message }));
-		else log(message);
+		const boardCode =
+			e && typeof e === 'object' && 'code' in e && typeof e.code === 'string' ? e.code : undefined;
+		const boardDetails =
+			e && typeof e === 'object' && 'details' in e && e.details && typeof e.details === 'object'
+				? (e.details as Record<string, unknown>)
+				: undefined;
+		const nextCommand =
+			boardDetails && typeof boardDetails.nextCommand === 'string'
+				? boardDetails.nextCommand
+				: undefined;
+		if (json) {
+			out(
+				JSON.stringify({
+					ok: false,
+					event: 'error',
+					...(boardCode ? { code: boardCode } : {}),
+					error: message,
+					...(boardDetails ? { details: boardDetails } : {})
+				})
+			);
+		} else {
+			log(boardCode ? `${boardCode} - ${message}` : message);
+			if (nextCommand) log(`Next - ${nextCommand}`);
+		}
 		return 2;
 	}
 }

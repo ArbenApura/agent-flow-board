@@ -93,3 +93,47 @@ export async function enforcePlanRules(tx: Tx, projectId: string, plan: PlanText
 			{ planRules: reasons }
 		);
 }
+
+// -- LENS PACKS -- //
+
+export type CriticLensMode = 'plan' | 'code' | 'mockup';
+
+export interface CriticLensSpec {
+	mode: CriticLensMode;
+	name: string;
+	focus: string;
+}
+
+export interface ProjectLensPack {
+	source: 'project' | 'default';
+	lenses: CriticLensSpec[];
+}
+
+const LENS_MODE_SET = new Set<CriticLensMode>(['plan', 'code', 'mockup']);
+
+/** Parse project-defined critic lenses from project rules (`critic-lens: <mode> | <name> :: <focus>`). */
+export function parseLensPack(rulesText: string): ProjectLensPack {
+	const lenses: CriticLensSpec[] = [];
+	const seen = new Set<string>();
+	for (const rawLine of rulesText.split(/\r?\n/)) {
+		const stripped = rawLine.trim().replace(/^[-*]\s+/, '');
+		if (!stripped.toLowerCase().startsWith('critic-lens:')) continue;
+		const body = stripped.slice('critic-lens:'.length).trim();
+		const pipeIdx = body.indexOf('|');
+		const colonIdx = body.indexOf('::');
+		if (pipeIdx <= 0 || colonIdx <= pipeIdx + 1) continue;
+		const mode = body.slice(0, pipeIdx).trim().toLowerCase() as CriticLensMode;
+		if (!LENS_MODE_SET.has(mode)) continue;
+		const name = body.slice(pipeIdx + 1, colonIdx).trim();
+		const focus = body.slice(colonIdx + 2).trim();
+		if (!name || !focus) continue;
+		const dedupKey = `${mode}:${name.toLowerCase()}`;
+		if (seen.has(dedupKey)) continue;
+		seen.add(dedupKey);
+		lenses.push({ mode, name, focus });
+	}
+	return {
+		source: lenses.length > 0 ? 'project' : 'default',
+		lenses
+	};
+}

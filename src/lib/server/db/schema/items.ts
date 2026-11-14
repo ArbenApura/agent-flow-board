@@ -30,12 +30,31 @@ import {
 
 // -- TYPES -- //
 
-export type ItemHealth = { flags: string[]; drift: string[] };
+export type ItemHealth = {
+	flags: string[];
+	drift: string[];
+	verifiedPercent?: number | null;
+	visibleTotal?: number;
+	visibleVerified?: number;
+};
+export type StepEvidenceWaiver = {
+	by: string;
+	byName?: string;
+	reason: string;
+	at: string;
+};
 export type StepEvidence = {
 	commit?: string;
 	checkRunId?: string;
+	runIds?: string[];
+	diffReportId?: string;
+	mockupId?: string;
+	mockupVersion?: number;
+	screens?: string[];
+	widths?: number[];
 	target?: string;
 	note?: string;
+	waived?: StepEvidenceWaiver;
 };
 
 // -- ITEM -- //
@@ -72,6 +91,8 @@ export const item = tenantTable(
 			.default(sql`'{"flags":[],"drift":[]}'::jsonb`),
 		/** An imported item may keep a frozen percent instead of a calculated one (L18). */
 		legacyPercent: integer('legacy_percent'),
+		/** Opt-in vertical-slice gate: holds phase >= 2 first step until phase 1 first visible screen has compare evidence or waiver. */
+		sliceGate: boolean('slice_gate').notNull().default(false),
 		lastActivityAt: timestamp('last_activity_at', { withTimezone: true }).notNull().defaultNow(),
 		deletedAt: timestamp('deleted_at', { withTimezone: true }),
 		deletedBy: text('deleted_by'),
@@ -159,6 +180,25 @@ export const step = tenantTable(
 		state: text('state', { enum: STEP_STATES }).notNull().default('open'),
 		/** A pass counts only on this target (L25): dev, preview or deployed. */
 		requiredTarget: text('required_target'),
+		/** Author mark: true (visible), false (not visible), null (unset, follows visibleInferred). */
+		visible: boolean('visible'),
+		/** Inferred default when the item has a linked mockup and the step touches screen files or names a screen. */
+		visibleInferred: boolean('visible_inferred').notNull().default(false),
+		/** Files scoped by this step, matched against project.screenGlobs. */
+		files: jsonb('files')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		/** Declared screen keys this visible step covers for check compare verification. */
+		screens: jsonb('screens')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		/** Declared viewport widths this visible step covers for check compare verification. */
+		widths: jsonb('widths')
+			.$type<number[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		evidence: jsonb('evidence').$type<StepEvidence>(),
 		reason: text('reason'),
 		position: integer('position').notNull(),

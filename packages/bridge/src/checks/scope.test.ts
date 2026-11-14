@@ -201,6 +201,49 @@ describe('run scope', () => {
 		expect(pidAlive(grandPid)).toBe(false);
 		child.stdout.destroy();
 	}, 20_000);
+
+	it.skipIf(process.platform !== 'win32')(
+		'kills a cmd-shim parent and the child process it started on Windows',
+		async () => {
+			const shimDir = mkdtempSync(join(tmpdir(), 'afb-shim-'));
+			const pidFile = join(shimDir, 'grand.pid');
+			const shimFile = join(shimDir, 'dev.cmd');
+			const grandScript = join(shimDir, 'srv.cjs');
+			writeFileSync(
+				grandScript,
+				`require('fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); setInterval(() => {}, 1000);\n`
+			);
+			writeFileSync(shimFile, `@echo off\r\n"${process.execPath}" "${grandScript}"\r\n`);
+			const shim = spawn('cmd.exe', ['/d', '/s', '/c', shimFile], {
+				stdio: 'ignore',
+				windowsHide: true
+			});
+			try {
+				let grandPid = 0;
+				for (let i = 0; i < 60 && !grandPid; i++) {
+					if (existsSync(pidFile)) {
+						const raw = Number(readFileSync(pidFile, 'utf8').trim());
+						if (Number.isInteger(raw) && raw > 0) grandPid = raw;
+					}
+					if (!grandPid) await new Promise((r) => setTimeout(r, 50));
+				}
+				const pid = shim.pid ?? 0;
+				expect(pid).toBeGreaterThan(0);
+				expect(grandPid).toBeGreaterThan(0);
+				expect(pidAlive(pid)).toBe(true);
+				expect(pidAlive(grandPid)).toBe(true);
+				await killTree(pid);
+				for (let i = 0; i < 40 && (pidAlive(pid) || pidAlive(grandPid)); i++)
+					await new Promise((r) => setTimeout(r, 100));
+				expect(pidAlive(pid)).toBe(false);
+				expect(pidAlive(grandPid)).toBe(false);
+			} finally {
+				if (shim.pid && pidAlive(shim.pid)) await killTree(shim.pid);
+				rmSync(shimDir, { recursive: true, force: true });
+			}
+		},
+		20_000
+	);
 	// -- THE MARKER IS OUT OF THE CHILD'S REACH (S1) -- //
 
 	const sleeper = () =>

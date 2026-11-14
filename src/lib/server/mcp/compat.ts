@@ -34,7 +34,17 @@ const stepMark = z.object({
 	key: z.string(),
 	mark: z.enum(['done', 'open', 'waived', 'superseded']),
 	reason: z.string().optional(),
-	supersededBy: z.string().optional()
+	supersededBy: z.string().optional(),
+	evidence: z
+		.object({
+			commit: z.string().optional(),
+			checkRunId: z.string().optional(),
+			runIds: z.array(z.string()).optional(),
+			diffReportId: z.string().optional(),
+			target: z.enum(['dev', 'preview', 'deployed']).optional(),
+			note: z.string().optional()
+		})
+		.optional()
 });
 const DOC_SECTION: Record<string, string> = {
 	SPEC: 'spec',

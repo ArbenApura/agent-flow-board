@@ -200,6 +200,28 @@ describe('authentication', () => {
 		expect(await purgeUnverifiedDuplicate(db.db, real)).toBe(false);
 		expect(await db.db.select().from(user).where(eq(user.email, real))).toHaveLength(1);
 	});
+
+	it('issues host-only session cookies (no Domain attribute) so cookies never cross to MOCKUP_ORIGIN', async () => {
+		const email = fresh();
+		await signUp(email);
+		await verify(email);
+		const res = await auth.handler(
+			new Request(`${BASE}/api/auth/sign-in/email`, {
+				method: 'POST',
+				headers: new Headers({
+					'content-type': 'application/json',
+					origin: BASE
+				}),
+				body: JSON.stringify({ email, password: PASSWORD })
+			})
+		);
+		expect(res.status).toBe(200);
+		const cookies = res.headers.getSetCookie();
+		expect(cookies.length).toBeGreaterThan(0);
+		for (const cookie of cookies) {
+			expect(cookie.toLowerCase()).not.toMatch(/;\s*domain=/);
+		}
+	});
 });
 
 describe('request limits', () => {

@@ -21,6 +21,7 @@ import { findItem, mayView } from './resolve';
 import { logSessionEvent } from './sessionEvents';
 import { sessionStatusForRow } from './sessionStatus';
 import { CLOSING_STATUSES, nudgeLevel, renewSession, staleProgressNote } from './tracking';
+import { formatWaitingBlocker } from './waiting';
 
 // -- TYPES -- //
 
@@ -62,6 +63,8 @@ export type HookOutput = {
 	ask?: string;
 	/** A reminder that asks the agent to carry on and record. */
 	block?: string;
+	/** Waiting-for-a-person blocker text shown instead of blocking or asking the agent to carry on (D.5). */
+	waiting?: string;
 	/** Sent right after an edit when finished work is not recorded yet: progress first. Never blocks. */
 	nudge?: string;
 	/** Only when the request asked for it: what this conversation's session works on, for an editor status line. */
@@ -444,7 +447,7 @@ async function handleEvent(
 		// The turn ends after a reminder was already answered. Nothing is said twice, but a turn that ends with edits no record
 		// covers is noted, so the Not recorded badge can tell a session that left work from one still working
 		// Only after an earlier reminder: a first Stop that some other hook continued still earns its own reminder later
-		if (s.codeEditsSinceRecord > 0 && s.claimedItemId && s.remindedAt)
+		if (s.codeEditsSinceRecord > 0 && s.claimedItemId && s.remindedAt && !s.waiting)
 			await run(ctx, (tx) =>
 				tx
 					.update(session)
@@ -454,6 +457,9 @@ async function handleEvent(
 		return {};
 	}
 	const mine = await claimedItem(ctx, s);
+	if (s.waiting) {
+		return { waiting: formatWaitingBlocker(s.waiting, mine?.ref ?? null) };
+	}
 	const changed =
 		!!s.codeTouchedAt && !(s.remindedAt && s.codeTouchedAt.getTime() <= s.remindedAt.getTime());
 	let block: string | null = null;

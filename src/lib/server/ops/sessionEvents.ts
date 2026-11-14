@@ -15,7 +15,8 @@ import { findItem } from './resolve';
 
 // -- TYPES -- //
 
-export type SessionEventKind = 'claim' | 'release' | 'stop_reminder' | 'nudge' | 'end';
+export type SessionEventKind =
+	'claim' | 'release' | 'stop_reminder' | 'nudge' | 'end' | 'waiting_set' | 'waiting_clear';
 
 // -- CONSTANTS -- //
 

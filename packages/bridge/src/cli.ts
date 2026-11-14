@@ -12,6 +12,8 @@
 // agent-flow-board mockup push <file.html> --server <url> --org <slug> --item <ref>   upload one mockup file (never queued)
 // agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key>   upload the project's kit (its built stylesheet and fonts)
 // agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug>   save a mockup's HTML to one new file outside any repo
+// agent-flow-board mockup url <mockup id> --server <url> --org <slug> [--version <n>] [--screenshot] [--ttl <sec>]   mint a short-lived signed mockup address
+// agent-flow-board mockup inspect <mockup id>[@version] --server <url> --org <slug> [--screen S] [--state T] [--width W] [--height H]   inspect rendered DOM box/styles/text
 
 // -- DEP-MODULES -- //
 import { readFileSync } from 'node:fs';
@@ -29,7 +31,7 @@ import { hookSettings } from './hooks/settings.js';
 import { runSetup } from './hooks/setup.js';
 import { applyStatusFile } from './hooks/statusFile.js';
 import { deviceLogin, type Fetch } from './device.js';
-import { pullMockup, pushKit, pushMockup } from './mockup.js';
+import { mintMockupUrlCli, pullMockup, pushKit, pushMockup } from './mockup.js';
 import { Queue } from './queue.js';
 import { accountKey, configDir, pickStore } from './tokenStore.js';
 
@@ -174,9 +176,13 @@ async function main() {
 	}
 	if (cmd === 'mockup') {
 		// One upload over /api/v1 with this machine's own sign in. It is never queued, so a failure is said out loud and run again
-		if (!['push', 'kit', 'pull'].includes(args[1] ?? '') || !args[2] || args[2].startsWith('--')) {
+		if (
+			!['push', 'kit', 'pull', 'url', 'inspect'].includes(args[1] ?? '') ||
+			!args[2] ||
+			args[2].startsWith('--')
+		) {
 			log(
-				'Usage: agent-flow-board mockup push <file.html> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [--another] [--title <text>] [--keep <text> | --keep-file <path>] [--free <text> | --free-file <path>] [--screenshot <file.png>]\n       agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key> [--commit <hash>] [--summary <text>]\n       agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug> [--version <n>] [--session <id>]'
+				'Usage: agent-flow-board mockup push <file.html> --server <url> --org <slug> (--item <ref> | --project <key> | --mockup <id>) [--another] [--title <text>] [--keep <text> | --keep-file <path>] [--free <text> | --free-file <path>] [--screenshot <file.png>]\n       agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key> [--commit <hash>] [--summary <text>]\n       agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug> [--version <n>] [--session <id>]\n       agent-flow-board mockup url <mockup id> --server <url> --org <slug> [--version <n>] [--screenshot] [--ttl <seconds>]\n       agent-flow-board mockup inspect <mockup id>[@version] --server <url> --org <slug> [--screen S] [--state T] [--width W] [--height H]'
 			);
 			process.exit(2);
 		}
@@ -185,6 +191,72 @@ async function main() {
 		if (!org) {
 			log('Say which organisation: --org <slug>.');
 			process.exit(2);
+		}
+		if (args[1] === 'inspect') {
+			const version = flag('--version');
+			if (version !== undefined && !/^[1-9][0-9]*$/.test(version)) {
+				log('The --version must be a whole number of 1 or more.');
+				process.exit(2);
+			}
+			const widthRaw = flag('--width');
+			const heightRaw = flag('--height');
+			const width = widthRaw !== undefined ? Number(widthRaw) : undefined;
+			const height = heightRaw !== undefined ? Number(heightRaw) : undefined;
+			if (width !== undefined && (!Number.isInteger(width) || width < 240 || width > 3840)) {
+				log('The --width must be a whole number between 240 and 3840.');
+				process.exit(2);
+			}
+			if (height !== undefined && (!Number.isInteger(height) || height < 240 || height > 3840)) {
+				log('The --height must be a whole number between 240 and 3840.');
+				process.exit(2);
+			}
+			const token = tokenFor(server, org, true);
+			if (!token) {
+				log(
+					`Not signed in to ${org} on ${server}. Run: agent-flow-board login --json --server ${server} --org ${org}`
+				);
+				process.exit(1);
+			}
+			const { inspectMockupCli } = await import('./checks/inspect.js');
+			const dump = await inspectMockupCli({
+				server,
+				org,
+				token,
+				mockup: args[2],
+				version: version ? Number(version) : undefined,
+				screen: flag('--screen'),
+				state: flag('--state'),
+				width,
+				height,
+				fetch: fetchImpl,
+				log
+			});
+			process.stdout.write(JSON.stringify(dump) + '\n');
+			return;
+		}
+		if (args[1] === 'url') {
+			const version = flag('--version');
+			if (version !== undefined && !/^[1-9][0-9]*$/.test(version)) {
+				log('The --version must be a whole number of 1 or more.');
+				process.exit(2);
+			}
+			const ttl = flag('--ttl');
+			if (ttl !== undefined && !/^[1-9][0-9]*$/.test(ttl)) {
+				log('The --ttl must be a whole number of seconds between 1 and 300.');
+				process.exit(2);
+			}
+			const minted = await mintMockupUrlCli({
+				server,
+				org,
+				token: tokenFor(server, org, true) ?? '',
+				fetch: fetchImpl,
+				mockup: args[2],
+				version: version ? Number(version) : undefined,
+				screenshot: args.includes('--screenshot'),
+				ttlSeconds: ttl ? Number(ttl) : undefined
+			});
+			process.stdout.write(JSON.stringify(minted) + '\n');
+			return;
 		}
 		if (args[1] === 'pull') {
 			// The HTML of a mockup, read to the end and saved to one new file outside any repo (AFB-20261111-0017)

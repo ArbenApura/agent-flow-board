@@ -1,4 +1,6 @@
 <script lang="ts">
+	// -- TYPES -- //
+	import type { WaitingBlocker } from '#lib/board/rows.js';
 	// -- MODULES -- //
 	import Badge from '#lib/ui/Badge.svelte';
 
@@ -11,6 +13,7 @@
 		staleMinutes = null,
 		mockupUnread = false,
 		reviewIdle = false,
+		waiting = null,
 		age,
 		compact = false
 	}: {
@@ -26,6 +29,8 @@
 		mockupUnread?: boolean;
 		/** The item is in review with nothing open and the session has gone quiet: shown as idle, not as running. */
 		reviewIdle?: boolean;
+		/** Waiting-for-a-person blocker on this session, shown in the warning tone (D.5). */
+		waiting?: WaitingBlocker | null;
 		/** When the claim started and was last seen, added to the hover text. */
 		age?: string;
 		/** Inside a phase heading the phase is already named, so the badge shows only the tool, working. */
@@ -62,6 +67,12 @@
 	{#if staleMinutes !== null}
 		<span title={staleTitle}>
 			<Badge tone="warning" class={compact ? 'rounded-md' : ''}>Not recorded</Badge>
+		</span>
+	{/if}
+	<!-- FIRST-CLASS WAITING-FOR-A-PERSON BLOCKER IN WARNING TONE (D.5) -->
+	{#if waiting}
+		<span title={`Waiting for a person (${waiting.kind}): ${waiting.detail}`}>
+			<Badge tone="warning" class={compact ? 'rounded-md' : ''}>Waiting {waiting.kind}</Badge>
 		</span>
 	{/if}
 	<!-- THE SAME WARNING BADGE WHEN THE PLAN'S MOCKUP IS UNREAD. AN IDLE ITEM IN REVIEW SHOWS NONE: NOTHING IS BEING BUILT -->

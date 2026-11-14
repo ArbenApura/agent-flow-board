@@ -311,6 +311,7 @@
 						staleMinutes={r.staleMinutes}
 						mockupUnread={r.mockupUnread}
 						reviewIdle={r.reviewIdle}
+						waiting={r.waiting}
 						age={`Started ${new Date(r.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. ${activityText(r.lastSeenAt)}.`}
 					/>
 					<!-- HOW OLD THE CLAIM IS, AS TEXT SO A PHONE CAN READ IT -->
@@ -549,11 +550,11 @@
 					<span class={LIST_COLS.updated}>Updated</span>
 				</div>
 				<!-- THE LIST IS AS TALL AS ITS ROWS UP TO 70% OF THE SCREEN, A RUNTIME HEIGHT -->
-				<div style="height:min({data.list.total * (narrow ? 56 : 52)}px, 70dvh);">
+				<div style="height:min({data.list.total * (narrow ? 80 : 72)}px, 70dvh);">
 					<VirtualList
 						items={listItems}
 						total={data.list.total}
-						rowHeight={narrow ? 56 : 52}
+						rowHeight={narrow ? 80 : 72}
 						keyOf={(r) => r.id}
 						label={`${data.list.total.toLocaleString('en')} items`}
 						class="h-full"

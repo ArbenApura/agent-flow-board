@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { approveCommand, projectCommand, rootsCommand } from './commands.js';
+import { devApprovalTarget, devConfigHash } from './devPolicy.js';
 
 // -- FUNCTIONS -- //
 
@@ -101,5 +102,97 @@ describe('commands', () => {
 		expect(await projectCommand(['AFB', '--org'], ctx())).toBe(2);
 		expect(await rootsCommand(['add'], ctx())).toBe(2);
 		expect(await rootsCommand(['bogus', 'x'], ctx())).toBe(2);
+	});
+	it('registers a --dev-url project with --start and --board-project, listed as dev', async () => {
+		const hash = devConfigHash({
+			devUrl: 'http://localhost:5173',
+			startCommand: ['node', 'server.js']
+		});
+		out = [];
+		await approveCommand(
+			['--action', 'dev', '--target', devApprovalTarget('WEBDEV', hash)],
+			ctx(),
+			{ isTTY: true }
+		);
+		const code = codeOf();
+		out = [];
+		const status = await projectCommand(
+			[
+				'WEBDEV',
+				'--org',
+				'acme',
+				'--dev-url',
+				'http://localhost:5173',
+				'--start',
+				'node server.js',
+				'--board-project',
+				'PROJ1',
+				'--approval',
+				code
+			],
+			ctx(true)
+		);
+		expect(status).toBe(0);
+		expect(JSON.parse(out.join(''))).toMatchObject({
+			org: 'acme',
+			name: 'WEBDEV',
+			boardProject: 'PROJ1',
+			devUrl: 'http://localhost:5173'
+		});
+		out = [];
+		expect(await projectCommand(['list', '--org', 'acme'], ctx(true))).toBe(0);
+		const listed = JSON.parse(out[0] ?? '{}') as {
+			registrations: { name: string; boardProject: string; kind: string; devUrl?: string | null }[];
+		};
+		expect(listed.registrations).toMatchObject([
+			{
+				org: 'acme',
+				name: 'WEBDEV',
+				boardProject: 'PROJ1',
+				kind: 'dev',
+				devUrl: 'http://localhost:5173'
+			}
+		]);
+
+		out = [];
+		expect(await projectCommand(['list', '--org', 'acme'], ctx(false))).toBe(0);
+		expect(out.join('\n')).toContain('http://localhost:5173');
+		expect(out.join('\n')).not.toContain('null');
+
+		// Boolean `--allow-writes` parses cleanly with `--write-allowlist`
+		const wHash = devConfigHash({
+			devUrl: 'http://127.0.0.1:4173',
+			startCommand: ['node', 'server.js'],
+			allowWrites: true,
+			writeAllowlist: [{ method: 'POST', pathPrefix: '/api/drafts' }]
+		});
+		out = [];
+		expect(
+			await approveCommand(
+				['--action', 'dev', '--target', devApprovalTarget('WRITEDEV', wHash)],
+				ctx(false),
+				{ isTTY: true }
+			)
+		).toBe(0);
+		const wCode = codeOf();
+		expect(
+			await projectCommand(
+				[
+					'WRITEDEV',
+					'--org',
+					'acme',
+					'--dev-url',
+					'http://127.0.0.1:4173',
+					'--start',
+					'node server.js',
+					'--allow-writes',
+					'--write-allowlist',
+					'POST /api/drafts',
+					'--approval',
+					wCode
+				],
+				ctx(true)
+			)
+		).toBe(0);
 	});
 });

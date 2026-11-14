@@ -1,9 +1,18 @@
 // MOCKUP ROUTES (AFB-20261107-0346): THE SAME ISOLATING HEADERS ON EVERY ANSWER, SIGNED LINKS, THE PUBLIC LINK AND THE PIN SCRIPT
 
 // -- DEP-MODULES -- //
+import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
+import {
+	buildMockupUrl,
+	isBlockedMainOriginMockupFilePath,
+	isMockupOriginRequest,
+	isMockupServingPath,
+	mockupOriginStatus,
+	parseMockupOrigin
+} from '../../src/lib/server/mockups/origin';
 import { clearKitCache } from '../../src/lib/server/mockups/kitHead';
 import { isMockupKey, mockupKey } from '../../src/lib/server/mockups/keys';
 import {
@@ -12,17 +21,21 @@ import {
 	resetPublicRate
 } from '../../src/lib/server/mockups/limit';
 import {
+	KIT_ASSET_CSP,
 	MOCKUP_CSP,
 	THUMB_CSP,
 	THUMB_MAX_BYTES,
 	injectPinScript,
 	readsNoSession,
-	servePublicMockup,
+	serveMemberKitAsset,
 	serveMemberMockup,
+	servePublicKitAsset,
+	servePublicMockup,
 	signMockupGrant
 } from '../../src/lib/server/mockups/serve';
 import { createItem, trashItem, updateItem } from '../../src/lib/server/ops/items';
-import { setMockupKit } from '../../src/lib/server/ops/mockupSettings';
+import { readMockupKit, setMockupKit } from '../../src/lib/server/ops/mockupSettings';
+import { createProject } from '../../src/lib/server/ops/projects';
 import {
 	mockupFileGrant,
 	publishMockup,
@@ -64,6 +77,7 @@ describe('mockup routes', () => {
 	};
 	const expectIsolated = (res: Response) => {
 		expect(res.headers.get('content-security-policy')).toBe(MOCKUP_CSP);
+		expect(res.headers.get('referrer-policy')).toBe('no-referrer');
 		expect(res.headers.get('x-content-type-options')).toBe('nosniff');
 		expect(res.headers.get('x-robots-tag')).toBe('noindex');
 		expect(res.headers.get('cache-control')).toBe('no-store');
@@ -369,5 +383,188 @@ describe('mockup routes', () => {
 		expect(publicRateAllowed('1.2.3.4')).toBe(false);
 		expect(publicRateAllowed('5.6.7.8')).toBe(true);
 		expect(publicRateAllowed('1.2.3.4', Date.now() + 61_000)).toBe(true);
+	});
+
+	it('isolates MOCKUP_ORIGIN, blocks non-mockup paths, and derives per-resource HKDF signatures', async () => {
+		expect(parseMockupOrigin(undefined, 'https://afb.example.com')).toBeUndefined();
+		expect(parseMockupOrigin('https://mockups.example.com/', 'https://afb.example.com')).toBe(
+			'https://mockups.example.com'
+		);
+		expect(parseMockupOrigin('http://mockups.localhost:5180', 'http://localhost:5180')).toBe(
+			'http://mockups.localhost:5180'
+		);
+
+		// Misconfigured MOCKUP_ORIGIN fails loudly
+		expect(() => parseMockupOrigin('not-a-url', 'https://afb.example.com')).toThrow();
+		expect(() =>
+			parseMockupOrigin('http://mockups.example.com', 'https://afb.example.com')
+		).toThrow();
+		expect(() => parseMockupOrigin('https://afb.example.com', 'https://afb.example.com')).toThrow();
+		expect(() => parseMockupOrigin('http://localhost:5190', 'http://localhost:5180')).toThrow();
+		expect(() =>
+			parseMockupOrigin('https://mockups.example.com/sub', 'https://afb.example.com')
+		).toThrow();
+
+		const devMode = mockupOriginStatus('http://localhost:5180', undefined);
+		expect(devMode.devOnlySameHost).toBe(true);
+		expect(devMode.notice).toContain('local development only');
+
+		// Requests on MOCKUP_ORIGIN allow only /mf/* and /m/*, never board APIs or pages
+		const mockOrigin = 'https://mockups.example.com';
+		expect(
+			isMockupOriginRequest(
+				new URL('https://mockups.example.com/mf/a/b/c/1/html'),
+				null,
+				mockOrigin
+			)
+		).toBe(true);
+		expect(
+			isMockupOriginRequest(
+				new URL('http://127.0.0.1:3000/api/v1/items'),
+				'mockups.example.com',
+				mockOrigin
+			)
+		).toBe(true);
+		expect(isMockupServingPath('/mf/a/b/c/1/html')).toBe(true);
+		expect(isMockupServingPath('/m/token/file')).toBe(true);
+		expect(isBlockedMainOriginMockupFilePath('/m/token/file')).toBe(true);
+		expect(isBlockedMainOriginMockupFilePath('/m/token/kit/a.css')).toBe(true);
+		expect(isBlockedMainOriginMockupFilePath('/mf/a/b/c/1/html')).toBe(true);
+		expect(isBlockedMainOriginMockupFilePath('/m/token')).toBe(false);
+		expect(isBlockedMainOriginMockupFilePath('/api/v1/items')).toBe(false);
+		expect(isMockupServingPath('/api/v1/items')).toBe(false);
+		expect(isMockupServingPath('/mcp')).toBe(false);
+		expect(isMockupServingPath('/n/public-note')).toBe(false);
+		expect(isMockupServingPath('/')).toBe(false);
+		expect(buildMockupUrl('/mf/o/p/m/1/html?exp=1&sig=2', mockOrigin)).toBe(
+			'https://mockups.example.com/mf/o/p/m/1/html?exp=1&sig=2'
+		);
+
+		// Foreign-org address is refused with zero DB/storage work and raw HMAC cannot forge HKDF signatures
+		const m = await publishMockup(as('member'), { item: (await plan('HKDF plan')).ref }, PAGE);
+		const g = await mockupFileGrant(as('member'), m.mockup.id);
+		const signed = new URL(signMockupGrant(SECRET, g), 'https://afb.test');
+		const exp = signed.searchParams.get('exp')!;
+		const sig = signed.searchParams.get('sig')!;
+		const legacyRawHmac = createHmac('sha256', SECRET)
+			.update(`${g.orgId}.${g.projectId}.${g.mockupId}.${g.version}.${g.kind}\n${exp}`)
+			.digest('base64url');
+		expect(sig).not.toBe(legacyRawHmac);
+
+		const foreignOrgParams = {
+			...asParams(g),
+			org: '00000000-0000-4000-8000-000000000099'
+		};
+		const foreignRes = await serveMemberMockup(deps(), SECRET, foreignOrgParams, { exp, sig });
+		expect(foreignRes.status).toBe(404);
+		expectIsolated(foreignRes);
+	});
+
+	it('extracts large kit CSS and embedded fonts into stored asset files, serves them over /mf/kit and /m/kit, and wires URL hook state', async () => {
+		const p2 = await createProject(as('owner'), { name: 'Assets proj', key: 'AST' });
+		const plan2 = await createItem(as('member'), {
+			project: p2.key,
+			title: 'Assets plan',
+			...PLAN
+		});
+		const bigFontB64 = Buffer.from('wOFF2-fake-font-payload-' + 'x'.repeat(1600)).toString(
+			'base64'
+		);
+		const padCss = '.big{color:red}'.repeat(1500);
+		const kitHtml = `<!doctype html><html><head><!--afb-kit:start--><style id="kit-head">@font-face{font-family:'Poppins';src:url("data:font/woff2;base64,${bigFontB64}") format('woff2')}${padCss}</style><!--afb-kit:end--></head><body>KIT</body></html>`;
+
+		// Author (member) can save the kit (no 403) and assets are stored as separate files
+		const savedKit = await setMockupKit(
+			as('member'),
+			{ project: p2.key, builtFromCommit: 'asset1' },
+			new TextEncoder().encode(kitHtml)
+		);
+		expect(savedKit.assetCount).toBe(2);
+		const readKit = await readMockupKit(as('viewer'), p2.key);
+		expect(readKit?.assets.map((a) => a.name).sort()).toEqual(['asset-0.woff2', 'kit-0.css']);
+
+		const markedPage = new TextEncoder().encode(
+			'<!doctype html><html><head><!--afb-kit--></head><body><main data-screen="home" data-state="default" data-ref="main">Hello</main></body></html>'
+		);
+		const m = await publishMockup(as('member'), { item: plan2.ref }, markedPage);
+		expect(m.warnings).toEqual([]);
+		const g = await mockupFileGrant(as('viewer'), m.mockup.id);
+		const u = new URL(signMockupGrant(SECRET, g), 'https://mockups.example.com');
+		const htmlRes = await serveMemberMockup(
+			deps(),
+			SECRET,
+			asParams(g),
+			{ exp: u.searchParams.get('exp'), sig: u.searchParams.get('sig') },
+			Date.now(),
+			'https://mockups.example.com'
+		);
+		expect(htmlRes.status).toBe(200);
+		const htmlBody = await htmlRes.text();
+		expect(htmlBody.length).toBeLessThan(20_000);
+		expect(htmlBody).toContain('<link rel="stylesheet" id="kit-head" href="/mf/kit/');
+		expect(htmlBody).not.toContain('wOFF2-fake-font-payload');
+		// Pin script carries URL query/hash hook parser for screen, state, surface, person, offline
+		expect(htmlBody).toContain('applyUrlHooks');
+		expect(htmlBody).toContain("'surface'");
+		expect(htmlBody).toContain("'offline'");
+		expect(htmlRes.headers.get('content-security-policy')).toContain(
+			'https://mockups.example.com/mf/kit/'
+		);
+
+		const cssHref = /href="(\/mf\/kit\/[^"]+)"/.exec(htmlBody)?.[1] ?? '';
+		expect(cssHref).toBeTruthy();
+		const cssUrl = new URL(cssHref, 'https://mockups.example.com');
+		const [, , , orgId, projectId, kitId, cssName] = cssUrl.pathname.split('/');
+		const cssRes = await serveMemberKitAsset(
+			deps(),
+			SECRET,
+			{ org: orgId, project: projectId, kit: kitId, name: cssName },
+			{ exp: cssUrl.searchParams.get('exp'), sig: cssUrl.searchParams.get('sig') }
+		);
+		expect(cssRes.status).toBe(200);
+		expect(cssRes.headers.get('content-type')).toBe('text/css; charset=utf-8');
+		expect(cssRes.headers.get('content-security-policy')).toBe(KIT_ASSET_CSP);
+		expect(cssRes.headers.get('access-control-allow-origin')).toBe('*');
+		const cssText = await cssRes.text();
+		expect(cssText).toContain('./asset-0.woff2?exp=');
+
+		const fontHref = /\.\/(asset-0\.woff2\?[^")]+)/.exec(cssText)?.[1] ?? '';
+		expect(fontHref).toBeTruthy();
+		const fontUrl = new URL(fontHref, 'https://mockups.example.com/mf/kit/x/y/z/');
+		const fontRes = await serveMemberKitAsset(
+			deps(),
+			SECRET,
+			{ org: orgId, project: projectId, kit: kitId, name: 'asset-0.woff2' },
+			{ exp: fontUrl.searchParams.get('exp'), sig: fontUrl.searchParams.get('sig') }
+		);
+		expect(fontRes.status).toBe(200);
+		expect(fontRes.headers.get('content-type')).toBe('font/woff2');
+
+		// Tampered asset signature is refused
+		const tampered = await serveMemberKitAsset(
+			deps(),
+			SECRET,
+			{ org: orgId, project: projectId, kit: kitId, name: 'asset-0.woff2' },
+			{ exp: fontUrl.searchParams.get('exp'), sig: 'bad-sig' }
+		);
+		expect(tampered.status).toBe(404);
+
+		// Public link serves externalized /m/<token>/kit/ CSS and fonts too
+		const on = await setMockupPublicLink(as('admin'), m.mockup.id, true);
+		const pubRes = await servePublicMockup(
+			deps(),
+			on.token!,
+			undefined,
+			false,
+			'https://mockups.example.com'
+		);
+		const pubHtml = await pubRes.text();
+		expect(pubHtml).toContain(`/m/${on.token}/kit/kit-0.css`);
+		const pubCss = await servePublicKitAsset(deps(), on.token!, 'kit-0.css');
+		expect(pubCss.status).toBe(200);
+		expect(await pubCss.text()).toContain('./asset-0.woff2');
+		const pubFont = await servePublicKitAsset(deps(), on.token!, 'asset-0.woff2');
+		expect(pubFont.status).toBe(200);
+		expect(pubFont.headers.get('content-type')).toBe('font/woff2');
 	});
 });

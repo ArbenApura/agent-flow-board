@@ -9,6 +9,17 @@ import { MOCKUP_KEY_PREFIX } from '../db/schema/mockups';
 
 export const isMockupKey = (key: string) => key.split('/')[0] === MOCKUP_KEY_PREFIX;
 
-/** A new key for one stored file of a mockup, version, screenshot or kit. Every stored file gets its own. */
-export const mockupKey = (orgId: string, projectId: string, kind: 'html' | 'png' | 'kit') =>
-	`${MOCKUP_KEY_PREFIX}/${orgId}/${projectId}/${randomUUID()}.${kind === 'png' ? 'png' : 'html'}`;
+/** A new key for one stored file of a mockup, version, screenshot, kit or kit asset. Every stored file gets its own. */
+export const mockupKey = (
+	orgId: string,
+	projectId: string,
+	kind: 'html' | 'png' | 'kit' | 'asset',
+	ext?: string
+) => {
+	const suffix = kind === 'png' ? 'png' : kind === 'asset' ? (ext ?? 'bin') : 'html';
+	return `${MOCKUP_KEY_PREFIX}/${orgId}/${projectId}/${randomUUID()}.${suffix}`;
+};
+
+/** Reserved key for derived check/compare evidence assets stored via attachments so backup, purge and route isolation cover them. */
+export const mockupEvidenceKey = (orgId: string, projectId: string, cleanFilename: string) =>
+	`${MOCKUP_KEY_PREFIX}/${orgId}/${projectId}/${randomUUID()}-${cleanFilename}`;

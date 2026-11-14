@@ -314,13 +314,51 @@ export const runner = tenantTable(
 
 // -- OWNER APPROVALS FROM THE BOARD (AFB-20261108-1444) -- //
 
+export const DEV_STATUSES = ['unknown', 'reachable', 'unreachable', 'error'] as const;
+export type DevStatus = (typeof DEV_STATUSES)[number];
+
+/**
+ * Advisory facts of a local dev-server check registration per project.
+ * Executable fields (startCommand, allowWrites, writeAllowlist) NEVER live here; they stay in the bridge's local sealed registry.
+ */
+export const devRegistration = tenantTable(
+	'dev_registration',
+	'project',
+	{
+		id: id(),
+		orgId: orgId(),
+		projectId: projectId(),
+		name: text('name').notNull(),
+		devUrl: text('dev_url').notNull(),
+		profiles: jsonb('profiles')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		activeProfile: text('active_profile'),
+		lastStatus: text('last_status', { enum: DEV_STATUSES }).notNull().default('unknown'),
+		lastReasonCode: text('last_reason_code'),
+		lastFixLine: text('last_fix_line'),
+		lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+		createdBy: text('created_by'),
+		updatedBy: text('updated_by'),
+		...stamps(),
+		version: version()
+	},
+	(t) => [
+		unique('dev_registration_project_name_uq').on(t.projectId, t.name),
+		oneOf('dev_registration_status_chk', t.lastStatus, DEV_STATUSES),
+		index('dev_registration_org_idx').on(t.orgId, t.projectId)
+	]
+);
+
 export const APPROVAL_ACTIONS = [
 	'register',
 	'secrets',
 	'adopt-env',
 	'roots',
 	'pictures',
-	'login'
+	'login',
+	'dev'
 ] as const;
 export const APPROVAL_STATUSES = [
 	'pending',

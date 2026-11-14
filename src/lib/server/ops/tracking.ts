@@ -5,9 +5,10 @@
 
 // -- TYPES -- //
 import type { Tx } from '../db/client';
+import type { StepEvidenceWaiver } from '../db/schema';
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 // -- MODULES -- //
 import { check, checkRun, item, phase, session, step } from '../db/schema';
 import { notifyChange } from '../realtime/notify';
@@ -18,8 +19,15 @@ import { OpError } from './context';
 export type Evidence = {
 	commit?: string;
 	checkRunId?: string;
+	runIds?: string[];
+	diffReportId?: string;
+	mockupId?: string;
+	mockupVersion?: number;
+	screens?: string[];
+	widths?: number[];
 	target?: 'dev' | 'preview' | 'deployed';
 	note?: string;
+	waived?: StepEvidenceWaiver;
 };
 type Closing = 'COMPLETED' | 'REMOVED';
 
@@ -114,6 +122,7 @@ export async function releaseClaimsOn(
 		.set({
 			claimedItemId: null,
 			claimedPhase: null,
+			waiting: null,
 			askedAt: sql`now()`,
 			notices: sql`${session.notices} || ${JSON.stringify([note])}::jsonb`,
 			updatedAt: sql`now()`
@@ -141,6 +150,7 @@ export async function releaseOthersClaimsOn(
 		.set({
 			claimedItemId: null,
 			claimedPhase: null,
+			waiting: null,
 			askedAt: sql`now()`,
 			notices: sql`${session.notices} || ${JSON.stringify([note])}::jsonb`,
 			updatedAt: sql`now()`
@@ -294,13 +304,20 @@ export async function validateEvidence(
 	if (required && !evidence?.checkRunId)
 		fail(`it needs a passed check run on ${required}. Send checkRunId in the evidence.`);
 	if (!evidence) return;
-	if (evidence.target && !evidence.checkRunId)
+	const allRunIds = [
+		...(evidence.checkRunId ? [evidence.checkRunId] : []),
+		...(evidence.runIds ?? [])
+	].filter((v, i, arr) => arr.indexOf(v) === i);
+	if (evidence.target && !allRunIds.length)
 		fail('a target needs the checkRunId of the run that passed on it.');
 	let runCommit: string | null = null;
-	if (evidence.checkRunId) {
-		if (!/^[0-9a-f-]{36}$/i.test(evidence.checkRunId)) fail('the check run id is not valid.');
-		const [run] = await tx
+	if (allRunIds.length) {
+		for (const rid of allRunIds) {
+			if (!/^[0-9a-f-]{36}$/i.test(rid)) fail('the check run id is not valid.');
+		}
+		const runs = await tx
 			.select({
+				id: checkRun.id,
 				result: checkRun.result,
 				target: checkRun.target,
 				commit: checkRun.commit,
@@ -308,15 +325,17 @@ export async function validateEvidence(
 			})
 			.from(checkRun)
 			.innerJoin(check, eq(check.id, checkRun.checkId))
-			.where(and(eq(checkRun.id, evidence.checkRunId), eq(checkRun.orgId, ctx.orgId)));
-		if (!run) fail('no such check run in this organisation.');
-		if (run!.itemId !== it.id) fail(`that check run belongs to another item, not ${it.ref}.`);
-		if (run!.result !== 'pass') fail(`that check run did not pass (${run!.result}).`);
-		if (evidence.target && evidence.target !== run!.target)
-			fail(`that check run ran on ${run!.target}, not ${evidence.target}.`);
-		if (required && TARGET_RANK[run!.target as keyof typeof TARGET_RANK] < TARGET_RANK[required])
-			fail(`it needs a pass on ${required}, and that run was on ${run!.target}.`);
-		runCommit = run!.commit;
+			.where(and(inArray(checkRun.id, allRunIds), eq(checkRun.orgId, ctx.orgId)));
+		if (runs.length !== allRunIds.length) fail('no such check run in this organisation.');
+		for (const run of runs) {
+			if (run.itemId !== it.id) fail(`that check run belongs to another item, not ${it.ref}.`);
+			if (run.result !== 'pass') fail(`that check run did not pass (${run.result}).`);
+			if (evidence.target && evidence.target !== run.target)
+				fail(`that check run ran on ${run.target}, not ${evidence.target}.`);
+			if (required && TARGET_RANK[run.target as keyof typeof TARGET_RANK] < TARGET_RANK[required])
+				fail(`it needs a pass on ${required}, and that run was on ${run.target}.`);
+			runCommit = runCommit ?? run.commit;
+		}
 	}
 	if (evidence.commit) {
 		if (!/^[0-9a-fA-F]{7,40}$/.test(evidence.commit)) fail('the commit is not a git hash.');

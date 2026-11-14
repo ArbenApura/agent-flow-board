@@ -76,7 +76,14 @@ import {
 } from '../ops/plan';
 import { recordInput, recordSteps } from '../ops/steps';
 import { sessionStatusByExternal, sessionStatusInput } from '../ops/sessionStatus';
+import {
+	clearWaitingForPerson,
+	clearWaitingInput,
+	setWaitingForPerson,
+	waitingInput
+} from '../ops/waiting';
 import { setStatus, setStatusInput } from '../ops/status';
+import { evidenceWaive, evidenceWaiveInput } from '../ops/visibleSteps';
 import { createToken, listTokens, revokeToken, tokenInput } from '../ops/tokens';
 import { OpError, requireCap, run } from '../ops/context';
 import { sql } from 'drizzle-orm';
@@ -121,6 +128,12 @@ import {
 	toolApprovalInput,
 	toolRunnerInput
 } from '../ops/environments';
+import {
+	deleteDevRegistration,
+	devRegistrationApiBody,
+	listDevRegistrations,
+	saveDevRegistration
+} from '../ops/devRegistrations';
 import { backupHealth } from '../backup/run';
 import { mockupRoutes } from './mockupRoutes';
 import { noteRoutes } from './noteRoutes';
@@ -331,6 +344,15 @@ export const routes: Route[] = [
 	},
 	{
 		method: 'POST',
+		path: '/orgs/{org}/items/{item}/steps/{key}/evidence-waive',
+		summary: 'Waive visual compare evidence on a visible step (person owner only)',
+		tag: 'Progress',
+		body: strip(evidenceWaiveInput, 'item', 'key'),
+		handler: ({ ctx, params, body }) =>
+			evidenceWaive(ctx, { ...(body as object), item: params.item, key: params.key } as never)
+	},
+	{
+		method: 'POST',
 		path: '/orgs/{org}/items/{item}/status',
 		summary: 'Set a status. COMPLETED needs every step closed and may be kept for people.',
 		tag: 'Progress',
@@ -535,6 +557,23 @@ export const routes: Route[] = [
 				tool: (query.tool || undefined) as never,
 				etag: query.etag || undefined
 			})
+	},
+	{
+		method: 'POST',
+		path: '/orgs/{org}/sessions/waiting',
+		summary: 'Mark a waiting-for-a-person blocker (sign-in, approval, decision) on this session',
+		tag: 'Sessions',
+		body: waitingInput,
+		handler: ({ ctx, body }) => setWaitingForPerson(ctx, body as never)
+	},
+	{
+		method: 'DELETE',
+		path: '/orgs/{org}/sessions/waiting',
+		summary: 'Clear the waiting-for-a-person blocker on this session',
+		tag: 'Sessions',
+		query: clearWaitingInput,
+		handler: ({ ctx, query }) =>
+			clearWaitingForPerson(ctx, { sessionId: query.sessionId || undefined })
 	},
 	{
 		method: 'GET',
@@ -847,6 +886,30 @@ export const routes: Route[] = [
 		summary: 'Remove an environment',
 		tag: 'Browser checks',
 		handler: ({ ctx, params }) => deleteEnvironment(ctx, params.project, params.name)
+	},
+	{
+		method: 'GET',
+		path: '/orgs/{org}/projects/{project}/dev-registrations',
+		summary: 'Advisory dev-server check registrations of a project',
+		tag: 'Browser checks',
+		handler: ({ ctx, params }) => listDevRegistrations(ctx, params.project)
+	},
+	{
+		method: 'PUT',
+		path: '/orgs/{org}/projects/{project}/dev-registrations',
+		summary:
+			'Save advisory dev-registration facts (managers only; local execution settings stay on the bridge)',
+		tag: 'Browser checks',
+		body: devRegistrationApiBody,
+		handler: ({ ctx, params, body }) =>
+			saveDevRegistration(ctx, { ...(body as object), project: params.project })
+	},
+	{
+		method: 'DELETE',
+		path: '/orgs/{org}/projects/{project}/dev-registrations/{name}',
+		summary: 'Remove an advisory dev registration',
+		tag: 'Browser checks',
+		handler: ({ ctx, params }) => deleteDevRegistration(ctx, params.project, params.name)
 	},
 	{
 		method: 'GET',

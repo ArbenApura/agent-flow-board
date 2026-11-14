@@ -3,6 +3,13 @@
 // -- TYPES -- //
 import type { Status } from './status';
 
+export type WaitingBlocker = {
+	kind: 'sign-in' | 'approval' | 'decision';
+	detail: string;
+	target?: string;
+	setAt: string;
+};
+
 export type ItemRow = {
 	id: string;
 	ref: string;
@@ -10,6 +17,9 @@ export type ItemRow = {
 	title: string;
 	status: Status;
 	percent: number;
+	verifiedPercent: number | null;
+	unverifiedVisually: boolean;
+	isLegacy: boolean;
 	doneSteps: number;
 	totalSteps: number;
 	openManual: number;
@@ -28,13 +38,18 @@ export type ApiItem = {
 	title: string;
 	status: string;
 	percent: number;
+	legacyPercent?: number | null;
 	doneSteps: number;
 	totalSteps: number;
 	openManual: number;
 	visibility: string;
 	stream: string;
 	scope: string;
-	health?: { flags?: string[]; drift?: string[] } | null;
+	health?: {
+		flags?: string[];
+		drift?: string[];
+		verifiedPercent?: number | null;
+	} | null;
 	lastActivityAt: string | Date;
 };
 
@@ -53,6 +68,8 @@ export type Running = {
 	mockupUnread?: boolean;
 	/** The item is in review with nothing open and the session has been quiet: shown as In review, idle, not as running. */
 	reviewIdle: boolean;
+	/** Waiting-for-a-person blocker on this session, when set (D.5). */
+	waiting?: WaitingBlocker | null;
 	/** When the session started and when it was last seen, so a stuck claim shows how old it is. */
 	startedAt: string | Date;
 	lastSeenAt: string | Date;
@@ -67,6 +84,9 @@ export const slimItem = (i: ApiItem): ItemRow => ({
 	title: i.title,
 	status: i.status as Status,
 	percent: i.percent,
+	verifiedPercent: i.health?.verifiedPercent ?? null,
+	unverifiedVisually: i.health?.flags?.includes('unverified-visually') ?? false,
+	isLegacy: i.legacyPercent !== null && i.legacyPercent !== undefined,
 	doneSteps: i.doneSteps,
 	totalSteps: i.totalSteps,
 	openManual: i.openManual,

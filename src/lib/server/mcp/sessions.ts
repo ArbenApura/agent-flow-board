@@ -9,11 +9,13 @@ import { and, eq, ne, sql } from 'drizzle-orm';
 // -- MODULES -- //
 import { canonicalTool } from '../../shared/tool';
 import { item, phase, session, step } from '../db/schema';
-import { OpError, run } from '../ops/context';
+import { OpError, isLivePersonSession, run } from '../ops/context';
 import { canSeeItem, findItem } from '../ops/resolve';
 import { notifyChange } from '../realtime/notify';
 import { logSessionEvent } from '../ops/sessionEvents';
 import { QUIET_RELEASE_MINUTES, renewSession } from '../ops/tracking';
+import { sliceGateHoldForItem } from '../ops/visibleSteps';
+import { setSessionWaitingTx } from '../ops/waiting';
 
 // -- CONSTANTS -- //
 
@@ -153,12 +155,16 @@ export async function claim(
 	await requireSession(ctx, sessionId);
 	return run(ctx, async (tx) => {
 		let itemId: string | null = null;
+		let itemRef: string | null = null;
+		let itemSliceGate = false;
 		let projectId: string | null = null;
 		let phaseOut: string | null = null;
 		let nextOpen: { key: string; text: string }[] = [];
 		if (nameOrId) {
 			const it = await findItem(tx, ctx, nameOrId);
 			itemId = it.id;
+			itemRef = it.ref;
+			itemSliceGate = it.sliceGate;
 			projectId = it.projectId;
 			const open = await tx
 				.select({ key: step.key, text: step.text, phaseKey: phase.key })
@@ -190,6 +196,7 @@ export async function claim(
 				codeEditsSinceRecord: sql`case when ${session.claimedItemId} is distinct from ${itemId}::uuid then 0 else ${session.codeEditsSinceRecord} end`,
 				firstUnrecordedEditAt: sql`case when ${session.claimedItemId} is distinct from ${itemId}::uuid then null else ${session.firstUnrecordedEditAt} end`,
 				nudgedLevel: sql`case when ${session.claimedItemId} is distinct from ${itemId}::uuid then 0 else ${session.nudgedLevel} end`,
+				waiting: sql`case when ${session.claimedItemId} is distinct from ${itemId}::uuid or ${itemId}::uuid is null then null else ${session.waiting} end`,
 				lastSeenAt: sql`now()`,
 				updatedAt: sql`now()`
 			})
@@ -234,6 +241,16 @@ export async function claim(
 			});
 		for (const p of new Set([projectId, before?.projectId].filter((v): v is string => !!v)))
 			await notifyChange(tx, { o: ctx.orgId, p, k: 'claim', i: itemId });
+		if (itemId && itemRef && itemSliceGate && phaseOut && !isLivePersonSession(ctx)) {
+			const hold = await sliceGateHoldForItem(tx, itemId);
+			if (hold && phaseOut !== hold.firstPhaseKey) {
+				await setSessionWaitingTx(tx, ctx, sessionId, {
+					kind: 'approval',
+					detail: `Vertical-slice gate on ${itemRef}: verify ${hold.gateStepKey} with check compare or owner waiver before working on phase ${phaseOut}.`,
+					target: itemRef
+				});
+			}
+		}
 		return { ...(await describe(tx, row)), nextOpen };
 	});
 }

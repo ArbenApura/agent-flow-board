@@ -6,12 +6,13 @@
 import type { DbHandle } from '../db/client';
 import type { Storage } from '../adapters/storage';
 // -- DEP-MODULES -- //
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 // -- MODULES -- //
 import { ALL_SCREENS } from '../../board/mockups';
-import { item, mockup, mockupVersion, project, user } from '../db/schema';
+import { item, mockup, mockupKitAsset, mockupVersion, project, user } from '../db/schema';
 import { withTenant } from '../db/tenant';
+import { KIT_ASSET_NAME, hasAssetPlaceholders, materializeAssetPlaceholders } from './kitAssets';
 import { injectKitHead, loadKit, wantsKit } from './kitHead';
 import { PIN_SCRIPT, PUBLIC_SCRIPT } from './pinScript';
 
@@ -23,6 +24,12 @@ export type MockupGrant = {
 	mockupId: string;
 	version: number;
 	kind: 'html' | 'shot' | 'thumb';
+};
+export type KitAssetGrant = {
+	orgId: string;
+	projectId: string;
+	kitId: string;
+	name: string;
 };
 type Served = {
 	status: number;
@@ -41,6 +48,16 @@ export const MOCKUP_CSP =
 /** The header of a card's live preview. Same box as above, but no script runs at all, so a list of cards never executes a mockup. */
 export const THUMB_CSP =
 	"sandbox; default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; form-action 'none'; base-uri 'none'";
+/** Header applied to standalone kit asset files (CSS, fonts, images) so sandboxed frames can load them without running scripts. */
+export const KIT_ASSET_CSP = "sandbox; default-src 'none'; style-src 'unsafe-inline'";
+
+/** Per-response CSP when a kit externalizes CSS/font files to the signed kit asset prefix on the same mockup origin. */
+export function buildMockupCsp(isThumb: boolean, kitAssetPrefix?: string): string {
+	if (!kitAssetPrefix) return isThumb ? THUMB_CSP : MOCKUP_CSP;
+	const script = isThumb ? "script-src 'none'" : "script-src 'unsafe-inline'";
+	const sandbox = isThumb ? 'sandbox' : 'sandbox allow-scripts';
+	return `${sandbox}; default-src 'none'; ${script}; style-src 'unsafe-inline' ${kitAssetPrefix}; img-src data: ${kitAssetPrefix}; font-src data: ${kitAssetPrefix}; form-action 'none'; base-uri 'none'`;
+}
 /** A page larger than this is never drawn as a live preview. */
 export const THUMB_MAX_BYTES = 2 * 1024 * 1024;
 /** What a failed live preview answers: an empty, transparent page, so the placeholder under the frame stays visible. */
@@ -78,6 +95,7 @@ export function mockupHeaders(
 	return {
 		'content-type': type,
 		'content-security-policy': csp,
+		'referrer-policy': 'no-referrer',
 		'x-content-type-options': 'nosniff',
 		'x-robots-tag': 'noindex',
 		'cache-control': 'no-store',
@@ -101,19 +119,31 @@ const emptyThumb = (): Served => ({
 	csp: THUMB_CSP
 });
 
-const unavailable = (status: number, extra?: Record<string, string>): Served => ({
+const unavailable = (status: number, extra?: Record<string, string>, csp?: string): Served => ({
 	status,
 	body: UNAVAILABLE_HTML,
 	type: 'text/html; charset=utf-8',
-	extra
+	extra,
+	csp
 });
 
 // -- SIGNED LINKS FOR MEMBERS -- //
 
 const payloadOf = (g: MockupGrant) =>
 	`${g.orgId}.${g.projectId}.${g.mockupId}.${g.version}.${g.kind}`;
+const MOCKUP_GRANT_SALT = Buffer.from('afb-mockup-grant-v1', 'utf8');
+const deriveGrantKey = (secret: string, g: MockupGrant) =>
+	Buffer.from(
+		hkdfSync(
+			'sha256',
+			Buffer.from(secret, 'utf8'),
+			MOCKUP_GRANT_SALT,
+			Buffer.from(`${g.orgId}:${g.projectId}:${g.mockupId}:${g.version}:${g.kind}`, 'utf8'),
+			32
+		)
+	);
 const signature = (secret: string, g: MockupGrant, exp: number) =>
-	createHmac('sha256', secret)
+	createHmac('sha256', deriveGrantKey(secret, g))
 		.update(`${payloadOf(g)}\n${exp}`)
 		.digest('base64url');
 
@@ -135,8 +165,48 @@ export function verifyMockupGrant(
 	sig: string,
 	now = Date.now()
 ): boolean {
-	if (!Number.isFinite(exp) || exp * 1000 < now) return false;
+	if (!Number.isFinite(exp) || !Number.isFinite(now) || exp * 1000 < now) return false;
 	const want = Buffer.from(signature(secret, g, exp));
+	const got = Buffer.from(sig);
+	return want.length === got.length && timingSafeEqual(want, got);
+}
+
+const kitAssetKey = (secret: string, g: KitAssetGrant) =>
+	Buffer.from(
+		hkdfSync(
+			'sha256',
+			Buffer.from(secret, 'utf8'),
+			MOCKUP_GRANT_SALT,
+			Buffer.from(`${g.orgId}:${g.projectId}:kit:${g.kitId}:${g.name}`, 'utf8'),
+			32
+		)
+	);
+const kitAssetSig = (secret: string, g: KitAssetGrant, exp: number) =>
+	createHmac('sha256', kitAssetKey(secret, g))
+		.update(`${g.orgId}.${g.projectId}.${g.kitId}.${g.name}\n${exp}`)
+		.digest('base64url');
+
+/** Signed path for one stored kit asset file under /mf/kit/. */
+export function signKitAssetGrant(
+	secret: string,
+	g: KitAssetGrant,
+	now = Date.now(),
+	ttl = MOCKUP_LINK_SECONDS
+): string {
+	const exp = Math.floor(now / 1000) + ttl;
+	return `/mf/kit/${g.orgId}/${g.projectId}/${g.kitId}/${encodeURIComponent(g.name)}?exp=${exp}&sig=${kitAssetSig(secret, g, exp)}`;
+}
+
+/** Verifies a signed kit asset URL. */
+export function verifyKitAssetGrant(
+	secret: string,
+	g: KitAssetGrant,
+	exp: number,
+	sig: string,
+	now = Date.now()
+): boolean {
+	if (!Number.isFinite(exp) || !Number.isFinite(now) || exp * 1000 < now) return false;
+	const want = Buffer.from(kitAssetSig(secret, g, exp));
 	const got = Buffer.from(sig);
 	return want.length === got.length && timingSafeEqual(want, got);
 }
@@ -159,20 +229,34 @@ type Deps = { handle: DbHandle; storage: Storage | null };
 
 /**
  * The page with the project's newest kit head put where the marker is. A page without the marker costs nothing, and a project
- * with no kit has the marker removed.
+ * with no kit has the marker removed. Externalized kit assets produce a per-response prefix for CSP.
  */
 async function withKit(
 	deps: Deps,
 	orgId: string,
 	projectId: string,
-	html: string
-): Promise<string> {
-	if (!wantsKit(html)) return html;
+	html: string,
+	materialize?: {
+		urlFor: (kitId: string, assetName: string) => string;
+		cspPrefixFor: (kitId: string) => string;
+	}
+): Promise<{ html: string; kitAssetPrefix?: string }> {
+	if (!wantsKit(html)) return { html };
 	// A kit that cannot be read serves the page without it, never an error page: the marker is simply removed
 	const kit = await withTenant(deps.handle, { orgId, projectId }, (tx) =>
 		loadKit(tx, deps.storage, projectId)
 	).catch(() => null);
-	return injectKitHead(html, kit?.head ?? null);
+	if (!kit?.head) return { html: injectKitHead(html, null) };
+	if (!hasAssetPlaceholders(kit.head) || !materialize) {
+		return { html: injectKitHead(html, kit.head) };
+	}
+	const resolvedHead = materializeAssetPlaceholders(kit.head, (name) =>
+		materialize.urlFor(kit.id, name)
+	);
+	return {
+		html: injectKitHead(html, resolvedHead),
+		kitAssetPrefix: materialize.cspPrefixFor(kit.id)
+	};
 }
 
 /** One file for a valid signed link: the page with the pin script, or its screenshot. Anything else is the plain unavailable page. */
@@ -181,7 +265,8 @@ export async function serveMemberMockup(
 	secret: string,
 	params: { org: string; project: string; mockup: string; version: string; kind: string },
 	query: { exp: string | null; sig: string | null },
-	now = Date.now()
+	now = Date.now(),
+	requestOrigin?: string
 ): Promise<Response> {
 	// A card's live preview answers an empty transparent page to every failure, so the placeholder under it stays visible
 	const fail = (status: number) =>
@@ -221,18 +306,36 @@ export async function serveMemberMockup(
 		if (!bytes) return fail(404);
 		if (grant.kind === 'shot')
 			return mockupResponse({ status: 200, body: bytes, type: 'image/png' });
-		const page = await withKit(deps, grant.orgId, grant.projectId, new TextDecoder().decode(bytes));
+		const rendered = await withKit(
+			deps,
+			grant.orgId,
+			grant.projectId,
+			new TextDecoder().decode(bytes),
+			{
+				urlFor: (kitId, name) =>
+					signKitAssetGrant(
+						secret,
+						{ orgId: grant.orgId, projectId: grant.projectId, kitId, name },
+						now
+					),
+				cspPrefixFor: (kitId) =>
+					requestOrigin
+						? `${requestOrigin}/mf/kit/${grant.orgId}/${grant.projectId}/${kitId}/`
+						: `'self'`
+			}
+		);
 		if (grant.kind === 'thumb')
 			return mockupResponse({
 				status: 200,
-				body: page,
+				body: rendered.html,
 				type: 'text/html; charset=utf-8',
-				csp: THUMB_CSP
+				csp: buildMockupCsp(true, rendered.kitAssetPrefix)
 			});
 		return mockupResponse({
 			status: 200,
-			body: injectPinScript(page),
-			type: 'text/html; charset=utf-8'
+			body: injectPinScript(rendered.html),
+			type: 'text/html; charset=utf-8',
+			csp: buildMockupCsp(false, rendered.kitAssetPrefix)
 		});
 	} catch (e) {
 		console.error('Mockup file failed', e instanceof Error ? e.message : e);
@@ -322,7 +425,8 @@ export async function servePublicMockup(
 	deps: Deps,
 	token: string,
 	version?: number,
-	screenshot = false
+	screenshot = false,
+	requestOrigin?: string
 ): Promise<Response> {
 	const referrer = { 'referrer-policy': 'no-referrer' };
 	try {
@@ -333,16 +437,153 @@ export async function servePublicMockup(
 		if (!bytes) return mockupResponse(unavailable(404, referrer));
 		if (screenshot)
 			return mockupResponse({ status: 200, body: bytes, type: 'image/png', extra: referrer });
+		const rendered = await withKit(
+			deps,
+			found.orgId,
+			found.projectId,
+			new TextDecoder().decode(bytes),
+			{
+				urlFor: (_kitId, name) => `/m/${encodeURIComponent(token)}/kit/${encodeURIComponent(name)}`,
+				cspPrefixFor: () =>
+					requestOrigin ? `${requestOrigin}/m/${encodeURIComponent(token)}/kit/` : `'self'`
+			}
+		);
 		return mockupResponse({
 			status: 200,
-			body: injectPublicScript(
-				await withKit(deps, found.orgId, found.projectId, new TextDecoder().decode(bytes))
-			),
+			body: injectPublicScript(rendered.html),
 			type: 'text/html; charset=utf-8',
-			extra: referrer
+			extra: referrer,
+			csp: buildMockupCsp(false, rendered.kitAssetPrefix)
 		});
 	} catch (e) {
 		console.error('Public mockup failed', e instanceof Error ? e.message : e);
 		return mockupResponse(unavailable(500, referrer));
+	}
+}
+
+const ASSET_HEADERS = {
+	'access-control-allow-origin': '*',
+	'cross-origin-resource-policy': 'cross-origin'
+};
+
+/** Serves one signed kit asset file (CSS or embedded font/image) with isolating headers and CORS for sandboxed iframes. */
+export async function serveMemberKitAsset(
+	deps: Deps,
+	secret: string,
+	params: { org: string; project: string; kit: string; name: string },
+	query: { exp: string | null; sig: string | null },
+	now = Date.now()
+): Promise<Response> {
+	const fail = (status: number) => mockupResponse(unavailable(status, undefined, KIT_ASSET_CSP));
+	try {
+		if (
+			![params.org, params.project, params.kit].every((v) => UUID.test(v)) ||
+			!KIT_ASSET_NAME.test(params.name) ||
+			!deps.storage
+		)
+			return fail(404);
+		const grant: KitAssetGrant = {
+			orgId: params.org,
+			projectId: params.project,
+			kitId: params.kit,
+			name: params.name
+		};
+		if (!verifyKitAssetGrant(secret, grant, Number(query.exp), query.sig ?? '', now))
+			return fail(404);
+		const row = await withTenant(
+			deps.handle,
+			{ orgId: grant.orgId, projectId: grant.projectId },
+			async (tx) => {
+				const [asset] = await tx
+					.select({ key: mockupKitAsset.storageKey, mime: mockupKitAsset.mime })
+					.from(mockupKitAsset)
+					.where(and(eq(mockupKitAsset.kitId, grant.kitId), eq(mockupKitAsset.name, grant.name)));
+				return asset ?? null;
+			}
+		);
+		if (!row) return fail(404);
+		const bytes = await deps.storage.get(row.key);
+		if (!bytes) return fail(404);
+		if (grant.name.toLowerCase().endsWith('.css')) {
+			const css = materializeAssetPlaceholders(new TextDecoder().decode(bytes), (name) => {
+				const signed = signKitAssetGrant(
+					secret,
+					{ orgId: grant.orgId, projectId: grant.projectId, kitId: grant.kitId, name },
+					now
+				);
+				return `./${name}?${signed.split('?')[1] ?? ''}`;
+			});
+			return mockupResponse({
+				status: 200,
+				body: css,
+				type: row.mime,
+				extra: ASSET_HEADERS,
+				csp: KIT_ASSET_CSP
+			});
+		}
+		return mockupResponse({
+			status: 200,
+			body: bytes,
+			type: row.mime,
+			extra: ASSET_HEADERS,
+			csp: KIT_ASSET_CSP
+		});
+	} catch (e) {
+		console.error('Kit asset failed', e instanceof Error ? e.message : e);
+		return fail(500);
+	}
+}
+
+/** Serves one extracted kit asset file on a public mockup token, resolving asset URLs within the same public kit folder. */
+export async function servePublicKitAsset(
+	deps: Deps,
+	token: string,
+	name: string
+): Promise<Response> {
+	const referrer = { 'referrer-policy': 'no-referrer' };
+	try {
+		if (!KIT_ASSET_NAME.test(name) || !deps.storage)
+			return mockupResponse(unavailable(404, referrer, KIT_ASSET_CSP));
+		const found = await findPublicMockup(deps.handle, token);
+		if (!found) return mockupResponse(unavailable(404, referrer, KIT_ASSET_CSP));
+		const row = await withTenant(
+			deps.handle,
+			{ orgId: found.orgId, projectId: found.projectId },
+			async (tx) => {
+				const kit = await loadKit(tx, deps.storage, found.projectId);
+				if (!kit) return null;
+				const [asset] = await tx
+					.select({ key: mockupKitAsset.storageKey, mime: mockupKitAsset.mime })
+					.from(mockupKitAsset)
+					.where(and(eq(mockupKitAsset.kitId, kit.id), eq(mockupKitAsset.name, name)));
+				return asset ?? null;
+			}
+		);
+		if (!row) return mockupResponse(unavailable(404, referrer, KIT_ASSET_CSP));
+		const bytes = await deps.storage.get(row.key);
+		if (!bytes) return mockupResponse(unavailable(404, referrer, KIT_ASSET_CSP));
+		if (name.toLowerCase().endsWith('.css')) {
+			const css = materializeAssetPlaceholders(
+				new TextDecoder().decode(bytes),
+				(assetName) => `./${encodeURIComponent(assetName)}`
+			);
+			return mockupResponse({
+				status: 200,
+				body: css,
+				type: row.mime,
+				extra: { ...referrer, ...ASSET_HEADERS },
+				csp: KIT_ASSET_CSP
+			});
+		}
+		return mockupResponse({
+			status: 200,
+			body: bytes,
+			type: row.mime,
+			extra: { ...referrer, ...ASSET_HEADERS },
+			csp: KIT_ASSET_CSP
+		});
+	} catch (e) {
+		console.error('Public kit asset failed', e instanceof Error ? e.message : e);
+		return mockupResponse(unavailable(500, referrer, KIT_ASSET_CSP));
 	}
 }

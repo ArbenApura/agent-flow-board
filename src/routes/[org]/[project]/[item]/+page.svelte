@@ -31,6 +31,7 @@
 		parseTool,
 		type ContinueAction
 	} from '#lib/shared/continue.js';
+	import { computeVisualProgress } from '#lib/shared/progress.js';
 	import ActionMenu from '#lib/ui/ActionMenu.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -150,8 +151,17 @@
 		org,
 		canWrite: d?.caps.includes('write') ?? false,
 		canComment: d?.caps.includes('comment') ?? false,
+		isOwner: d?.role === 'owner',
 		onchanged: () => invalidate('afb:project')
 	});
+	const visualProgress = $derived(
+		d
+			? computeVisualProgress(
+					d.phases.flatMap((p) => p.steps),
+					{ legacyPercent: d.item.legacyPercent, status: d.item.status }
+				)
+			: null
+	);
 	// The tabs and their counts come from the same helper as the top bar's copy, so the two can never drift
 	const tabsView = $derived(itemTabsFrom(page.route.id, data, page.url.searchParams));
 
@@ -472,12 +482,23 @@
 					<span class="text-lg font-semibold tabular-nums" data-testid="item-percent"
 						>{d.item.percent}%, {d.item.doneSteps} of {d.item.totalSteps} steps</span
 					>
+					{#if d.item.legacyPercent === null && visualProgress}
+						<span class="text-sm text-muted tabular-nums" data-testid="item-verified-percent">
+							Verified {visualProgress.verifiedPercent !== null
+								? `${visualProgress.verifiedPercent}% (${visualProgress.visibleVerified} of ${visualProgress.visibleTotal} visible)`
+								: 'n/a'}
+						</span>
+					{/if}
 					{#if d.item.openManual > 0}
 						<span class="text-sm text-muted">{d.item.openManual} manual checks open</span>
 					{/if}
 				</div>
 				<!-- ON A PHONE THE STATUS IS A FULL WIDTH ROW UNDER THE PERCENT: THE LABEL ON THE LEFT, THE BADGE ON THE RIGHT -->
 				<div class="ml-auto flex flex-wrap items-center gap-2 max-sm:ml-0 max-sm:w-full">
+					{#if visualProgress?.unverifiedVisually}
+						<Badge tone="warning" data-testid="unverified-visually-badge">UNVERIFIED VISUALLY</Badge
+						>
+					{/if}
 					<!-- THE STATUS IS ONE CONTROL: THE PILL SHOWS IT AND, FOR A WRITER, OPENS THE LIST TO CHANGE IT -->
 					<span data-testid="item-status" class="max-sm:w-full">
 						{#if env.canWrite}

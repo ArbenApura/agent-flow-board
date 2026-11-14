@@ -25,10 +25,12 @@
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
+	import TagInput from '#lib/ui/TagInput.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// -- DEP-COMPONENTS -- //
 	import Settings from '@lucide/svelte/icons/settings';
+	import Eye from '@lucide/svelte/icons/eye';
 	import Layers from '@lucide/svelte/icons/layers';
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import Bot from '@lucide/svelte/icons/bot';
@@ -46,6 +48,8 @@
 	let webApp = $state(false);
 	let streams = $state<StreamRow[]>([]);
 	let mayComplete = $state(true);
+	let visualEvidenceGate = $state(false);
+	let screenGlobs = $state<string[]>([]);
 	let status = $state<Record<string, { saving: boolean; saved: boolean; error: string }>>({});
 
 	// -- FUNCTIONS -- //
@@ -61,12 +65,16 @@
 			? {
 					general: name.trim() !== p.name || webApp !== p.webApp,
 					streams: canon(savedStreams(streams)) !== canon(p.streams),
-					agents: mayComplete !== p.agentsMayComplete
+					agents: mayComplete !== p.agentsMayComplete,
+					visual:
+						visualEvidenceGate !== p.visualEvidenceGate ||
+						canon(screenGlobs) !== canon(p.screenGlobs ?? [])
 				}
 			: {
 					general: false,
 					streams: false,
-					agents: false
+					agents: false,
+					visual: false
 				}
 	);
 
@@ -85,6 +93,8 @@
 		follow('webApp', p.webApp, (v) => (webApp = v));
 		follow('streams', p.streams, (v) => (streams = withIds(v)));
 		follow('mayComplete', p.agentsMayComplete, (v) => (mayComplete = v));
+		follow('visualEvidenceGate', p.visualEvidenceGate, (v) => (visualEvidenceGate = v));
+		follow('screenGlobs', p.screenGlobs ?? [], (v) => (screenGlobs = [...v]));
 	});
 
 	async function save(id: string, path: string, body: Record<string, unknown>, method = 'PATCH') {
@@ -230,6 +240,39 @@
 					hint="An agent still has to confirm closing an item it is not working on."
 					bind:checked={mayComplete}
 					disabled={!can}
+				/>
+			</Section>
+
+			<Section
+				id="visual-evidence"
+				icon={Eye}
+				title="Visual evidence gate"
+				text="Require compare proof before visible steps can be ticked by agents, and set which file paths count as UI screens."
+				dirty={dirty.visual}
+				saving={st('visual').saving}
+				saved={st('visual').saved}
+				error={st('visual').error}
+				readonly={!can}
+				onsave={() => patchProject('visual', { visualEvidenceGate, screenGlobs })}
+			>
+				<Switch
+					label="Require compare evidence for visible steps"
+					hint="Applies to agents and tokens. Admins or owners in a live web session can change these settings; waiving visual evidence is owner-only."
+					bind:checked={visualEvidenceGate}
+					disabled={!can}
+					data-testid="visual-evidence-gate-switch"
+				/>
+				<TagInput
+					label="Screen file globs"
+					hint="Used with linked mockups to infer which plan steps are visually verified."
+					bind:tags={screenGlobs}
+					placeholder="**/*.svelte"
+					disabled={!can}
+					validate={(tag, current) => {
+						const v = tag.trim();
+						if (!v) return 'Enter a file pattern.';
+						return current.includes(v) ? 'Pattern already listed.' : null;
+					}}
 				/>
 			</Section>
 

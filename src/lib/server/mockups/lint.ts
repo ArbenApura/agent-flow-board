@@ -543,6 +543,36 @@ export function lintMockupHtml(html: string, kit?: KitFacts | null): string[] {
 	}
 }
 
+const DATA_SCREEN = /\bdata-screen\s*=/i;
+const DATA_STATE = /\bdata-state\s*=/i;
+const DATA_REF = /\bdata-ref\s*=/i;
+
+/** Checks a published mockup page for the stable inspection and comparison contract hooks (data-screen, data-state, data-ref). */
+export function lintMockupHooks(html: string): string[] {
+	try {
+		const text = shrink(html);
+		const warnings: string[] = [];
+		if (!DATA_SCREEN.test(text)) {
+			warnings.push(
+				'The mockup has no data-screen hooks. Add data-screen="<name>" attributes (or respond to ?screen= / #screen=) so inspect and check compare can select screens reliably.'
+			);
+		}
+		if (!DATA_STATE.test(text)) {
+			warnings.push(
+				'The mockup has no data-state hooks. Add data-state="<name>" attributes (default, loading, empty, error) so tools can drive and compare every state.'
+			);
+		}
+		if (!DATA_REF.test(text)) {
+			warnings.push(
+				'The mockup has no data-ref hooks. Add stable data-ref="<id>" attributes to key regions and controls so inspect and check compare can pair elements unambiguously.'
+			);
+		}
+		return warnings;
+	} catch {
+		return [];
+	}
+}
+
 /** The warnings for a kit file: its fonts embedded, its icons present, both colour modes defined and its head marked. Never throws. */
 export function lintKitHtml(html: string): string[] {
 	try {

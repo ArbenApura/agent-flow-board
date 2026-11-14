@@ -87,6 +87,30 @@ export type PullResult = {
 	/** True when every part was counted as read for the session. */
 	recorded: boolean;
 };
+export type MintUrlOptions = {
+	server: string;
+	org: string;
+	token: string;
+	fetch: Fetch;
+	mockup: string;
+	version?: number;
+	screenshot?: boolean;
+	ttlSeconds?: number;
+	wait?: (ms: number) => Promise<unknown>;
+};
+export type MintUrlResult = {
+	url: string;
+	relativePath: string;
+	mockupId: string;
+	projectId: string;
+	version: number;
+	kind: 'html' | 'shot';
+	expiresAt: string;
+	isolatedOrigin: boolean;
+	devOnlySameHost: boolean;
+	notice: string | null;
+	isPublic: boolean;
+};
 
 // -- CONSTANTS -- //
 
@@ -360,4 +384,24 @@ export async function pushKit(o: KitPushOptions): Promise<KitPushResult> {
 	const warnings = made.warnings ?? [];
 	for (const w of warnings) o.log(`Warning: ${w}`);
 	return { number: made.number, warnings };
+}
+
+/** Mints a short-lived signed mockup address for inspection or visual checks via the user or bridge token. */
+export async function mintMockupUrlCli(o: MintUrlOptions): Promise<MintUrlResult> {
+	if (!o.token)
+		throw new Error('Not signed in. Run: agent-flow-board login --server <url> --org <slug>');
+	const body: Record<string, unknown> = {};
+	if (o.version !== undefined) body.version = o.version;
+	if (o.screenshot !== undefined) body.screenshot = o.screenshot;
+	if (o.ttlSeconds !== undefined) body.ttlSeconds = o.ttlSeconds;
+	const res = await call(
+		o,
+		'POST',
+		`/orgs/${encodeURIComponent(o.org)}/mockups/${encodeURIComponent(o.mockup)}/url`,
+		JSON.stringify(body),
+		{ 'content-type': 'application/json' },
+		`mockup-url-${randomBytes(8).toString('hex')}`
+	);
+	if (!res.ok) throw new Error(await failure(res));
+	return (await res.json()) as MintUrlResult;
 }

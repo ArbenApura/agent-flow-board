@@ -2,7 +2,7 @@
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
 // -- ENVS -- //
 import { building } from '$app/env';
-import { AFB_BASE_URL, AFB_SEED_DEMO } from '$app/env/private';
+import { AFB_BASE_URL, AFB_SEED_DEMO, MOCKUP_ORIGIN } from '$app/env/private';
 // -- DEP-MODULES -- //
 import { sequence } from '@sveltejs/kit/hooks';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
@@ -10,7 +10,12 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { getAuth } from '#lib/server/auth/index.js';
 import { getDb } from '#lib/server/db/index.js';
 import { getJobs } from '#lib/server/jobs/index.js';
-import { readsNoSession } from '#lib/server/mockups/serve.js';
+import {
+	isBlockedMainOriginMockupFilePath,
+	isMockupOriginRequest,
+	isMockupServingPath
+} from '#lib/server/mockups/origin.js';
+import { mockupResponse, readsNoSession } from '#lib/server/mockups/serve.js';
 import { seedForPreview } from '#lib/server/db/seedAuth.js';
 import { MODE_COOKIE, SYSTEM_MODE_SCRIPT, parseMode, serverMode } from '#lib/theme/mode.js';
 
@@ -58,6 +63,36 @@ const timing: Handle = async ({ event, resolve }) => {
 		/* Headers are immutable on this response */
 	}
 	return response;
+};
+
+/** Requests hitting the isolated mockup hostname may only read mockup files or public mockup links, never board pages or APIs. Conversely, raw mockup file routes do not serve on the main board origin when MOCKUP_ORIGIN is set. */
+const mockupOriginGate: Handle = async ({ event, resolve }) => {
+	const onMockupOrigin = isMockupOriginRequest(
+		event.url,
+		event.request.headers.get('host'),
+		MOCKUP_ORIGIN
+	);
+	if (onMockupOrigin && !isMockupServingPath(event.url.pathname)) {
+		event.locals.user = null;
+		event.locals.session = null;
+		return mockupResponse({
+			status: 404,
+			body: 'Not found',
+			type: 'text/plain; charset=utf-8'
+		});
+	}
+	if (
+		MOCKUP_ORIGIN?.trim() &&
+		!onMockupOrigin &&
+		isBlockedMainOriginMockupFilePath(event.url.pathname)
+	) {
+		return mockupResponse({
+			status: 404,
+			body: 'Not found',
+			type: 'text/plain; charset=utf-8'
+		});
+	}
+	return resolve(event);
 };
 
 /** The public page of a mockup link never sends the address on to another site and is never indexed. */
@@ -134,7 +169,14 @@ const authentication: Handle = async ({ event, resolve }) => {
 	return svelteKitHandler({ auth, event, resolve, building });
 };
 
-export const handle: Handle = sequence(timing, publicMockupPage, csrf, theme, authentication);
+export const handle: Handle = sequence(
+	timing,
+	mockupOriginGate,
+	publicMockupPage,
+	csrf,
+	theme,
+	authentication
+);
 
 /** Fills an empty preview database with the demo data once, when the server starts. */
 export const init: ServerInit = async () => {

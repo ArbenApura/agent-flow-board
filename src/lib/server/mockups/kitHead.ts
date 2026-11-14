@@ -7,12 +7,18 @@ import type { KitFacts } from './lint';
 // -- DEP-MODULES -- //
 import { desc, eq } from 'drizzle-orm';
 // -- MODULES -- //
-import { mockupKit } from '../db/schema';
+import { mockupKit, mockupKitAsset } from '../db/schema';
+import { extractKitAssets } from './kitAssets';
 import { kitFacts } from './lint';
 
 // -- TYPES -- //
 
-export type LoadedKit = { id: string; head: string | null; facts: KitFacts };
+export type LoadedKit = {
+	id: string;
+	head: string | null;
+	facts: KitFacts;
+	externalAssets: boolean;
+};
 
 // -- CONSTANTS -- //
 
@@ -22,7 +28,7 @@ export const KIT_START = '<!--afb-kit:start-->';
 export const KIT_END = '<!--afb-kit:end-->';
 /** The kits that were read lately, by kit id. A kit file never changes, so an entry never goes stale. A small cache, cleared when it is full. */
 const CACHE_LIMIT = 24;
-const cache = new Map<string, { head: string | null; facts: KitFacts }>();
+const cache = new Map<string, { head: string | null; facts: KitFacts; externalAssets: boolean }>();
 
 // -- FUNCTIONS -- //
 
@@ -76,8 +82,22 @@ export async function loadKit(
 	if (!bytes) return null;
 	const text = new TextDecoder().decode(bytes);
 	// The facts are read from the head alone, so a kit of several MB is not scanned twice on a cold load
-	const head = kitHeadOf(text);
-	const entry = { head, facts: kitFacts(head ?? text) };
+	const rawHead = kitHeadOf(text);
+	const assetRows = await tx
+		.select({ id: mockupKitAsset.id })
+		.from(mockupKitAsset)
+		.where(eq(mockupKitAsset.kitId, row.id))
+		.limit(1);
+	let head = rawHead;
+	let externalAssets = false;
+	if (assetRows.length > 0 && rawHead) {
+		const extracted = extractKitAssets(text);
+		if (extracted.headTemplate && extracted.assets.length > 0) {
+			head = extracted.headTemplate;
+			externalAssets = true;
+		}
+	}
+	const entry = { head, facts: kitFacts(rawHead ?? text), externalAssets };
 	if (cache.size >= CACHE_LIMIT) cache.clear();
 	cache.set(row.id, entry);
 	return { id: row.id, ...entry };

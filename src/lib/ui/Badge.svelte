@@ -14,8 +14,15 @@
 		children,
 		tone = 'neutral',
 		dot = false,
-		class: extra
-	}: { children: Snippet; tone?: Tone; dot?: boolean; class?: string } = $props();
+		class: extra,
+		'data-testid': testid
+	}: {
+		children: Snippet;
+		tone?: Tone;
+		dot?: boolean;
+		class?: string;
+		'data-testid'?: string;
+	} = $props();
 
 	// -- CONSTANTS -- //
 
@@ -32,6 +39,7 @@
 
 <span
 	data-badge
+	data-testid={testid}
 	class={cn(
 		'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-badge font-semibold',
 		TONES[tone],

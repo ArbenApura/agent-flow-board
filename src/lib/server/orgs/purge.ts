@@ -13,6 +13,7 @@ import {
 	backupRun,
 	deviceCode,
 	mockupKit,
+	mockupKitAsset,
 	mockupVersion,
 	noteFile,
 	org,
@@ -82,6 +83,7 @@ export async function purgeOrg(
 			.select({ key: mockupVersion.storageKey, shot: mockupVersion.screenshotKey })
 			.from(mockupVersion);
 		const kitFiles = await tx.select({ key: mockupKit.storageKey }).from(mockupKit);
+		const kitAssets = await tx.select({ key: mockupKitAsset.storageKey }).from(mockupKitAsset);
 		// The pictures of notes
 		const pictures = await tx.select({ key: noteFile.storageKey }).from(noteFile);
 		const archives = await tx
@@ -93,6 +95,7 @@ export async function purgeOrg(
 				...files.map((f) => f.key),
 				...mockupFiles.flatMap((f) => (f.shot ? [f.key, f.shot] : [f.key])),
 				...kitFiles.map((f) => f.key),
+				...kitAssets.map((f) => f.key),
 				...pictures.map((f) => f.key)
 			],
 			archives: archives.map((a) => a.key!).filter(Boolean)

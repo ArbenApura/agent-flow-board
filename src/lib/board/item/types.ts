@@ -27,6 +27,7 @@ export type TabEnv = {
 	org: string;
 	canWrite: boolean;
 	canComment: boolean;
+	isOwner: boolean;
 	/** Refetches the page's data after a write. */
 	onchanged: () => Promise<void>;
 };

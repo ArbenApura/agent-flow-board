@@ -11,13 +11,24 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // -- MODULES -- //
-import { pushMockup } from '../../packages/bridge/src/mockup.js';
+import { RunnerBoard } from '../../packages/bridge/src/checks/board.js';
+import { mintMockupUrlCli, pushMockup } from '../../packages/bridge/src/mockup.js';
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { bodyLimit, readBodyCapped } from '../../src/lib/server/api/body';
 import { handleApi, type ApiDeps } from '../../src/lib/server/api/dispatch';
+import { handleRunnerApi } from '../../src/lib/server/api/runner';
+import { serveMemberMockup } from '../../src/lib/server/mockups/serve';
+import { createRunner } from '../../src/lib/server/ops/environments';
 import { createItem } from '../../src/lib/server/ops/items';
+import { createProject } from '../../src/lib/server/ops/projects';
 import { createToken } from '../../src/lib/server/ops/tokens';
-import { getMockup, readMockupHtml } from '../../src/lib/server/ops/mockups';
+import {
+	getMockup,
+	mintMockupUrl,
+	publishMockup,
+	readMockupHtml,
+	setMockupPublicLink
+} from '../../src/lib/server/ops/mockups';
 import { readMockupKit } from '../../src/lib/server/ops/mockupSettings';
 import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
@@ -38,17 +49,25 @@ describe('mockup push over http', () => {
 	let slug = '';
 	let memberToken = '';
 	let adminToken = '';
-	const storage = memoryStorage('push-test-secret-0123456789abcdef');
+	const SECRET = 'push-test-secret-0123456789abcdef';
+	const storage = memoryStorage(SECRET);
+	let mockupOriginOverride: string | undefined;
 	const as = (who: keyof World['people']) => ({
 		...w.ctx(who),
-		services: { storage, baseUrl: 'http://x.test' }
+		services: { storage, baseUrl: 'http://x.test', mockupSecret: SECRET }
 	});
 
 	beforeAll(async () => {
 		db = await makePostgres();
 		w = await makeWorld(db);
 		slug = `world-${w.projectKey.slice(3)}`;
-		const deps: ApiDeps = { handle: db, storage, baseUrl: 'http://127.0.0.1' };
+		const deps = (): ApiDeps => ({
+			handle: db,
+			storage,
+			baseUrl: base || 'http://127.0.0.1',
+			mockupSecret: SECRET,
+			mockupOrigin: mockupOriginOverride
+		});
 		// The same steps the SvelteKit route takes: this endpoint's limit, the capped read, then the dispatcher
 		server = createServer(async (req, res) => {
 			const url = new URL(req.url ?? '/', 'http://127.0.0.1');
@@ -68,17 +87,17 @@ describe('mockup push over http', () => {
 					.end('{"error":{"message":"Too large."}}');
 				return;
 			}
-			const out = await handleApi(
-				{
-					method: req.method ?? 'GET',
-					path,
-					query: Object.fromEntries(url.searchParams),
-					headers: request.headers,
-					body: bytes,
-					session: null
-				},
-				deps
-			);
+			const apiReq = {
+				method: req.method ?? 'GET',
+				path,
+				query: Object.fromEntries(url.searchParams),
+				headers: request.headers,
+				body: bytes,
+				session: null
+			};
+			const out = path.startsWith('/runner/')
+				? await handleRunnerApi(apiReq, deps())
+				: await handleApi(apiReq, deps());
 			res
 				.writeHead(out.status, { 'content-type': 'application/json' })
 				.end(JSON.stringify(out.body));
@@ -232,4 +251,154 @@ describe('mockup push over http', () => {
 			);
 		}
 	);
+
+	it('mints short-lived signed mockup URLs via API, CLI and runner API, respects MOCKUP_ORIGIN and public flag, and enforces access and trust split', async () => {
+		const pubItem = await createItem(as('member'), {
+			project: w.projectKey,
+			title: 'Mint target',
+			...PLAN
+		});
+		const enc = (s: string) => new TextEncoder().encode(s);
+		const published = await publishMockup(
+			as('member'),
+			{ item: pubItem.ref, title: 'Mintable screen' },
+			enc('<html><body><main data-screen="home"><h1>Mint OK</h1></main></body></html>'),
+			PNG
+		);
+		const privItem = await createItem(as('member'), {
+			project: w.projectKey,
+			title: 'Private mint target',
+			visibility: 'private',
+			...PLAN
+		});
+		const privMockup = await publishMockup(
+			as('member'),
+			{ item: privItem.ref, title: 'Private screen' },
+			enc('<html><body><h1>Private</h1></body></html>')
+		);
+		const secondProject = await createProject(as('owner'), { name: 'Other', key: 'OTH' });
+
+		// Missing secret fails loudly instead of minting weak URLs
+		await expect(
+			mintMockupUrl(
+				{ ...w.ctx('member'), services: { storage, baseUrl: base } },
+				published.mockup.id
+			)
+		).rejects.toThrow('Mockup URL signing secret is not configured.');
+
+		// Over-long ttl (> 300s) is refused by validation
+		await expect(
+			mintMockupUrlCli({
+				server: base,
+				org: slug,
+				token: memberToken,
+				fetch: (url, init) => fetch(url, init),
+				mockup: published.mockup.id,
+				ttlSeconds: 900
+			})
+		).rejects.toThrow();
+
+		// CLI / REST API mint with no MOCKUP_ORIGIN falls back to baseUrl and stays private
+		mockupOriginOverride = undefined;
+		const cliRes = await mintMockupUrlCli({
+			server: base,
+			org: slug,
+			token: memberToken,
+			fetch: (url, init) => fetch(url, init),
+			mockup: published.mockup.id,
+			ttlSeconds: 120
+		});
+		expect(cliRes.isolatedOrigin).toBe(false);
+		expect(cliRes.url.startsWith(`${base}/mf/`)).toBe(true);
+		expect(cliRes.isPublic).toBe(false);
+		const parsed = new URL(cliRes.url);
+		const [, , orgId, projectId, mockupId, version, kind] = parsed.pathname.split('/');
+		const served = await serveMemberMockup(
+			{ handle: db, storage },
+			SECRET,
+			{ org: orgId, project: projectId, mockup: mockupId, version, kind },
+			{ exp: parsed.searchParams.get('exp'), sig: parsed.searchParams.get('sig') }
+		);
+		expect(served.status).toBe(200);
+		expect(await served.text()).toContain('Mint OK');
+
+		// With MOCKUP_ORIGIN configured, newly minted URLs point to the isolated mockup origin
+		mockupOriginOverride = 'https://mockups.example.test';
+		const isolatedRes = await mintMockupUrlCli({
+			server: base,
+			org: slug,
+			token: memberToken,
+			fetch: (url, init) => fetch(url, init),
+			mockup: published.mockup.id,
+			screenshot: true
+		});
+		expect(isolatedRes.isolatedOrigin).toBe(true);
+		expect(isolatedRes.url.startsWith('https://mockups.example.test/mf/')).toBe(true);
+		expect(isolatedRes.url).toContain('/shot?');
+
+		// Local runner API mints signed URL for projects it covers, and only reveals isPublic after opt-in
+		const localRunner = await createRunner(as('owner'), {
+			name: 'local-mint-runner',
+			kind: 'local',
+			projects: [w.projectKey]
+		});
+		const runnerBoard = new RunnerBoard(base, localRunner.token, (u, i) => fetch(u, i));
+		const beforePub = await runnerBoard.mintMockupUrl(published.mockup.id);
+		expect(beforePub.isolatedOrigin).toBe(true);
+		expect(beforePub.url.startsWith('https://mockups.example.test/mf/')).toBe(true);
+		expect(beforePub.isPublic).toBe(false);
+
+		await setMockupPublicLink(as('admin'), published.mockup.id, true);
+		const afterPub = await runnerBoard.mintMockupUrl(published.mockup.id);
+		expect(afterPub.isPublic).toBe(true);
+		expect(afterPub.url.startsWith('https://mockups.example.test/mf/')).toBe(true);
+
+		// Private mockup stays refused to viewer, and never exposes publicUrl even if toggled
+		await expect(mintMockupUrl(as('viewer'), privMockup.mockup.id)).rejects.toMatchObject({
+			code: 'NOT_FOUND'
+		});
+		await expect(runnerBoard.mintMockupUrl(privMockup.mockup.id)).rejects.toMatchObject({
+			status: 404
+		});
+
+		// Scoped personal token on another project cannot mint for w.projectKey
+		const otherToken = (
+			await createToken(w.ctx('member'), {
+				name: 'other-project-token',
+				permissions: ['read'],
+				projectIds: [secondProject.id]
+			})
+		).token;
+		await expect(
+			mintMockupUrlCli({
+				server: base,
+				org: slug,
+				token: otherToken,
+				fetch: (u, i) => fetch(u, i),
+				mockup: published.mockup.id
+			})
+		).rejects.toThrow();
+
+		// Hosted runner is refused from runner mockup URL minting, and local runner scoped elsewhere is refused
+		const hostedRunner = await createRunner(as('owner'), {
+			name: 'hosted-mint-runner',
+			kind: 'hosted',
+			projects: [w.projectKey]
+		});
+		const hostedBoard = new RunnerBoard(base, hostedRunner.token, (u, i) => fetch(u, i));
+		await expect(hostedBoard.mintMockupUrl(published.mockup.id)).rejects.toMatchObject({
+			status: 403
+		});
+		const otherRunner = await createRunner(as('owner'), {
+			name: 'other-local-runner',
+			kind: 'local',
+			projects: [secondProject.key]
+		});
+		const otherBoard = new RunnerBoard(base, otherRunner.token, (u, i) => fetch(u, i));
+		await expect(otherBoard.mintMockupUrl(published.mockup.id)).rejects.toMatchObject({
+			status: 404
+		});
+
+		mockupOriginOverride = undefined;
+	});
 });

@@ -1,5 +1,7 @@
 // MOCKUP TABLES: MOCKUPS, VERSIONS, PINNED COMMENTS, PROJECT STYLE, PAGE TEMPLATES AND THE PROJECT KIT
 
+// -- TYPES -- //
+import type { NamedMockupScreen } from '../../../shared/screenGlobs';
 // -- DEP-MODULES -- //
 import { sql } from 'drizzle-orm';
 import {
@@ -92,6 +94,13 @@ export const mockupVersion = tenantTable(
 		screenshotKey: text('screenshot_key'),
 		/** The version number this one was copied from, when it came from Restore. */
 		restoredFrom: integer('restored_from'),
+		/** Screen keys and labels declared in this mockup HTML, used for visible-step inference and outline. */
+		screens: jsonb('screens')
+			.$type<NamedMockupScreen[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		/** Derived assets for this mockup version (outline, tokens, snapshot metadata, shots index) so a build does not refetch full HTML. */
+		derived: jsonb('derived').$type<Record<string, unknown> | null>(),
 		createdBy: text('created_by'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
 	},
@@ -228,5 +237,29 @@ export const mockupKit = tenantTable(
 	(t) => [
 		unique('mockup_kit_project_number_uq').on(t.projectId, t.number),
 		uniqueIndex('mockup_kit_key_uq').on(t.storageKey)
+	]
+);
+
+// -- PROJECT KIT ASSETS (EXTRACTED CSS AND FONT FILES SO MOCKUP HTML STAYS SMALL) -- //
+
+export const mockupKitAsset = tenantTable(
+	'mockup_kit_asset',
+	'project',
+	{
+		id: id(),
+		orgId: orgId(),
+		projectId: projectId(),
+		kitId: uuid('kit_id')
+			.notNull()
+			.references(() => mockupKit.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		mime: text('mime').notNull(),
+		storageKey: text('storage_key').notNull(),
+		size: bigint('size', { mode: 'number' }).notNull(),
+		checksum: text('checksum').notNull()
+	},
+	(t) => [
+		unique('mockup_kit_asset_kit_name_uq').on(t.kitId, t.name),
+		uniqueIndex('mockup_kit_asset_key_uq').on(t.storageKey)
 	]
 );

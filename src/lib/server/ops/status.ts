@@ -7,13 +7,15 @@ import type { Ctx } from './context';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
-import { countsFor, driftFlags } from '../db/calc';
+import { effectiveStepVisible } from '../../shared/screenGlobs';
+import { computeHealthForItem } from '../db/calc';
 import { appendEvent } from '../db/events';
 import { item, project, step, task } from '../db/schema';
-import { OpError, idempotent, rateLimit, requireCap, run } from './context';
+import { OpError, idempotent, isLivePersonSession, rateLimit, requireCap, run } from './context';
 import { actorFields, checkVersion, type ItemRow } from './items';
 import { findItem } from './resolve';
 import { releaseClaimsOn, requireCloseConfirmation } from './tracking';
+import { compareCommandHint } from './visibleSteps';
 
 // -- TYPES -- //
 
@@ -97,17 +99,9 @@ export async function applyStatus(
 		})
 		.where(eq(item.id, it.id))
 		.returning({ health: item.health, legacyPercent: item.legacyPercent });
-	// The drift warnings depend on the status, so they are worked out again for the new one (L18: frozen items have none)
-	const counts = await countsFor(tx, it.id);
-	await tx
-		.update(item)
-		.set({
-			health: {
-				flags: row.health.flags,
-				drift: driftFlags({ status: to, legacy: row.legacyPercent !== null, ...counts })
-			}
-		})
-		.where(eq(item.id, it.id));
+	// The drift warnings and visual-evidence health depend on the status, so they are worked out again for the new one (L18: frozen items have none)
+	const health = await computeHealthForItem(tx, it.id, to, row.legacyPercent, row.health.flags);
+	await tx.update(item).set({ health }).where(eq(item.id, it.id));
 	await appendEvent(tx, {
 		orgId: ctx.orgId,
 		projectId: it.projectId,
@@ -163,11 +157,53 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 			checkVersion(it, input.expectVersion);
 			if (it.status === input.status)
 				return { item: it, statusChanges: [] as StatusChange[], already: true };
+			const [proj] = await tx
+				.select({
+					agentsMayComplete: project.agentsMayComplete,
+					visualEvidenceGate: project.visualEvidenceGate
+				})
+				.from(project)
+				.where(eq(project.id, it.projectId));
+			if (proj?.visualEvidenceGate) {
+				const openSteps = await tx
+					.select({
+						key: step.key,
+						visible: step.visible,
+						visibleInferred: step.visibleInferred,
+						screens: step.screens,
+						widths: step.widths
+					})
+					.from(step)
+					.where(and(eq(step.itemId, it.id), eq(step.state, 'open')));
+				const openVisible = openSteps.filter((s) => effectiveStepVisible(s));
+				if (openVisible.length) {
+					if (input.status === 'IN REVIEW') {
+						const first = openVisible[0];
+						const cmd = compareCommandHint(
+							it.ref,
+							first.key,
+							first.screens ?? [],
+							first.widths ?? []
+						);
+						throw new OpError(
+							'VISUAL_EVIDENCE_REQUIRED',
+							`${it.ref} has ${openVisible.length} open visible step(s) (first: ${first.key}) and cannot move to IN REVIEW until they have compare evidence or owner waiver. Run: ${cmd}`,
+							{
+								reason: 'visual-evidence',
+								step: first.key,
+								openVisible: openVisible.map((s) => s.key)
+							}
+						);
+					}
+					if (input.status === 'REMOVED' && !isLivePersonSession(ctx)) {
+						throw new OpError(
+							'FORBIDDEN',
+							`${it.ref} has open visible steps. Only a person in a live web session can set it to REMOVED.`
+						);
+					}
+				}
+			}
 			if (input.status === 'COMPLETED') {
-				const [proj] = await tx
-					.select({ agentsMayComplete: project.agentsMayComplete })
-					.from(project)
-					.where(eq(project.id, it.projectId));
 				if (ctx.actor.kind === 'agent' && !proj.agentsMayComplete) {
 					throw new OpError(
 						'COMPLETED_REFUSED',

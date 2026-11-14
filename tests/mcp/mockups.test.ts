@@ -18,7 +18,8 @@ import { PLAN, makeWorld, type World } from '../support/ops';
 // -- CONSTANTS -- //
 
 const BASE = 'http://localhost:5180';
-const PAGE = '<html><body><h1>Rooms</h1><p>Book a room</p></body></html>';
+const PAGE =
+	'<html><body><main data-screen="rooms" data-state="default"><h1 data-ref="heading">Rooms</h1><p>Book a room</p></main></body></html>';
 const ALL = ['read', 'comment', 'write', 'complete', 'delete', 'manage'] as const;
 
 // -- FUNCTIONS -- //
@@ -35,7 +36,13 @@ describe('mockup tools', () => {
 	beforeAll(async () => {
 		db = await makePostgres();
 		w = await makeWorld(db);
-		deps = { handle: db, storage: memoryStorage('mcp-mockup-secret-0123456789abc'), baseUrl: BASE };
+		deps = {
+			handle: db,
+			storage: memoryStorage('mcp-mockup-secret-0123456789abc'),
+			baseUrl: BASE,
+			mockupSecret: 'mcp-mockup-secret-0123456789abc',
+			mockupOrigin: 'https://mockups.example.test'
+		};
 		const tokenFor = async (who: keyof World['people'], permissions: string[], name: string) =>
 			(await createToken(w.ctx(who), { name, permissions: permissions as never })).token;
 		member = await connect(deps, await tokenFor('member', ALL.slice(0, 5), 'member-agent'));
@@ -578,15 +585,35 @@ describe('mockup tools', () => {
 		const sa = await call(admin, 'session_start', { tool: 'claude-code' });
 		const none = await call(member, 'mockup_kit_get', { project: w.projectKey });
 		expect(none.kit).toBeNull();
-		const saved = await call(admin, 'mockup_kit_set', {
-			sessionId: sa.sessionId,
+		const sm = await call(member, 'session_start', { tool: 'claude-code' });
+		const savedByMember = await call(member, 'mockup_kit_set', {
+			sessionId: sm.sessionId,
 			project: w.projectKey,
 			html: '<html><body>kit</body></html>',
 			builtFromCommit: 'abc1234',
 			summary: 'Tokens and shell'
 		});
-		expect(saved).toMatchObject({ number: 1, stale: false });
+		expect(savedByMember).toMatchObject({ number: 1, stale: false });
+		expect((savedByMember.warnings as string[]).join(' ')).toContain('embeds no font file');
+		const saved = await call(admin, 'mockup_kit_set', {
+			sessionId: sa.sessionId,
+			project: w.projectKey,
+			html: '<html><body>kit v2</body></html>',
+			builtFromCommit: 'abc1234',
+			summary: 'Tokens and shell'
+		});
+		expect(saved).toMatchObject({ number: 2, stale: false });
 		expect((saved.warnings as string[]).join(' ')).toContain('embeds no font file');
+
+		const noHooks = await call(member, 'mockup_publish', {
+			sessionId: sm.sessionId,
+			item: ref,
+			another: true,
+			html: '<html><body><h1>No hooks</h1></body></html>'
+		});
+		expect(noHooks.warnings.join(' ')).toContain('data-screen');
+		expect(noHooks.warnings.join(' ')).toContain('data-state');
+		expect(noHooks.warnings.join(' ')).toContain('data-ref');
 		const longSummary = await call(admin, 'mockup_kit_set', {
 			sessionId: sa.sessionId,
 			project: w.projectKey,
@@ -620,5 +647,54 @@ describe('mockup tools', () => {
 			project: w.projectKey
 		});
 		expect(nothing.error?.code).toBe('INVALID');
+	});
+
+	it('mockup_url mints a short-lived signed isolated URL for authorised readers and refuses missing or private targets', async () => {
+		const s = await call(member, 'session_start', { tool: 'claude-code' });
+		const pub = await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			item: ref,
+			name: 'URL Mint Screen',
+			html: PAGE
+		});
+		const minted = await call(reader, 'mockup_url', {
+			mockup: pub.mockup.id,
+			ttlSeconds: 300
+		});
+		expect(minted.mockupId).toBe(pub.mockup.id);
+		expect(minted.version).toBe(pub.version.number);
+		expect(minted.kind).toBe('html');
+		expect(minted.isolatedOrigin).toBe(true);
+		expect(minted.url.startsWith('https://mockups.example.test/mf/')).toBe(true);
+		expect(minted.isPublic).toBe(false);
+
+		const privItem = await createItem(w.ctx('member'), {
+			project: w.projectKey,
+			title: 'Private MCP plan',
+			visibility: 'private',
+			...PLAN
+		});
+		const priv = await call(member, 'mockup_publish', {
+			sessionId: s.sessionId,
+			item: privItem.ref,
+			name: 'Private Screen',
+			html: PAGE
+		});
+		const vReader = await connect(
+			deps,
+			(
+				await createToken(w.ctx('viewer'), {
+					name: 'viewer-url-agent',
+					permissions: ['read']
+				})
+			).token
+		);
+		const denied = await call(vReader, 'mockup_url', { mockup: priv.mockup.id });
+		expect(denied.error?.code).toBe('NOT_FOUND');
+
+		const missing = await call(reader, 'mockup_url', {
+			mockup: '00000000-0000-4000-8000-000000000099'
+		});
+		expect(missing.error?.code).toBe('NOT_FOUND');
 	});
 });

@@ -71,6 +71,8 @@ export async function recordMockupRead(
 		offset: number;
 		served: number;
 		length: number;
+		/** False when the reply could not deliver viewable content (truncated or saved to a file instead of shown). */
+		delivered?: boolean;
 		/** A session id the caller sent by hand (the API). It is checked here; an MCP call's own session is already checked. */
 		sessionId?: string;
 	}
@@ -78,8 +80,8 @@ export async function recordMockupRead(
 	recorded: boolean;
 	readChars: number;
 	unreadChars: number;
-	/** Why nothing was recorded: no known session, or a fault on the server. */
-	reason?: 'no-session' | 'error';
+	/** Why nothing was recorded: no known session, not delivered cleanly, or a fault on the server. */
+	reason?: 'no-session' | 'not-delivered' | 'error';
 }> {
 	const sessionId = input.sessionId ?? ctx.actor.sessionId;
 	const none = {
@@ -90,6 +92,14 @@ export async function recordMockupRead(
 	};
 	if (!sessionId) return none;
 	const length = Math.max(0, input.length);
+	if (input.delivered === false || input.served <= 0) {
+		return {
+			recorded: false,
+			readChars: 0,
+			unreadChars: length,
+			reason: 'not-delivered'
+		};
+	}
 	const start = Math.min(Math.max(0, input.offset), length);
 	const end = Math.min(start + Math.max(0, input.served), length);
 	try {

@@ -30,6 +30,7 @@ export const GET: RequestHandler = async ({ params, url, getClientAddress }) => 
 		{ handle: await getDb(), storage: getStorage() },
 		params.token,
 		undefined,
-		url.searchParams.get('shot') === '1'
+		url.searchParams.get('shot') === '1',
+		url.origin
 	);
 };

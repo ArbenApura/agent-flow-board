@@ -9,7 +9,8 @@ const SENTENCES: Record<string, { before: string; after: string }> = {
 	'adopt-env': { before: 'Used the env settings of ', after: '' },
 	roots: { before: 'Added the folder ', after: '' },
 	pictures: { before: 'Kept pictures of signed-in pages for ', after: '' },
-	login: { before: 'Opened a sign-in window for ', after: '' }
+	login: { before: 'Opened a sign-in window for ', after: '' },
+	dev: { before: 'Approved dev settings for ', after: '' }
 };
 
 // -- FUNCTIONS -- //

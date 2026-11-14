@@ -20,8 +20,8 @@
 	// -- REACTIVE STATES -- //
 
 	const screens = $derived(data.available ? screensOf(data.screens) : []);
-	// The file is served by its own route, sandboxed, and carries only the read only options script, never the pin script
-	const src = $derived(`/m/${page.params.token}/file`);
+	// The file is served from its isolated origin when configured, sandboxed, and carries only the read only options script
+	const src = $derived(data.available ? data.fileSrc : `/m/${page.params.token}/file`);
 </script>
 
 <svelte:head>

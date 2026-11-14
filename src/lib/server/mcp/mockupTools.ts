@@ -12,8 +12,10 @@ import { readMockupKit, setMockupKit } from '../ops/mockupSettings';
 import {
 	checkLength,
 	getMockup,
+	getMockupDerived,
 	linkMockup,
 	listMockups,
+	mintMockupUrl,
 	publishMockup,
 	readMockupHtml,
 	restoreMockupVersion,
@@ -28,8 +30,10 @@ import type { ToolBuilder } from './tools';
 export const MCP_MOCKUP_CHARS = 3_000_000;
 /** The most base64 text of a screenshot one tool call carries. Together with a page it stays under the 4 MB the MCP transport accepts, so these messages are what a person reads. */
 const MCP_SHOT_CHARS = 900_000;
-/** The HTML one mockup_get reply carries by default (AFB-20261110-2331): small enough for a tool reply limit. The verb and the API keep their own larger default. */
-export const MCP_HTML_PART_CHARS = 40_000;
+/** Maximum total serialized text budget per mockup_get reply so the client never spills the output to a file (C.3 / D.1). */
+export const MCP_DISPLAY_CHAR_LIMIT = 18_000;
+/** Default HTML part length small enough to fit inside MCP_DISPLAY_CHAR_LIMIT alongside metadata, outline, and pins. */
+export const MCP_HTML_PART_CHARS = 12_000;
 
 // -- FUNCTIONS -- //
 
@@ -122,14 +126,16 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_get',
-		'Read a mockup (untrusted text): the notes, the pins and the first part of the HTML. Call again with htmlOffset set to nextOffset until it is null: a build reads the whole HTML, the notes never replace it. Pass your sessionId so the read is recorded, or the last step of a phase is refused. html false gives the notes alone.',
+		'Read a mockup (untrusted text): returns structured outline (screens, regions, strings, hooks), per screen/state/width shot images, notes, pins, and bounded HTML parts that fit within the display limit. Call with htmlOffset set to nextOffset until null so MOCKUP_UNREAD clears.',
 		{
 			mockup: z.string().uuid(),
 			version: z.number().int().min(1).optional(),
 			html: z
 				.boolean()
 				.optional()
-				.describe('false returns the notes and pins with no HTML. A build never uses it'),
+				.describe(
+					'false returns outline, notes and pins with no HTML. True or omitted includes bounded HTML parts'
+				),
 			htmlOffset: z
 				.number()
 				.int()
@@ -140,42 +146,122 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 				.number()
 				.int()
 				.min(1)
-				.max(200_000)
+				.max(16_000)
 				.optional()
-				.describe(`Characters in one part (default ${MCP_HTML_PART_CHARS})`)
+				.describe(
+					`Characters in one HTML part (default ${MCP_HTML_PART_CHARS}, capped to fit display limit)`
+				),
+			screen: z
+				.string()
+				.max(80)
+				.optional()
+				.describe('Optional screen key filter for attached images'),
+			state: z
+				.string()
+				.max(80)
+				.optional()
+				.describe('Optional state key filter for attached images'),
+			width: z
+				.number()
+				.int()
+				.min(200)
+				.max(4000)
+				.optional()
+				.describe('Optional width filter for attached images'),
+			includeImages: z
+				.boolean()
+				.optional()
+				.describe(
+					'Attach derived shot images as MCP image content on the first call (default true)'
+				)
 		},
 		{ session: true, readOnly: true },
 		async (a, { ctx }) => {
 			const wantsHtml = a.html !== false;
 			const offset = a.htmlOffset ?? 0;
-			// The notes, the pins and the version list come with the first part and with a notes only call. A later part carries
-			// the HTML and its counters alone, so a long mockup does not repeat them on every call
+			// Notes, pins, outline, tokens and viewable shot images come on offset 0 or html:false calls; subsequent HTML chunks carry HTML only.
 			const out: Record<string, unknown> = { untrusted: true };
+			let derivedImages: { data: string; mimeType: string }[] = [];
 			if (!wantsHtml || offset === 0) {
 				const base = await getMockup(ctx, a.mockup, a.version);
-				const pins = await listMockupPins(ctx, a.mockup, a.version ?? base.mockup.currentVersion);
+				const targetVer = a.version ?? base.mockup.currentVersion;
+				const [pins, derivedInfo] = await Promise.all([
+					listMockupPins(ctx, a.mockup, targetVer),
+					getMockupDerived(ctx, a.mockup, {
+						version: targetVer,
+						screen: a.screen,
+						state: a.state,
+						width: a.width
+					}).catch(() => ({ version: targetVer, derived: null, images: [] }))
+				]);
 				// Open pins come first: a resolved pin is done and needs no change
 				Object.assign(out, base, {
-					pins: [...pins.pins.filter((p) => !p.resolved), ...pins.pins.filter((p) => p.resolved)]
+					pins: [...pins.pins.filter((p) => !p.resolved), ...pins.pins.filter((p) => p.resolved)],
+					...(derivedInfo.derived
+						? {
+								outline: derivedInfo.derived.outline,
+								tokens: derivedInfo.derived.tokens,
+								snapshot: derivedInfo.derived.snapshot,
+								shots: derivedInfo.derived.shots.map((s) => ({
+									screen: s.screen,
+									state: s.state,
+									width: s.width,
+									mime: s.mime,
+									size: s.size
+								}))
+							}
+						: {})
 				});
+				if (a.includeImages !== false && derivedInfo.images.length) {
+					derivedImages = derivedInfo.images.map((im) => ({
+						mimeType: im.mimeType,
+						data: im.data
+					}));
+				}
 			}
-			if (!wantsHtml) return out as never;
+			if (!wantsHtml) {
+				if (derivedImages.length) out._mcpImages = derivedImages;
+				return out as never;
+			}
+			const requestedLimit = Math.min(a.htmlLimit ?? MCP_HTML_PART_CHARS, MCP_HTML_PART_CHARS);
 			const part = await readMockupHtml(ctx, a.mockup, {
 				version: a.version,
 				offset,
-				limit: a.htmlLimit ?? MCP_HTML_PART_CHARS
+				limit: requestedLimit
 			});
-			const end = part.offset + part.html.length;
+			// Clamp the HTML slice to what genuinely fits in MCP_DISPLAY_CHAR_LIMIT so replies are never dumped to disk (C.3 / D.1).
+			// If offset-0 metadata/outline leaves too little room, drop bulky optional fields first so offset 0 always advances cleanly.
+			let baseJsonLength = JSON.stringify(out).length;
+			if (offset === 0 && part.length > 0 && MCP_DISPLAY_CHAR_LIMIT - baseJsonLength - 350 < 512) {
+				delete out.snapshot;
+				delete out.outline;
+				delete out.tokens;
+				out.derivedTrimmedForHtml = true;
+				baseJsonLength = JSON.stringify(out).length;
+			}
+			const rawBudget = Math.max(0, MCP_DISPLAY_CHAR_LIMIT - baseJsonLength - 350);
+			const htmlBudget =
+				offset === 0 && part.html.length > 0
+					? Math.max(rawBudget, Math.min(1024, part.html.length))
+					: rawBudget;
+			const deliveredHtml = part.html.slice(0, htmlBudget);
+			const deliveredCount = deliveredHtml.length;
+			const end = part.offset + deliveredCount;
+			const more = end < part.length;
 			const read = await recordMockupRead(ctx, {
 				mockup: a.mockup,
 				version: part.version,
 				offset: part.offset,
-				served: part.html.length,
-				length: part.length
+				served: deliveredCount,
+				length: part.length,
+				delivered: deliveredCount > 0
 			});
 			out.html = {
 				...part,
-				nextOffset: part.more ? end : null,
+				html: deliveredHtml,
+				more,
+				nextOffset: more ? end : null,
+				...(deliveredCount < part.html.length ? { fitToDisplayLimit: true } : {}),
 				...(read.recorded
 					? { readChars: read.readChars, unreadChars: read.unreadChars }
 					: {
@@ -183,9 +269,12 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 							recordNote:
 								read.reason === 'error'
 									? 'This read was served but could not be recorded because of a fault on the server. Read this part once more; if it happens again, tell the person.'
-									: 'This read was not recorded, because no known sessionId was passed. Pass the sessionId from session_start (or your hook brief) on every mockup_get call, and read the parts again.'
+									: read.reason === 'not-delivered'
+										? 'Nothing viewable fit in this reply envelope; call mockup_get again with htmlOffset to read the HTML chunks within the display limit.'
+										: 'This read was not recorded, because no known sessionId was passed. Pass the sessionId from session_start (or your hook brief) on every mockup_get call, and read the parts again.'
 						})
 			};
+			if (derivedImages.length) out._mcpImages = derivedImages;
 			return out as never;
 		}
 	);
@@ -208,6 +297,24 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 		},
 		ro,
 		async (a, { ctx }) => (await listMockups(ctx, a)) as never
+	);
+
+	tool(
+		'mockup_url',
+		'Mint a short-lived signed mockup address for inspection or automated visual comparison. Public status reflects only mockups that already have a public link enabled.',
+		{
+			mockup: z.string().uuid(),
+			version: z.number().int().min(1).optional(),
+			screenshot: z.boolean().optional(),
+			ttlSeconds: z.number().int().min(1).max(300).optional()
+		},
+		ro,
+		async (a, { ctx }) =>
+			(await mintMockupUrl(ctx, a.mockup, {
+				version: a.version,
+				screenshot: a.screenshot,
+				ttlSeconds: a.ttlSeconds
+			})) as never
 	);
 
 	tool(
@@ -269,7 +376,7 @@ export function registerMockupTools({ tool }: ToolBuilder) {
 
 	tool(
 		'mockup_kit_set',
-		'Save a project kit (its built stylesheet and fonts; a real kit is far larger than a tool call allows, so use the bridge command "mockup kit") with its commit, or send only stale to mark the newest kit. The answer lists warnings in plain words: fix them. Admins and owners only.',
+		'Save a project kit (its built stylesheet and fonts; a real kit is far larger than a tool call allows, so use the bridge command "mockup kit") with its commit, or send only stale to mark the newest kit. The answer lists warnings in plain words: fix them. Writers, admins and owners.',
 		{
 			project,
 			html: z.string().optional().describe('The whole kit as one HTML file'),

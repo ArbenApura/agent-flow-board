@@ -7,7 +7,9 @@ import {
 	AFB_BASE_URL,
 	AFB_MASTER_KEY,
 	AFB_RUNNER_QUEUE_MINUTES,
-	BACKUP_KEY
+	BACKUP_KEY,
+	BETTER_AUTH_SECRET,
+	MOCKUP_ORIGIN
 } from '$app/env/private';
 // -- MODULES -- //
 import { getStorage } from './adapters/index';
@@ -25,6 +27,8 @@ export async function appServices(): Promise<NonNullable<Ctx['services']>> {
 		jobs: await getJobs(),
 		backups: Boolean(BACKUP_KEY),
 		masterKey: AFB_MASTER_KEY,
-		runnerQueueMinutes: AFB_RUNNER_QUEUE_MINUTES
+		runnerQueueMinutes: AFB_RUNNER_QUEUE_MINUTES,
+		mockupSecret: BETTER_AUTH_SECRET,
+		mockupOrigin: MOCKUP_ORIGIN
 	};
 }

@@ -620,3 +620,36 @@ describe('the git hook', () => {
 		expect(lastCommitMessage(repo)).toContain('No item here');
 	});
 });
+
+describe('waiting-for-a-person stop hook adapters (D.5, D.9)', () => {
+	const waitingMsg = 'AFB-1 is waiting for a person (sign-in): Sign in to dev app (1.1).';
+
+	it('respects and shows the waiting blocker on Stop without blocking or continuing across claude, antigravity and gemini', () => {
+		const claudeOut = claude.toOutput('stop', { waiting: waitingMsg, block: 'Carry on' });
+		expect(claudeOut).toEqual({ systemMessage: waitingMsg });
+		expect(claudeOut).not.toHaveProperty('decision');
+
+		const agyOut = antigravity.toOutput('stop', { waiting: waitingMsg, block: 'Carry on' });
+		expect(agyOut).toEqual({ systemMessage: waitingMsg });
+		expect(agyOut).not.toHaveProperty('decision');
+
+		const gemOut = gemini.toOutput('stop', { waiting: waitingMsg, block: 'Carry on' });
+		expect(gemOut).toEqual({ systemMessage: waitingMsg });
+		expect(gemOut).not.toHaveProperty('decision');
+	});
+
+	it('resumes normal blocking/continuing/denying behaviour when waiting is cleared across all three adapters', () => {
+		expect(claude.toOutput('stop', { block: 'Still open' })).toEqual({
+			decision: 'block',
+			reason: 'Still open'
+		});
+		expect(antigravity.toOutput('stop', { block: 'Still open' })).toEqual({
+			decision: 'continue',
+			reason: 'Still open'
+		});
+		expect(gemini.toOutput('stop', { block: 'Still open' })).toEqual({
+			decision: 'deny',
+			reason: 'Still open'
+		});
+	});
+});

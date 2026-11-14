@@ -14,12 +14,14 @@ import {
 	check,
 	comment,
 	decision,
+	devRegistration,
 	environment,
 	item,
 	manualCheck,
 	member,
 	mockup,
 	mockupKit,
+	mockupKitAsset,
 	mockupPin,
 	mockupProject,
 	mockupRead,
@@ -76,6 +78,7 @@ export const mockupReadSelect = createSelectSchema(mockupRead, { ranges: mockupR
 export const mockupProjectSelect = createSelectSchema(mockupProject);
 export const mockupTemplateSelect = createSelectSchema(mockupTemplate);
 export const mockupKitSelect = createSelectSchema(mockupKit);
+export const mockupKitAssetSelect = createSelectSchema(mockupKitAsset);
 export const noteSelect = createSelectSchema(note);
 export const noteFolderSelect = createSelectSchema(noteFolder);
 export const noteVersionSelect = createSelectSchema(noteVersion);
@@ -167,6 +170,28 @@ export const noteUpdateInput = createUpdateSchema(note, { title: noteTitle, body
 export const noteFolderInput = noteFolderInsert.pick({ name: true, parentId: true });
 export const noteLinkInput = noteLinkInsert.pick({ targetKind: true, targetId: true });
 export const checkInsert = createInsertSchema(check);
+export const devRegistrationSelect = createSelectSchema(devRegistration);
+export const devRegistrationInsert = createInsertSchema(devRegistration, {
+	name: (s) => s.trim().min(1).max(60),
+	devUrl: (s) => s.trim().min(1).max(300),
+	profiles: () => z.array(z.string().trim().min(1).max(40)).max(20)
+});
+export const devRegistrationUpdate = createUpdateSchema(devRegistration);
+export const devRegistrationInput = devRegistrationInsert
+	.pick({
+		name: true,
+		devUrl: true,
+		profiles: true,
+		activeProfile: true,
+		lastStatus: true,
+		lastReasonCode: true
+	})
+	.partial({
+		profiles: true,
+		activeProfile: true,
+		lastStatus: true,
+		lastReasonCode: true
+	});
 export const environmentInsert = createInsertSchema(environment, { url: (s) => s.url() });
 export const apiTokenInsert = createInsertSchema(apiToken);
 

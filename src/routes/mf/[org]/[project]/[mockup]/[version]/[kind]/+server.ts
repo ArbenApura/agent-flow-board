@@ -12,7 +12,14 @@ import { serveMemberMockup } from '#lib/server/mockups/serve.js';
 // -- FUNCTIONS -- //
 
 export const GET: RequestHandler = async ({ params, url }) =>
-	serveMemberMockup({ handle: await getDb(), storage: getStorage() }, BETTER_AUTH_SECRET, params, {
-		exp: url.searchParams.get('exp'),
-		sig: url.searchParams.get('sig')
-	});
+	serveMemberMockup(
+		{ handle: await getDb(), storage: getStorage() },
+		BETTER_AUTH_SECRET,
+		params,
+		{
+			exp: url.searchParams.get('exp'),
+			sig: url.searchParams.get('sig')
+		},
+		Date.now(),
+		url.origin
+	);

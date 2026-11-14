@@ -12,6 +12,7 @@ import type { RunnerAuth } from './environments';
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
+import { effectiveStepVisible } from '../../shared/screenGlobs';
 import { classifyRun } from '../../shared/runErrors';
 import { findSecret, maskSecrets, type Needle } from '../../shared/scan';
 import { appendEvent } from '../db/events';
@@ -19,6 +20,7 @@ import {
 	attachment,
 	check,
 	checkRun,
+	devRegistration,
 	environment,
 	item,
 	manualCheck,
@@ -29,6 +31,7 @@ import {
 	step,
 	userPref
 } from '../db/schema';
+import { devStatusFixLine, devTargetSummary } from './devRegistrations';
 import { TARGETS } from '../db/schema/helpers';
 import { withTenant } from '../db/tenant';
 import { OpError, idempotent, projectAllowed, requireCap, run } from './context';
@@ -44,8 +47,9 @@ import { actorFields, canSeeItem } from './items';
 import { findItem, findProject } from './resolve';
 import { recordSteps } from './steps';
 import { registrationFit, runnerRegistrationPairs } from './registrations';
-import { addAttachment } from './attachments';
+import { addAttachment, cleanAttachmentName } from './attachments';
 import { lintCheckScript } from './checkLint';
+import { compareCommandHint } from './visibleSteps';
 
 // -- TYPES -- //
 
@@ -72,6 +76,20 @@ const WAIT_DEFAULT_SECONDS = 30;
 const WAIT_POLL_MS = 2000;
 /** How many runs per org may be waited for at once in one server process. */
 const WAITERS_PER_ORG = 5;
+export const MAX_RUN_PICTURE_PAIRS = 4;
+export const MAX_RUN_DIFF_REPORTS = 4;
+export const MAX_COMPARE_DIFF_BYTES = 2 * 1024 * 1024;
+export const MAX_RUN_PAIR_IMAGE_BYTES = 5 * 1024 * 1024;
+export const MAX_RUN_EVIDENCE_FILES = 30;
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
+
+const HTML_ESCAPE: Record<string, string> = {
+	'&': '&amp;',
+	'<': '&lt;',
+	'>': '&gt;',
+	'"': '&quot;',
+	"'": '&#39;'
+};
 
 /** A registration name of the afb-checks tool: plain letters, digits, dashes and underscores, as the tool allows. */
 export const REGISTRATION_NAME = z
@@ -133,8 +151,164 @@ export const runReport = z.object({
 		.string()
 		.regex(/^[A-Za-z0-9._/-]{1,100}$/)
 		.optional(),
+	signedIn: z.boolean().optional(),
+	uploadSignedInPictures: z.boolean().optional(),
 	evidence: z.array(z.string().uuid()).max(30).default([])
 });
+
+/** Escapes HTML-significant characters in untrusted diff text so it can only render as plain text. */
+export function escapeDiffText(text: string): string {
+	return text.replace(/[&<>"']/g, (ch) => HTML_ESCAPE[ch] ?? ch);
+}
+
+const SAFE_SUMMARY_KEYS = new Set([
+	'schema',
+	'signedIn',
+	'signedInPicturesWithheld',
+	'mockupId',
+	'mockupVersion',
+	'diffHash',
+	'passed',
+	'pairCount',
+	'totalMismatches',
+	'totalNotCompared',
+	'totalWaived',
+	'pairs'
+]);
+const SAFE_SUMMARY_PAIR_KEYS = new Set([
+	'screen',
+	'state',
+	'width',
+	'passed',
+	'mismatchCount',
+	'notComparedCount',
+	'mockupHash',
+	'appHash'
+]);
+
+function classifyCompareArtifact(filename: string) {
+	const name = cleanAttachmentName(filename);
+	const ext = name.split('.').pop()?.toLowerCase() ?? '';
+	const pairMatch = /^(mockup|app)-(.+)\.(png|jpe?g|webp|gif)$/i.exec(name);
+	const pair = pairMatch
+		? { side: pairMatch[1].toLowerCase() as 'mockup' | 'app', slug: pairMatch[2].toLowerCase() }
+		: null;
+	const isImage = IMAGE_EXTS.has(ext);
+	const isSummaryReport = /^compare-summary(?:[-._a-z0-9]*)?\.json$/i.test(name);
+	const isDiffReport = /^compare-(?:diff|summary)(?:[-._a-z0-9]*)?\.json$/i.test(name);
+	return { name, pair, isImage, isSummaryReport, isDiffReport };
+}
+
+function parseDiffJson(bytes: Uint8Array): Record<string, unknown> {
+	try {
+		const parsed = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+			throw new Error('not object');
+		return parsed as Record<string, unknown>;
+	} catch {
+		throw new OpError('INVALID', 'Compare diff report must be valid JSON.');
+	}
+}
+
+function isPrimitiveOrShortToken(v: unknown, maxLen = 128): boolean {
+	return (
+		v === null ||
+		typeof v === 'boolean' ||
+		(typeof v === 'number' && Number.isFinite(v)) ||
+		(typeof v === 'string' && v.length <= maxLen && !/[<>]/.test(v))
+	);
+}
+
+/** True only when a compare JSON object strictly holds hashes, identifiers, and numeric counts (never DOM text or screenshots). */
+function isSafeSignedInSummary(obj: Record<string, unknown>): boolean {
+	for (const [k, v] of Object.entries(obj)) {
+		if (!SAFE_SUMMARY_KEYS.has(k)) return false;
+		if (k === 'pairs') {
+			if (!Array.isArray(v)) return false;
+			for (const p of v) {
+				if (!p || typeof p !== 'object' || Array.isArray(p)) return false;
+				for (const [pk, pv] of Object.entries(p as Record<string, unknown>)) {
+					if (!SAFE_SUMMARY_PAIR_KEYS.has(pk) || !isPrimitiveOrShortToken(pv)) return false;
+				}
+			}
+		} else if (!isPrimitiveOrShortToken(v)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+/** Escapes HTML-significant characters in untrusted diff text fields inside stored signed-in compare diff reports. */
+function escapeDiffReport(obj: Record<string, unknown>): Record<string, unknown> {
+	const escapeStringArray = (arr: unknown) =>
+		Array.isArray(arr)
+			? arr.map((item) => (typeof item === 'string' ? escapeDiffText(item) : item))
+			: arr;
+	const escapeMismatchArray = (entries: unknown) =>
+		Array.isArray(entries)
+			? entries.map((m) => {
+					if (!m || typeof m !== 'object' || Array.isArray(m)) return m;
+					const rec = m as Record<string, unknown>;
+					const nestedWaived =
+						rec.waived && typeof rec.waived === 'object' && !Array.isArray(rec.waived)
+							? {
+									...(rec.waived as Record<string, unknown>),
+									...(typeof (rec.waived as Record<string, unknown>).reason === 'string'
+										? {
+												reason: escapeDiffText(
+													(rec.waived as Record<string, unknown>).reason as string
+												)
+											}
+										: {})
+								}
+							: rec.waived;
+					return {
+						...rec,
+						...(typeof rec.mockupValue === 'string'
+							? { mockupValue: escapeDiffText(rec.mockupValue) }
+							: {}),
+						...(typeof rec.appValue === 'string' ? { appValue: escapeDiffText(rec.appValue) } : {}),
+						...(typeof rec.reason === 'string' ? { reason: escapeDiffText(rec.reason) } : {}),
+						...(nestedWaived !== undefined ? { waived: nestedWaived } : {})
+					};
+				})
+			: entries;
+	const escapeDiffEntry = (diff: unknown) => {
+		if (!diff || typeof diff !== 'object' || Array.isArray(diff)) return diff;
+		const d = { ...(diff as Record<string, unknown>) };
+		if (Array.isArray(d.mismatches)) d.mismatches = escapeMismatchArray(d.mismatches);
+		if (Array.isArray(d.waived)) d.waived = escapeMismatchArray(d.waived);
+		if (Array.isArray(d.notCompared)) {
+			d.notCompared = d.notCompared.map((nc) => {
+				if (!nc || typeof nc !== 'object' || Array.isArray(nc)) return nc;
+				const rec = nc as Record<string, unknown>;
+				return {
+					...rec,
+					...(typeof rec.detail === 'string' ? { detail: escapeDiffText(rec.detail) } : {})
+				};
+			});
+		}
+		if (typeof d.summary === 'string') d.summary = escapeDiffText(d.summary);
+		return d;
+	};
+	const out: Record<string, unknown> = { ...obj };
+	if (typeof out.summary === 'string') out.summary = escapeDiffText(out.summary);
+	if (Array.isArray(out.rankedLines)) out.rankedLines = escapeStringArray(out.rankedLines);
+	if (Array.isArray(out.pairs)) {
+		out.pairs = out.pairs.map((p) => {
+			if (!p || typeof p !== 'object' || Array.isArray(p)) return p;
+			const rec = p as Record<string, unknown>;
+			return {
+				...rec,
+				...(Array.isArray(rec.rankedLines)
+					? { rankedLines: escapeStringArray(rec.rankedLines) }
+					: {}),
+				...(rec.diff ? { diff: escapeDiffEntry(rec.diff) } : {})
+			};
+		});
+	}
+	return out;
+}
 
 // -- FUNCTIONS: HELPERS -- //
 
@@ -176,6 +350,11 @@ export async function targetStatuses(
 	projectId: string
 ): Promise<TargetStatus[]> {
 	const envs = await tx.select().from(environment).where(eq(environment.projectId, projectId));
+	const devRegs = await tx
+		.select()
+		.from(devRegistration)
+		.where(eq(devRegistration.projectId, projectId))
+		.orderBy(asc(devRegistration.name));
 	const runners = await tx
 		.select()
 		.from(runner)
@@ -188,6 +367,30 @@ export async function targetStatuses(
 		);
 	return TARGETS.map((target) => {
 		const candidates = envs.filter((e) => e.kind === target);
+		if (!candidates.length && target === 'dev' && devRegs.length) {
+			const reachable = devRegs.find((d) => d.lastStatus === 'reachable');
+			if (!reachable) {
+				const first = devRegs[0]!;
+				const code = first.lastReasonCode ?? 'DEV_URL_UNREACHABLE';
+				const fix = devStatusFixLine(code);
+				return {
+					target,
+					available: false,
+					environment: first.name,
+					reason: `${code}: ${fix ?? 'Dev server is not reachable.'}`
+				};
+			}
+			if (!runners.some((r) => reachesPrivate(r.kind))) {
+				return {
+					target,
+					available: false,
+					environment: reachable.name,
+					reason:
+						'No local runner that serves this project is online. Run checks locally with: agent-flow-board check run --local.'
+				};
+			}
+			return { target, available: true, environment: reachable.name, reason: null };
+		}
 		// The afb-checks tool starts the preview itself, so a project needs no environment row for it
 		if (!candidates.length && target === 'preview' && runners.some((r) => r.kind === 'tool'))
 			return { target, available: true, environment: toolEnvironment(target).name, reason: null };
@@ -493,7 +696,8 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 					.orderBy(desc(checkRun.createdAt))
 					.limit(60)
 			: [];
-		// The files a run saved (screenshots, trace, video), named so the board shows pictures as pictures and the rest as links
+		// The files a run saved (screenshots, trace, video), respecting private attachment visibility for viewer/guest roles
+		const mayPrivate = role === 'owner' || role === 'admin' || role === 'member';
 		const evidenceIds = [...new Set(runs.flatMap((r) => r.evidence))];
 		const files = evidenceIds.length
 			? await tx
@@ -501,10 +705,16 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 						id: attachment.id,
 						filename: attachment.filename,
 						caption: attachment.caption,
-						mime: attachment.mime
+						mime: attachment.mime,
+						visibility: attachment.visibility
 					})
 					.from(attachment)
 					.where(and(inArray(attachment.id, evidenceIds), isNull(attachment.deletedAt)))
+					.then((rows) =>
+						rows
+							.filter((a) => a.visibility === 'public' || mayPrivate)
+							.map(({ visibility: _vis, ...rest }) => rest)
+					)
 			: [];
 		// The time windows of the organisation's runs since the oldest shown run began, to tell which ones shared the machine
 		const firstStart = runs.reduce<Date | null>(
@@ -526,14 +736,21 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 					w.s < (r.finishedAt ?? new Date()) &&
 					(w.f ?? new Date()) > r.startedAt!
 			);
+		const [o] = await tx.select({ slug: org.slug }).from(org).where(eq(org.id, ctx.orgId));
 		const [pref] = await tx.select().from(userPref).where(eq(userPref.userId, ctx.actor.userId));
 		const envs = await tx.select().from(environment).where(eq(environment.projectId, it.projectId));
+		const devRows = await tx
+			.select()
+			.from(devRegistration)
+			.where(eq(devRegistration.projectId, it.projectId))
+			.orderBy(asc(devRegistration.name));
 		return {
 			item: { id: it.id, ref: it.ref },
 			webApp: p.webApp,
 			preferredTarget: pref?.checkTarget ?? null,
 			canRun: role !== 'viewer' && role !== 'guest',
 			targets: await targetStatuses(tx, ctx.orgId, it.projectId),
+			devTargets: devRows.map((d) => devTargetSummary(d, o?.slug)),
 			environments: envs.map((e) => ({
 				name: e.name,
 				kind: e.kind,
@@ -686,12 +903,25 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 							eq(environment.kind, asked)
 						)
 					);
-				if (!e)
+				let devMatchName: string | null = null;
+				if (!e && asked === 'dev') {
+					const [d] = await tx
+						.select({ name: devRegistration.name })
+						.from(devRegistration)
+						.where(
+							and(
+								eq(devRegistration.projectId, it.projectId),
+								eq(devRegistration.name, input.environment)
+							)
+						);
+					devMatchName = d?.name ?? null;
+				}
+				if (!e && !devMatchName)
 					throw new OpError(
 						'NOT_FOUND',
 						`This project has no ${asked} environment named "${input.environment}".`
 					);
-				envName = e.name;
+				envName = e?.name ?? devMatchName;
 			}
 			const offer = statuses.filter((s) => s.available && s.target !== asked).map((s) => s.target);
 			const [row] = await tx
@@ -1039,6 +1269,11 @@ export async function runnerStatus(ctx: Ctx, keyOrId?: string) {
 						])
 				).values()
 			];
+			const devRows = await tx
+				.select()
+				.from(devRegistration)
+				.where(eq(devRegistration.projectId, p.id))
+				.orderBy(asc(devRegistration.name));
 			out.push({
 				project: p.key,
 				online: onlineNow.length > 0,
@@ -1053,6 +1288,7 @@ export async function runnerStatus(ctx: Ctx, keyOrId?: string) {
 				// The registrations an online tool holds for this project (tool-reported). With more than one, a run must name one: registration on check_run or check_save
 				registrations,
 				registrationRequired: registrations.length > 1,
+				devTargets: devRows.map((d) => devTargetSummary(d, orgSlug)),
 				hint: onlineNow.length
 					? 'A runner is online and will take the next run.'
 					: hasTool
@@ -1190,6 +1426,27 @@ export async function claimCheckJob(
 				(!wanted || wanted === TOOL_ENV_NAME)
 			)
 				env = toolEnvironment('preview');
+			// A local/tool runner also resolves registered dev targets by name without requiring an environment row (writes remain off from board)
+			if (!env && reachesPrivate(auth.kind) && r.target === 'dev') {
+				const devRows = await tx
+					.select()
+					.from(devRegistration)
+					.where(eq(devRegistration.projectId, r.projectId))
+					.orderBy(asc(devRegistration.name));
+				const pickedDev = wanted
+					? devRows.find((d) => d.name === wanted)
+					: (devRows.find((d) => d.lastStatus === 'reachable') ?? devRows[0]);
+				if (pickedDev) {
+					env = {
+						name: pickedDev.name,
+						url: pickedDev.devUrl,
+						kind: 'dev',
+						production: false,
+						writeAllowed: false,
+						versionPath: null
+					};
+				}
+			}
 			if (env) {
 				picked = { r, env };
 				break;
@@ -1238,11 +1495,12 @@ export async function claimCheckJob(
 }
 
 /** A run this runner holds, or a refusal. Returns what the other runner calls need. */
-async function heldRun(tx: Tx, auth: RunnerAuth, runId: string) {
-	const [r] = await tx
+async function heldRun(tx: Tx, auth: RunnerAuth, runId: string, lock = false) {
+	const q = tx
 		.select()
 		.from(checkRun)
 		.where(and(eq(checkRun.id, runId), eq(checkRun.orgId, auth.orgId)));
+	const [r] = lock ? await q.for('update') : await q;
 	if (!r) throw new OpError('NOT_FOUND', 'No such run.');
 	if (r.runnerId !== auth.runnerId)
 		throw new OpError('FORBIDDEN', 'This run is held by another runner.');
@@ -1313,23 +1571,46 @@ export async function storeRunArtifact(
 	handle: DbHandle,
 	auth: RunnerAuth,
 	runId: string,
-	file: { filename: string; caption: string; bytes: Uint8Array },
+	file: {
+		filename: string;
+		caption: string;
+		bytes: Uint8Array;
+		signedIn?: boolean;
+		uploadSignedInPictures?: boolean;
+	},
 	services?: Ctx['services']
 ) {
-	const info = await withTenant(handle, { orgId: auth.orgId }, async (tx) => {
+	const kind = classifyCompareArtifact(file.filename);
+	let parsedDiff: Record<string, unknown> | null = null;
+	if (kind.isDiffReport) {
+		if (file.bytes.byteLength > MAX_COMPARE_DIFF_BYTES)
+			throw new OpError(
+				'INVALID',
+				`Compare diff report exceeds the ${MAX_COMPARE_DIFF_BYTES} byte per-run limit.`
+			);
+		parsedDiff = parseDiffJson(file.bytes);
+	}
+	if (kind.pair && file.bytes.byteLength > MAX_RUN_PAIR_IMAGE_BYTES)
+		throw new OpError(
+			'INVALID',
+			`Compare picture exceeds the ${MAX_RUN_PAIR_IMAGE_BYTES} byte per-image limit.`
+		);
+	const signedIn = Boolean(file.signedIn || parsedDiff?.signedIn === true);
+	const safeSignedInSummary =
+		kind.isSummaryReport && parsedDiff !== null && isSafeSignedInSummary(parsedDiff);
+
+	// Inspect run ownership and secrets before taking the write lock or writing bytes to storage
+	const runMeta = await withTenant(handle, { orgId: auth.orgId }, async (tx) => {
 		const r = await heldRun(tx, auth, runId);
 		if (r.result !== 'running') throw new OpError('CONFLICT', 'The run is not running.');
-		const [chk] = await tx.select().from(check).where(eq(check.id, r.checkId));
-		return { run: r, itemId: chk.itemId, key: chk.manualKey };
+		return r;
 	});
-	const needles = await scanNeedles(
-		handle,
-		auth,
-		info.run.projectId,
-		info.run.requestedBy,
-		services
-	);
-	const hit = findSecret(file.bytes, needles);
+	const needles = await scanNeedles(handle, auth, runMeta.projectId, runMeta.requestedBy, services);
+	const bytesToStore =
+		signedIn && parsedDiff && kind.isDiffReport && !safeSignedInSummary
+			? new TextEncoder().encode(JSON.stringify(escapeDiffReport(parsedDiff), null, 2))
+			: file.bytes;
+	const hit = findSecret(bytesToStore, needles);
 	if (hit) {
 		await withTenant(handle, { orgId: auth.orgId }, (tx) =>
 			tx
@@ -1339,27 +1620,91 @@ export async function storeRunArtifact(
 					finishedAt: sql`now()`,
 					reason: `An artifact held ${hit} and was refused. Nothing from this run was kept.`
 				})
-				.where(eq(checkRun.id, runId))
+				.where(and(eq(checkRun.id, runId), eq(checkRun.result, 'running')))
 		);
 		throw new OpError(
 			'INVALID',
 			`The file holds ${hit}, so it was not stored and the run was stopped.`
 		);
 	}
-	const ctx = runnerCtx(handle, auth, info.run.requestedBy ?? auth.ownerId ?? '', services);
-	const { attachment } = await addAttachment(
-		ctx,
-		{
-			item: info.itemId,
-			filename: file.filename,
-			caption: file.caption,
-			kind: 'check-evidence',
-			refs: [info.key, runId],
-			visibility: 'private'
-		},
-		file.bytes
-	);
-	return { attachmentId: attachment.id };
+
+	return withTenant(handle, { orgId: auth.orgId }, async (tx) => {
+		const r = await heldRun(tx, auth, runId, true);
+		if (r.result !== 'running') throw new OpError('CONFLICT', 'The run is not running.');
+		const [chk] = await tx.select().from(check).where(eq(check.id, r.checkId));
+		const [it] = await tx
+			.select({ id: item.id, visibility: item.visibility })
+			.from(item)
+			.where(eq(item.id, chk.itemId));
+		if (signedIn && !safeSignedInSummary) {
+			if (it?.visibility === 'public')
+				throw new OpError(
+					'FORBIDDEN',
+					'Signed-in pictures and diff text are refused on a public item.',
+					{ reason: 'PUBLIC_ITEM_SIGNED_IN_REFUSED' }
+				);
+			if (!file.uploadSignedInPictures)
+				throw new OpError(
+					'FORBIDDEN',
+					'Signed-in pictures and diff text require uploadSignedInPictures approval; only hashes and counts may be stored.',
+					{ reason: 'SIGNED_IN_PICTURES_NOT_APPROVED' }
+				);
+		}
+		const existing = await tx
+			.select({ id: attachment.id, filename: attachment.filename })
+			.from(attachment)
+			.where(
+				and(
+					eq(attachment.kind, 'check-evidence'),
+					sql`${attachment.refs} @> ${JSON.stringify([runId])}::jsonb`,
+					isNull(attachment.deletedAt)
+				)
+			);
+		if (existing.length >= MAX_RUN_EVIDENCE_FILES)
+			throw new OpError(
+				'INVALID',
+				`A run may store at most ${MAX_RUN_EVIDENCE_FILES} evidence files.`
+			);
+		if (kind.pair) {
+			const existingPairs = existing
+				.map((a) => classifyCompareArtifact(a.filename).pair)
+				.filter((p): p is { side: 'mockup' | 'app'; slug: string } => p !== null);
+			const sideCount = existingPairs.filter((p) => p.side === kind.pair!.side).length;
+			if (existingPairs.length >= MAX_RUN_PICTURE_PAIRS * 2 || sideCount >= MAX_RUN_PICTURE_PAIRS)
+				throw new OpError(
+					'INVALID',
+					`A run may store at most ${MAX_RUN_PICTURE_PAIRS} picture pairs.`
+				);
+		}
+		if (kind.isDiffReport) {
+			const existingReports = existing.filter(
+				(a) => classifyCompareArtifact(a.filename).isDiffReport
+			).length;
+			if (existingReports >= MAX_RUN_DIFF_REPORTS)
+				throw new OpError(
+					'INVALID',
+					`A run may store at most ${MAX_RUN_DIFF_REPORTS} compare diff reports.`
+				);
+		}
+		const ctx = {
+			...runnerCtx(handle, auth, r.requestedBy ?? auth.ownerId ?? '', services),
+			tx
+		};
+		const { attachment: stored } = await addAttachment(
+			ctx,
+			{
+				item: chk.itemId,
+				filename: kind.name,
+				caption: file.caption,
+				kind: 'check-evidence',
+				refs: [chk.manualKey, runId],
+				visibility: 'private'
+			},
+			bytesToStore,
+			{ allowEvidenceKind: true }
+		);
+		return { attachmentId: stored.id };
+	});
 }
 
 /** Pass on a target at least as strong as the one required. */
@@ -1378,6 +1723,7 @@ export async function finishCheckRun(
 	services?: Ctx['services']
 ) {
 	const report = runReport.parse(raw);
+	const uniqueEvidence = [...new Set(report.evidence)];
 	const held = await withTenant(handle, { orgId: auth.orgId }, async (tx) => {
 		const r = await heldRun(tx, auth, runId);
 		if (r.result !== 'running')
@@ -1391,8 +1737,6 @@ export async function finishCheckRun(
 	const needles = await scanNeedles(handle, auth, held.projectId, held.requestedBy, services);
 	const leaked = report.log ? findSecret(report.log, needles) : null;
 	const log = report.log && !leaked ? maskSecrets(report.log, needles).slice(-LOG_KEEP) : null;
-	// A run that was asked for a registration is accepted only from that registration: a tool that ran another one (or did not say) cannot close a step
-	// (an error report closes nothing, so it keeps its own reason even when the tool stopped before it knew its registration)
 	const wrongRegistration =
 		held.registration !== null &&
 		report.result !== 'error' &&
@@ -1407,20 +1751,129 @@ export async function finishCheckRun(
 				: null;
 
 	const stored = await withTenant(handle, { orgId: auth.orgId }, async (tx) => {
+		const r = await heldRun(tx, auth, runId, true);
+		if (r.result !== 'running')
+			throw new OpError(
+				'CONFLICT',
+				`The run already finished (${r.result}).`,
+				r.result === 'timeout' ? { code: 'RUN_TIMED_OUT' } : undefined
+			);
+		const [chk] = await tx.select().from(check).where(eq(check.id, r.checkId));
+		const [it] = await tx.select().from(item).where(eq(item.id, chk.itemId));
+		if (uniqueEvidence.length) {
+			const evRows = await tx
+				.select({
+					id: attachment.id,
+					itemId: attachment.itemId,
+					kind: attachment.kind,
+					visibility: attachment.visibility,
+					refs: attachment.refs,
+					filename: attachment.filename,
+					mime: attachment.mime,
+					size: attachment.size,
+					storageKey: attachment.storageKey
+				})
+				.from(attachment)
+				.where(and(inArray(attachment.id, uniqueEvidence), isNull(attachment.deletedAt)));
+			if (evRows.length !== uniqueEvidence.length)
+				throw new OpError('INVALID', 'One or more evidence attachments do not exist.');
+			if (evRows.some((e) => e.itemId !== chk.itemId))
+				throw new OpError('INVALID', 'Evidence attachment belongs to another item.');
+			if (
+				evRows.some(
+					(e) =>
+						e.kind !== 'check-evidence' ||
+						e.visibility !== 'private' ||
+						!Array.isArray(e.refs) ||
+						!e.refs.includes(runId)
+				)
+			)
+				throw new OpError('INVALID', 'Evidence attachments must belong privately to this run.');
+			const pairItems = evRows
+				.map((e) => ({ row: e, ...classifyCompareArtifact(e.filename) }))
+				.filter((e) => e.pair !== null);
+			const diffItems = evRows.filter((e) => classifyCompareArtifact(e.filename).isDiffReport);
+			if (pairItems.length > MAX_RUN_PICTURE_PAIRS * 2)
+				throw new OpError(
+					'INVALID',
+					`A run may keep at most ${MAX_RUN_PICTURE_PAIRS} picture pairs.`
+				);
+			if (diffItems.length > MAX_RUN_DIFF_REPORTS)
+				throw new OpError(
+					'INVALID',
+					`A run may keep at most ${MAX_RUN_DIFF_REPORTS} compare diff reports.`
+				);
+			if (report.result !== 'error') {
+				const mockupCounts = new Map<string, number>();
+				const appCounts = new Map<string, number>();
+				for (const p of pairItems) {
+					const targetMap = p.pair!.side === 'mockup' ? mockupCounts : appCounts;
+					targetMap.set(p.pair!.slug, (targetMap.get(p.pair!.slug) ?? 0) + 1);
+				}
+				const allSlugs = new Set([...mockupCounts.keys(), ...appCounts.keys()]);
+				const missingSide = [...allSlugs].find(
+					(s) => mockupCounts.get(s) !== 1 || appCounts.get(s) !== 1
+				);
+				if (missingSide)
+					throw new OpError(
+						'MISSING_PICTURE_PAIR',
+						`Missing or unmatched pair half for compare screenshot "${missingSide}". Both mockup and app pictures are required.`,
+						{ slug: missingSide }
+					);
+			}
+			if (report.signedIn) {
+				let hasUnsafeEvidence = evRows.some(
+					(e) => !classifyCompareArtifact(e.filename).isSummaryReport
+				);
+				if (!hasUnsafeEvidence) {
+					for (const e of evRows) {
+						const summaryBytes = services?.storage
+							? await services.storage.get(e.storageKey)
+							: null;
+						let parsedOk = false;
+						if (summaryBytes) {
+							try {
+								parsedOk = isSafeSignedInSummary(parseDiffJson(summaryBytes));
+							} catch {
+								parsedOk = false;
+							}
+						}
+						if (!parsedOk) {
+							hasUnsafeEvidence = true;
+							break;
+						}
+					}
+				}
+				if (hasUnsafeEvidence) {
+					if (it?.visibility === 'public')
+						throw new OpError(
+							'FORBIDDEN',
+							'Signed-in pictures and diff text are refused on a public item.',
+							{ reason: 'PUBLIC_ITEM_SIGNED_IN_REFUSED' }
+						);
+					if (!report.uploadSignedInPictures)
+						throw new OpError(
+							'FORBIDDEN',
+							'Signed-in pictures and diff text require uploadSignedInPictures approval.',
+							{ reason: 'SIGNED_IN_PICTURES_NOT_APPROVED' }
+						);
+				}
+			}
+		}
 		// The commit and the diff hash say what code was tested. The same code passing and failing is flaky.
 		let flaky = Boolean(report.retried);
 		if (report.diffHash) {
 			const [def] = await tx
 				.select({ updatedAt: check.updatedAt })
 				.from(check)
-				.where(eq(check.id, held.checkId));
+				.where(eq(check.id, r.checkId));
 			const earlier = await tx
 				.select()
 				.from(checkRun)
 				.where(
 					and(
-						eq(checkRun.checkId, held.checkId),
-						eq(checkRun.target, held.target),
+						eq(checkRun.checkId, r.checkId),
+						eq(checkRun.target, r.target),
 						report.commit ? eq(checkRun.commit, report.commit) : sql`${checkRun.commit} is null`,
 						// A different answer after the check itself was edited is not flakiness
 						sql`${checkRun.createdAt} >= ${def.updatedAt}`,
@@ -1449,31 +1902,30 @@ export async function finishCheckRun(
 				flaky,
 				commit: report.commit ?? null,
 				diffHash: report.diffHash ?? null,
-				url: report.url ?? held.url,
+				url: report.url ?? r.url,
 				durationMs: report.durationMs ?? null,
 				reason,
 				log,
-				evidence: report.evidence,
+				evidence: uniqueEvidence,
 				ranRegistration: report.registration ?? null,
 				ranRepo: report.repoName ?? null,
 				ranBranch: report.branch ?? null,
 				finishedAt: sql`now()`
 			})
-			.where(eq(checkRun.id, runId))
+			.where(and(eq(checkRun.id, runId), eq(checkRun.result, 'running')))
 			.returning();
-		const [chk] = await tx.select().from(check).where(eq(check.id, held.checkId));
-		const [it] = await tx.select().from(item).where(eq(item.id, chk.itemId));
+		if (!row) throw new OpError('CONFLICT', 'The run already finished.');
 		await appendEvent(tx, {
 			orgId: auth.orgId,
-			projectId: held.projectId,
+			projectId: r.projectId,
 			itemId: it.id,
-			actorUserId: held.requestedBy,
+			actorUserId: r.requestedBy,
 			actorLabel: `Runner ${auth.name}`,
 			tool: 'browser-check',
 			verb: 'check_run.finish',
 			targetType: 'check_run',
 			targetId: runId,
-			after: { key: chk.manualKey, target: held.target, result, flaky } as never,
+			after: { key: chk.manualKey, target: r.target, result, flaky } as never,
 			undoable: false
 		});
 		return { row, chk, it };
@@ -1514,7 +1966,7 @@ async function tickOnPass(
 		key: string;
 		mark: 'done' | 'waived';
 		reason?: string;
-		evidence?: { checkRunId: string; target: Target };
+		evidence?: { checkRunId: string; runIds?: string[]; target: Target };
 	}[] = [];
 	const target = r.target as Target;
 	// The manual check closes only on a target at least as strong as the one the check requires
@@ -1529,7 +1981,24 @@ async function tickOnPass(
 					.from(step)
 					.where(and(eq(step.itemId, it.id), eq(step.key, r.stepKey)))
 			: [];
-		return { mc, step: steps[0] };
+		const [proj] = await tx
+			.select({ visualEvidenceGate: project.visualEvidenceGate })
+			.from(project)
+			.where(eq(project.id, it.projectId));
+		const evIds = Array.isArray(r.evidence) ? r.evidence.filter(Boolean) : [];
+		const evRows = evIds.length
+			? await tx
+					.select({ filename: attachment.filename })
+					.from(attachment)
+					.where(and(inArray(attachment.id, evIds), isNull(attachment.deletedAt)))
+			: [];
+		const isCompareRun = evRows.some((e) => classifyCompareArtifact(e.filename).isDiffReport);
+		return {
+			mc,
+			step: steps[0],
+			visualEvidenceGate: Boolean(proj?.visualEvidenceGate),
+			isCompareRun
+		};
 	});
 	if (mcRow.mc && mcRow.mc.auto && mcRow.mc.state === 'open' && meets(target, chk.requiredTarget))
 		marks.push({
@@ -1539,10 +2008,25 @@ async function tickOnPass(
 		});
 	if (mcRow.step && mcRow.step.state === 'open') {
 		const need = mcRow.step.requiredTarget ?? chk.requiredTarget;
-		if (meets(target, need))
-			marks.push({ key: mcRow.step.key, mark: 'done', evidence: { checkRunId: r.id, target } });
-		else
+		const visibleBlocked =
+			effectiveStepVisible(mcRow.step) && !mcRow.isCompareRun && mcRow.visualEvidenceGate;
+		if (visibleBlocked) {
+			const cmd = compareCommandHint(
+				it.ref,
+				mcRow.step.key,
+				mcRow.step.screens ?? [],
+				mcRow.step.widths ?? []
+			);
+			outcome.note = `Generic check passed on ${target}, but step ${mcRow.step.key} is visible so it stays open. Run compare instead: ${cmd}`;
+		} else if (meets(target, need)) {
+			marks.push({
+				key: mcRow.step.key,
+				mark: 'done',
+				evidence: { checkRunId: r.id, ...(mcRow.isCompareRun ? { runIds: [r.id] } : {}), target }
+			});
+		} else {
 			outcome.note = `Passed on ${target}, which is weaker than the ${need} that step ${mcRow.step.key} needs, so the step stays open.`;
+		}
 	}
 	if (!marks.length) {
 		if (!outcome.note && !meets(target, chk.requiredTarget))
@@ -1586,7 +2070,13 @@ async function reopenOnFail(
 				)
 			);
 		const ids = earlier.map((e) => e.id);
-		const steps = ids.length
+		const idList = ids.length
+			? sql.join(
+					ids.map((id) => sql`${id}`),
+					sql`, `
+				)
+			: null;
+		const steps = idList
 			? await tx
 					.select({ key: step.key })
 					.from(step)
@@ -1594,7 +2084,7 @@ async function reopenOnFail(
 						and(
 							eq(step.itemId, it.id),
 							eq(step.state, 'done'),
-							inArray(sql<string>`${step.evidence}->>'checkRunId'`, ids)
+							sql`(${step.evidence}->>'checkRunId' in (${idList}) or exists (select 1 from jsonb_array_elements_text(coalesce(${step.evidence}->'runIds', '[]'::jsonb)) as rid where rid in (${idList})))`
 						)
 					)
 			: [];

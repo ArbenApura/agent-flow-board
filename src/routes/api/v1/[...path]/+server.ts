@@ -40,7 +40,9 @@ const handler: RequestHandler = async ({ request, params, url, locals }) => {
 			mailer: services.mailer,
 			jobs: services.jobs,
 			masterKey: services.masterKey,
-			runnerQueueMinutes: services.runnerQueueMinutes
+			runnerQueueMinutes: services.runnerQueueMinutes,
+			mockupSecret: services.mockupSecret,
+			mockupOrigin: services.mockupOrigin
 		}
 	);
 	const text = JSON.stringify(res.body);

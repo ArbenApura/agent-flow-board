@@ -31,6 +31,8 @@ import {
 import { cancelApprovals, claimApprovals, pollApprovals, requestApprovals } from '../ops/approvals';
 import { ackSignin, leaseSignins, publishSigninKey } from '../ops/signins';
 import { TOOL_REGISTRATIONS_HEADER, recordToolRegistrations } from '../ops/registrations';
+import { reportDevRegistrationStatus } from '../ops/devRegistrations';
+import { runnerMintMockupUrl } from '../ops/mockups';
 import { MAX_ATTACHMENT_BYTES } from '../ops/attachments';
 import { NO_STORE, errorResponse, fail } from './respond';
 
@@ -147,13 +149,28 @@ export async function handleRunnerApi(req: ApiRequest, deps: ApiDeps): Promise<A
 					{
 						filename: req.query.filename ?? '',
 						caption: req.query.caption ?? 'Evidence',
-						bytes: req.body
+						bytes: req.body,
+						signedIn: req.query.signedIn === '1' || req.query.signedIn === 'true',
+						uploadSignedInPictures:
+							req.query.uploadSignedInPictures === '1' ||
+							req.query.uploadSignedInPictures === 'true'
 					},
 					services
 				)
 			);
 		if (route === 'POST runs/:id/finish')
 			return ok(await finishCheckRun(deps.handle, auth, id, json(req) as never, services));
+		if (route === 'POST dev-status')
+			return ok(await reportDevRegistrationStatus(deps.handle, auth, json(req)));
+		if (route === 'POST mockups/:id/url')
+			return ok(
+				await runnerMintMockupUrl(deps.handle, auth, id, {
+					...(json(req) as object),
+					secret: deps.mockupSecret,
+					mockupOrigin: deps.mockupOrigin,
+					baseUrl: deps.baseUrl
+				})
+			);
 		return fail(404, 'NOT_FOUND', 'No such runner call.');
 	} catch (e) {
 		if (e instanceof SyntaxError) return fail(400, 'INVALID', 'The body must be valid JSON.');

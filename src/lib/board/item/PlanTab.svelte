@@ -10,6 +10,7 @@
 	import ProgressRing from '#lib/ui/ProgressRing.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { createOptimistic } from '#lib/board/optimistic.svelte.js';
+	import { effectiveStepVisible } from '#lib/shared/screenGlobs.js';
 	import StateMark from '#lib/board/item/StateMark.svelte';
 	import TabCard from '#lib/board/item/TabCard.svelte';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
@@ -17,6 +18,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import Checkbox from '#lib/ui/Checkbox.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
+	import Notice from '#lib/ui/Notice.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
@@ -27,6 +29,17 @@
 
 	// -- TYPES -- //
 
+	type StepEvidenceView = {
+		checkRunId?: string;
+		runIds?: string[];
+		diffReportId?: string;
+		mockupId?: string;
+		mockupVersion?: number;
+		screens?: string[];
+		widths?: number[];
+		waived?: { by: string; byName?: string; reason: string; at: string } | null;
+	};
+
 	type Row = {
 		id: string;
 		key: string;
@@ -34,6 +47,12 @@
 		state: string;
 		reason?: string | null;
 		auto?: boolean;
+		visible?: boolean | null;
+		visibleInferred?: boolean;
+		files?: string[];
+		screens?: string[];
+		widths?: number[];
+		evidence?: StepEvidenceView | null;
 	};
 
 	// -- REQUIRED PROPS -- //
@@ -59,6 +78,12 @@
 	let waiving = $state<{ key: string; text: string } | null>(null);
 	let reason = $state('');
 	let reasonError = $state('');
+	let evidenceStep = $state<Row | null>(null);
+	let lastEvidenceStep = $state<Row | null>(null);
+	let evidenceReason = $state('');
+	let evidenceReasonError = $state('');
+	let evidenceError = $state('');
+	let evidenceBusy = $state(false);
 	let addingTo = $state<string | null>(null);
 	let stepText = $state('');
 	let addingPhase = $state(false);
@@ -73,6 +98,7 @@
 	// -- REACTIVE STATES -- //
 
 	const ref = $derived(detail.item.ref);
+	const shownEvidenceStep = $derived(evidenceStep ?? lastEvidenceStep);
 	const nextPhaseKey = $derived(String(detail.phases.length + 1));
 	const nextCheckKey = $derived(`M${detail.manualChecks.length + 1}`);
 	const show = $derived(page.url.searchParams.get('show') === 'open' ? 'open' : 'all');
@@ -157,6 +183,41 @@
 		await mark(key, 'waived', why);
 	}
 
+	function evidenceRunIdsOf(s: Row): string[] {
+		const ev = s.evidence;
+		if (!ev) return [];
+		return [...new Set([...(ev.checkRunId ? [ev.checkRunId] : []), ...(ev.runIds ?? [])])];
+	}
+
+	async function waiveVisualEvidence() {
+		if (!evidenceStep) return;
+		if (evidenceReason.trim().length < 3) {
+			evidenceReasonError = 'Give a short reason, at least 3 characters.';
+			return;
+		}
+		evidenceReasonError = '';
+		evidenceError = '';
+		evidenceBusy = true;
+		try {
+			await api(
+				env.org,
+				`/items/${ref}/steps/${encodeURIComponent(evidenceStep.key)}/evidence-waive`,
+				{
+					body: { reason: evidenceReason.trim() },
+					key: newKey()
+				}
+			);
+			toast.success('Visual evidence waived.');
+			evidenceStep = null;
+			evidenceReason = '';
+			await env.onchanged();
+		} catch (e) {
+			evidenceError = e instanceof ApiError ? e.message : 'That change was not saved.';
+		} finally {
+			evidenceBusy = false;
+		}
+	}
+
 	/** Runs one write from a dialog or inline form, and keeps the form open with the server's message when it fails. */
 	async function write(path: string, body: unknown, ok: string, done: () => void) {
 		formError = '';
@@ -220,29 +281,78 @@
 				? 'bg-surface'
 				: 'bg-raised'}">{s.key}</span
 		>
-		<span class="flex min-w-0 flex-1 flex-col gap-0.5">
-			<span
-				class="text-sm break-words {s.state === 'done' || s.state === 'superseded'
-					? 'text-muted'
-					: 'text-ink'} {s.state === 'done' ? 'line-through' : ''} {isNext ? 'font-medium' : ''}"
-				>{s.text}</span
-			>
-			<!-- A WAIVED STEP SAYS WHY UNDER ITS TEXT, SO A LONG REASON DOES NOT SQUEEZE THE ROW -->
-			{#if s.state === 'waived'}
-				<span class="text-xs break-words text-warning">waived{s.reason ? `, ${s.reason}` : ''}</span
+		<!-- ON NARROW PHONES, TRAILING BADGES AND ACTIONS WRAP BENEATH STEP TEXT INSTEAD OF CRUSHING IT -->
+		<div class="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
+			<span class="flex min-w-44 flex-1 flex-col gap-0.5">
+				<span
+					class="text-sm break-words {s.state === 'done' || s.state === 'superseded'
+						? 'text-muted'
+						: 'text-ink'} {s.state === 'done' ? 'line-through' : ''} {isNext ? 'font-medium' : ''}"
+					>{s.text}</span
 				>
+				<!-- A WAIVED STEP SAYS WHY UNDER ITS TEXT, SO A LONG REASON DOES NOT SQUEEZE THE ROW -->
+				{#if s.state === 'waived' && !s.evidence?.waived}
+					<span class="text-xs break-words text-warning"
+						>waived{s.reason ? `, ${s.reason}` : ''}</span
+					>
+				{/if}
+				{#if s.evidence?.waived}
+					<span class="text-xs break-words text-warning" data-testid="step-evidence-waived"
+						>Evidence waived by {s.evidence.waived.byName ?? 'owner'}: {s.evidence.waived
+							.reason}</span
+					>
+				{:else if testid === 'step' && effectiveStepVisible(s) && evidenceRunIdsOf(s).length > 0}
+					<span class="font-mono text-xs text-muted" data-testid="step-evidence-summary">
+						Compare{#if s.evidence?.mockupVersion}
+							v{s.evidence.mockupVersion}{/if}{#if s.evidence?.screens?.length}
+							{s.evidence.screens.join(', ')}{/if} ({evidenceRunIdsOf(s).length} run{evidenceRunIdsOf(
+							s
+						).length === 1
+							? ''
+							: 's'})
+					</span>
+				{:else if testid === 'step' && effectiveStepVisible(s) && s.state === 'done'}
+					<span class="text-xs text-warning" data-testid="step-evidence-missing"
+						>No compare evidence</span
+					>
+				{/if}
+			</span>
+			{#if (testid === 'step' && effectiveStepVisible(s)) || isNext || s.auto || s.state === 'superseded' || (env.canWrite && s.state === 'open')}
+				<span class="flex shrink-0 flex-wrap items-center gap-2">
+					{#if testid === 'step' && effectiveStepVisible(s)}
+						<Badge tone="info" data-testid="step-visible-badge"
+							>{s.visible === true ? 'visible' : 'visible (inferred)'}</Badge
+						>
+					{/if}
+					{#if isNext}<Badge class="bg-surface ring-1 ring-line">Up next</Badge>{/if}
+					{#if s.auto}<Badge tone="info">auto</Badge>{/if}
+					{#if s.state === 'superseded'}
+						<Badge>superseded</Badge>
+					{/if}
+					{#if testid === 'step' && effectiveStepVisible(s)}
+						<button
+							type="button"
+							class={LINK}
+							data-testid="step-evidence-btn"
+							onclick={() => {
+								evidenceStep = s;
+								lastEvidenceStep = s;
+								evidenceReason = '';
+								evidenceReasonError = '';
+								evidenceError = '';
+							}}>Evidence</button
+						>
+					{/if}
+					{#if env.canWrite && s.state === 'open'}
+						<button
+							type="button"
+							class={LINK}
+							onclick={() => (waiving = { key: s.key, text: s.text })}>Waive</button
+						>
+					{/if}
+				</span>
 			{/if}
-		</span>
-		{#if isNext}<Badge class="bg-surface ring-1 ring-line">Up next</Badge>{/if}
-		{#if s.auto}<Badge tone="info">auto</Badge>{/if}
-		{#if s.state === 'superseded'}
-			<Badge>superseded</Badge>
-		{/if}
-		{#if env.canWrite && s.state === 'open'}
-			<button type="button" class={LINK} onclick={() => (waiving = { key: s.key, text: s.text })}
-				>Waive</button
-			>
-		{/if}
+		</div>
 	</li>
 {/snippet}
 
@@ -318,6 +428,7 @@
 						staleMinutes={r.staleMinutes}
 						mockupUnread={r.mockupUnread}
 						reviewIdle={r.reviewIdle}
+						waiting={r.waiting}
 						compact
 					/>
 				{/each}
@@ -457,6 +568,114 @@
 			<Button type="submit" variant="primary" data-testid="waive-submit">Waive</Button>
 		</div>
 	</form>
+</ResponsiveModal>
+
+<ResponsiveModal
+	open={evidenceStep !== null}
+	onclose={() => (evidenceStep = null)}
+	title="Visual compare evidence"
+	size="md"
+	busy={evidenceBusy}
+>
+	{#if shownEvidenceStep}
+		{@const runIds = evidenceRunIdsOf(shownEvidenceStep)}
+		<div class="flex flex-col gap-4" data-testid="evidence-dialog">
+			<p class="text-sm text-muted">
+				<span class="font-mono text-ink">{shownEvidenceStep.key}</span>
+				{shownEvidenceStep.text}
+			</p>
+
+			{#if shownEvidenceStep.evidence?.waived}
+				<Notice tone="warning" data-testid="evidence-waiver-info">
+					Waived by {shownEvidenceStep.evidence.waived.byName ?? 'owner'}: {shownEvidenceStep
+						.evidence.waived.reason}
+				</Notice>
+			{/if}
+
+			{#if runIds.length === 0 && !shownEvidenceStep.evidence?.waived}
+				<div
+					class="rounded-lg border border-line bg-raised px-3 py-3 text-sm text-muted"
+					data-testid="evidence-empty"
+				>
+					No compare runs attached to this step yet.
+				</div>
+			{:else if runIds.length > 0}
+				<div
+					class="flex flex-col gap-2 rounded-lg border border-line bg-surface p-3"
+					data-testid="evidence-list"
+				>
+					{#if shownEvidenceStep.evidence?.mockupVersion}
+						<div class="text-xs text-muted">
+							Mockup version <span class="font-mono text-ink"
+								>v{shownEvidenceStep.evidence.mockupVersion}</span
+							>
+						</div>
+					{/if}
+					{#if shownEvidenceStep.evidence?.screens?.length}
+						<div class="text-xs text-muted">
+							Screens: <span class="font-mono text-ink"
+								>{shownEvidenceStep.evidence.screens.join(', ')}</span
+							>
+						</div>
+					{/if}
+					{#if shownEvidenceStep.evidence?.widths?.length}
+						<div class="text-xs text-muted">
+							Widths: <span class="font-mono text-ink"
+								>{shownEvidenceStep.evidence.widths.map((w) => `${w}px`).join(', ')}</span
+							>
+						</div>
+					{/if}
+					<ul class="flex flex-col gap-1 border-t border-line pt-2 font-mono text-xs text-ink">
+						{#each runIds as rid (rid)}
+							<li>run {rid}</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+
+			{#if evidenceError}
+				<Notice tone="danger" data-testid="evidence-error">{evidenceError}</Notice>
+			{/if}
+
+			{#if (shownEvidenceStep.state === 'open' || shownEvidenceStep.state === 'done') && !shownEvidenceStep.evidence?.waived}
+				{#if !env.isOwner}
+					<Notice tone="warning" data-testid="evidence-permission-denied">
+						Only a project or organisation owner in a live web session can waive visual evidence.
+					</Notice>
+				{:else}
+					<form
+						class="flex flex-col gap-3 border-t border-line pt-3"
+						onsubmit={(e) => {
+							e.preventDefault();
+							void waiveVisualEvidence();
+						}}
+					>
+						<TextField
+							label="Owner waiver reason"
+							bind:value={evidenceReason}
+							error={evidenceReasonError}
+							hint="Waives compare evidence for this step under owner authority."
+							disabled={evidenceBusy}
+							data-testid="evidence-waive-reason"
+						/>
+						<div class="flex justify-end gap-2">
+							<Button onclick={() => (evidenceStep = null)} disabled={evidenceBusy}>Close</Button>
+							<Button
+								type="submit"
+								variant="primary"
+								loading={evidenceBusy}
+								data-testid="evidence-waive-submit">Waive visual evidence</Button
+							>
+						</div>
+					</form>
+				{/if}
+			{:else}
+				<div class="flex justify-end">
+					<Button onclick={() => (evidenceStep = null)} disabled={evidenceBusy}>Close</Button>
+				</div>
+			{/if}
+		</div>
+	{/if}
 </ResponsiveModal>
 
 <ResponsiveModal

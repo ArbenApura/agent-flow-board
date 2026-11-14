@@ -4,12 +4,26 @@
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 // -- DEP-MODULES -- //
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
 import { allocateTaskNumber } from '../db/numbering';
 import { appendEvent } from '../db/events';
-import { comment, decision, item, section, task } from '../db/schema';
+import {
+	comment,
+	decision,
+	item,
+	mockup,
+	mockupVersion,
+	project,
+	section,
+	task
+} from '../db/schema';
+import {
+	extractMockupHooks,
+	verifyDesignBriefHookCitations,
+	type MockupDerivedAssets
+} from '../mockups/derived';
 import { OpError, idempotent, rateLimit, requireCap, requireOrgMember, run } from './context';
 import { actorFields, canSeeItem, checkVersion } from './items';
 import { findItem, findProject } from './resolve';
@@ -247,6 +261,74 @@ export async function upsertSection(ctx: Ctx, raw: z.input<typeof sectionInput>)
 			const it = await findItem(tx, ctx, input.item, { lock: true });
 			await requireCap(tx, ctx, 'write', it.projectId);
 			await rateLimit(tx, ctx, 'write');
+			if (input.slug === 'design-brief') {
+				const linkedMockups = await tx
+					.select({ id: mockup.id, currentVersion: mockup.currentVersion })
+					.from(mockup)
+					.where(
+						and(eq(mockup.itemId, it.id), eq(mockup.orgId, ctx.orgId), isNull(mockup.trashedAt))
+					);
+				if (linkedMockups.length) {
+					const [proj] = await tx
+						.select({ visualEvidenceGate: project.visualEvidenceGate })
+						.from(project)
+						.where(eq(project.id, it.projectId));
+					const versions = await tx
+						.select({
+							mockupId: mockupVersion.mockupId,
+							number: mockupVersion.number,
+							derived: mockupVersion.derived,
+							storageKey: mockupVersion.storageKey
+						})
+						.from(mockupVersion)
+						.where(
+							inArray(
+								mockupVersion.mockupId,
+								linkedMockups.map((m) => m.id)
+							)
+						);
+					const knownHooks = new Set<string>();
+					for (const lm of linkedMockups) {
+						const v = versions.find((r) => r.mockupId === lm.id && r.number === lm.currentVersion);
+						if (!v) continue;
+						const derived = v.derived as MockupDerivedAssets | null;
+						const hooks = derived?.outline?.hooks;
+						if (hooks?.length) {
+							for (const h of hooks) {
+								knownHooks.add(h);
+								knownHooks.add(h.toLowerCase());
+							}
+						} else if (ctx.services?.storage) {
+							const bytes = await ctx.services.storage.get(v.storageKey).catch(() => null);
+							if (bytes) {
+								for (const h of extractMockupHooks(new TextDecoder().decode(bytes))) {
+									knownHooks.add(h);
+									knownHooks.add(h.toLowerCase());
+								}
+							}
+						}
+					}
+					const check = verifyDesignBriefHookCitations(
+						input.body,
+						knownHooks,
+						Boolean(proj?.visualEvidenceGate)
+					);
+					if (check.missingHooks.length) {
+						throw new OpError(
+							'INVALID',
+							`Design-brief cites mockup hook(s) not found in the linked mockup HTML: ${check.missingHooks.join(', ')}.`,
+							{ missingHooks: check.missingHooks }
+						);
+					}
+					if (check.uncitedLines.length) {
+						throw new OpError(
+							'INVALID',
+							`Every Mockup inventory line in design-brief must cite a mockup hook (e.g. data-ref="..." or hook: name). Uncited: ${check.uncitedLines[0]}`,
+							{ uncitedLines: check.uncitedLines }
+						);
+					}
+				}
+			}
 			const [existing] = await tx
 				.select()
 				.from(section)

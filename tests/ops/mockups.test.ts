@@ -88,12 +88,12 @@ describe('mockups', () => {
 		await expect(setMockupPublicLink(as('member'), made.mockup.id, true)).rejects.toMatchObject({
 			code: 'FORBIDDEN'
 		});
-		// The kit is saved by a manager and read as untrusted text
+		// The kit is saved by any writer (member, admin, owner) and read as untrusted text; viewers are forbidden
 		await expect(
-			setMockupKit(as('member'), { project: w.projectKey, builtFromCommit: 'abc' }, html(9))
+			setMockupKit(as('viewer'), { project: w.projectKey, builtFromCommit: 'abc' }, html(9))
 		).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		await setMockupKit(
-			as('admin'),
+			as('member'),
 			{ project: w.projectKey, builtFromCommit: 'abc1234', summary: 'Kit one' },
 			html(9)
 		);

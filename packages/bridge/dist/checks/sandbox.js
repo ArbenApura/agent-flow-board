@@ -116,6 +116,26 @@ export function cleanResult(raw, needles, shotsDir) {
         result: r.result === 'pass' ? 'pass' : 'fail',
         reason: typeof r.reason === 'string' && r.reason ? redactDeep(r.reason, needles, 700) : null,
         durationMs: Number(r.durationMs) || 0,
+        ...(typeof r.coldMs === 'number' && Number.isFinite(r.coldMs) && r.coldMs >= 0
+            ? { coldMs: Math.round(r.coldMs) }
+            : {}),
+        ...(typeof r.warmMs === 'number' && Number.isFinite(r.warmMs) && r.warmMs >= 0
+            ? { warmMs: Math.round(r.warmMs) }
+            : {}),
+        ...(r.readinessMode === 'vite' || r.readinessMode === 'fallback'
+            ? { readinessMode: r.readinessMode }
+            : {}),
+        ...(typeof r.earlyChecks === 'object' && r.earlyChecks !== null
+            ? {
+                earlyChecks: {
+                    shotsChecked: Number(r.earlyChecks.shotsChecked) || 0,
+                    maxCls: Number(r.earlyChecks.maxCls) || 0,
+                    clsViolations: Number(r.earlyChecks.clsViolations) || 0,
+                    tapViolations: Number(r.earlyChecks.tapViolations) || 0,
+                    passed: Boolean(r.earlyChecks.passed)
+                }
+            }
+            : {}),
         steps: steps
             .filter((s) => typeof s === 'object' && s !== null)
             .slice(0, 200)
@@ -149,7 +169,12 @@ export async function runCheckInSandbox({ job, scriptsRoot, log, signal }) {
     const pwDir = playwrightRuntimeDir();
     if (!pwDir)
         throw new Error('Playwright is not installed yet. Run "agent-flow-board check setup" and it will install it.');
-    const childFile = join(dirname(fileURLToPath(import.meta.url)), 'child.js');
+    const selfFile = fileURLToPath(import.meta.url);
+    const siblingChild = join(dirname(selfFile), 'child.js');
+    const vitestDistChild = selfFile.endsWith('.ts') && !existsSync(siblingChild)
+        ? join(dirname(selfFile), '..', '..', 'dist', 'checks', 'child.js')
+        : siblingChild;
+    const childFile = existsSync(siblingChild) ? siblingChild : vitestDistChild;
     if (!existsSync(childFile))
         throw new Error('The check runner (child.js) is missing from this install. Build the bridge again.');
     const needles = job.needles ?? [];

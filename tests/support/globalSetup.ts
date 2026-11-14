@@ -50,6 +50,8 @@ export default async function setup(project: TestProject): Promise<() => Promise
 		password: 'pw',
 		port,
 		persistent: false,
+		// Windows initdb defaults to WIN1252 unless UTF-8 is explicitly requested, which breaks non-ASCII JSONB strings like icons
+		initdbFlags: ['--encoding=UTF8', '--locale=C'],
 		// Test data never needs to survive a crash, so the server skips the disk syncs. Every test file keeps its own pools open
 		// at once, so the connection limit is raised well above the default of 100.
 		postgresFlags: [

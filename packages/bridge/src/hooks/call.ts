@@ -32,6 +32,8 @@ export type HookAnswer = {
 	title?: string;
 	ask?: string;
 	block?: string;
+	/** Waiting-for-a-person blocker shown cleanly on stop instead of blocking or telling the agent to carry on. */
+	waiting?: string;
 	/** Progress first: finished work is not recorded yet. Shown to the agent right after an edit, never blocks. */
 	nudge?: string;
 	/** The status of the conversation's session, only when the event asked for it. Written to the status file, never printed. */

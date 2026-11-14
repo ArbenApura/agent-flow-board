@@ -66,6 +66,7 @@ async function runningIn(
 			sessionId: session.id,
 			startedAt: session.createdAt,
 			lastSeenAt: session.lastSeenAt,
+			waiting: session.waiting,
 			reviewIdle: sql<boolean>`(${item.status} = 'IN REVIEW' and ${session.lastSeenAt} < now() - make_interval(mins => ${QUIET_RELEASE_MINUTES}) and not exists (select 1 from ${step} where ${step.itemId} = ${item.id} and ${step.state} = 'open'))`,
 			// Minutes since the first unrecorded edit, only once the session left it unrecorded (its turn ended or it went quiet)
 			// and while its phase still has an open step: the one rule in tracking.ts
@@ -114,6 +115,7 @@ async function runningIn(
 		staleMinutes: r.staleMinutes,
 		mockupUnread: r.mockupUnread,
 		reviewIdle: r.reviewIdle,
+		waiting: r.waiting ?? null,
 		startedAt: r.startedAt,
 		lastSeenAt: r.lastSeenAt
 	}));

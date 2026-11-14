@@ -26,7 +26,15 @@ import {
 } from '../db/schema';
 import { tabNameSchema } from '../db/zod';
 import { tabNameFromTitle } from '../../shared/tabName';
-import { OpError, idempotent, rateLimit, requireCap, requireOrgMember, run } from './context';
+import {
+	OpError,
+	idempotent,
+	isLivePersonSession,
+	rateLimit,
+	requireCap,
+	requireOrgMember,
+	run
+} from './context';
 import { enforcePlanRules } from './planRules';
 import { canSeeItem, findItem, findProject, visibleItemSql } from './resolve';
 import { releaseOthersClaimsOn, requireCloseConfirmation } from './tracking';
@@ -53,7 +61,11 @@ const stepIn = z.object({
 		)
 		.optional(),
 	text: z.string().min(1).max(2000),
-	requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional()
+	requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional(),
+	visible: z.boolean().nullable().optional(),
+	files: z.array(z.string().trim().min(1).max(300)).max(50).optional(),
+	screens: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
+	widths: z.array(z.number().int().min(200).max(4000)).max(10).optional()
 });
 const phaseIn = z.object({
 	key: z
@@ -75,6 +87,7 @@ export const createItemInput = z.object({
 	visibility: z.enum(['public', 'private']).default('public'),
 	branchNote: z.string().max(500).nullish(),
 	assigneeId: z.string().nullish(),
+	sliceGate: z.boolean().default(false),
 	phases: z.array(phaseIn).max(60).default([]),
 	manualChecks: z
 		.array(
@@ -113,7 +126,8 @@ export const updateItemInput = z.object({
 	visibility: z.enum(['public', 'private']).optional(),
 	branchNote: z.string().max(500).nullable().optional(),
 	assigneeId: z.string().nullable().optional(),
-	reviewerId: z.string().nullable().optional()
+	reviewerId: z.string().nullable().optional(),
+	sliceGate: z.boolean().optional()
 });
 
 const PATCHABLE = [
@@ -124,7 +138,8 @@ const PATCHABLE = [
 	'visibility',
 	'branchNote',
 	'assigneeId',
-	'reviewerId'
+	'reviewerId',
+	'sliceGate'
 ] as const;
 
 // -- FUNCTIONS -- //
@@ -236,6 +251,15 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 					`${twin.ref} already has this title and was created in the last ${DUPLICATE_TITLE_WINDOW_MS / 60_000} minutes. Continue that item, or give the new one a different title.`,
 					{ existingRef: twin.ref }
 				);
+			if (
+				!isLivePersonSession(ctx) &&
+				input.phases.some((p) => p.steps.some((s) => s.visible === false))
+			) {
+				throw new OpError(
+					'FORBIDDEN',
+					'Only a person in a live web session can mark a step as not visible.'
+				);
+			}
 			const { number } = await allocateItemNumber(tx, ctx.orgId, proj.id);
 			const candidates = await freeRefs(tx, ctx.orgId, proj.key, options.now ?? new Date());
 			if (!candidates.length) throw refsExhausted();
@@ -259,6 +283,7 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 					visibility: input.visibility,
 					branchNote: input.branchNote ?? null,
 					assigneeId: input.assigneeId ?? null,
+					sliceGate: input.sliceGate,
 					createdBy: ctx.actor.userId
 				});
 			} catch (error) {
@@ -290,6 +315,10 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 						key: s.key ?? `${p.key}.${n}`,
 						text: s.text,
 						requiredTarget: s.requiredTarget ?? null,
+						visible: s.visible ?? null,
+						files: s.files ?? [],
+						screens: s.screens ?? [],
+						widths: s.widths ?? [],
 						position: n
 					});
 				}
@@ -494,6 +523,12 @@ export async function updateItem(ctx: Ctx, raw: z.input<typeof updateItemInput>)
 				);
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
+			if (!isLivePersonSession(ctx) && input.sliceGate === false && it.sliceGate) {
+				throw new OpError(
+					'FORBIDDEN',
+					'Only a person in a live web session can turn off the vertical-slice gate.'
+				);
+			}
 			const before: Record<string, unknown> = {};
 			const after: Record<string, unknown> = {};
 			for (const k of PATCHABLE) {
@@ -533,7 +568,8 @@ export async function updateItem(ctx: Ctx, raw: z.input<typeof updateItemInput>)
 				targetType: 'item',
 				targetId: it.id,
 				before: before as never,
-				after: after as never
+				after: after as never,
+				...(Object.hasOwn(after, 'sliceGate') ? { undoable: false } : {})
 			});
 			return { item: updated, changed: true };
 		})

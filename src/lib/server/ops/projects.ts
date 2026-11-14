@@ -16,9 +16,10 @@ import {
 	projectLogoV,
 	projectMember
 } from '../db/schema';
-import { OpError, projectAllowed, requireCap, run } from './context';
+import { OpError, isLivePersonSession, projectAllowed, requireCap, run } from './context';
 import { actorFields, checkVersion } from './items';
 import { findProject } from './resolve';
+import { refreshProjectStepVisibility } from './visibleSteps';
 import { effectiveProjectRole } from '../orgs/roles';
 
 // -- FUNCTIONS -- //
@@ -77,7 +78,11 @@ export const projectUpdateInput = z.object({
 	referencePages: z
 		.array(z.string().regex(/^\/[^\s]{0,198}$/, 'A reference page is an address starting with /'))
 		.max(50)
-		.optional()
+		.optional(),
+	/** File globs that infer a step is visually verifiable when the plan has a linked mockup. */
+	screenGlobs: z.array(z.string().trim().min(1).max(200)).max(40).optional(),
+	/** Per-project switch turning the visible-step compare evidence gate on or off. */
+	visualEvidenceGate: z.boolean().optional()
 });
 
 const PATCH = [
@@ -87,7 +92,9 @@ const PATCH = [
 	'streams',
 	'themes',
 	'agentsMayComplete',
-	'referencePages'
+	'referencePages',
+	'screenGlobs',
+	'visualEvidenceGate'
 ] as const;
 
 // -- FUNCTIONS -- //
@@ -171,6 +178,16 @@ export async function updateProject(ctx: Ctx, raw: z.input<typeof projectUpdateI
 		// The rule that keeps COMPLETED for people cannot be switched off by the agents it restrains (ADR-027)
 		if (ctx.actor.kind === 'agent' && input.agentsMayComplete !== undefined)
 			throw new OpError('FORBIDDEN', 'Only a person can change whether agents may complete items.');
+		if (!isLivePersonSession(ctx) && input.visualEvidenceGate !== undefined)
+			throw new OpError(
+				'FORBIDDEN',
+				'Only a person in a live web session can change the visual evidence gate.'
+			);
+		if (!isLivePersonSession(ctx) && input.screenGlobs !== undefined)
+			throw new OpError(
+				'FORBIDDEN',
+				'Only a person in a live web session can change the screen globs.'
+			);
 		checkVersion(p, input.expectVersion);
 		const before: Record<string, unknown> = {};
 		const after: Record<string, unknown> = {};
@@ -198,6 +215,7 @@ export async function updateProject(ctx: Ctx, raw: z.input<typeof projectUpdateI
 			after: after as never,
 			undoable: false
 		});
+		if (after.screenGlobs !== undefined) await refreshProjectStepVisibility(tx, ctx, p.id);
 		return { project: row, changed: true };
 	});
 }

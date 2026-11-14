@@ -5,21 +5,40 @@
 // -- TYPES -- //
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
+import type { RunnerAuth } from './environments';
 // -- DEP-MODULES -- //
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, ilike, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // -- MODULES -- //
+import { extractMockupScreensFromHtml } from '../../shared/screenGlobs';
 import { appendEvent } from '../db/events';
 import { syncMockupsOfItem } from '../db/mockupSync';
-import { item, mockup, mockupPin, mockupVersion, project, user } from '../db/schema';
+import {
+	item,
+	member,
+	mockup,
+	mockupPin,
+	mockupVersion,
+	org,
+	project,
+	projectMember,
+	runner,
+	user
+} from '../db/schema';
+import { withTenant } from '../db/tenant';
+import { effectiveProjectRole } from '../orgs/roles';
 import { KIT_MARKER, loadKit, wantsKit, type LoadedKit } from '../mockups/kitHead';
 import { mockupKey } from '../mockups/keys';
-import { lintMockupHtml } from '../mockups/lint';
-import { OpError, idempotent, rateLimit, requireCap, run } from './context';
+import { lintMockupHooks, lintMockupHtml } from '../mockups/lint';
+import { buildMockupUrl, mockupOriginStatus } from '../mockups/origin';
+import { extractMockupDerived, type MockupDerivedAssets } from '../mockups/derived';
+import { MOCKUP_LINK_SECONDS, signMockupGrant } from '../mockups/serve';
+import { ORG_LOCKED_MESSAGE, OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields } from './items';
 import { planWorked, readStateOf, unreadLine } from './mockupReads';
 import { findItem, findProject } from './resolve';
+import { refreshItemStepVisibility } from './visibleSteps';
 
 // -- TYPES -- //
 
@@ -133,7 +152,7 @@ export function checkLength(label: string, text: string | undefined, max: number
 /** The warnings of the faithful rendering check for a page, with the marker notes. Only the start of a very large page is read. */
 function warningsFor(bytes: Uint8Array, kit: LoadedKit | null): string[] {
 	const html = new TextDecoder().decode(bytes.subarray(0, LINT_BYTES));
-	const warnings = lintMockupHtml(html, kit?.facts);
+	const warnings = [...lintMockupHtml(html, kit?.facts), ...lintMockupHooks(html)];
 	if (bytes.byteLength > LINT_BYTES)
 		warnings.push(
 			`The page is larger than ${LINT_BYTES / 1_000_000} MB, so only its first ${LINT_BYTES / 1_000_000} MB was checked for what will not render. The rest was saved but not checked.`
@@ -285,6 +304,25 @@ export async function publishMockup(
 						.where(eq(mockup.id, target.id))
 						.returning();
 				}
+				const htmlText = new TextDecoder().decode(bytes);
+				const declaredScreens = extractMockupScreensFromHtml(htmlText);
+				const versionChecksum = sha256(bytes);
+				const derivedAssets = extractMockupDerived(
+					htmlText,
+					versionChecksum,
+					shotKey && screenshot
+						? [
+								{
+									screen: declaredScreens[0]?.key ?? 'default',
+									state: 'default',
+									width: 1280,
+									storageKey: shotKey,
+									mime: 'image/png',
+									size: screenshot.byteLength
+								}
+							]
+						: []
+				);
 				const [row] = await tx
 					.insert(mockupVersion)
 					.values({
@@ -294,10 +332,12 @@ export async function publishMockup(
 						number,
 						storageKey: key,
 						size: bytes.byteLength,
-						checksum: sha256(bytes),
+						checksum: versionChecksum,
 						keepNotes: input.keepNotes,
 						freeNotes: input.freeNotes,
 						screenshotKey: shotKey,
+						screens: declaredScreens,
+						derived: derivedAssets as unknown as Record<string, unknown>,
 						createdBy: ctx.actor.userId
 					})
 					.returning();
@@ -312,6 +352,7 @@ export async function publishMockup(
 					after: { title: target.title, version: number, size: row.size } as never,
 					undoable: false
 				});
+				if (target.itemId) await refreshItemStepVisibility(tx, ctx, target.itemId);
 				const [pk] = await tx
 					.select({ key: project.key })
 					.from(project)
@@ -336,9 +377,9 @@ export function publicMockup(m: MockupRow) {
 	return { ...rest, publicLinkOn: m.publicEnabled && publicTokenHash !== null };
 }
 
-/** A version row without its storage keys. */
+/** A version row without its storage keys or heavy derived payload. */
 export function publicVersion(v: typeof mockupVersion.$inferSelect) {
-	const { storageKey: _storageKey, screenshotKey, ...rest } = v;
+	const { storageKey: _storageKey, screenshotKey, derived: _derived, ...rest } = v;
 	return { ...rest, hasScreenshot: screenshotKey !== null };
 }
 
@@ -379,6 +420,80 @@ export async function getMockup(ctx: Ctx, id: string, version?: number) {
 			canManage: role === 'owner' || role === 'admin'
 		};
 	});
+}
+
+/** Returns stored derived assets (outline, tokens, snapshot, shot descriptors) for one mockup version, computing & caching if missing. */
+export async function getMockupDerived(
+	ctx: Ctx,
+	id: string,
+	options: {
+		version?: number;
+		screen?: string;
+		state?: string;
+		width?: number;
+		maxShotBytes?: number;
+	} = {}
+): Promise<{
+	version: number;
+	derived: MockupDerivedAssets | null;
+	images: { screen: string; state: string; width: number; mimeType: string; data: string }[];
+}> {
+	const store = ctx.services?.storage;
+	const found = await run(ctx, async (tx) => {
+		const { m } = await loadMockup(tx, ctx, id);
+		const n = options.version ?? m.currentVersion;
+		const [v] = await tx
+			.select()
+			.from(mockupVersion)
+			.where(and(eq(mockupVersion.mockupId, m.id), eq(mockupVersion.number, n)));
+		if (!v) throw new OpError('NOT_FOUND', `This mockup has no version ${n}.`);
+		return v;
+	});
+	let derived = (found.derived as MockupDerivedAssets | null) ?? null;
+	if (!derived && store) {
+		const text = textOf(await store.get(found.storageKey));
+		if (text !== null) {
+			derived = extractMockupDerived(
+				text,
+				found.checksum,
+				found.screenshotKey
+					? [
+							{
+								screen: found.screens?.[0]?.key ?? 'default',
+								state: 'default',
+								width: 1280,
+								storageKey: found.screenshotKey,
+								mime: 'image/png',
+								size: 0
+							}
+						]
+					: []
+			);
+		}
+	}
+	const images: { screen: string; state: string; width: number; mimeType: string; data: string }[] =
+		[];
+	if (store && derived?.shots?.length) {
+		const maxBytes = options.maxShotBytes ?? 450_000;
+		let totalBytes = 0;
+		for (const s of derived.shots) {
+			if (options.screen && s.screen.toLowerCase() !== options.screen.toLowerCase()) continue;
+			if (options.state && s.state.toLowerCase() !== options.state.toLowerCase()) continue;
+			if (options.width && s.width !== options.width) continue;
+			const bytes = await store.get(s.storageKey).catch(() => null);
+			if (!bytes || !bytes.byteLength) continue;
+			if (totalBytes + bytes.byteLength > maxBytes && images.length > 0) break;
+			totalBytes += bytes.byteLength;
+			images.push({
+				screen: s.screen,
+				state: s.state,
+				width: s.width,
+				mimeType: s.mime,
+				data: Buffer.from(bytes).toString('base64')
+			});
+		}
+	}
+	return { version: found.number, derived, images };
 }
 
 /** The HTML of one version, as text marked untrusted. A part is cut by character offsets so an agent can fetch only what it needs. */
@@ -666,6 +781,8 @@ export async function restoreMockupVersion(ctx: Ctx, id: string, number: number)
 						freeNotes: src.freeNotes,
 						screenshotKey: shotKey,
 						restoredFrom: src.number,
+						screens: src.screens ?? [],
+						derived: src.derived ?? null,
 						createdBy: ctx.actor.userId
 					})
 					.returning();
@@ -685,6 +802,7 @@ export async function restoreMockupVersion(ctx: Ctx, id: string, number: number)
 					after: { restoredFrom: src.number, version: next } as never,
 					undoable: false
 				});
+				if (m.itemId) await refreshItemStepVisibility(tx, ctx, m.itemId);
 				return { mockup: publicMockup(updated), version: publicVersion(row) };
 			})
 		)
@@ -754,6 +872,8 @@ export async function linkMockup(ctx: Ctx, id: string, itemRef: string | null) {
 				after: { itemId: plan?.id ?? null } as never,
 				undoable: false
 			});
+			if (m.itemId && m.itemId !== plan?.id) await refreshItemStepVisibility(tx, ctx, m.itemId);
+			if (plan?.id) await refreshItemStepVisibility(tx, ctx, plan.id);
 			return { mockup: publicMockup(updated) };
 		})
 	);
@@ -788,6 +908,7 @@ export async function trashMockup(ctx: Ctx, id: string) {
 				before: { title: m.title } as never,
 				undoable: false
 			});
+			if (m.itemId) await refreshItemStepVisibility(tx, ctx, m.itemId);
 			return { id: m.id, trashed: true as const };
 		})
 	);
@@ -814,6 +935,7 @@ export async function restoreMockupFromTrash(ctx: Ctx, id: string) {
 				after: { title: m.title } as never,
 				undoable: false
 			});
+			if (m.itemId) await refreshItemStepVisibility(tx, ctx, m.itemId);
 			return { id: m.id, restored: true as const };
 		})
 	);
@@ -988,4 +1110,170 @@ export async function setVersionScreenshot(
 	);
 	if (out.replaced) await store.delete(out.replaced).catch(() => undefined);
 	return { version: out.version, hasScreenshot: true as const };
+}
+
+export const mintMockupUrlInput = z.object({
+	version: z.number().int().min(1).optional(),
+	screenshot: z.boolean().optional(),
+	ttlSeconds: z.number().int().min(1).max(MOCKUP_LINK_SECONDS).optional()
+});
+
+export type MintMockupUrlOptions = z.input<typeof mintMockupUrlInput> & {
+	secret?: string;
+	mockupOrigin?: string;
+};
+
+export type MintMockupUrlResult = {
+	url: string;
+	relativePath: string;
+	mockupId: string;
+	projectId: string;
+	version: number;
+	kind: 'html' | 'shot';
+	expiresAt: string;
+	isolatedOrigin: boolean;
+	devOnlySameHost: boolean;
+	notice: string | null;
+	isPublic: boolean;
+};
+
+async function mintForMockupRow(
+	tx: Tx,
+	orgId: string,
+	m: MockupRow,
+	plan: ItemRow | null,
+	opts: {
+		version?: number;
+		screenshot?: boolean;
+		ttlSeconds?: number;
+		secret?: string;
+		mockupOrigin?: string;
+		baseUrl?: string;
+	}
+): Promise<MintMockupUrlResult> {
+	const secret = opts.secret;
+	if (!secret) throw new Error('Mockup URL signing secret is not configured.');
+	const versionNumber = opts.version ?? m.currentVersion;
+	const [v] = await tx
+		.select()
+		.from(mockupVersion)
+		.where(and(eq(mockupVersion.mockupId, m.id), eq(mockupVersion.number, versionNumber)));
+	if (!v) throw new OpError('NOT_FOUND', `This mockup has no version ${versionNumber}.`);
+	if (opts.screenshot && !v.screenshotKey)
+		throw new OpError('NOT_FOUND', 'This version has no screenshot.');
+	const kind = opts.screenshot ? ('shot' as const) : ('html' as const);
+	const ttl = Math.min(
+		MOCKUP_LINK_SECONDS,
+		Math.max(1, Math.floor(opts.ttlSeconds ?? MOCKUP_LINK_SECONDS))
+	);
+	const now = Date.now();
+	const relativePath = signMockupGrant(
+		secret,
+		{ orgId, projectId: m.projectId, mockupId: m.id, version: v.number, kind },
+		now,
+		ttl
+	);
+	const originInfo = mockupOriginStatus(
+		opts.baseUrl ?? opts.mockupOrigin ?? 'http://localhost',
+		opts.mockupOrigin
+	);
+	const url = opts.mockupOrigin
+		? buildMockupUrl(relativePath, opts.mockupOrigin)
+		: opts.baseUrl
+			? `${opts.baseUrl.replace(/\/$/, '')}${relativePath}`
+			: relativePath;
+	const isPublic = Boolean(
+		m.publicEnabled &&
+		m.publicTokenHash &&
+		m.visibility !== 'private' &&
+		plan?.visibility !== 'private' &&
+		!m.trashedAt
+	);
+	return {
+		url,
+		relativePath,
+		mockupId: m.id,
+		projectId: m.projectId,
+		version: v.number,
+		kind,
+		expiresAt: new Date((Math.floor(now / 1000) + ttl) * 1000).toISOString(),
+		isolatedOrigin: originInfo.configured,
+		devOnlySameHost: originInfo.devOnlySameHost,
+		notice: originInfo.notice,
+		isPublic
+	};
+}
+
+/** Mints a short-lived signed mockup address after checking the caller's live read access. */
+export async function mintMockupUrl(
+	ctx: Ctx,
+	id: string,
+	options: MintMockupUrlOptions = {}
+): Promise<MintMockupUrlResult> {
+	if (!z.string().uuid().safeParse(id).success) throw new OpError('NOT_FOUND', 'No such mockup.');
+	const parsed = mintMockupUrlInput.parse(options);
+	const secret = options.secret ?? ctx.services?.mockupSecret;
+	if (!secret) throw new Error('Mockup URL signing secret is not configured.');
+	return run(ctx, async (tx) => {
+		const { m, plan } = await loadMockup(tx, ctx, id);
+		return mintForMockupRow(tx, ctx.orgId, m, plan, {
+			...parsed,
+			secret,
+			mockupOrigin: options.mockupOrigin ?? ctx.services?.mockupOrigin,
+			baseUrl: ctx.services?.baseUrl
+		});
+	});
+}
+
+/** Mints a short-lived signed mockup address for a non-hosted bridge runner serving that project. */
+export async function runnerMintMockupUrl(
+	handle: Parameters<typeof withTenant>[0],
+	runnerAuth: RunnerAuth,
+	id: string,
+	options: MintMockupUrlOptions & { baseUrl?: string } = {}
+): Promise<MintMockupUrlResult> {
+	if (!z.string().uuid().safeParse(id).success) throw new OpError('NOT_FOUND', 'No such mockup.');
+	const parsed = mintMockupUrlInput.parse(options);
+	if (!options.secret) throw new Error('Mockup URL signing secret is not configured.');
+	if (runnerAuth.kind === 'hosted')
+		throw new OpError('FORBIDDEN', 'Hosted runners cannot mint private mockup URLs.');
+	return withTenant(handle, { orgId: runnerAuth.orgId }, async (tx) => {
+		const [o] = await tx
+			.select({ deletedAt: org.deletedAt })
+			.from(org)
+			.where(eq(org.id, runnerAuth.orgId));
+		if (!o || o.deletedAt) throw new OpError('ORG_LOCKED', ORG_LOCKED_MESSAGE);
+		const [r] = await tx.select().from(runner).where(eq(runner.id, runnerAuth.runnerId));
+		if (!r) throw new OpError('FORBIDDEN', 'Runner token is no longer active.');
+		const [m] = await tx
+			.select()
+			.from(mockup)
+			.where(and(eq(mockup.id, id), eq(mockup.orgId, runnerAuth.orgId), isNull(mockup.trashedAt)));
+		if (!m || !runnerAuth.projectIds.includes(m.projectId))
+			throw new OpError('NOT_FOUND', 'No such mockup.');
+		const plan = m.itemId ? await planOf(tx, m.itemId) : null;
+		if (plan?.deletedAt) throw new OpError('NOT_FOUND', 'No such mockup.');
+		if (r.kind === 'tool') {
+			if (!r.ownerId) throw new OpError('FORBIDDEN', 'Tool runner has no owner.');
+			const [mem] = await tx
+				.select({ role: member.role })
+				.from(member)
+				.where(and(eq(member.orgId, runnerAuth.orgId), eq(member.userId, r.ownerId)));
+			const [pm] = await tx
+				.select({ role: projectMember.role })
+				.from(projectMember)
+				.where(and(eq(projectMember.projectId, m.projectId), eq(projectMember.userId, r.ownerId)));
+			const liveRole = effectiveProjectRole(mem?.role ?? null, pm?.role ?? null);
+			if (!liveRole) throw new OpError('NOT_FOUND', 'No such mockup.');
+			if (!canSeeMockup(m, r.ownerId, plan)) throw new OpError('NOT_FOUND', 'No such mockup.');
+		} else if (m.visibility === 'private' || plan?.visibility === 'private') {
+			throw new OpError('NOT_FOUND', 'No such mockup.');
+		}
+		return mintForMockupRow(tx, runnerAuth.orgId, m, plan, {
+			...parsed,
+			secret: options.secret,
+			mockupOrigin: options.mockupOrigin,
+			baseUrl: options.baseUrl
+		});
+	});
 }
