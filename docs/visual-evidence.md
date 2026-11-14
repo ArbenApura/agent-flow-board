@@ -18,7 +18,8 @@ This note records the architecture decisions and acceptance baseline for picture
 
 ### 3. Hosted mockup inspection and tight compare tolerances
 
-- Hosted mockups honor URL hook parameters (`screen`, `state`, `surface`, `person`, `offline`) and expose `agent-flow-board mockup pull`, `mockup url`, and `mockup inspect`.
+- Hosted mockups honor URL hook parameters (`screen`, `state`, `surface`, `person`, `offline`) and expose `agent-flow-board mockup pull`, `mockup url`, `mockup inspect`, and `mockup renders` (re-render an existing version with the person's own token, no file written, an undeclared screen refused).
+- Renders of a mockup (`--renders` at push, or `mockup renders`) also carry `checks`: advisory quality findings the bridge's browser collected after the capture (sideways overflow, tap targets under 44 by 44 px below 640 px, AA contrast with a worst-stop gradient read). They are grouped, ranked fail before unknown and capped at 60, they never gate a push or a build, and a check that could not run is reported as unknown. `mockup_get` returns them with `tree true` and a count summary without it.
 - `check compare` launches isolated browser contexts for the hosted mockup (zero cookies or local storage) and the target app registration across matching screens, states, and widths (`1280` by default; pass `--widths 390,1280` or step `widths` for multi-width parity).
 - Default tolerances flag drift above `2 px` on element bounding boxes (`x`, `y`, `width`, `height`), above `1 px` on radius/padding/gap, or any mismatch on normalized colours, font family, font size, font weight, or visible text unless explicitly documented under `## Free` in `design-brief` (`ref | property | reason`).
 - Code-mode critics under Design Fit must inspect the attached screenshot pairs and `compare-diff.json` output, refusing approval when a mockup exists without pair evidence.

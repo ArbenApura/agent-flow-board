@@ -8,7 +8,7 @@ The agent must read the actual mockup source, because the source holds what a pi
 
 ## Parts of a page
 
-`src/lib/server/mockups/segments.ts` cuts any page into parts that cover it once: `head`, `style:n`, `behavior:n`, `screen:<key>`, `surface:<id>` (a `<template id="t-...">`) and the `shell` around them. `mockup_get` lists them on its first reply (with start, end and size) and reads one with `part`; `since` an older version lists which parts changed. The derived assets of a version store the parts and the excluded ranges, and a version stored before parts existed is cut on the spot (and keeps the whole-page rule).
+`src/lib/server/mockups/segments.ts` cuts any page into parts that cover it once: `head`, `style:n`, `behavior:n`, `screen:<key>`, `surface:<id>` (a `<template id="t-...">`) and the `shell` around them. `mockup_get` lists them on its first reply, each row `{ key, kind, start, chars, excludedChars? }`, and reads one with `part`; `since` an older version lists which parts changed. The first reply is kept light: the outline (declared screens, regions, strings, hooks) comes only with `outline true`, and the inline pictures only when a screen is named or `includeImages` is true (the reply says how many it left out). The derived assets of a version store the parts and the excluded ranges, and a version stored before parts existed is cut on the spot (and keeps the whole-page rule).
 
 ## Bundles
 
@@ -38,7 +38,9 @@ One file per version instead of three places that said the same thing (the Keep 
 
 ## Pictures and rendered trees
 
-`--renders` (with `--widths`, `--render-states`) opens each declared screen at each width after a push and saves a picture and the rendered element tree (`data-ref`, text, box, whitelisted styles) with the version. They see markup built by script, which the server's outline of the raw HTML cannot. `mockup_get` returns them with `tree: true`.
+`--renders` (with `--widths`, `--render-states`) opens each declared screen at each width after a push and saves a picture and the rendered element tree (`data-ref`, text, box, whitelisted styles) with the version. They see markup built by script, which the server's outline of the raw HTML cannot. `mockup_get` returns them with `tree: true`. `agent-flow-board mockup renders <id> [--version n] [--widths ...] [--render-states ...]` re-renders an existing version the same way, with the person's own token, no file written and a second run replacing the first; the server refuses a screen the version does not declare, and the command exits 1 with the failed screens (the rest still render).
+
+Every render also carries `checks`: the advisory quality findings the bridge's browser collected after the capture — sideways overflow (document and inner scroll containers, an intentional chip row passes), tap targets under 44 by 44 px below 640 px, and AA contrast (4.5 normal, 3.0 large; a gradient is checked at its worst stop; an url() image, a blend or clipped-text effect is unknown). Findings are grouped by kind and selector with a count, fail before unknown, capped at 60, advisory and never gating. A tree stored before the checks existed reads without them.
 
 ## Motion
 
