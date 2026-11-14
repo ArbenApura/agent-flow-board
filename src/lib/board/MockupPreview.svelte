@@ -14,7 +14,8 @@
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	// IMPORTED DEP-MODULES
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import { fade } from 'svelte/transition';
 	// IMPORTED MODULES
 	import { effectiveDevice, fitScale, showsSwitch } from '#lib/board/frames.js';
 	import {
@@ -39,11 +40,14 @@
 	import { fileKey } from '#lib/board/thumbLoad.js';
 	import DeviceFrame from '#lib/board/DeviceFrame.svelte';
 	import MockupScreenStrip from '#lib/board/MockupScreenStrip.svelte';
+	import Button from '#lib/ui/Button.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	// IMPORTED DEP-COMPONENTS
 	import Laptop from '@lucide/svelte/icons/laptop';
+	import Maximize from '@lucide/svelte/icons/maximize';
+	import Minimize from '@lucide/svelte/icons/minimize';
 	import Monitor from '@lucide/svelte/icons/monitor';
 	import Smartphone from '@lucide/svelte/icons/smartphone';
 	import Tablet from '@lucide/svelte/icons/tablet';
@@ -115,10 +119,20 @@
 	/** The address the frame shows. It changes only when another file is shown, never when the same file is signed again. */
 	let shownSrc = $state(untrack(() => src));
 	let shownKey = untrack(() => fileKey(src));
+	let root = $state<HTMLElement>();
 	let stage = $state<HTMLElement>();
 	let switchRow = $state<HTMLElement>();
 	let frame = $state<HTMLIFrameElement>();
 	let available = $state(0);
+	/** The height of the stage. It is read only in full screen, where the screen fixes it. In the card it follows the frame, so reading it there would feed back on itself. */
+	let stageHeight = $state(0);
+	/** True when this browser can show the preview in full screen. Known only on the client, so the button is never drawn by the server. */
+	let canFull = $state(false);
+	/** True while this very preview is the element in full screen. */
+	let full = $state(false);
+	/** True for the first seconds of full screen. */
+	let fullHint = $state(false);
+	let hintTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Counts the ready messages, so every one of them sends the pins again. */
 	let readyCount = $state(0);
 	let zoomable = $state(false);
@@ -141,7 +155,7 @@
 	// -- REACTIVE STATES -- //
 
 	const device = $derived(effectiveDevice(picked, screens, available));
-	const scale = $derived(fitScale(available, device));
+	const scale = $derived(fitScale(available, device, full ? { height: stageHeight } : undefined));
 	const options = $derived(
 		screens.map((s) => ({ value: s, label: SCREEN_LABEL[s], icon: DEVICE_ICON[s] }))
 	);
@@ -247,11 +261,44 @@
 		choices = next;
 	}
 
+	/** Takes this preview into full screen or out of it. The browser may refuse (no click, a policy), and then nothing changes. */
+	async function toggleFull() {
+		if (!root || !canFull) return;
+		try {
+			if (document.fullscreenElement === root) await document.exitFullscreen();
+			else await root.requestFullscreen();
+		} catch {
+			// The browser said no: the state stays as it is, and fullscreenchange tells the truth
+		}
+	}
+
+	function onFullChange() {
+		const was = full;
+		full = !!root && document.fullscreenElement === root;
+		if (full === was) return;
+		clearTimeout(hintTimer);
+		// A short hint for the first seconds of full screen, so Esc and F are learned once
+		fullHint = full;
+		if (fullHint) hintTimer = setTimeout(() => (fullHint = false), 4000);
+	}
+
 	function onKeydown(e: KeyboardEvent) {
-		if ((e.key !== '[' && e.key !== ']') || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+		const toggle = e.key === 'f' || e.key === 'F';
+		if (
+			(e.key !== '[' && e.key !== ']' && !toggle) ||
+			e.metaKey ||
+			e.ctrlKey ||
+			e.altKey ||
+			e.repeat
+		)
+			return;
 		const target = e.target as HTMLElement | null;
 		if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
 		if (document.querySelector('[aria-modal="true"]')) return;
+		if (toggle) {
+			void toggleFull();
+			return;
+		}
 		stepScreen(e.key === '[' ? 'prev' : 'next');
 	}
 
@@ -358,6 +405,9 @@
 		void boxHeight;
 		void available;
 		void scale;
+		// Full screen moves the stage, so a box that is open follows the pin to its new place
+		void full;
+		void stageHeight;
 		const point = lastPoint;
 		if (draft && point) untrack(() => place(point));
 	});
@@ -383,9 +433,21 @@
 		if (!el) return;
 		// Only Chromium scales a frame's content with zoom, so the others keep the transform
 		zoomable = 'userAgentData' in navigator;
-		const watch = new ResizeObserver(([entry]) => (available = entry.contentRect.width));
+		const watch = new ResizeObserver(([entry]) => {
+			available = entry.contentRect.width;
+			stageHeight = entry.contentRect.height;
+		});
 		watch.observe(el);
 		return () => watch.disconnect();
+	});
+
+	// A preview that goes away while it is in full screen takes the browser out of full screen
+	$effect(() => {
+		const el = root;
+		return () => {
+			clearTimeout(hintTimer);
+			if (el && document.fullscreenElement === el) void document.exitFullscreen().catch(() => {});
+		};
 	});
 
 	// The chosen device slides to the centre of the switch row, which scrolls sideways on a phone
@@ -401,18 +463,39 @@
 			(row.clientWidth - active.offsetWidth) / 2;
 		row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
 	});
+
+	// -- LIFECYCLES -- //
+
+	// Full screen needs the browser, so it is looked up on the client only. Where it is missing (iPhone Safari) the button is not drawn
+	onMount(() => {
+		canFull = !!document.fullscreenEnabled && typeof root?.requestFullscreen === 'function';
+		onFullChange();
+	});
 </script>
 
 <svelte:window onmessage={onMessage} onkeydown={onKeydown} />
+<svelte:document onfullscreenchange={onFullChange} />
 
 <!-- THE PREVIEW: ONE TOOLBAR OF THE BOARD (DEVICE, COMMENTS, THE SCREENS, THEN THE OPTIONS THAT APPLY TO THE SCREEN ON SHOW) AND THE MOCKUP IN A SANDBOXED FRAME, DRAWN INSIDE A DEVICE. THE WHOLE DEVICE SHOWS, AND THE MOCKUP SCROLLS INSIDE ITS SCREEN ONLY -->
-<div class={cn('flex flex-col', flush && 'max-sm:-m-3.5')} data-testid="mockup-preview">
-	<!-- ON A PHONE ALL ROWS SHARE THE SAME LEFT AND RIGHT EDGES: THE DEVICE SWITCH FILLS THE ROOM LEFT OF THE COMMENT BUTTONS, AND EVERY OPTION AND THE SCREEN STRIP RUN FULL WIDTH ON A ROW OF THEIR OWN -->
+<!-- IN FULL SCREEN THE SAME ROOT FILLS THE SCREEN: ONLY CLASSES CHANGE, SO THE FRAME IS NEVER REMOUNTED OR RELOADED -->
+<div
+	bind:this={root}
+	class={cn('flex flex-col', flush && 'max-sm:-m-3.5', full && 'bg-surface')}
+	data-testid="mockup-preview"
+	data-full={full ? 'true' : undefined}
+>
+	<!-- TWO ROWS AT MOST. ROW 1: THE DEVICE SWITCH AND THE BUTTONS. ROW 2: THE SCREENS AND THE OPTIONS OF THE MOCKUP, WHICH SCROLL SIDEWAYS WHEN THEY ARE TOO LONG. ON A PHONE THE DEVICE SWITCH FILLS THE ROOM LEFT OF THE BUTTONS -->
 	<div
 		class={cn(
-			'flex flex-wrap items-center gap-2 rounded-t-lg border border-line bg-surface p-3 sm:gap-3',
-			flush && 'max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0',
-			sticky && 'sticky top-[65px] z-20 md:top-[73px]'
+			'flex flex-wrap items-center gap-2 border-line bg-surface p-3 sm:gap-3',
+			// The card and full screen never share a conflicting class: the order of Tailwind's output would decide which one wins
+			full
+				? 'border-b'
+				: [
+						'rounded-t-lg border',
+						flush && 'max-sm:rounded-none max-sm:border-x-0 max-sm:border-t-0',
+						sticky && 'sticky top-[65px] z-20 md:top-[73px]'
+					]
 		)}
 		data-testid="mockup-toolbar"
 	>
@@ -431,63 +514,82 @@
 				/>
 			</div>
 		{/if}
-		{#if toolbar}
-			<div class="ml-auto flex items-center gap-2 max-sm:order-2">{@render toolbar()}</div>
-		{/if}
-		{#if config && config.screens.length > 1}
-			<MockupScreenStrip
-				class="basis-full max-sm:order-3"
-				screens={config.screens}
-				value={choices[SCREEN_OPTION] ?? config.screens[0].value}
-				onpick={(v) => choose(SCREEN_OPTION, v)}
-			/>
-		{/if}
-		<!-- THE OPTIONS THAT APPLY TO THE SCREEN ON SHOW, IN A ROW OF THEIR OWN BELOW THE SCREEN STRIP SO THE STRIP NEVER MOVES. NONE APPLIES: NO ROW. A HIDDEN OPTION KEEPS ITS VALUE -->
-		{#if shownOptions.length}
-			<div
-				class="flex basis-full flex-wrap items-center gap-2 max-sm:order-4 sm:gap-3"
-				data-testid="mockup-options"
-			>
-				{#each shownOptions as o (o.key)}
-					<div class="max-sm:basis-full">
-						{#if o.values.length <= 3}
-							<SegmentedControl
-								label={o.label}
-								value={choices[o.key]}
-								options={o.values}
-								class="max-sm:flex max-sm:w-full max-sm:[&>button]:flex-1"
-								onchange={(v) => choose(o.key, v)}
-							/>
-						{:else}
-							<Select
-								fill
-								label={o.label}
-								prefix={o.label}
-								value={choices[o.key]}
-								options={o.values}
-								onchange={(v) => choose(o.key, v)}
-							/>
-						{/if}
-					</div>
-				{/each}
+		<!-- THE BUTTONS OF THE PAGE, THEN FULL SCREEN. THE BUTTON LIVES HERE, NOT IN EACH PAGE'S SNIPPET, SO EVERY PLACE THAT SHOWS A PREVIEW HAS IT. IT IS NOT DRAWN WHERE THE BROWSER HAS NO FULL SCREEN -->
+		{#if toolbar || canFull}
+			<div class="ml-auto flex items-center gap-2 max-sm:order-2">
+				{#if toolbar}{@render toolbar()}{/if}
+				{#if canFull}
+					<Button
+						onclick={toggleFull}
+						aria-pressed={full}
+						aria-label={full ? 'Exit full screen' : 'Full screen'}
+						data-testid="fullscreen-toggle"
+						class="max-lg:w-10 max-lg:px-0 max-sm:w-11"
+					>
+						{#if full}<Minimize size={20} />{:else}<Maximize size={20} />{/if}
+						<span class="max-lg:hidden">{full ? 'Exit full screen' : 'Full screen'}</span>
+						<kbd
+							class="rounded border border-line bg-surface px-1.5 font-mono text-badge text-muted max-lg:hidden"
+							>F</kbd
+						>
+					</Button>
+				{/if}
 			</div>
 		{/if}
-		<!-- A QUIET HINT WHEN THE LAST CHOICE CHANGED NOTHING IN THE PAGE. IT IS A STATUS LINE, NEVER AN ERROR, AND CLEARS ON THE NEXT CHOICE -->
-		{#if quiet}
-			<p
-				role="status"
-				class="basis-full text-sm text-muted max-sm:order-5"
-				data-testid="mockup-unresponsive"
+		<!-- ROW 2: THE SCREENS OF THE MOCKUP, THEN THE OPTIONS THAT APPLY TO THE SCREEN ON SHOW. NEVER WRAPS: THE STRIP AND THE OPTIONS SCROLL SIDEWAYS WHEN THEY ARE TOO LONG. NOTHING TO SHOW: NO ROW. A HIDDEN OPTION KEEPS ITS VALUE -->
+		{#if (config && config.screens.length > 1) || shownOptions.length}
+			<div
+				class="flex basis-full items-center gap-2 max-sm:order-3 sm:gap-3"
+				data-testid="mockup-row"
 			>
-				{quietText}
-			</p>
+				{#if config && config.screens.length > 1}
+					<MockupScreenStrip
+						class="min-w-40 flex-1 max-sm:min-w-56"
+						screens={config.screens}
+						value={choices[SCREEN_OPTION] ?? config.screens[0].value}
+						onpick={(v) => choose(SCREEN_OPTION, v)}
+					/>
+				{/if}
+				{#if shownOptions.length}
+					<div
+						class="flex min-w-0 [scrollbar-width:none]! items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain sm:gap-3 [&::-webkit-scrollbar]:hidden"
+						data-testid="mockup-options"
+					>
+						{#each shownOptions as o (o.key)}
+							<div class="shrink-0">
+								{#if o.values.length <= 3}
+									<SegmentedControl
+										label={o.label}
+										value={choices[o.key]}
+										options={o.values}
+										onchange={(v) => choose(o.key, v)}
+									/>
+								{:else}
+									<Select
+										label={o.label}
+										prefix={o.label}
+										value={choices[o.key]}
+										options={o.values}
+										onchange={(v) => choose(o.key, v)}
+									/>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
 		{/if}
 	</div>
 	<div
 		bind:this={stage}
 		class={cn(
-			'relative isolate min-h-60 overflow-hidden rounded-b-lg border border-t-0 border-line bg-raised p-6 max-sm:p-3',
-			flush && 'max-sm:rounded-b-xl max-sm:border-0'
+			'relative isolate overflow-hidden border-line bg-raised',
+			full
+				? 'flex min-h-0 flex-1 items-center justify-center p-4 max-sm:p-2'
+				: [
+						'min-h-60 rounded-b-lg border border-t-0 p-6 max-sm:p-3',
+						flush && 'max-sm:rounded-b-xl max-sm:border-0'
+					]
 		)}
 	>
 		{#if available > 0}
@@ -507,8 +609,29 @@
 			<!-- INSIDE THE STAGE PADDING AT THE BOTTOM, SO SHOWING AND HIDING IT NEVER MOVES ANYTHING -->
 			<span
 				class="pointer-events-none absolute bottom-0.5 left-1/2 z-10 -translate-x-1/2 rounded-md bg-accent-soft px-2 text-badge leading-5 font-medium whitespace-nowrap text-accent-text max-sm:hidden"
-				data-testid="pin-hint">Click the mockup to place a comment. Esc to stop.</span
+				data-testid="pin-hint"
+				>Click the mockup to place a comment. {full
+					? 'The first Esc leaves full screen.'
+					: 'Esc to stop.'}</span
 			>
+		{:else if fullHint}
+			<!-- THE FIRST SECONDS OF FULL SCREEN: HOW TO LEAVE IT. NOT ON A PHONE, WHERE THERE IS NO KEYBOARD -->
+			<span
+				transition:fade={{ duration: reducedMotion() ? 0 : 300 }}
+				class="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-md bg-accent-soft px-3 text-badge leading-5 font-medium whitespace-nowrap text-accent-text max-sm:hidden"
+				role="status"
+				data-testid="fullscreen-hint">Esc or the button leaves full screen</span
+			>
+		{/if}
+		<!-- A QUIET HINT WHEN THE LAST CHOICE CHANGED NOTHING IN THE PAGE. IT IS A STATUS LINE, NEVER AN ERROR, AND CLEARS ON THE NEXT CHOICE. IT SITS ON THE STAGE SO THE TOOLBAR STAYS TWO ROWS -->
+		{#if quiet}
+			<p
+				role="status"
+				class="pointer-events-none absolute top-2 left-1/2 z-10 max-w-[calc(100%-16px)] -translate-x-1/2 rounded-md border border-line bg-surface px-3 py-1 text-center text-sm text-muted shadow-[var(--elev-1)]"
+				data-testid="mockup-unresponsive"
+			>
+				{quietText}
+			</p>
 		{/if}
 		{#if draft && anchor && composer}
 			<!-- THE COMMENT BOX SITS BESIDE THE PIN. ITS PLACE IS A RUNTIME COORDINATE ON THE STAGE -->

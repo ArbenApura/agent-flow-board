@@ -65,6 +65,36 @@ describe('fitScale', () => {
 	});
 });
 
+describe('fitScale in full screen', () => {
+	it('is bound by the height when the stage is wide but short', () => {
+		// A wide frame is 1602 by 942: a 1500 by 700 stage fits it by height
+		expect(fitScale(1500, 'wide', { height: 700 })).toBeCloseTo(700 / 942, 2);
+	});
+	it('is bound by the width when the stage is narrow but tall', () => {
+		expect(fitScale(801, 'wide', { height: 2000 })).toBe(0.5);
+	});
+	it('may enlarge the frame up to the cap and no further', () => {
+		expect(fitScale(5000, 'laptop', { height: 5000 })).toBe(1.5);
+		expect(fitScale(5000, 'laptop', { height: 5000, maxScale: 1.2 })).toBe(1.2);
+	});
+	it('reads nothing about the height in the card, so the card never feeds back on itself', () => {
+		expect(fitScale(5000, 'laptop')).toBe(1);
+		expect(fitScale(641, 'laptop')).toBe(0.5);
+	});
+	it('ignores a height that is not known yet and still never enlarges', () => {
+		for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+			expect(fitScale(5000, 'laptop', { height: bad })).toBe(1);
+			expect(fitScale(641, 'laptop', { height: bad })).toBe(0.5);
+		}
+	});
+	it('falls back to life size when the stage width is not known yet', () => {
+		expect(fitScale(0, 'wide', { height: 700 })).toBe(1);
+	});
+	it('never enlarges below life size when the cap is under 1', () => {
+		expect(fitScale(5000, 'laptop', { height: 5000, maxScale: 0.5 })).toBe(1);
+	});
+});
+
 describe('devices a project offers', () => {
 	it('keeps the fixed order and falls back to all four when none is saved', () => {
 		expect(offeredDevices(['phone', 'wide'])).toEqual(['wide', 'phone']);

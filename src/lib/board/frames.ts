@@ -68,11 +68,24 @@ export function frameSize(screen: ScreenKey): FrameSize {
 	};
 }
 
-/** How much the whole frame is shrunk to fit a stage `available` pixels wide. Never larger than life. */
-export function fitScale(available: number, screen: ScreenKey): number {
-	const width = frameSize(screen).width;
+/** The most a frame is enlarged in full screen, so a large monitor is filled without the text growing too far. */
+export const FULL_MAX_SCALE = 1.5;
+
+/** The stage in full screen: its height is fixed by the screen, so the frame must fit it too. */
+export type FullArea = { height: number; maxScale?: number };
+
+/**
+ * How much the whole frame is shrunk to fit a stage `available` pixels wide. Never larger than life.
+ * In full screen the stage also has a height and the frame may be enlarged up to `maxScale`; without `area` nothing about the height is read.
+ */
+export function fitScale(available: number, screen: ScreenKey, area?: FullArea): number {
+	const size = frameSize(screen);
 	if (!Number.isFinite(available) || available <= 0) return 1;
-	return Math.min(1, Math.floor((available / width) * 1000) / 1000);
+	const byWidth = available / size.width;
+	const height = area && Number.isFinite(area.height) && area.height > 0 ? area.height : 0;
+	const byHeight = height > 0 ? height / size.height : Number.POSITIVE_INFINITY;
+	const cap = height > 0 ? Math.max(1, area?.maxScale ?? FULL_MAX_SCALE) : 1;
+	return Math.floor(Math.min(cap, byWidth, byHeight) * 1000) / 1000;
 }
 
 /** The devices a project offers, in the fixed order. Never empty. */
