@@ -285,8 +285,8 @@ export async function countNotesLinkedTo(
 			and(
 				eq(noteLink.targetKind, kind),
 				inArray(noteLink.targetId, targetIds),
-					// Only the project the role was checked on
-					eq(note.projectId, projectId),
+				// Only the project the role was checked on
+				eq(note.projectId, projectId),
 				visibleNoteSql(userId)
 			)
 		)
