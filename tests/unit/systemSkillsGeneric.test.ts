@@ -89,6 +89,14 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			pattern: /cannot be read to the end even in parts[^\n]*is reason 4 to stop/
 		},
 		{
+			rule: 'visual-evidence tools and sliceGate rules are documented',
+			pattern: /work_waiting[\s\S]*evidence_waive[\s\S]*VISUAL_EVIDENCE_REQUIRED/
+		},
+		{
+			rule: 'vertical slice gate guidance stays present',
+			pattern: /sliceGate/
+		},
+		{
 			rule: 'a list of differences is the one stop of the phase',
 			pattern: /that one list is the stop/
 		},
@@ -165,8 +173,11 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'a permission is given once', pattern: /A permission is given once/ },
 		{ rule: 'new scope is never automatic', pattern: /Never add new scope on your own/ },
 		{ rule: 'the hook session id is reused', pattern: /use that id and skip `session_start`/ },
-		// AFB-20261110-1515: whole-project gates run once, never after every change
-		{ rule: 'the gates run at two speeds', pattern: /Run the gates at two speeds/ },
+		// AFB-20261114 / bundle 1.11.0: gates run once at the end of the whole plan
+		{
+			rule: 'the gates run once at the end of the plan',
+			pattern: /Run the gates once, at the end of the whole plan/
+		},
 		{ rule: 'a passed gate is not rerun', pattern: /Never twice for nothing/ }
 	],
 	'flow-audit': [
@@ -211,7 +222,7 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'no gates found', pattern: /no gates found/ },
 		{
 			rule: 'no whole-project gate after each change',
-			pattern: /After a change, the fast gate only/
+			pattern: /Autonomous execution, once at the end of the whole plan/
 		},
 		{ rule: 'a passed gate is not rerun', pattern: /Never twice for nothing/ }
 	],

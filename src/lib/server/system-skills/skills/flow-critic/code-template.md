@@ -21,7 +21,8 @@ Do not paraphrase the template. Do not paste your conversation history into it; 
 | `{LANE_FILES}` | The files this subagent owns. When the diff is too small to split, all of them |
 | `{GATE_RESULTS}` | Outcomes of the gates the repo rulebook names (type check, linter, formatter check, invariant tests, related tests), e.g. `type check: 0 errors; isolation and access tests pass; full test run: not run (mid-iteration)`. Write `no gates found` if the repo names none |
 | `{KNOWN_UNVERIFIED}` | What the implementer did not or could not verify (screen never opened in a browser, migration never run on a real database, etc.). `none` only if genuinely none |
-| `{UI_SHOTS_DIR}` | The folder of the UI shots when the repo rulebook has them run, otherwise `none` |
+| `{UI_SHOTS_DIR}` | The folder containing the compare picture pairs when the plan has a mockup or visual compare run, otherwise `none` |
+| `{COMPARE_DIFF_JSON}` | Path to `compare-diff.json` (measurements and diff) from `check compare` when the plan has a mockup or visual step, otherwise `none` |
 | `{LENS_NAME}` | Specific assigned lens name (e.g. Lens A - Completeness & Silent Omissions Auditor), or combined names when lenses are merged |
 | `{LENS_CHECKLIST}` | Verbatim checklist items for this lens extracted from `code-lenses.md` |
 | `{LANE_CHECKLISTS}` | The matching lanes from `checklists.md`, pasted verbatim (see the lens to lane table in `SKILL.md` section 4). Lane 5 goes to at least one subagent every time |
@@ -81,7 +82,8 @@ Deterministic gates already run by the implementer (do not re-run them to confir
 Known unverified:
 {KNOWN_UNVERIFIED}
 
-UI shots (read only if you are the design lens; otherwise ignore): {UI_SHOTS_DIR}
+Picture pairs directory (read by the design lens; required when the plan has a mockup): {UI_SHOTS_DIR}
+Compare measurements and diff JSON (read by the design lens; required when the plan has a mockup): {COMPARE_DIFF_JSON}
 
 ### How to Review
 1. Read the requirements. List to yourself what the change must do.

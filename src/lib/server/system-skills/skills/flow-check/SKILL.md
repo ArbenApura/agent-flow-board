@@ -80,9 +80,14 @@ Every one of these cost a run of 3 to 4 minutes when it was found by failing. Re
 - **One measurement, alone.** A speed or size comparison is run once, alone, on a quiet machine, and the number is reported with that fact. A comparison taken while other runs shared the CPU is thrown away.
 - **Do not widen the work.** Run only the checks the plan has or the user asked for. A mockup the user did not say yes to, an extra measurement or an extra check that nobody asked for is not part of the request.
 
-## Screenshots
+## Screenshots, compare, and dev-server checks
 
 A check's screenshots are its evidence: the bridge takes them while the check runs, and the board shows them as pictures on the item's Checks tab (the newest run, earlier runs and a full size view). To prove how a screen looks, write a check that opens it, at the widths and in the colours that matter, and takes a screenshot of each; read the result with `check_status`.
+
+- **Compare against a hosted mockup:** run `agent-flow-board check compare --mockup <id>[@version] --registration <name> --server <url> --org <slug> --screens <s1,s2> --states <t1,t2> --widths 390,1280 --manifest <pairs.json> --brief <design-brief.md> --item <ref> --key <KEY>` to capture both sides, measure layout/style parity, and attach `compare-diff.json` and picture pairs to the run.
+- **Inspect DOM measurements:** run `agent-flow-board check inspect <registration> --org <slug> --screen <S> --state <T> --width <W>` against the running app (and `agent-flow-board mockup inspect` against the mockup).
+- **Dev-server checks (`dev` target) and stock visual checks:** read-only `dev` checks probe the local dev server only with owner dev approval (`DEV_APPROVAL_REQUIRED` otherwise); never send writes or mutations against a running dev server without an isolated throwaway copy. Early and full runs also capture versioned `stockVisualChecks` (`cls`, `tap-targets`, `sideways-scroll`, `button-chrome`, `contrast-pairs`, `skeleton-height`, `focus-visible`, `reduced-motion`, `console-errors`).
+- **Windows and Git Bash note:** keep bracketed route paths quoted (such as `'src/routes/[org]/+page.svelte'`), pass `MSYS_NO_PATHCONV=1` when running CLI commands with Unix-style flags/paths under Git Bash, and ensure check/doc scripts use LF line endings even if Git `core.autocrlf=true` is enabled.
 
 ## Limits to say out loud
 

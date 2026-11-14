@@ -96,6 +96,10 @@ agent-flow-board git-hook install
 
 Claude Code and Antigravity follow the payloads captured on real runs. The Gemini CLI mapping follows its documentation and has not been captured on a real install yet, so check it once with a throwaway item. The hooks recognise the board's tools under the name `afb-<slug>` as well as the older `agent-flow-board`.
 
+### Waiting on the person (`Stop` hook)
+
+When an active session is marked `waiting` on the board (`work_waiting` or `sliceGate`), the `Stop` hook for `claude`, `antigravity`, and `gemini` reads that blocker, emits a `{ systemMessage }` waiting notice, and lets the turn stop instead of reminding the agent to carry on. **Known adapter gap** - harnesses without a hook adapter (such as Codex or standalone CLI clients) do not send `Stop` hook events; their sessions stay running until `work_stop`, `work_waiting` updates, or session timeout.
+
 ## Show status in your editor
 
 ### With one prompt, no token
