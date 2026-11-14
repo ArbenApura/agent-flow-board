@@ -102,6 +102,8 @@ export function effectiveStepVisible(s: {
 
 /** Extracts declared screen keys and labels from `<meta name="afb-config">` and `data-screen` hooks in mockup HTML. */
 export function extractMockupScreensFromHtml(html: string): NamedMockupScreen[] {
+	// The script and style text is stripped first: a CSS attribute selector inside a style block is styling, never a screen
+	const source = stripMachineText(html);
 	const found = new Map<string, NamedMockupScreen>();
 	const add = (key: string, label?: string) => {
 		const cleanKey = key.trim();
@@ -112,11 +114,11 @@ export function extractMockupScreensFromHtml(html: string): NamedMockupScreen[] 
 		}
 	};
 
-	const at = html.indexOf('afb-config');
+	const at = source.indexOf('afb-config');
 	if (at !== -1) {
-		const start = Math.max(html.lastIndexOf('<meta', at), html.lastIndexOf('<META', at));
+		const start = Math.max(source.lastIndexOf('<meta', at), source.lastIndexOf('<META', at));
 		if (start !== -1 && at - start <= 200) {
-			const slice = html.slice(start, start + 10_000);
+			const slice = source.slice(start, start + 10_000);
 			const m = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(slice);
 			if (m) {
 				try {
@@ -146,7 +148,7 @@ export function extractMockupScreensFromHtml(html: string): NamedMockupScreen[] 
 	const attrRx = /\bdata-screen\s*=\s*(?:"([^"]{1,80})"|'([^']{1,80})')/gi;
 	let match: RegExpExecArray | null;
 	let seen = 0;
-	while ((match = attrRx.exec(html)) !== null && seen < 50) {
+	while ((match = attrRx.exec(source)) !== null && seen < 50) {
 		seen++;
 		add(match[1] ?? match[2] ?? '');
 	}
@@ -169,6 +171,16 @@ export function declaredMockupScreenKeys(html: string): string[] {
 		.filter((k) => /^[a-z0-9_-]{1,40}$/.test(k))
 		.filter((k, i, all) => all.indexOf(k) === i)
 		.slice(0, MAX_DECLARED_MOCKUP_SCREENS);
+}
+
+/**
+ * The page without its script and style text, so a CSS attribute selector or a script string can never
+ * look like a declaration (a `[data-screen="x"]` rule inside a style block is styling, not a screen).
+ */
+function stripMachineText(html: string): string {
+	return html
+		.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
+		.replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ');
 }
 
 function escapeRegExp(s: string): string {

@@ -4,7 +4,7 @@
 // it is drawn, so markup built by script is in it, which the server's outline cannot see. A render that fails is said, never fatal.
 
 // -- DEP-MODULES -- //
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 // -- TYPES -- //
 import type { Fetch } from './device.js';
 import type { ResolvedMockupTarget } from './checks/mockupTarget.js';
@@ -67,18 +67,27 @@ const BROWSER_DIED =
  * self-contained published package, so it carries the same function instead of importing the server.
  */
 export function screensOfPage(html: string): string[] {
+	// The script and style text is stripped first: a CSS attribute selector inside a style block is styling, never a screen
+	const source = stripMachineText(html);
 	const found: string[] = [];
 	const add = (raw: string) => {
 		const key = raw.trim().toLowerCase();
 		if (!key || !/^[a-z0-9_-]{1,40}$/.test(key)) return;
 		if (!found.includes(key)) found.push(key);
 	};
-	const tag = /<meta\b[^>]*\bname\s*=\s*["']afb-config["'][^>]*>/i.exec(html)?.[0];
+	const tag = /<meta\b[^>]*\bname\s*=\s*["']afb-config["'][^>]*>/i.exec(source)?.[0];
 	if (tag) {
 		const raw = /\bcontent\s*=\s*(?:'([^']*)'|"([^"]*)")/i.exec(tag);
 		if (raw) {
 			try {
-				const parsed = JSON.parse((raw[1] ?? raw[2] ?? '').replace(/&quot;/g, '"')) as {
+				const parsed = JSON.parse(
+					(raw[1] ?? raw[2] ?? '')
+						.replace(/&quot;/g, '"')
+						.replace(/&#39;|&apos;/gi, "'")
+						.replace(/&lt;/gi, '<')
+						.replace(/&gt;/gi, '>')
+						.replace(/&amp;/gi, '&')
+				) as {
 					screens?: unknown;
 				};
 				if (Array.isArray(parsed.screens))
@@ -94,11 +103,21 @@ export function screensOfPage(html: string): string[] {
 	const attrRx = /\bdata-screen\s*=\s*(?:"([^"]{1,80})"|'([^']{1,80})')/gi;
 	let match: RegExpExecArray | null;
 	let seen = 0;
-	while ((match = attrRx.exec(html)) !== null && seen < 50) {
+	while ((match = attrRx.exec(source)) !== null && seen < 50) {
 		seen++;
 		add(match[1] ?? match[2] ?? '');
 	}
 	return found.slice(0, 12);
+}
+
+/**
+ * The page without its script and style text, the same rule as the server's extractMockupScreensFromHtml:
+ * a CSS attribute selector or a script string can never look like a declaration.
+ */
+function stripMachineText(html: string): string {
+	return html
+		.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
+		.replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ');
 }
 
 /** Captures one screen, state and width, retrying once on a new lease when the browser died (rule R4). */
@@ -161,7 +180,14 @@ export async function captureRenders(o: RenderOptions): Promise<RenderResult> {
 						text: typeof e.text === 'string' ? e.text.slice(0, 120) : e.text
 					}));
 					const path = `/orgs/${encodeURIComponent(o.org)}/mockups/${o.mockup}/versions/${o.version}/renders`;
-					const key = `mockup-render-${o.runNonce ?? 'push'}-${o.mockup}-${o.version}-${label}-${state}-${width}`;
+					// The server caps an Idempotency-Key at 80 characters and a real mockup id is a 36-character uuid, so
+					// the readable form only fits small pages; longer bases are hashed, which is just as stable for a
+					// retry in one run and just as unique per run
+					const base = `${o.mockup}-${o.version}-${label}-${state}-${width}-${o.runNonce ?? 'push'}`;
+					const key =
+						base.length <= 66
+							? `mockup-render-${base}`
+							: `mockup-render-${createHash('sha256').update(base).digest('hex').slice(0, 48)}`;
 					const body = JSON.stringify({
 						screen: label,
 						state,

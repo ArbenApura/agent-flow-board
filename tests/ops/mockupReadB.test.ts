@@ -317,6 +317,19 @@ describe('mockup reads are light', () => {
 			width: 1280,
 			pngBase64: png
 		});
+		// A CSS attribute selector inside a style block is styling, never a declaration: the page still renders
+		const styled = await publishMockup(
+			as('member'),
+			{ item: p.ref },
+			new TextEncoder().encode(
+				`<html><head><style>[data-screen="reading"] .x { color: red; }</style></head><body><main>Page</main></body></html>`
+			)
+		);
+		await setVersionRender(as('member'), styled.mockup.id, styled.version.number, {
+			screen: 'page',
+			width: 1280,
+			pngBase64: png
+		});
 	});
 
 	it('saves a render (picture and rendered tree) per screen, state and width, and a second one replaces the first (C.2)', async () => {

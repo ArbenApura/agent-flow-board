@@ -62,6 +62,12 @@ describe('renders after a push', () => {
 			`<meta name="afb-config" content='not json'><section data-screen="cases">`,
 			`<meta name="afb-config" content='{"screens": [["x y", "Bad"], ["OK", "Good"]]}'>`,
 			`<section data-screen="a"></section><section data-screen="b"></section><section data-screen="c"></section><section data-screen="d"></section><section data-screen="e"></section><section data-screen="f"></section><section data-screen="g"></section><section data-screen="h"></section><section data-screen="i"></section><section data-screen="j"></section><section data-screen="k"></section><section data-screen="l"></section><section data-screen="m"></section><section data-screen="n"></section>`,
+			// A CSS attribute selector or a script string is styling, never a declaration
+			`<style>[data-screen="reading"] .x { color: red; }</style><main>Page</main>`,
+			`<script>var s = document.querySelector('[data-screen="chat"]');</script><main>Page</main>`,
+			// Entities in the config content decode the same way on both sides
+			`<meta name="afb-config" content="{&quot;screens&quot;: [&quot;today&quot;, &quot;consult&quot;]}">`,
+			`<meta name="afb-config" content='{"screens": "today"}'>`,
 			'<html></html>'
 		])
 			expect(screensOfPage(html)).toEqual(declaredMockupScreenKeys(html));
@@ -299,5 +305,71 @@ describe('renders after a push', () => {
 				reason: 'The screen "lab" is not declared by this version. (400)'
 			}
 		]);
+	});
+
+	it('keeps the render idempotency key within the server cap for real mockup ids (rule R11)', async () => {
+		const page = `<meta name="afb-config" content='{"screens": ["today"]}'>body`;
+		const keys: string[] = [];
+		const uuid = '550e8400-e29b-41d4-a716-446655440000';
+		const fetchFake = ((_input: RequestInfo | URL, i?: RequestInit) => {
+			const url = String(_input);
+			if (url.includes('/mockups/') && url.endsWith('/url')) return Promise.resolve(mintResponse());
+			if (url.includes('/html?'))
+				return Promise.resolve(
+					new Response(
+						JSON.stringify({ html: page, version: 12, length: page.length, more: false }),
+						{
+							status: 200,
+							headers: { 'content-type': 'application/json' }
+						}
+					)
+				);
+			if (i?.method === 'PUT') {
+				keys.push((i.headers as Record<string, string>)['idempotency-key'] ?? '');
+				return Promise.resolve(new Response('', { status: 200 }));
+			}
+			return Promise.resolve(new Response('nope', { status: 404 }));
+		}) as never;
+		inspectUrl.mockResolvedValue({
+			dump: { elements: [] },
+			screenshot: Buffer.from('x'),
+			manualRequired: false
+		} as never);
+		const lines: string[] = [];
+		const out = await renderVersionCommand({
+			server: 'http://board.test',
+			org: 'arbenger',
+			token: 'afb_test_token_value',
+			fetch: fetchFake,
+			// A 36-character uuid at a two-digit version with a five-character screen is what used to overflow
+			mockup: uuid,
+			widths: [1280],
+			runNonce: 'run1',
+			log: (l) => lines.push(l),
+			wait: async () => undefined
+		});
+		expect(out.captured).toBe(1);
+		expect(out.failed).toEqual([]);
+		expect(keys).toHaveLength(1);
+		for (const key of keys) {
+			// The server's own rule: 8 to 80 letters, digits or . _ : -
+			expect(key).toMatch(/^[A-Za-z0-9._:-]{8,80}$/);
+		}
+		// A small id keeps the readable key; the same base hashes to the same key on a retry
+		const readable = await captureRenders({
+			server: 'http://board.test',
+			org: 'arbenger',
+			token: 'afb_test_token_value',
+			fetch: fetchFake,
+			mockup: 'm',
+			version: 1,
+			screens: ['today'],
+			widths: [1280],
+			runNonce: 'run2',
+			log: (l) => lines.push(l),
+			wait: async () => undefined
+		});
+		expect(readable.captured).toBe(1);
+		expect(keys[1]).toBe('mockup-render-m-1-today-default-1280-run2');
 	});
 });

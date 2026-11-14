@@ -51,11 +51,11 @@ export function collectQualityFindings(): {
 
 	// -- HELPERS -- //
 
-	/** A short, stable name for one element: its data-ref, its id, or tag with up to two classes. */
+	/** A short, stable name for one element: its data-ref, its id, or tag with up to two classes. Kept within the server's field caps. */
 	const describeElement = (el: Element): { selector: string; ref?: string } => {
-		const ref = el.getAttribute('data-ref') || undefined;
-		if (ref) return { selector: `[data-ref="${ref}"]`, ref };
-		if (el.id) return { selector: `#${el.id}` };
+		const ref = (el.getAttribute('data-ref') || undefined)?.slice(0, 80);
+		if (ref) return { selector: `[data-ref="${ref}"]`.slice(0, 200), ref };
+		if (el.id) return { selector: `#${el.id}`.slice(0, 200) };
 		let cls = '';
 		if (typeof el.className === 'string' && el.className.trim())
 			cls = el.className
@@ -64,7 +64,7 @@ export function collectQualityFindings(): {
 				.slice(0, 2)
 				.map((c) => `.${c}`)
 				.join('');
-		return { selector: `${el.tagName.toLowerCase()}${cls}` };
+		return { selector: `${el.tagName.toLowerCase()}${cls}`.slice(0, 200) };
 	};
 
 	const isVisible = (el: Element): boolean => {
@@ -278,14 +278,17 @@ export function collectQualityFindings(): {
 			const l2 = lum(b[0], b[1], b[2]);
 			return Math.round(((Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)) * 100) / 100;
 		};
-		// What is painted beneath one element: its background-color and then its ancestors, opacity multiplied
-		const underOf = (el: Element): [number, number, number] => {
+		// What is painted beneath one element: its background-color and then its ancestors, opacity multiplied.
+		// Returns null when an opaque background colour cannot be parsed (oklch and friends): the caller then
+		// reports unknown, never a guess
+		const underOf = (el: Element): [number, number, number] | null => {
 			const layers: RGBA[] = [];
 			let cur: Element | null = el;
 			while (cur) {
 				const st = getComputedStyle(cur);
 				const op = Math.max(0, Math.min(1, Number(st.opacity || '1') || 1));
 				const c = parseRgb(st.backgroundColor);
+				if (!c && st.backgroundColor && st.backgroundColor !== 'transparent') return null;
 				if (c && c[3] > 0) {
 					layers.push([c[0], c[1], c[2], Math.min(1, c[3] * op)]);
 					if (c[3] * op >= 0.999) break;
@@ -391,9 +394,31 @@ export function collectQualityFindings(): {
 				continue;
 			const op = Math.max(0, Math.min(1, Number(st.opacity || '1') || 1));
 			const fg = parseRgb(st.color);
-			if (!fg || fg[3] * op <= 0) continue;
+			if (!fg) {
+				// R8: a colour the parser cannot read is unknown, never a silent skip and never a guess
+				const name = describeElement(el);
+				findings.push({
+					kind: 'contrast',
+					severity: 'unknown',
+					ref: name.ref,
+					selector: name.selector,
+					detail: 'Not checked: a text colour the parser cannot read.'
+				});
+				continue;
+			}
+			if (fg[3] * op <= 0) continue;
 			const name = describeElement(el);
 			const under = underOf(el);
+			if (!under) {
+				findings.push({
+					kind: 'contrast',
+					severity: 'unknown',
+					ref: name.ref,
+					selector: name.selector,
+					detail: 'Not checked: a background colour the parser cannot read.'
+				});
+				continue;
+			}
 			const painted = layersOf(el);
 			if (painted.unknown) {
 				findings.push({
@@ -488,9 +513,10 @@ export function groupQualityFindings(raw: RawQualityFinding[]): QualityCheck[] {
 	return ranked.slice(0, 60).map((g) => ({
 		kind: g.kind,
 		severity: g.severity,
-		ref: g.ref,
-		selector: g.selector,
-		detail: g.count > 1 ? `${g.detail} (${g.count} elements)` : g.detail
+		// The server's field caps (renderCheckInput): a long id or a long message must never cost the render
+		ref: g.ref?.slice(0, 80),
+		selector: g.selector?.slice(0, 200),
+		detail: (g.count > 1 ? `${g.detail} (${g.count} elements)` : g.detail).slice(0, 300)
 	}));
 }
 

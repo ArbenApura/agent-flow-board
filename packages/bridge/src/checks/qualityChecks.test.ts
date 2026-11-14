@@ -49,6 +49,8 @@ body { margin: 0; background: #ffffff; font-family: Arial; }
 .half { color: #111111; background-color: #ffffff; opacity: 0.5; }
 .big { font-size: 24px; color: #808080; background-color: #ffffff; }
 .small { font-size: 16px; color: #808080; background-color: #ffffff; }
+.weird-bg { color: #111111; background-color: oklch(0.5 0.1 200); }
+.weird-fg { color: oklch(0.3 0.1 200); background-color: #ffffff; }
 button.skipbtn { color: #999999; background-color: #ffffff; }
 .ghost { visibility: hidden; color: #999999; background-color: #ffffff; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -60,6 +62,8 @@ button.skipbtn { color: #999999; background-color: #ffffff; }
 <p class="half">Half hidden</p>
 <p class="big">Big grey</p>
 <p class="small">Small grey</p>
+<p class="weird-bg">Weird background</p>
+<p class="weird-fg">Weird text</p>
 <button class="skipbtn" disabled>Skip me</button>
 <span class="ghost">Invisible</span>
 <span class="sr-only">Screen reader only</span>
@@ -75,6 +79,7 @@ body { margin: 0; background: #fff; }
 <div class="row"><span>one</span><span>two</span><span>three</span></div>
 <div class="scroller"><div data-ref="wide-child">Wide child</div></div>
 <a id="tiny-link" style="display: block; width: 30px; height: 20px;">tiny</a>
+<a data-ref="${'r'.repeat(300)}" style="display: block; width: 10px; height: 10px;">long name</a>
 <button id="ok-button" style="width: 44px; height: 44px;">ok</button>
 <button id="narrow-button" style="width: 43px; height: 44px;">narrow</button>
 <button disabled style="width: 10px; height: 10px;">dead</button>
@@ -145,6 +150,9 @@ describe('render quality checks (rules R5 to R9)', () => {
 		expect(find(contrast, 'button.skipbtn', 'contrast')).toEqual([]);
 		expect(find(contrast, 'span.ghost', 'contrast')).toEqual([]);
 		expect(find(contrast, 'span.sr-only', 'contrast')).toEqual([]);
+		// A colour the parser cannot read (oklch) is unknown, never a guess and never a silent skip
+		expect(severitiesOf(contrast, 'p.weird-bg', 'contrast')).toEqual(['unknown']);
+		expect(severitiesOf(contrast, 'p.weird-fg', 'contrast')).toEqual(['unknown']);
 		// The findings are ranked fail before unknown
 		const firstUnknown = contrast.findIndex((c) => c.severity === 'unknown');
 		const lastFail = contrast.map((c) => c.severity).lastIndexOf('fail');
@@ -187,6 +195,11 @@ describe('render quality checks (rules R5 to R9)', () => {
 		const checks = r.checks ?? [];
 		const tap = checks.filter((c) => c.kind === 'tap');
 		expect(severitiesOf(tap, '#tiny-link', 'tap')).toEqual(['fail']);
+		// A very long data-ref is clamped to the server's selector cap instead of costing the render
+		const longRef = tap.find((c) => (c.selector ?? '').startsWith('[data-ref="rrr'));
+		expect(longRef).toBeTruthy();
+		expect((longRef?.selector ?? '').length).toBeLessThanOrEqual(200);
+		expect(longRef?.ref?.length).toBeLessThanOrEqual(80);
 		// 44 by 44 passes, 43 by 44 fails
 		expect(find(tap, '#ok-button', 'tap')).toEqual([]);
 		expect(severitiesOf(tap, '#narrow-button', 'tap')).toEqual(['fail']);

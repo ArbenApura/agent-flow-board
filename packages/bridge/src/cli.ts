@@ -393,8 +393,14 @@ async function main() {
 			let renders: RenderResult | undefined;
 			if (args.includes('--renders')) {
 				const { readBundle } = await import('./bundle.js');
+				// The screens a bundle declares also live in its screen and surface parts (the server reads the
+				// composed page), so the render screens come from every markup part
 				const marked = readBundle(args[2]).parts.filter(
-					(p) => p.kind === 'head' || p.kind === 'skeleton'
+					(p) =>
+						p.kind === 'head' ||
+						p.kind === 'skeleton' ||
+						p.kind === 'screen' ||
+						p.kind === 'surface'
 				);
 				try {
 					renders = await captureRenders({
