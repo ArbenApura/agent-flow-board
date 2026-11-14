@@ -539,7 +539,7 @@
 		<!-- ROW 2: THE SCREENS OF THE MOCKUP, THEN THE OPTIONS THAT APPLY TO THE SCREEN ON SHOW. NEVER WRAPS: THE STRIP AND THE OPTIONS SCROLL SIDEWAYS WHEN THEY ARE TOO LONG. NOTHING TO SHOW: NO ROW. A HIDDEN OPTION KEEPS ITS VALUE -->
 		{#if (config && config.screens.length > 1) || shownOptions.length}
 			<div
-				class="flex basis-full items-center gap-2 max-sm:order-3 sm:gap-3"
+				class="flex min-w-0 basis-full items-center gap-2 max-sm:order-3 sm:gap-3"
 				data-testid="mockup-row"
 			>
 				{#if config && config.screens.length > 1}
