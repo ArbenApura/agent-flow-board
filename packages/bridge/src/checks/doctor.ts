@@ -36,6 +36,7 @@ import {
 import {
 	DEV_WRITE_GUARD_NOTE,
 	type DevProbeResult,
+	allowlistHosts,
 	cleanDevUrl,
 	devConfigHash,
 	devStatusFixLine,
@@ -612,6 +613,12 @@ export async function runDoctor(
 						devStatusFixLine('DEV_ALLOWLIST_GET_REFUSED')!
 					);
 				}
+				if (devCheck.hostNotRegistered.length) {
+					found(
+						`${id}: DEV_ALLOWLIST_HOST_NOT_REGISTERED: The write allowlist names ${devCheck.hostNotRegistered.join(', ')}, which is not in --extra-hosts.`,
+						devStatusFixLine('DEV_ALLOWLIST_HOST_NOT_REGISTERED')!
+					);
+				}
 				if (devCheck.approvalMismatch) {
 					found(
 						`${id}: DEV_APPROVAL_REQUIRED: Sealed dev start command or write allowlist lacks matching owner approval.`,
@@ -709,6 +716,10 @@ export async function inspectDevRegistration(r: Registration, deps: HealthDeps =
 			['GET', 'HEAD', 'OPTIONS'].includes(String(rule.method).toUpperCase())
 		)
 	);
+	// A rule that names a host the registration does not list in extraHosts can never match, so say so
+	const hostNotRegistered = allowlistHosts(r.writeAllowlist ?? []).filter(
+		(h) => !(r.extraHosts ?? []).includes(h)
+	);
 	let approvalMismatch = false;
 	if ((r.startCommand && r.startCommand.length > 0) || r.allowWrites) {
 		if (!allowlistHasReadMethod) {
@@ -729,11 +740,13 @@ export async function inspectDevRegistration(r: Registration, deps: HealthDeps =
 		? probe.code
 		: allowlistHasReadMethod
 			? 'DEV_ALLOWLIST_GET_REFUSED'
-			: approvalMismatch
-				? 'DEV_APPROVAL_REQUIRED'
-				: expiredProfile
-					? 'DEV_PROFILE_EXPIRED'
-					: null;
+			: hostNotRegistered.length
+				? 'DEV_ALLOWLIST_HOST_NOT_REGISTERED'
+				: approvalMismatch
+					? 'DEV_APPROVAL_REQUIRED'
+					: expiredProfile
+						? 'DEV_PROFILE_EXPIRED'
+						: null;
 	const fixLine = code
 		? (devStatusFixLine(code) ?? '')
 				.replace('<NAME>', r.name)
@@ -760,6 +773,7 @@ export async function inspectDevRegistration(r: Registration, deps: HealthDeps =
 		fixLine,
 		databaseWarning,
 		allowlistHasReadMethod,
+		hostNotRegistered,
 		approvalMismatch,
 		expiredProfile
 	};

@@ -48,6 +48,10 @@ export const DEV_STATUS_FIX_LINES: Record<string, string> = {
 		'Point the dev server .env at a throwaway test database rather than port 5433 or a hosted production database.',
 	DEV_ALLOWLIST_GET_REFUSED:
 		'Only write methods (POST, PUT, PATCH, DELETE) belong in --write-allowlist; GET is not covered by approval.',
+	DEV_ALLOWLIST_HOST_NOT_REGISTERED:
+		'A write-allowlist entry that names a host ("POST https://<host>/path") needs that host in --extra-hosts on the same registration.',
+	DEV_WRITE_STOPPED:
+		'A POST to a data host is stopped by the write guard. If it only reads (a stable RPC), allow it by name: --write-allowlist "POST https://<host>/rest/v1/rpc/<name>" with --extra-hosts <host> and --allow-writes, then approve the new dev hash.',
 	DEV_APPROVAL_REQUIRED:
 		'Approve the dev configuration with: agent-flow-board check approve --request --action dev --target <NAME>.',
 	DEV_FALLBACK_READINESS:

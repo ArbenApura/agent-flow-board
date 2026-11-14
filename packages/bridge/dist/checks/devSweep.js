@@ -10,6 +10,7 @@ import { playwrightRuntimeDir } from './browser.js';
 import { acquireBrowser } from './browserpool.js';
 import { DEV_READINESS_INIT_SCRIPT, waitForDevReady } from './devReadiness.js';
 import { EARLY_CLS_INIT_SCRIPT, measureEarlyStockChecks, resetEarlyCls } from './earlyStockChecks.js';
+import { devStatusFixLine } from './devPolicy.js';
 import { describeWriteGuard, guardDevContext } from './guard.js';
 // -- CONSTANTS -- //
 export const DEFAULT_SWEEP_WIDTHS = [390, 768, 1280, 1440];
@@ -50,6 +51,7 @@ export async function runDevSweep(opts) {
     let firstDone = false;
     let warmStarted = 0;
     let observedMode = 'fallback';
+    let writeFixShown = false;
     try {
         for (const state of states) {
             const ctx = await browser.newContext({
@@ -65,7 +67,14 @@ export async function runDevSweep(opts) {
                 origin,
                 ...(opts.allowWrites && opts.writeAllowlist ? { writeAllowlist: opts.writeAllowlist } : {}),
                 extraHosts: opts.extraHosts ?? [],
-                onBlocked: (msg) => log(msg)
+                onBlocked: (msg) => {
+                    log(msg);
+                    // A stopped write is named once with the way to allow a read-only one, so an app that loads its profile through a POST is not a mystery
+                    if (!writeFixShown && msg.startsWith('stopped a ')) {
+                        writeFixShown = true;
+                        log(`DEV_WRITE_STOPPED: ${devStatusFixLine('DEV_WRITE_STOPPED') ?? ''}`);
+                    }
+                }
             });
             const page = await ctx.newPage();
             try {

@@ -2,7 +2,7 @@
 // --seeded signs in with a seeded account (AFB_CHECKS_<NAME>_EMAIL and _PASSWORD) or the recipe's test user, through the app's own form.
 // Without --seeded a person signs in by hand in a visible browser window on their own desktop. It needs the owner's `login` approval (a code, from the board or a terminal),
 // used up before the window opens, and a desktop session to show the window on. The window is a fresh temporary browser profile with no debugging port, deleted afterwards,
-// and the bridge does not return what is typed into it to the agent. The wait ends when a new session cookie of the site appears, the window is closed, or the time runs out.
+// and the bridge does not return what is typed into it to the agent. The wait ends when a new session cookie of the site appears (or, for an app that keeps its session in the browser, a new localStorage key or IndexedDB database, or a changed session-like key), the window is closed, or the time runs out.
 // Nothing here starts a preview itself: the caller injects `target`, and the sign in function is injected too, so tests launch no browser.
 // A cookie, a password or a token is never printed.
 // -- DEP-MODULES -- //
@@ -16,6 +16,7 @@ import { appendAudit } from './audit.js';
 import { loadPlaywright } from './browser.js';
 import { parseStartCommand } from './devPolicy.js';
 import { ensureDevServer } from './devServer.js';
+import { guardContext } from './guard.js';
 import { buildPreviewEnv } from './envPolicy.js';
 import { pathOf, programArgv } from './install.js';
 import { ORG_SLUG } from './paths.js';
@@ -117,6 +118,42 @@ const cookieId = (c) => {
     const k = c;
     return `${k.domain ?? ''}|${k.name ?? ''}`;
 };
+/** Names of a localStorage key or IndexedDB database that hold a session (supabase-js sb-<ref>-auth-token, firebase, plain auth, token or session names). */
+const SESSION_KEY = /^sb-|auth|token|session|jwt|firebaseLocalStorage/i;
+/**
+ * What the site keeps in the browser besides cookies: every localStorage key with its value, and the IndexedDB database names, per origin.
+ * Only the keys and a comparison are used, the values are never printed or returned.
+ */
+export function storageMarks(state) {
+    const marks = new Map();
+    const s = state;
+    for (const o of s?.origins ?? []) {
+        for (const item of o.localStorage ?? [])
+            marks.set(`ls|${o.origin ?? ''}|${item.name ?? ''}`, String(item.value ?? ''));
+        for (const db of o.indexedDB ?? [])
+            marks.set(`idb|${o.origin ?? ''}|${db.name ?? ''}`, '');
+    }
+    return marks;
+}
+/**
+ * Whether the browser now holds a sign-in it did not hold when the page loaded: a new cookie, a new session-named localStorage key or IndexedDB database,
+ * or a changed value of a session-named key. Any other key, or a key that was already there with the same value, is not a sign-in.
+ * A session kept only in sessionStorage is not seen, and the window then times out with nothing saved.
+ */
+export function gainedSignin(before, now) {
+    if (now.cookies.some((c) => !before.cookies.has(cookieId(c))))
+        return true;
+    for (const [key, value] of storageMarks(now)) {
+        // Only a key or database named like a session counts: an app writes theme, locale, analytics and flag keys by itself after the page loads
+        const name = key.split('|').slice(2).join('|');
+        if (!SESSION_KEY.test(name))
+            continue;
+        const old = before.marks.get(key);
+        if (old === undefined || (key.startsWith('ls|') && old !== value))
+            return true;
+    }
+    return false;
+}
 /**
  * The hosts a repo preview's window may reach: the preview itself WITH its port (another service on this machine, such as a dev server, is not the preview) and the sealed test
  * project's hosts. A request or link is compared by its `host` (name and port).
@@ -217,8 +254,15 @@ async function headedLogin(target, say, timeoutMs, ask = askLine) {
             });
         const page = context.pages()[0] ?? (await context.newPage());
         await page.goto(target.baseUrl);
-        const beforeState = keepRelated(await context.storageState(), hosts);
-        const before = new Set(beforeState.cookies.map(cookieId));
+        // An app writes some keys right after the load event, so the baseline waits for the network to settle first
+        await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
+        await new Promise((r) => setTimeout(r, 1500));
+        // IndexedDB is read too: an app that keeps its session there sets no cookie and no localStorage key
+        const beforeState = keepRelated(await context.storageState({ indexedDB: true }), hosts);
+        const before = {
+            cookies: new Set(beforeState.cookies.map(cookieId)),
+            marks: storageMarks(beforeState)
+        };
         say(`A browser window is open on ${target.baseUrl}. Sign in there the way you normally do (a password or Google). The bridge does not return what you type to your agent.`);
         if (target.mail) {
             say(`This preview sends mail only to ${target.mail.inbox}. Ask for a sign-in link in the window with any address, open that inbox, copy the link and paste it here. When you can see you are signed in, press Enter with nothing pasted. Do not close the window first.`);
@@ -243,14 +287,12 @@ async function headedLogin(target, say, timeoutMs, ask = askLine) {
                 }
                 let kept;
                 try {
-                    kept = keepRelated(await context.storageState(), hosts);
+                    kept = keepRelated(await context.storageState({ indexedDB: true }), hosts);
                 }
                 catch {
                     break;
                 }
-                const gained = kept.cookies.some((c) => !before.has(cookieId(c))) ||
-                    kept.origins.length > beforeState.origins.length;
-                if (!gained) {
+                if (!gainedSignin(before, kept)) {
                     say('Nothing is signed in yet. Open the link in the window first, then press Enter.');
                     continue;
                 }
@@ -265,15 +307,18 @@ async function headedLogin(target, say, timeoutMs, ask = askLine) {
                 break;
             let kept;
             try {
-                kept = keepRelated(await context.storageState(), hosts);
+                kept = keepRelated(await context.storageState({ indexedDB: true }), hosts);
             }
             catch {
                 break;
             }
-            if (kept.cookies.some((c) => !before.has(cookieId(c)))) {
-                // A short settle, so a sign in that sets several cookies is kept whole
+            if (gainedSignin(before, kept)) {
+                // A short settle, so a sign in that sets several cookies or keys is kept whole
                 await new Promise((r) => setTimeout(r, 2000));
-                return { state: 'signed-in', storage: keepRelated(await context.storageState(), hosts) };
+                return {
+                    state: 'signed-in',
+                    storage: keepRelated(await context.storageState({ indexedDB: true }), hosts)
+                };
             }
         }
         return closed ? { state: 'closed' } : { state: 'timeout' };
@@ -284,7 +329,7 @@ async function headedLogin(target, say, timeoutMs, ask = askLine) {
     }
 }
 /** Default one-line URL seeder: opens seedUrl only on baseUrl's origin in a throwaway context and returns storage state. */
-async function defaultSeedFromUrl(baseUrl, seedUrl) {
+async function defaultSeedFromUrl(baseUrl, seedUrl, _profile, extraHosts = []) {
     const base = new URL(baseUrl);
     const seed = new URL(seedUrl, base);
     if (seed.origin !== base.origin) {
@@ -294,15 +339,10 @@ async function defaultSeedFromUrl(baseUrl, seedUrl) {
     const browser = await chromium.launch({ headless: true });
     try {
         const context = await browser.newContext();
-        await context.route('**/*', async (route) => {
-            try {
-                if (new URL(route.request().url()).origin !== base.origin)
-                    return route.abort();
-            }
-            catch {
-                return route.abort();
-            }
-            return route.continue();
+        // The app may validate the session against its data host (extra hosts of the registration), so those are reachable, read-only like a normal run; every other host and every write is stopped
+        await guardContext(context, {
+            origin: base.origin,
+            extraHosts
         });
         const page = await context.newPage();
         await page.goto(seed.toString(), { waitUntil: 'networkidle', timeout: 15_000 }).catch(() => { });
@@ -510,7 +550,7 @@ export async function loginCommand(args, ctx) {
                     say(`Seeded URL origin ${parsedSeed.origin} must match the registration target ${base.origin}.`);
                     return 1;
                 }
-                state = await (deps.seedFromUrl ?? defaultSeedFromUrl)(target.baseUrl, parsedSeed.toString(), profile);
+                state = await (deps.seedFromUrl ?? defaultSeedFromUrl)(target.baseUrl, parsedSeed.toString(), profile, target.hosts ?? registration.extraHosts ?? []);
             }
             else {
                 if (seededArg) {

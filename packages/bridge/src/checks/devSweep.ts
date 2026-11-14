@@ -25,6 +25,7 @@ import {
 	resetEarlyCls,
 	type EarlyCheckPageLike
 } from './earlyStockChecks.js';
+import { devStatusFixLine } from './devPolicy.js';
 import { describeWriteGuard, guardDevContext, type ContextLike } from './guard.js';
 
 // -- TYPES -- //
@@ -153,6 +154,7 @@ export async function runDevSweep(opts: DevSweepOptions): Promise<DevSweepReport
 	let firstDone = false;
 	let warmStarted = 0;
 	let observedMode: DevReadinessMode = 'fallback';
+	let writeFixShown = false;
 
 	try {
 		for (const state of states) {
@@ -169,7 +171,14 @@ export async function runDevSweep(opts: DevSweepOptions): Promise<DevSweepReport
 				origin,
 				...(opts.allowWrites && opts.writeAllowlist ? { writeAllowlist: opts.writeAllowlist } : {}),
 				extraHosts: opts.extraHosts ?? [],
-				onBlocked: (msg) => log(msg)
+				onBlocked: (msg) => {
+					log(msg);
+					// A stopped write is named once with the way to allow a read-only one, so an app that loads its profile through a POST is not a mystery
+					if (!writeFixShown && msg.startsWith('stopped a ')) {
+						writeFixShown = true;
+						log(`DEV_WRITE_STOPPED: ${devStatusFixLine('DEV_WRITE_STOPPED') ?? ''}`);
+					}
+				}
 			});
 
 			const page = await ctx.newPage();

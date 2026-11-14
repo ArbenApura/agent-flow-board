@@ -25,6 +25,7 @@ import { appDirText, normalizeAppDir, walkAppDir } from './appdir.js';
 import { Refusal, consumeApproval, peekApproval, sameMac, seal } from './approve.js';
 import {
 	cleanDevUrl,
+	allowlistHosts,
 	cleanWriteAllowlist,
 	devApprovalTarget,
 	devConfigHash,
@@ -235,7 +236,11 @@ function parseRegistration(v: unknown, org: string): Registration | null {
 		!(
 			Array.isArray(v.writeAllowlist) &&
 			v.writeAllowlist.every(
-				(r) => isRecord(r) && typeof r.method === 'string' && typeof r.pathPrefix === 'string'
+				(r) =>
+					isRecord(r) &&
+					typeof r.method === 'string' &&
+					typeof r.pathPrefix === 'string' &&
+					(r.host === undefined || typeof r.host === 'string')
 			)
 		)
 	)
@@ -618,6 +623,14 @@ export function registerProject(
 				: [];
 			if (writeAllowlist.length && !allowWrites)
 				throw new Refusal('A write allowlist requires allowWrites to be explicitly opted in.');
+			// A rule that names a host only works for a host the registration already reaches, so an allowlist never widens the reach
+			const unlisted = allowlistHosts(writeAllowlist).filter(
+				(h) => !(reg.extraHosts ?? []).includes(h)
+			);
+			if (unlisted.length)
+				throw new Refusal(
+					`The write allowlist names ${unlisted.join(', ')}, which is not in --extra-hosts. Add it there first.`
+				);
 			if (allowWrites) reg.allowWrites = true;
 			if (writeAllowlist.length) reg.writeAllowlist = writeAllowlist;
 		} catch (e) {

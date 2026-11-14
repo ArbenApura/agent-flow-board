@@ -17,7 +17,7 @@ import { forgetConnection, listConnections } from './connections.js';
 import { listPools, sweepPool } from './dbpool.js';
 import { acquireLock, lockHolderPid, pidAlive } from './lock.js';
 import { NAME, brokerDir, checksHome, copiesDir, endedPath, locksDir, logDirFor, markerPath, poolDir, runsDir, under } from './paths.js';
-import { DEV_WRITE_GUARD_NOTE, cleanDevUrl, devConfigHash, devStatusFixLine, inspectDevEnvDatabase, probeDevUrl } from './devPolicy.js';
+import { DEV_WRITE_GUARD_NOTE, allowlistHosts, cleanDevUrl, devConfigHash, devStatusFixLine, inspectDevEnvDatabase, probeDevUrl } from './devPolicy.js';
 import { DEFAULT_PROFILE, expiryNote, fileNameFor, listProfiles, loadProfileChecked, removeProfile } from './profiles.js';
 import { findRegistration, nameClash, nameShadowsBoard, pinRegistration, pinState, readRegistrations, repoHeldBySibling } from './registry.js';
 import { rootHolding } from './roots.js';
@@ -424,6 +424,9 @@ export async function runDoctor(ctx, opts, deps = {}) {
                 if (devCheck.allowlistHasReadMethod) {
                     found(`${id}: DEV_ALLOWLIST_GET_REFUSED: An allowlist entry on a GET/HEAD/OPTIONS path is not covered by the approval.`, devStatusFixLine('DEV_ALLOWLIST_GET_REFUSED'));
                 }
+                if (devCheck.hostNotRegistered.length) {
+                    found(`${id}: DEV_ALLOWLIST_HOST_NOT_REGISTERED: The write allowlist names ${devCheck.hostNotRegistered.join(', ')}, which is not in --extra-hosts.`, devStatusFixLine('DEV_ALLOWLIST_HOST_NOT_REGISTERED'));
+                }
                 if (devCheck.approvalMismatch) {
                     found(`${id}: DEV_APPROVAL_REQUIRED: Sealed dev start command or write allowlist lacks matching owner approval.`, devStatusFixLine('DEV_APPROVAL_REQUIRED').replace('<NAME>', r.name));
                 }
@@ -504,6 +507,8 @@ export async function inspectDevRegistration(r, deps = {}) {
             : { nonThrowaway: false, problems: [] };
     const databaseWarning = dbCheck.nonThrowaway ? dbCheck.problems.join('; ') : null;
     const allowlistHasReadMethod = Boolean(r.writeAllowlist?.some((rule) => ['GET', 'HEAD', 'OPTIONS'].includes(String(rule.method).toUpperCase())));
+    // A rule that names a host the registration does not list in extraHosts can never match, so say so
+    const hostNotRegistered = allowlistHosts(r.writeAllowlist ?? []).filter((h) => !(r.extraHosts ?? []).includes(h));
     let approvalMismatch = false;
     if ((r.startCommand && r.startCommand.length > 0) || r.allowWrites) {
         if (!allowlistHasReadMethod) {
@@ -525,11 +530,13 @@ export async function inspectDevRegistration(r, deps = {}) {
         ? probe.code
         : allowlistHasReadMethod
             ? 'DEV_ALLOWLIST_GET_REFUSED'
-            : approvalMismatch
-                ? 'DEV_APPROVAL_REQUIRED'
-                : expiredProfile
-                    ? 'DEV_PROFILE_EXPIRED'
-                    : null;
+            : hostNotRegistered.length
+                ? 'DEV_ALLOWLIST_HOST_NOT_REGISTERED'
+                : approvalMismatch
+                    ? 'DEV_APPROVAL_REQUIRED'
+                    : expiredProfile
+                        ? 'DEV_PROFILE_EXPIRED'
+                        : null;
     const fixLine = code
         ? (devStatusFixLine(code) ?? '')
             .replace('<NAME>', r.name)
@@ -555,6 +562,7 @@ export async function inspectDevRegistration(r, deps = {}) {
         fixLine,
         databaseWarning,
         allowlistHasReadMethod,
+        hostNotRegistered,
         approvalMismatch,
         expiredProfile
     };

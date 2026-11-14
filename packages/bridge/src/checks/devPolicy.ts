@@ -17,6 +17,8 @@ export type WriteMethod = (typeof WRITE_METHODS)[number];
 export type WriteRule = {
 	method: WriteMethod;
 	pathPrefix: string;
+	/** Absent: the dev origin only. Present (host or host:port): that one registered extra host only, for example a read-only RPC POST to a data host. */
+	host?: string;
 };
 
 export type DevHashInput = {
@@ -31,7 +33,7 @@ export type DevProbeResult =
 	| { ok: false; code: 'DEV_URL_UNREACHABLE' | 'DEV_CROSS_HOST_REDIRECT'; message: string };
 
 export const DEV_WRITE_GUARD_NOTE =
-	'Browser-layer only (service workers blocked, all HTTP methods, sendBeacon and WebSocket routed through the guard).';
+	'Browser-layer only (service workers blocked, all HTTP methods, sendBeacon and WebSocket routed through the guard). A write to an extra host passes only when an allowlist entry names that host, method and path.';
 
 export const DEV_STATUS_FIX_LINES: Record<string, string> = {
 	DEV_URL_REACHABLE: 'Dev server is reachable.',
@@ -55,6 +57,10 @@ export const DEV_STATUS_FIX_LINES: Record<string, string> = {
 		'Point the dev server .env at a throwaway test database rather than port 5433 or a hosted production database.',
 	DEV_ALLOWLIST_GET_REFUSED:
 		'Only write methods (POST, PUT, PATCH, DELETE) belong in --write-allowlist; GET is not covered by approval.',
+	DEV_ALLOWLIST_HOST_NOT_REGISTERED:
+		'A write-allowlist entry that names a host ("POST https://<host>/path") needs that host in --extra-hosts on the same registration.',
+	DEV_WRITE_STOPPED:
+		'A POST to a data host is stopped by the write guard. If it only reads (a stable RPC), allow it by name: --write-allowlist "POST https://<host>/rest/v1/rpc/<name>" with --extra-hosts <host> and --allow-writes, then approve the new dev hash.',
 	DEV_APPROVAL_REQUIRED:
 		'Approve the dev configuration with: agent-flow-board check approve --request --action dev --target <NAME>.',
 	DEV_FALLBACK_READINESS:
@@ -209,22 +215,54 @@ function splitArgvWords(input: string): string[] {
 	return out;
 }
 
-/** Normalises and validates write-allowlist rules. Refuses GET/HEAD/OPTIONS and invalid paths. */
+/** Splits "https://host/path" into its host (with port, lowercase) and path. Refuses a user name, query, hash or wildcard. */
+function splitHostPath(raw: string): { host: string; path: string } {
+	let u: URL;
+	try {
+		u = new URL(raw);
+	} catch {
+		throw new Error(`Write allowlist address "${raw.slice(0, 60)}" is not a valid address.`);
+	}
+	if (u.protocol !== 'http:' && u.protocol !== 'https:')
+		throw new Error('Write allowlist addresses must use http:// or https://.');
+	if (u.username || u.password || u.search || u.hash || raw.includes('*'))
+		throw new Error(
+			`Write allowlist address "${raw.slice(0, 60)}" must be a host and a fixed path only.`
+		);
+	return { host: u.host.toLowerCase(), path: u.pathname };
+}
+
+/** Normalises and validates write-allowlist rules. Refuses GET/HEAD/OPTIONS and invalid paths. An entry may name a host: "POST https://host/path". */
 export function cleanWriteAllowlist(rules: readonly (string | WriteRule)[]): WriteRule[] {
 	const out: WriteRule[] = [];
 	const seen = new Set<string>();
 	for (const entry of rules) {
 		let methodRaw: string;
 		let pathRaw: string;
+		let hostRaw = '';
 		if (typeof entry === 'string') {
 			const m = /^([A-Za-z]+)\s+(\S+)$/.exec(entry.trim());
 			if (!m)
-				throw new Error(`Write allowlist entry "${entry.slice(0, 40)}" must be "METHOD /path".`);
+				throw new Error(
+					`Write allowlist entry "${entry.slice(0, 40)}" must be "METHOD /path" or "METHOD https://host/path".`
+				);
 			methodRaw = m[1]!;
 			pathRaw = m[2]!;
+			if (/^https?:\/\//i.test(pathRaw)) {
+				const parts = splitHostPath(pathRaw);
+				hostRaw = parts.host;
+				pathRaw = parts.path;
+			}
 		} else {
 			methodRaw = String(entry?.method ?? '').trim();
 			pathRaw = String(entry?.pathPrefix ?? '').trim();
+			hostRaw = String(entry?.host ?? '')
+				.trim()
+				.toLowerCase();
+			if (hostRaw && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?$/.test(hostRaw))
+				throw new Error(
+					`Write allowlist host "${hostRaw.slice(0, 60)}" must be a plain host name, with an optional port.`
+				);
 		}
 		const method = methodRaw.toUpperCase();
 		if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS')
@@ -237,26 +275,43 @@ export function cleanWriteAllowlist(rules: readonly (string | WriteRule)[]): Wri
 			throw new Error(
 				`Write allowlist path "${pathRaw.slice(0, 60)}" must be a fixed path prefix starting with /.`
 			);
-		const key = `${method} ${pathRaw}`;
+		if (hostRaw && pathRaw === '/')
+			throw new Error('A write-allowlist entry on another host needs a path, not the whole host.');
+		const key = `${method} ${hostRaw}${pathRaw}`;
 		if (!seen.has(key)) {
 			seen.add(key);
-			out.push({ method: method as WriteMethod, pathPrefix: pathRaw });
+			// The host key exists only on a host rule, so the hash of an own-origin rule stays what it was
+			out.push({
+				method: method as WriteMethod,
+				pathPrefix: pathRaw,
+				...(hostRaw ? { host: hostRaw } : {})
+			});
 		}
 	}
-	out.sort((a, b) => `${a.method} ${a.pathPrefix}`.localeCompare(`${b.method} ${b.pathPrefix}`));
+	const sortKey = (r: WriteRule) => `${r.method} ${r.host ?? ''}${r.pathPrefix}`;
+	out.sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
 	return out;
+}
+
+/** The host names (without port) that the host rules of an allowlist name, for the check against --extra-hosts. */
+export function allowlistHosts(rules: readonly WriteRule[]): string[] {
+	return [
+		...new Set(rules.filter((r) => r.host).map((r) => (r.host as string).replace(/:\d+$/, '')))
+	];
 }
 
 /** True when a write request matches one of the approved method+pathPrefix rules. */
 export function writeRuleAllowed(
 	method: string,
 	pathname: string,
-	rules: readonly WriteRule[]
+	rules: readonly WriteRule[],
+	host?: string
 ): boolean {
 	const m = method.toUpperCase();
 	return rules.some(
 		(r) =>
 			r.method === m &&
+			(r.host || undefined) === (host?.toLowerCase() || undefined) &&
 			(pathname === r.pathPrefix ||
 				pathname.startsWith(r.pathPrefix.endsWith('/') ? r.pathPrefix : `${r.pathPrefix}/`) ||
 				r.pathPrefix === '/')

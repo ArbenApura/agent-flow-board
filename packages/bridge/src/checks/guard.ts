@@ -39,6 +39,8 @@ export interface ContextLike {
 export interface GuardWriteRule {
 	method: string;
 	pathPrefix: string;
+	/** Absent: the app's own origin. Present (host or host:port): that one extra host only. */
+	host?: string;
 }
 export type GuardOptions = {
 	/** The origin of the app under test, for example http://127.0.0.1:4173. */
@@ -184,12 +186,14 @@ export async function guardContext(
 	}: GuardOptions
 ): Promise<GuardCounts> {
 	const counts: GuardCounts = { writes: 0, outside: 0 };
-	const matchAllowlist = (method: string, pathname: string): boolean => {
-		if (!writeAllowlist) return true;
+	// A rule without a host covers the app's own origin; a rule with a host covers that one registered extra host and nothing else
+	const matchAllowlist = (method: string, pathname: string, host?: string): boolean => {
+		if (!writeAllowlist) return host === undefined;
 		const m = method.toUpperCase();
 		return writeAllowlist.some(
 			(r) =>
 				r.method.toUpperCase() === m &&
+				(r.host?.toLowerCase() || undefined) === host &&
 				(pathname === r.pathPrefix ||
 					r.pathPrefix === '/' ||
 					pathname.startsWith(r.pathPrefix.endsWith('/') ? r.pathPrefix : `${r.pathPrefix}/`))
@@ -205,9 +209,15 @@ export async function guardContext(
 			return route.abort();
 		}
 		if (!READ_METHODS.has(req.method())) {
-			const pathname = new URL(url).pathname;
+			const parsed = new URL(url);
+			const pathname = parsed.pathname;
+			// A host rule needs the host in extraHosts too, so an approval never widens what the page may reach
 			const permitted =
-				allowWrites && sameOrigin(url, origin) && matchAllowlist(req.method(), pathname);
+				allowWrites &&
+				(sameOrigin(url, origin)
+					? matchAllowlist(req.method(), pathname)
+					: extraHosts.includes(parsed.hostname) &&
+						matchAllowlist(req.method(), pathname, parsed.host.toLowerCase()));
 			if (!permitted) {
 				counts.writes++;
 				onBlocked(`stopped a ${req.method()} to ${pathname}`);

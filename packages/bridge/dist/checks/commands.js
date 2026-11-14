@@ -81,7 +81,7 @@ const show = (ctx, value, lines) => {
 export const PROJECT_USAGE = [
     '  project <NAME> --org <slug> --repo <dir> [--app-dir web] [--board-project KEY] [--recipe] [--extra-hosts a,b]',
     '  project <NAME> --org <slug> --url https://site [--board-project KEY] [--extra-hosts a,b] --approval <code>',
-    '  project <NAME> --org <slug> --dev-url http://localhost:5173 [--start "<cmd>"] [--allow-writes --write-allowlist "POST /api"] [--dev-approval <code>] [--board-project KEY]',
+    '  project <NAME> --org <slug> --dev-url http://localhost:5173 [--start "<cmd>"] [--allow-writes --write-allowlist "POST /api,POST https://<extra-host>/rest/v1/rpc/<read-only-name>"] [--dev-approval <code>] [--board-project KEY]',
     '  project list [--org <slug>]  |  project forget <NAME> --org <slug> [--remove | --profile <name>]  |  project pin <NAME> --org <slug>  |  project profiles <NAME> --org <slug>'
 ].join('\n');
 /** `check project ...`: register, list, forget or pin a registration. */

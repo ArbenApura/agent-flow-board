@@ -9,7 +9,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { appendAudit } from './audit.js';
 import { appDirText, normalizeAppDir, walkAppDir } from './appdir.js';
 import { Refusal, consumeApproval, peekApproval, sameMac, seal } from './approve.js';
-import { cleanDevUrl, cleanWriteAllowlist, devApprovalTarget, devConfigHash, parseStartCommand, rejectBoardStartCommand } from './devPolicy.js';
+import { cleanDevUrl, allowlistHosts, cleanWriteAllowlist, devApprovalTarget, devConfigHash, parseStartCommand, rejectBoardStartCommand } from './devPolicy.js';
 import { FORBIDDEN_PORTS, checkRepoFolder } from './guardrails.js';
 import { withLockSync } from './lock.js';
 import { ORG_SLUG, ensureDir, registrationsDir, stateDirFor } from './paths.js';
@@ -168,7 +168,10 @@ function parseRegistration(v, org) {
         return null;
     if (v.writeAllowlist !== undefined &&
         !(Array.isArray(v.writeAllowlist) &&
-            v.writeAllowlist.every((r) => isRecord(r) && typeof r.method === 'string' && typeof r.pathPrefix === 'string')))
+            v.writeAllowlist.every((r) => isRecord(r) &&
+                typeof r.method === 'string' &&
+                typeof r.pathPrefix === 'string' &&
+                (r.host === undefined || typeof r.host === 'string'))))
         return null;
     const repo = str('repo');
     const appDir = str('appDir');
@@ -524,6 +527,10 @@ export function registerProject(input, approvals = {}) {
                 : [];
             if (writeAllowlist.length && !allowWrites)
                 throw new Refusal('A write allowlist requires allowWrites to be explicitly opted in.');
+            // A rule that names a host only works for a host the registration already reaches, so an allowlist never widens the reach
+            const unlisted = allowlistHosts(writeAllowlist).filter((h) => !(reg.extraHosts ?? []).includes(h));
+            if (unlisted.length)
+                throw new Refusal(`The write allowlist names ${unlisted.join(', ')}, which is not in --extra-hosts. Add it there first.`);
             if (allowWrites)
                 reg.allowWrites = true;
             if (writeAllowlist.length)
