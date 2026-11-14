@@ -84,17 +84,13 @@ describe('D.1-D.3 derived mockup assets & D.7 project lens packs', () => {
 		const validBrief = `### Mockup inventory
 - Top header data-ref="top-bar" [built]
 - Summary block hook: summary-card [built]`;
-		expect(verifyDesignBriefHookCitations(validBrief, known, true)).toEqual({
-			missingHooks: [],
-			uncitedLines: []
-		});
+		expect(verifyDesignBriefHookCitations(validBrief, known)).toEqual({ missingHooks: [] });
 
 		const invalidBrief = `### Mockup inventory
 - Unknown widget data-ref="ghost-panel" [built]
-- Uncited row without hook attribute [built]`;
-		const check = verifyDesignBriefHookCitations(invalidBrief, known, true);
+- Row without a hook attribute [built]`;
+		const check = verifyDesignBriefHookCitations(invalidBrief, known);
 		expect(check.missingHooks).toEqual(['data-ref=ghost-panel']);
-		expect(check.uncitedLines).toHaveLength(1);
 	});
 
 	it('stores and serves derived mockup assets on publishMockup + getMockupDerived', async () => {

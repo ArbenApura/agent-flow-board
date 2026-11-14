@@ -6,7 +6,6 @@ import type { Ctx } from './context';
 import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // IMPORTED MODULES
-import { effectiveStepVisible } from '../../shared/screenGlobs';
 import { recalcItem } from '../db/calc';
 import { undoEvent, type UndoResult } from '../db/events';
 import {
@@ -19,20 +18,13 @@ import {
 	note,
 	noteFile,
 	noteFolder,
-	project,
 	step,
 	task
 } from '../db/schema';
 import { mockupUnreadError, planWorked, unreadForGate } from './mockupReads';
 import { canSeeMockup } from './mockups';
-import { OpError, isLivePersonSession, requireCap, run } from './context';
+import { OpError, requireCap, run } from './context';
 import { lockTree } from './noteFolders';
-import {
-	checkSliceGateHold,
-	compareCommandHint,
-	loadItemVisualContext,
-	verifyCompareEvidenceForStep
-} from './visibleSteps';
 import {
 	canSeeItem,
 	findItem,
@@ -142,12 +134,6 @@ const changesVisibility = (ev: { before: unknown; after: unknown }) =>
 		(v) => typeof v === 'object' && v !== null && Object.hasOwn(v as object, 'visibility')
 	);
 
-/** Does this change alter item.sliceGate? Only a person in a live web session can reverse a vertical-slice gate change. */
-const changesSliceGate = (ev: { before: unknown; after: unknown }) =>
-	[ev.before, ev.after].some(
-		(v) => typeof v === 'object' && v !== null && Object.hasOwn(v as object, 'sliceGate')
-	);
-
 /**
  * May this person undo a change to this item? A hidden item answers not-found, and a change of its visibility is the
  * creator's alone, the same rule as updateItem.
@@ -195,118 +181,6 @@ async function undoMockupHold(
 	return unread.length ? unread : null;
 }
 
-/**
- * Holds undo for non-live-person callers when reversing an action would close/remove a visible step without valid compare evidence (C.6).
- */
-async function undoVisualHold(
-	tx: Parameters<Parameters<typeof run>[1]>[0],
-	ctx: Ctx,
-	ev: {
-		itemId: string | null;
-		targetId?: string | null;
-		verb: string;
-		before: unknown;
-		after: unknown;
-	}
-): Promise<OpError | null> {
-	if (isLivePersonSession(ctx) || !ev.itemId) return null;
-	if (changesSliceGate(ev)) {
-		return new OpError(
-			'FORBIDDEN',
-			'Only a person in a live web session can undo a vertical-slice gate change.'
-		);
-	}
-	const [it] = await tx
-		.select({ id: item.id, ref: item.ref, projectId: item.projectId, sliceGate: item.sliceGate })
-		.from(item)
-		.where(eq(item.id, ev.itemId));
-	if (!it) return null;
-	const [proj] = await tx
-		.select({ visualEvidenceGate: project.visualEvidenceGate })
-		.from(project)
-		.where(eq(project.id, it.projectId));
-	if (!proj?.visualEvidenceGate && !it.sliceGate) return null;
-
-	const before = ev.before as {
-		state?: string;
-		evidence?: { checkRunId?: string; runIds?: string[]; waived?: unknown } | null;
-	} | null;
-	const after = ev.after as { state?: string; key?: string } | null;
-	if (
-		ev.verb === 'step.update' &&
-		after?.state === 'open' &&
-		typeof after.key === 'string' &&
-		['done', 'waived', 'superseded'].includes(before?.state ?? '') &&
-		ev.targetId
-	) {
-		const [st] = await tx
-			.select({
-				key: step.key,
-				visible: step.visible,
-				visibleInferred: step.visibleInferred,
-				screens: step.screens,
-				widths: step.widths
-			})
-			.from(step)
-			.where(eq(step.id, ev.targetId));
-		if (st && it.sliceGate) {
-			const sliceHold = await checkSliceGateHold(tx, ctx, it, [ev.targetId]);
-			if (sliceHold) return sliceHold.error;
-		}
-		if (proj?.visualEvidenceGate && st && effectiveStepVisible(st)) {
-			const hadCompare =
-				before?.state === 'done' &&
-				Boolean(before?.evidence?.checkRunId || before?.evidence?.runIds?.length);
-			if (!hadCompare) {
-				const cmd = compareCommandHint(it.ref, st.key, st.screens ?? [], st.widths ?? []);
-				return new OpError(
-					'VISUAL_EVIDENCE_REQUIRED',
-					`Undoing reopen of visible step ${st.key} on ${it.ref} requires compare evidence or a live person web session. Run: ${cmd}`,
-					{ reason: 'visual-evidence', step: st.key, nextCommand: cmd }
-				);
-			}
-			try {
-				const vis = await loadItemVisualContext(tx, ctx, it.id, it.projectId);
-				await verifyCompareEvidenceForStep(
-					tx,
-					ctx,
-					it,
-					{
-						key: st.key,
-						screens: st.screens ?? [],
-						widths: st.widths ?? [],
-						evidence: null
-					},
-					vis,
-					{
-						checkRunId: before?.evidence?.checkRunId,
-						runIds: before?.evidence?.runIds
-					}
-				);
-			} catch (e) {
-				if (e instanceof OpError) return e;
-				throw e;
-			}
-		}
-	}
-
-	if (ev.verb === 'phase.create' || ev.verb === 'step.create') {
-		const visibleRows = await tx
-			.select({ key: step.key, visible: step.visible, visibleInferred: step.visibleInferred })
-			.from(step)
-			.where(and(eq(step.itemId, it.id), eq(step.state, 'open')));
-		const firstVisible = visibleRows.find((s) => effectiveStepVisible(s));
-		if (firstVisible) {
-			return new OpError(
-				'VISUAL_EVIDENCE_REQUIRED',
-				`Undoing ${ev.verb} on ${it.ref} could remove or bypass open visible step ${firstVisible.key}. Leave it to a person in a live web session.`,
-				{ reason: 'visual-evidence', step: firstVisible.key }
-			);
-		}
-	}
-	return null;
-}
-
 /** Reverses one change with a compensating event. A conflict (the thing changed again since) is reported, not forced. */
 export async function undoChange(
 	ctx: Ctx,
@@ -330,8 +204,6 @@ export async function undoChange(
 		// A change to an item this person cannot see is not theirs to undo, and looks the same as one that does not exist
 		const refused = await undoGate(tx, ctx, ev);
 		if (refused) return refused;
-		const visualHold = await undoVisualHold(tx, ctx, ev);
-		if (visualHold) throw visualHold;
 		const held = await undoMockupHold(tx, ctx, ev);
 		if (held) throw mockupUnreadError(held, 'change');
 		const res = await undoEvent(
@@ -394,11 +266,6 @@ export async function undoSession(ctx: Ctx, sessionId: string) {
 			const refused = await undoGate(tx, ctx, e);
 			if (refused && !refused.ok) {
 				skipped.push({ id: e.id, reason: refused.reason });
-				continue;
-			}
-			// A visible step reopened without verified compare evidence stays open for non-live-person callers
-			if (await undoVisualHold(tx, ctx, e)) {
-				skipped.push({ id: e.id, reason: 'visual-evidence-required' });
 				continue;
 			}
 			// A step an agent would close again while the plan's mockup is unread stays as it is

@@ -7,7 +7,6 @@ import type { ItemHealth } from './schema';
 // IMPORTED DEP-MODULES
 import { and, eq, inArray, sql } from 'drizzle-orm';
 // IMPORTED MODULES
-import { computeVisualProgress } from '../../shared/progress';
 import { item, manualCheck, step } from './schema';
 
 // -- TYPES -- //
@@ -61,7 +60,7 @@ export async function countsFor(tx: Tx, itemId: string): Promise<Counts> {
 	return { total: s.total, done: s.done, openManual: m.open };
 }
 
-/** Computes health flags, drift warnings, and honest visual-progress summary for one item. */
+/** Computes health flags and drift warnings for one item. */
 export async function computeHealthForItem(
 	tx: Tx,
 	itemId: string,
@@ -72,27 +71,9 @@ export async function computeHealthForItem(
 ): Promise<ItemHealth> {
 	const c = counts ?? (await countsFor(tx, itemId));
 	const legacy = legacyPercent !== null;
-	const stepRows = legacy
-		? []
-		: await tx
-				.select({
-					state: step.state,
-					visible: step.visible,
-					visibleInferred: step.visibleInferred,
-					evidence: step.evidence
-				})
-				.from(step)
-				.where(eq(step.itemId, itemId));
-	const visProg = computeVisualProgress(stepRows, { legacyPercent, status });
-	const cleanFlags = existingFlags.filter((f) => f !== 'unverified-visually');
-	const flags = visProg.unverifiedVisually ? [...cleanFlags, 'unverified-visually'] : cleanFlags;
-	return {
-		flags,
-		drift: driftFlags({ status, legacy, ...c }),
-		verifiedPercent: visProg.verifiedPercent,
-		visibleTotal: visProg.visibleTotal,
-		visibleVerified: visProg.visibleVerified
-	};
+	// A flag the removed visual evidence gate used to write is dropped the next time an item is recalculated
+	const flags = existingFlags.filter((f) => f !== 'unverified-visually');
+	return { flags, drift: driftFlags({ status, legacy, ...c }) };
 }
 
 /** Recomputes and stores percent, counts and drift flags. Call it inside the transaction that changed a step or check. */

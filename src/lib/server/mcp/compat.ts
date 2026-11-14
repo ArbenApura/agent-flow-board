@@ -40,7 +40,6 @@ const stepMark = z.object({
 			commit: z.string().optional(),
 			checkRunId: z.string().optional(),
 			runIds: z.array(z.string()).optional(),
-			diffReportId: z.string().optional(),
 			target: z.enum(['dev', 'preview', 'deployed']).optional(),
 			note: z.string().optional()
 		})

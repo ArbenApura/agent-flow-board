@@ -184,7 +184,7 @@ The user is often disappointed because a generated screen comes out bigger, busi
 (example) the root `CLAUDE.md` "Design fit" list, `DESIGN.md`, `.claude/skills/coding-guidelines/design-fit.md`, `tests/ui-shots/scale.json`; the user checks screens on the local dev server at port 5180.
 
 - [ ] **Say what could not be seen, or refuse `APPROVED` if mockup evidence is missing**
-  When the plan has a linked mockup and either picture pairs (`{UI_SHOTS_DIR}`) or the compare measurements/diff JSON (`{COMPARE_DIFF_JSON}`) are missing or `none`, refuse `APPROVED`, mark the verdict `Not checked`, and raise a `HIGH` finding asking for `check compare` first. Otherwise, when no picture check applies (no mockup and no visual step), name the screens the diff changes and say plainly that no picture was looked at because the user checks them.
+  When picture pairs (`{UI_SHOTS_DIR}`) or the compare measurements/diff JSON (`{COMPARE_DIFF_JSON}`) are given, inspect them. When none are given, name the screens the diff changes and say plainly that no picture was looked at because the user checks them.
 - [ ] **Nothing larger than its neighbours**
   For each screen the diff changes, in the classes it sets for desktop and phone widths and for both modes: is any title, section heading, button, field, card, row, picture or icon larger than the same level on the sibling pages? Compare the style classes with the sibling page's at the same level; a larger one is a `HIGH` finding with both values, unless it is a different kind of control or a state the sibling does not have (say why). A size that existed before the change is not introduced by it.
 - [ ] **No new size or pattern where an existing one fits**

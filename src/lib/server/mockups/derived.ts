@@ -1,7 +1,7 @@
 // DERIVED MOCKUP ASSETS (OUTLINE, HOOKS, TOKENS, SNAPSHOT, SHOTS) AND DESIGN-BRIEF HOOK VERIFICATION (D.1, D.2, D.3)
 
 // IMPORTED MODULES
-import { extractMockupScreensFromHtml, type NamedMockupScreen } from '../../shared/screenGlobs';
+import { extractMockupScreensFromHtml, type NamedMockupScreen } from '../../shared/mockupScreens';
 import { segmentMockupHtml, type CharRange, type MockupSegment } from './segments';
 
 // -- TYPES -- //
@@ -199,11 +199,9 @@ export function extractMockupDerived(
 /** Extracts cited hook identifiers from `design-brief` inventory lines and checks them against known mockup hooks. */
 export function verifyDesignBriefHookCitations(
 	briefBody: string,
-	knownHooks: Set<string>,
-	requireHookPerInventoryLine: boolean
-): { missingHooks: string[]; uncitedLines: string[] } {
+	knownHooks: Set<string>
+): { missingHooks: string[] } {
 	const missingHooks: string[] = [];
-	const uncitedLines: string[] = [];
 
 	const lines = briefBody.split(/\r?\n/);
 	let inInventory = false;
@@ -231,9 +229,6 @@ export function verifyDesignBriefHookCitations(
 			const val = m[1].trim();
 			if (val) lineHooks.push(val);
 		}
-		if (requireHookPerInventoryLine && !lineHooks.length) {
-			uncitedLines.push(trimmed.slice(0, 120));
-		}
 		for (const hk of lineHooks) {
 			const normalized = hk.replace(/^['"]|['"]$/g, '');
 			if (!knownHooks.has(normalized) && !knownHooks.has(normalized.toLowerCase())) {
@@ -242,8 +237,5 @@ export function verifyDesignBriefHookCitations(
 		}
 	}
 
-	return {
-		missingHooks: [...new Set(missingHooks)],
-		uncitedLines
-	};
+	return { missingHooks: [...new Set(missingHooks)] };
 }

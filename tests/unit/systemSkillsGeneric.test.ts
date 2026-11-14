@@ -89,14 +89,6 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			pattern: /cannot be read to the end even in parts[^\n]*is reason 4 to stop/
 		},
 		{
-			rule: 'visual-evidence tools and sliceGate rules are documented',
-			pattern: /work_waiting[\s\S]*evidence_waive[\s\S]*VISUAL_EVIDENCE_REQUIRED/
-		},
-		{
-			rule: 'vertical slice gate guidance stays present',
-			pattern: /sliceGate/
-		},
-		{
 			rule: 'a list of differences is the one stop of the phase',
 			pattern: /that one list is the stop/
 		},

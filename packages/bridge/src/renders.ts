@@ -63,7 +63,7 @@ const BROWSER_DIED =
 /**
  * The screen keys a page declares, lower-cased and capped (rule R3): the afb-config meta tag (pairs or
  * plain strings) plus its data-screen hooks. One grammar with the server's declaredMockupScreenKeys in
- * src/lib/shared/screenGlobs.ts, pinned by the agreement test in renders.test.ts — the bridge is a
+ * src/lib/shared/mockupScreens.ts, pinned by the agreement test in renders.test.ts — the bridge is a
  * self-contained published package, so it carries the same function instead of importing the server.
  */
 export function screensOfPage(html: string): string[] {

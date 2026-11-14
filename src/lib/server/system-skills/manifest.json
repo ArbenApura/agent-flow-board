@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.13.0",
+		"version": "1.14.0",
 		"releasedAt": "2026-11-14"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.7.3",
+			"version": "1.7.4",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -134,11 +134,15 @@
 				{
 					"version": "1.7.3",
 					"hash": "4f92d4f237b04eb4b76c4ad77ad51e1e65c4e496a2e69ffd91b18b5cbd004c56"
+				},
+				{
+					"version": "1.7.4",
+					"hash": "894edf32d8d5d2f0848147c7cbcf8fef02880a659758ced0e8140bab339785c6"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.3.1",
+			"version": "1.3.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -183,6 +187,10 @@
 				{
 					"version": "1.3.1",
 					"hash": "f7514b914d5df988454008effce8617eeea4ec5cae6d6213965e3a049ae084ff"
+				},
+				{
+					"version": "1.3.2",
+					"hash": "d7cecd3ecb962c84c1de96972cfbc3a1fb87ac16bf14f6e69f397d5cb730cd47"
 				}
 			]
 		},
@@ -284,7 +292,7 @@
 			]
 		},
 		"flow-critic": {
-			"version": "1.5.2",
+			"version": "1.5.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -349,11 +357,15 @@
 				{
 					"version": "1.5.2",
 					"hash": "6302b4139bf2adea3c03ed4f740f825b8d295529ada9d2c09d2c7a88d63a03af"
+				},
+				{
+					"version": "1.5.3",
+					"hash": "f8b785d6ea65d473fce9f0ce2c68711cca1171826e9c8d9d3aa789e473309b18"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.2.0",
+			"version": "1.2.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -398,11 +410,15 @@
 				{
 					"version": "1.2.0",
 					"hash": "3b77ccb9cc2c1eede2bd2bd99321d1236cec09346d9850718d3db1238b7e7251"
+				},
+				{
+					"version": "1.2.1",
+					"hash": "9b8360c71bd8084d99b35aa555023daf753df0e0cdc34d3a25c6262d12b5515f"
 				}
 			]
 		},
 		"flow-mockup": {
-			"version": "1.8.0",
+			"version": "1.8.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -455,6 +471,10 @@
 				{
 					"version": "1.8.0",
 					"hash": "14478309b4f0a083d2393f90ca5a0cda12c35bd460d4027390108461dd3d5e25"
+				},
+				{
+					"version": "1.8.1",
+					"hash": "4c8219e3fd1509b5ecde1a2d3f84acf6c7ef9b4b487e1a5f8cead2e93c0daddd"
 				}
 			]
 		},
@@ -525,7 +545,7 @@
 			]
 		},
 		"flow-align": {
-			"version": "1.2.0",
+			"version": "1.3.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -538,11 +558,33 @@
 				{
 					"version": "1.2.0",
 					"hash": "f42ee3877b54ea9c794290932b6fe8dbe70bb866575b8d44eec56f018a8923d0"
+				},
+				{
+					"version": "1.3.0",
+					"hash": "76c3fa9aa33f4046c23210bb5a4ade2299f323f4dfb99b4295d7d5b8bafdaa4f"
 				}
 			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.14.0",
+			"date": "2026-11-14",
+			"notes": [
+				"flow 1.7.4, flow-align 1.3.0 (rules block 1.3.0), flow-audit 1.3.2, flow-interview 1.2.1, flow-critic 1.5.3, flow-mockup 1.8.1: the visual evidence gate is removed. No visible-step picture pairs, no sliceGate, no visualEvidenceGate or screen globs, no evidence_waive tool and no VISUAL_EVIDENCE_REQUIRED refusal. check compare and check inspect stay as optional tools, and the code critic looks at picture pairs when they are given instead of refusing without them."
+			],
+			"skills": {
+				"flow": "1.7.4",
+				"flow-align": "1.3.0",
+				"flow-audit": "1.3.2",
+				"flow-check": "1.3.1",
+				"flow-critic": "1.5.3",
+				"flow-interview": "1.2.1",
+				"flow-mockup": "1.8.1",
+				"flow-task": "1.1.3",
+				"flow-verify": "1.3.0"
+			}
+		},
 		{
 			"version": "1.13.0",
 			"date": "2026-11-14",

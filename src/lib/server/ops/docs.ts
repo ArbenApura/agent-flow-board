@@ -9,16 +9,7 @@ import { z } from 'zod';
 // IMPORTED MODULES
 import { allocateTaskNumber } from '../db/numbering';
 import { appendEvent } from '../db/events';
-import {
-	comment,
-	decision,
-	item,
-	mockup,
-	mockupVersion,
-	project,
-	section,
-	task
-} from '../db/schema';
+import { comment, decision, item, mockup, mockupVersion, section, task } from '../db/schema';
 import {
 	extractMockupHooks,
 	verifyDesignBriefHookCitations,
@@ -269,10 +260,6 @@ export async function upsertSection(ctx: Ctx, raw: z.input<typeof sectionInput>)
 						and(eq(mockup.itemId, it.id), eq(mockup.orgId, ctx.orgId), isNull(mockup.trashedAt))
 					);
 				if (linkedMockups.length) {
-					const [proj] = await tx
-						.select({ visualEvidenceGate: project.visualEvidenceGate })
-						.from(project)
-						.where(eq(project.id, it.projectId));
 					const versions = await tx
 						.select({
 							mockupId: mockupVersion.mockupId,
@@ -308,23 +295,12 @@ export async function upsertSection(ctx: Ctx, raw: z.input<typeof sectionInput>)
 							}
 						}
 					}
-					const check = verifyDesignBriefHookCitations(
-						input.body,
-						knownHooks,
-						Boolean(proj?.visualEvidenceGate)
-					);
+					const check = verifyDesignBriefHookCitations(input.body, knownHooks);
 					if (check.missingHooks.length) {
 						throw new OpError(
 							'INVALID',
 							`Design-brief cites mockup hook(s) not found in the linked mockup HTML: ${check.missingHooks.join(', ')}.`,
 							{ missingHooks: check.missingHooks }
-						);
-					}
-					if (check.uncitedLines.length) {
-						throw new OpError(
-							'INVALID',
-							`Every Mockup inventory line in design-brief must cite a mockup hook (e.g. data-ref="..." or hook: name). Uncited: ${check.uncitedLines[0]}`,
-							{ uncitedLines: check.uncitedLines }
 						);
 					}
 				}

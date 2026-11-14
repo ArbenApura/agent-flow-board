@@ -11,7 +11,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, ilike, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // IMPORTED MODULES
-import { extractMockupScreensFromHtml } from '../../shared/screenGlobs';
+import { extractMockupScreensFromHtml } from '../../shared/mockupScreens';
 import { appendEvent } from '../db/events';
 import { syncMockupsOfItem } from '../db/mockupSync';
 import {
@@ -43,7 +43,6 @@ import { ORG_LOCKED_MESSAGE, OpError, idempotent, rateLimit, requireCap, run } f
 import { actorFields } from './items';
 import { planWorked, readStateOf, unreadLine } from './mockupReads';
 import { findItem, findProject } from './resolve';
-import { refreshItemStepVisibility } from './visibleSteps';
 
 // -- TYPES -- //
 
@@ -409,7 +408,6 @@ export async function publishMockup(
 					after: { title: target.title, version: number, size: row.size } as never,
 					undoable: false
 				});
-				if (target.itemId) await refreshItemStepVisibility(tx, ctx, target.itemId);
 				const [pk] = await tx
 					.select({ key: project.key })
 					.from(project)
@@ -918,7 +916,6 @@ export async function restoreMockupVersion(ctx: Ctx, id: string, number: number)
 					after: { restoredFrom: src.number, version: next } as never,
 					undoable: false
 				});
-				if (m.itemId) await refreshItemStepVisibility(tx, ctx, m.itemId);
 				return { mockup: publicMockup(updated), version: publicVersion(row) };
 			})
 		)
@@ -988,8 +985,6 @@ export async function linkMockup(ctx: Ctx, id: string, itemRef: string | null) {
 				after: { itemId: plan?.id ?? null } as never,
 				undoable: false
 			});
-			if (m.itemId && m.itemId !== plan?.id) await refreshItemStepVisibility(tx, ctx, m.itemId);
-			if (plan?.id) await refreshItemStepVisibility(tx, ctx, plan.id);
 			return { mockup: publicMockup(updated) };
 		})
 	);
@@ -1024,7 +1019,6 @@ export async function trashMockup(ctx: Ctx, id: string) {
 				before: { title: m.title } as never,
 				undoable: false
 			});
-			if (m.itemId) await refreshItemStepVisibility(tx, ctx, m.itemId);
 			return { id: m.id, trashed: true as const };
 		})
 	);
@@ -1051,7 +1045,6 @@ export async function restoreMockupFromTrash(ctx: Ctx, id: string) {
 				after: { title: m.title } as never,
 				undoable: false
 			});
-			if (m.itemId) await refreshItemStepVisibility(tx, ctx, m.itemId);
 			return { id: m.id, restored: true as const };
 		})
 	);

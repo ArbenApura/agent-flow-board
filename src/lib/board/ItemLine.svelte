@@ -6,7 +6,6 @@
 	import { LIST_COLS, STATUS_STYLE, ago } from '#lib/board/status.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Progress from '#lib/ui/Progress.svelte';
-	import Badge from '#lib/ui/Badge.svelte';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
 	// IMPORTED DEP-COMPONENTS
 	import Lock from '@lucide/svelte/icons/lock';
@@ -84,16 +83,12 @@
 			</span>
 			<span class="flex items-center justify-between gap-2.5 text-xs text-muted">
 				<span class="tabular-nums">
-					{row.doneSteps} of {row.totalSteps} steps{#if !row.isLegacy}
-						· Verified {row.verifiedPercent !== null ? `${row.verifiedPercent}%` : 'n/a'}{/if}
+					{row.doneSteps} of {row.totalSteps} steps
 				</span>
 				<span class="whitespace-nowrap">{ago(row.lastActivityAt)}</span>
 			</span>
 			<span class="flex flex-wrap items-center gap-2 text-xs text-muted">
 				<span class="rounded-md bg-raised px-1.5 font-medium">{row.stream}/{row.scope}</span>
-				{#if row.unverifiedVisually}
-					<Badge tone="warning" data-testid="unverified-visually-badge">UNVERIFIED VISUALLY</Badge>
-				{/if}
 				{#each running as r (r.sessionId)}<RunningBadge
 						tool={r.tool}
 						title={r.title}
@@ -147,12 +142,8 @@
 			</span>
 			<span class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
 				<span class="tabular-nums">
-					{row.doneSteps} of {row.totalSteps} steps{#if !row.isLegacy}
-						· Verified {row.verifiedPercent !== null ? `${row.verifiedPercent}%` : 'n/a'}{/if}
+					{row.doneSteps} of {row.totalSteps} steps
 				</span>
-				{#if row.unverifiedVisually}
-					<Badge tone="warning" data-testid="unverified-visually-badge">UNVERIFIED VISUALLY</Badge>
-				{/if}
 				{#each running as r (r.sessionId)}<RunningBadge
 						tool={r.tool}
 						title={r.title}

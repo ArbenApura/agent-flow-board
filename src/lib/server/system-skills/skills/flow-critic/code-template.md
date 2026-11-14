@@ -82,8 +82,8 @@ Deterministic gates already run by the implementer (do not re-run them to confir
 Known unverified:
 {KNOWN_UNVERIFIED}
 
-Picture pairs directory (read by the design lens; required when the plan has a mockup): {UI_SHOTS_DIR}
-Compare measurements and diff JSON (read by the design lens; required when the plan has a mockup): {COMPARE_DIFF_JSON}
+Picture pairs directory (read by the design lens when given): {UI_SHOTS_DIR}
+Compare measurements and diff JSON (read by the design lens when given): {COMPARE_DIFF_JSON}
 
 ### How to Review
 1. Read the requirements. List to yourself what the change must do.

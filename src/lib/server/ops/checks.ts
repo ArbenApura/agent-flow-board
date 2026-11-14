@@ -12,7 +12,6 @@ import type { RunnerAuth } from './environments';
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // IMPORTED MODULES
-import { effectiveStepVisible } from '../../shared/screenGlobs';
 import { classifyRun } from '../../shared/runErrors';
 import { findSecret, maskSecrets, type Needle } from '../../shared/scan';
 import { appendEvent } from '../db/events';
@@ -49,7 +48,6 @@ import { recordSteps } from './steps';
 import { registrationFit, runnerRegistrationPairs } from './registrations';
 import { addAttachment, cleanAttachmentName } from './attachments';
 import { lintCheckScript } from './checkLint';
-import { compareCommandHint } from './visibleSteps';
 
 // -- TYPES -- //
 
@@ -1981,24 +1979,7 @@ async function tickOnPass(
 					.from(step)
 					.where(and(eq(step.itemId, it.id), eq(step.key, r.stepKey)))
 			: [];
-		const [proj] = await tx
-			.select({ visualEvidenceGate: project.visualEvidenceGate })
-			.from(project)
-			.where(eq(project.id, it.projectId));
-		const evIds = Array.isArray(r.evidence) ? r.evidence.filter(Boolean) : [];
-		const evRows = evIds.length
-			? await tx
-					.select({ filename: attachment.filename })
-					.from(attachment)
-					.where(and(inArray(attachment.id, evIds), isNull(attachment.deletedAt)))
-			: [];
-		const isCompareRun = evRows.some((e) => classifyCompareArtifact(e.filename).isDiffReport);
-		return {
-			mc,
-			step: steps[0],
-			visualEvidenceGate: Boolean(proj?.visualEvidenceGate),
-			isCompareRun
-		};
+		return { mc, step: steps[0] };
 	});
 	if (mcRow.mc && mcRow.mc.auto && mcRow.mc.state === 'open' && meets(target, chk.requiredTarget))
 		marks.push({
@@ -2008,21 +1989,11 @@ async function tickOnPass(
 		});
 	if (mcRow.step && mcRow.step.state === 'open') {
 		const need = mcRow.step.requiredTarget ?? chk.requiredTarget;
-		const visibleBlocked =
-			effectiveStepVisible(mcRow.step) && !mcRow.isCompareRun && mcRow.visualEvidenceGate;
-		if (visibleBlocked) {
-			const cmd = compareCommandHint(
-				it.ref,
-				mcRow.step.key,
-				mcRow.step.screens ?? [],
-				mcRow.step.widths ?? []
-			);
-			outcome.note = `Generic check passed on ${target}, but step ${mcRow.step.key} is visible so it stays open. Run compare instead: ${cmd}`;
-		} else if (meets(target, need)) {
+		if (meets(target, need)) {
 			marks.push({
 				key: mcRow.step.key,
 				mark: 'done',
-				evidence: { checkRunId: r.id, ...(mcRow.isCompareRun ? { runIds: [r.id] } : {}), target }
+				evidence: { checkRunId: r.id, target }
 			});
 		} else {
 			outcome.note = `Passed on ${target}, which is weaker than the ${need} that step ${mcRow.step.key} needs, so the step stays open.`;

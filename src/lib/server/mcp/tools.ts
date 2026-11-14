@@ -63,9 +63,6 @@ import { setStatus } from '../ops/status';
 import { trackingNotes } from '../ops/tracking';
 import { clearWaitingForPerson, setWaitingForPerson } from '../ops/waiting';
 import { WAITING_KINDS } from '../db/schema/activity';
-import { computeVisualProgress, findUnverifiedBuiltClaims } from '../../shared/progress';
-import { effectiveStepVisible } from '../../shared/screenGlobs';
-import { evidenceWaive } from '../ops/visibleSteps';
 import { claim, renewedSession, requireSession, startSession } from './sessions';
 import { MANIFEST, servedSkillFile, systemSkills } from '../system-skills';
 import {
@@ -163,7 +160,6 @@ const marks = z
 					commit: z.string().optional(),
 					checkRunId: z.string().optional(),
 					runIds: z.array(z.string()).optional(),
-					diffReportId: z.string().optional(),
 					target: z.enum(['dev', 'preview', 'deployed']).optional(),
 					note: z.string().optional()
 				})
@@ -274,21 +270,6 @@ const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0
 export function summarize(d: ItemDetail, fields: string[] = []) {
 	const steps = d.phases.flatMap((p) => p.steps.map((s) => ({ ...s, phase: p.key })));
 	const open = steps.filter((s) => s.state === 'open');
-	const progress = computeVisualProgress(steps, {
-		legacyPercent: d.item.legacyPercent,
-		status: d.item.status
-	});
-	const asBuilt = d.sections.find((s) => s.slug === 'as-built');
-	const builtClaimWarnings = asBuilt
-		? findUnverifiedBuiltClaims(asBuilt.body, {
-				files: steps.flatMap((s) => s.files ?? []),
-				runIds: steps.flatMap((s) => [
-					...(s.evidence?.checkRunId ? [s.evidence.checkRunId] : []),
-					...(s.evidence?.runIds ?? []),
-					...(s.evidence?.diffReportId ? [s.evidence.diffReportId] : [])
-				])
-			})
-		: [];
 	const out: Record<string, unknown> = {
 		ref: d.item.ref,
 		id: d.item.id,
@@ -296,11 +277,6 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 		tabName: d.item.tabName,
 		status: d.item.status,
 		percent: d.item.percent,
-		writtenPercent: progress.writtenPercent,
-		verifiedPercent: progress.verifiedPercent,
-		unverifiedVisually: progress.unverifiedVisually,
-		...(builtClaimWarnings.length ? { unverifiedBuiltClaims: builtClaimWarnings } : {}),
-		...(d.item.sliceGate ? { sliceGate: true } : {}),
 		version: d.item.version,
 		visibility: d.item.visibility,
 		createdBy: d.creator?.name ?? null,
@@ -313,11 +289,7 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 			total: p.steps.filter((s) => s.state === 'open' || s.state === 'done').length
 		})),
 		// A long step text is cut: item_doc phase:<key> reads the whole step list
-		nextOpen: open.slice(0, 5).map((s) => ({
-			key: s.key,
-			text: clip(s.text, STEP_CHARS),
-			visible: effectiveStepVisible(s)
-		})),
+		nextOpen: open.slice(0, 5).map((s) => ({ key: s.key, text: clip(s.text, STEP_CHARS) })),
 		openChecks: d.manualChecks
 			.filter((c) => c.state === 'open')
 			.map((c) => ({ key: c.key, text: c.text, auto: c.auto }))
@@ -327,12 +299,7 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 			key: s.key,
 			state: s.state,
 			text: s.text,
-			visible: effectiveStepVisible(s),
-			visibleAuthor: s.visible,
-			visibleInferred: s.visibleInferred,
 			...(s.files?.length ? { files: s.files } : {}),
-			...(s.screens?.length ? { screens: s.screens } : {}),
-			...(s.widths?.length ? { widths: s.widths } : {}),
 			...(s.evidence ? { evidence: s.evidence } : {}),
 			...(s.reason ? { reason: s.reason } : {})
 		}));
@@ -986,7 +953,6 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			stream: z.string().optional(),
 			scope: z.string().optional(),
 			visibility: z.enum(['public', 'private']).optional(),
-			sliceGate: z.boolean().optional(),
 			phases: z
 				.array(
 					z.object({
@@ -998,10 +964,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 									text: z.string(),
 									key: z.string().optional(),
 									requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional(),
-									visible: z.boolean().nullable().optional(),
-									files: z.array(z.string()).optional(),
-									screens: z.array(z.string()).optional(),
-									widths: z.array(z.number().int()).optional()
+									files: z.array(z.string()).optional()
 								})
 							)
 							.default([])
@@ -1045,7 +1008,6 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			visibility: z.enum(['public', 'private']).optional(),
 			branchNote: z.string().nullable().optional(),
 			assigneeId: z.string().nullable().optional(),
-			sliceGate: z.boolean().optional(),
 			sections: sectionsIn,
 			decisions: decisionsIn
 		},
@@ -1105,7 +1067,6 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 					commit: z.string().optional(),
 					checkRunId: z.string().optional(),
 					runIds: z.array(z.string()).optional(),
-					diffReportId: z.string().optional(),
 					target: z.enum(['dev', 'preview', 'deployed']).optional(),
 					note: z.string().optional()
 				})
@@ -1173,10 +1134,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		text: z.string().min(1),
 		key: z.string().optional(),
 		requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional(),
-		visible: z.boolean().nullable().optional(),
-		files: z.array(z.string()).optional(),
-		screens: z.array(z.string()).optional(),
-		widths: z.array(z.number().int()).optional()
+		files: z.array(z.string()).optional()
 	});
 	const expectVersion = z
 		.number()
@@ -1253,10 +1211,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			key: z.string().describe('The step key, such as 3.2'),
 			text: z.string().optional().describe('The new wording'),
 			remove: z.boolean().optional().describe('Take the step out of the plan'),
-			visible: z.boolean().nullable().optional(),
 			files: z.array(z.string()).optional(),
-			screens: z.array(z.string()).optional(),
-			widths: z.array(z.number().int()).optional(),
 			expectVersion
 		},
 		{ session: true },
@@ -1266,31 +1221,9 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				key: a.key,
 				text: a.text,
 				remove: a.remove,
-				visible: a.visible,
 				files: a.files,
-				screens: a.screens,
-				widths: a.widths,
 				expectVersion: a.expectVersion
 			} as never)
-	);
-
-	tool(
-		'evidence_waive',
-		'Owner-only waiver of visual evidence on a visible step (requires a live person web session and live owner role).',
-		{
-			item: itemName.optional(),
-			key: z.string().describe('The step key, such as 1.1'),
-			reason: z.string().min(3).max(500),
-			expectVersion
-		},
-		{ session: true },
-		async (a, { ctx, claimed }) =>
-			evidenceWaive(ctx, {
-				item: need(a.item, claimed),
-				key: a.key,
-				reason: a.reason,
-				expectVersion: a.expectVersion
-			})
 	);
 
 	tool(

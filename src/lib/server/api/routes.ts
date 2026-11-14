@@ -83,7 +83,6 @@ import {
 	waitingInput
 } from '../ops/waiting';
 import { setStatus, setStatusInput } from '../ops/status';
-import { evidenceWaive, evidenceWaiveInput } from '../ops/visibleSteps';
 import { createToken, listTokens, revokeToken, tokenInput } from '../ops/tokens';
 import { OpError, requireCap, run } from '../ops/context';
 import { sql } from 'drizzle-orm';
@@ -341,15 +340,6 @@ export const routes: Route[] = [
 		tag: 'Progress',
 		body: strip(recordInput, 'item'),
 		handler: ({ ctx, params, body }) => recordSteps(ctx, { ...(body as object), item: params.item })
-	},
-	{
-		method: 'POST',
-		path: '/orgs/{org}/items/{item}/steps/{key}/evidence-waive',
-		summary: 'Waive visual compare evidence on a visible step (person owner only)',
-		tag: 'Progress',
-		body: strip(evidenceWaiveInput, 'item', 'key'),
-		handler: ({ ctx, params, body }) =>
-			evidenceWaive(ctx, { ...(body as object), item: params.item, key: params.key } as never)
 	},
 	{
 		method: 'POST',

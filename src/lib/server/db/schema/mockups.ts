@@ -1,7 +1,7 @@
 // MOCKUP TABLES: MOCKUPS, VERSIONS, PINNED COMMENTS, PROJECT STYLE, PAGE TEMPLATES AND THE PROJECT KIT
 
 // IMPORTED TYPES
-import type { NamedMockupScreen } from '../../../shared/screenGlobs';
+import type { NamedMockupScreen } from '../../../shared/mockupScreens';
 // IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 import {
@@ -94,7 +94,7 @@ export const mockupVersion = tenantTable(
 		screenshotKey: text('screenshot_key'),
 		/** The version number this one was copied from, when it came from Restore. */
 		restoredFrom: integer('restored_from'),
-		/** Screen keys and labels declared in this mockup HTML, used for visible-step inference and outline. */
+		/** Screen keys and labels declared in this mockup HTML, used for the outline. */
 		screens: jsonb('screens')
 			.$type<NamedMockupScreen[]>()
 			.notNull()

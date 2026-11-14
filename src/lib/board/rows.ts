@@ -17,9 +17,6 @@ export type ItemRow = {
 	title: string;
 	status: Status;
 	percent: number;
-	verifiedPercent: number | null;
-	unverifiedVisually: boolean;
-	isLegacy: boolean;
 	doneSteps: number;
 	totalSteps: number;
 	openManual: number;
@@ -48,7 +45,6 @@ export type ApiItem = {
 	health?: {
 		flags?: string[];
 		drift?: string[];
-		verifiedPercent?: number | null;
 	} | null;
 	lastActivityAt: string | Date;
 };
@@ -84,9 +80,6 @@ export const slimItem = (i: ApiItem): ItemRow => ({
 	title: i.title,
 	status: i.status as Status,
 	percent: i.percent,
-	verifiedPercent: i.health?.verifiedPercent ?? null,
-	unverifiedVisually: i.health?.flags?.includes('unverified-visually') ?? false,
-	isLegacy: i.legacyPercent !== null && i.legacyPercent !== undefined,
 	doneSteps: i.doneSteps,
 	totalSteps: i.totalSteps,
 	openManual: i.openManual,

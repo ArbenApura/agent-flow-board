@@ -9,7 +9,7 @@ import {
 	renderVersionCommand,
 	screensOfPage
 } from './renders.js';
-import { declaredMockupScreenKeys } from '../../../src/lib/shared/screenGlobs';
+import { declaredMockupScreenKeys } from '../../../src/lib/shared/mockupScreens';
 
 // The browser step is faked: its failure may name the signed address, and the failed reason may not (rule R1)
 const { inspectUrl } = vi.hoisted(() => ({ inspectUrl: vi.fn() }));

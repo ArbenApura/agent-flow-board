@@ -5,7 +5,6 @@
 
 // IMPORTED TYPES
 import type { Tx } from '../db/client';
-import type { StepEvidenceWaiver } from '../db/schema';
 import type { Ctx } from './context';
 // IMPORTED DEP-MODULES
 import { and, eq, inArray, sql } from 'drizzle-orm';
@@ -20,14 +19,8 @@ export type Evidence = {
 	commit?: string;
 	checkRunId?: string;
 	runIds?: string[];
-	diffReportId?: string;
-	mockupId?: string;
-	mockupVersion?: number;
-	screens?: string[];
-	widths?: number[];
 	target?: 'dev' | 'preview' | 'deployed';
 	note?: string;
-	waived?: StepEvidenceWaiver;
 };
 type Closing = 'COMPLETED' | 'REMOVED';
 
