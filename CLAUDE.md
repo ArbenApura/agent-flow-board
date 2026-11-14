@@ -24,14 +24,13 @@ A standalone multi-project team board for agent-driven flow plans. SvelteKit (Sv
 
 ## The gates
 
-Two speeds (owner, 2026-11-05, after measuring: this repo's own `yarn check` took 140 s on 2026-11-05 (1,933 files, 0 errors), and in HAPR a whole-project type check ran 17 to 28 times per session, up to 45 percent of a session). The fast gate runs after each change; the full gates run once per phase and before a commit. From the repo root:
+**Gates run once, at the end of the whole flow plan implementation** (owner, 2026-11-14), after the last step of the last phase and before asking for sign-off or any commit. Never after a step, an item or a phase, and not after a change to a prop, snippet signature or shared type either. Measured reason: this repo's own `yarn check` took 140 s on 2026-11-05 (1,933 files, 0 errors), and in HAPR a whole-project type check ran 17 to 28 times per session, up to 45 percent of a session. While building, write the code carefully and carry on; do not run a type check, lint, format check or test between steps or phases. From the repo root:
 
-| Case                                                                                                                                    | Gates                                                                                                   |
-| --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Active engagement (the owner is testing the app and asking for fixes one after another)                                                 | none unless he asks. Make the fix, say what changed, stop                                               |
-| Autonomous, a tweak (a text, literal or token-class edit; no script logic, props or imports)                                            | `yarn prettier --check <file>` and `yarn eslint --cache <file>`                                         |
-| Autonomous, each change in a phase                                                                                                      | the tweak gates, plus `yarn vitest related --run <files>`                                               |
-| End of each phase, right after a change to a prop, snippet signature, shared type or exported signature, and before any commit or merge | full `yarn check` and full `yarn test`. Start them with `run_in_background` and carry on while they run |
+| Case                                                                                    | Gates                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Active engagement (the owner is testing the app and asking for fixes one after another) | none unless he asks. Make the fix, say what changed, stop                                                                                                                                                                             |
+| During a plan (any step, item or phase)                                                 | none                                                                                                                                                                                                                                  |
+| End of the whole plan, before sign-off or any commit or merge                           | once, over the files the plan touched: `yarn prettier --write <files>`, `yarn eslint --cache <files>`, `yarn vitest related --run <files>`, then full `yarn check` and full `yarn test`. Start the long ones with `run_in_background` |
 
 - Fix every error in the files you touched. `yarn check` covers the whole project: read only the lines for your files, and report (do not fix) errors that were already there. Format only your own files (`yarn prettier --write <file>`), never the whole repo.
 - Checks run against `yarn build && yarn preview`, never the dev server (`tests/runner`, ADR-017).
@@ -114,6 +113,7 @@ The `/flow` skills shipped by the board are generic. These are the owner's rules
 8. **The project key is `AFB`** (`https://afb.arbenger.com/arbenger/AFB`), tool prefix `mcp__afb-arbenger__`.
 
 <!-- afb:flow-align rules 1.0.0 (written by /flow-align; write your own rules outside this block, a later run replaces it) -->
+
 ## Flow rules (Agent Flow Board)
 
 Plans live on Agent Flow Board and the installed flow skills are the method. Where this file states a project fact or a preference of its owner, this file wins; the flow safety rules always apply.
@@ -131,4 +131,5 @@ Plans live on Agent Flow Board and the installed flow skills are the method. Whe
 - The mockup is the spec for what a person sees: its structure, layout order, text, states and interactions are binding, whatever the notes say.
 - The work stays in the working tree until the user says to commit (through the repo's own commit workflow, if it has one).
 - Never `git push` without the user's explicit instruction.
+
 <!-- /afb:flow-align rules -->
