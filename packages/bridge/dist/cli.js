@@ -33,6 +33,16 @@ import { accountKey, configDir, pickStore } from './tokenStore.js';
 // -- FUNCTIONS -- //
 const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+// A list option takes "408,1280" or "408 1280": PowerShell turns an unquoted comma list into separate words, which used to keep only the first
+const listFlag = (name) => {
+    const first = flag(name);
+    if (first === undefined)
+        return undefined;
+    const rest = [];
+    for (let i = args.indexOf(name) + 2; i < args.length && !args[i].startsWith('--'); i++)
+        rest.push(args[i]);
+    return [first, ...rest].join(',').trim().replace(/\s+/g, ',');
+};
 const cmd = args[0];
 const log = (s) => process.stderr.write(s + '\n');
 function serverUrl() {
@@ -272,7 +282,7 @@ async function main() {
                 })) + '\n');
                 return;
             }
-            const widths = (flag('--widths') ?? '')
+            const widths = (listFlag('--widths') ?? '')
                 .split(',')
                 .map((w) => Number.parseInt(w, 10))
                 .filter((w) => Number.isInteger(w) && w >= 200 && w <= 4000);
@@ -312,7 +322,7 @@ async function main() {
                     version: pushed.version,
                     screens: marked.flatMap((p) => screensOfPage(p.content)).slice(0, 12),
                     widths: widths.length ? widths : DEFAULT_RENDER_WIDTHS,
-                    states: (flag('--render-states') ?? '').split(',').filter(Boolean),
+                    states: (listFlag('--render-states') ?? '').split(',').filter(Boolean),
                     log
                 });
             }
@@ -411,7 +421,7 @@ async function main() {
         let renders;
         if (args.includes('--renders')) {
             // What a browser sees of every screen at every width is saved with the version (AFB-20261114-0409)
-            const widths = (flag('--widths') ?? '')
+            const widths = (listFlag('--widths') ?? '')
                 .split(',')
                 .map((w) => Number.parseInt(w, 10))
                 .filter((w) => Number.isInteger(w) && w >= 200 && w <= 4000);
@@ -424,7 +434,7 @@ async function main() {
                 version: result.version,
                 screens: screensOfPage(readFileSync(args[2], 'utf8')),
                 widths: widths.length ? widths : DEFAULT_RENDER_WIDTHS,
-                states: (flag('--render-states') ?? '').split(',').filter(Boolean),
+                states: (listFlag('--render-states') ?? '').split(',').filter(Boolean),
                 log
             });
         }

@@ -1,6 +1,6 @@
 {
 	"name": "@agent-flow-board/bridge",
-	"version": "0.6.0",
+	"version": "0.7.0",
 	"type": "module",
 	"description": "Local bridge to an agent-flow-board server: forwards MCP calls over stdio, runs the coding tool hooks, writes the editor status and runs browser checks on this machine. It holds no board tool code.",
 	"license": "MIT",
