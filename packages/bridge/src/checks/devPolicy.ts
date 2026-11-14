@@ -1,10 +1,10 @@
 // DEV-TARGET POLICY: LOCAL-ONLY DEV URLS, CROSS-HOST REDIRECT BLOCKS, WRITE ALLOWLIST, AND HASH-BOUND APPROVAL TARGETS (AFB-20261113-1008)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { parseEnvText } from './envPolicy.js';
 import { databaseProblems } from './envrules.js';
 import { FORBIDDEN_PORTS } from './guardrails.js';

@@ -2,11 +2,11 @@
 // THROUGH A SCRATCH DATABASE). THIS IS THE CI RESTORE TEST OF L12: IT BACKS UP A REAL ORG, RESTORES IT INTO A FRESH DATABASE
 // AND COMPARES EVERY ROW, AND IT CHECKS THE AGE OF THE NEWEST BACKUP.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { adminFromExecutor } from '../../src/lib/server/backup/admin';
 import {

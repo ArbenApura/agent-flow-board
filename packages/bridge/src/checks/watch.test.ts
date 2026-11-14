@@ -1,11 +1,11 @@
 // `check watch`: ONE WORKER PER MACHINE, A RUN ONLY FOR A BOUND FOLDER, AND THE CURRENT DIRECTORY IS NEVER A FALLBACK
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { recordConnection } from './connections.js';
 import { runnerAccount } from './connect.js';
 import { machineLock } from './lock.js';

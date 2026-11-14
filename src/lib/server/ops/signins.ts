@@ -4,15 +4,15 @@
 // Threat model: this protects against agent tokens, logs, history and database dumps. It does not protect against a malicious or compromised board operator (who could serve a page
 // that encrypts to another key), which is why the form shows the machine key's short fingerprint that the bridge prints too. The same-OS-user caveat applies to the private key.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
 import type { DbHandle } from '../db/client';
 import type { RunnerAuth } from './environments';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createECDH, createHash } from 'node:crypto';
 import { and, asc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { bridgeSigninEnvelope, runner } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { OpError, requireCap, run } from './context';

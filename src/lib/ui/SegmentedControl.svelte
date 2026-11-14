@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Component } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { cn } from '#lib/ui/cn.js';
 
 	// -- TYPES -- //

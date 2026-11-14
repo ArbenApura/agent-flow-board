@@ -3,7 +3,7 @@
 // changed one waits for the owner's yes. The approval is kept for the exact text: change one character and it asks again.
 // A hosted runner runs in a throwaway isolated container, so it needs no approval. `--trust-all` is for tests and CI only.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';

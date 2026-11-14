@@ -1,9 +1,9 @@
 // THE PORTABLE AFB-CHECKS TOOL AS A RUNNER: IT REGISTERS ITSELF ONCE, NEEDS NO ENVIRONMENT ROW FOR ITS PREVIEW, IS TOLD TO UPGRADE WHEN
 // IT IS TOO OLD, AND THE OLDER SETUP SCREENS ARE A PER PROJECT SWITCH THAT ONLY MANAGERS CHANGE.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleRunnerApi } from '../../src/lib/server/api/runner';
 import {

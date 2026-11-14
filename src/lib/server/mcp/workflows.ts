@@ -2,7 +2,7 @@
 // Rewritten from the HAPR workflow skills of 2026-10-15 to be project neutral. The tool names are this server's own.
 // The bodies are the system skills (src/lib/server/system-skills/skills), served here without their front matter. The same files are the downloadable bundle, so edit them there.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { skillBody, skillSupportText } from '../system-skills';
 
 // -- TYPES -- //

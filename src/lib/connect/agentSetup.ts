@@ -2,7 +2,7 @@
 // Pure, so the text is tested. It holds no token and no session id. The org name is written by org owners, so only a stripped form of
 // it is ever shown, and the slug (validated by the app) is what the commands use.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { connectionName, orgMcpUrl, toolPrefix } from '../shared/orgConnection';
 import { snippets } from './snippets';
 

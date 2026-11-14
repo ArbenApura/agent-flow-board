@@ -1,11 +1,11 @@
 // TESTS OF THE ADOPTED .env: THE FILES AND THEIR ORDER, THE APP FOLDER WINNING, THE .env.test FALLBACK, QUOTED MULTI-LINE VALUES, ${VAR}, THE DENY LIST, THE RUN'S OWN SETTINGS, REDACTIONS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { adoptRepoEnv, isDeniedName, parseRepoEnvText } from './repoenv.js';
 
 // -- CONSTANTS -- //

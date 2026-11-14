@@ -2,11 +2,11 @@
 // Works one org at a time inside withTenant as app_runtime, trashed items included. An item already in stamp form is left alone, so a
 // second run changes nothing. The old reference stays as an alias, so every old link, commit subject and chat keeps working.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle, Tx } from './client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { isStampRef, legacyMoment, refCandidates } from '../../shared/ref';
 import { item, itemAlias, project } from './schema';
 import { withTenant } from './tenant';

@@ -3,11 +3,11 @@
 // EXCEPT database and connection variables (stripped) and mail provider variables (stripped, and the mailer is told to only log). Nothing is
 // ever printed here with its value: notes and the stripped list name variables only.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { databaseProblems } from './envrules.js';
 import { enforceMailSet } from './mailguard.js';
 import { adoptRepoEnv } from './repoenv.js';

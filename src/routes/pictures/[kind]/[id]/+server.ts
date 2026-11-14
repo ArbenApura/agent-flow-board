@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { error } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getDb } from '#lib/server/db/index.js';
 import { readProjectPicture, readUserPicture } from '#lib/server/ops/pictures.js';
 

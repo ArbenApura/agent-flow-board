@@ -1,11 +1,11 @@
 // THE DATABASE CLIENT: A POSTGRESQL CONNECTION POOL (pg) AND THE HANDLE THE APP, THE SCRIPTS AND THE TESTS SHARE.
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-// -- MODULES -- //
+// IMPORTED MODULES
 import * as schema from './schema';
 import { pgExecutor, type SqlExecutor } from './executor';
 

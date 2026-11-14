@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { onMount } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { cn } from '#lib/ui/cn.js';
 
 	// -- REQUIRED PROPS -- //

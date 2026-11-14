@@ -1,11 +1,11 @@
 // SIGN IN FOR THE SEEDED PEOPLE, SO UI SHOTS AND BROWSER CHECKS CAN SIGN IN AS AN OWNER, ADMIN, MEMBER OR VIEWER
 // Local development and previews only. The password is public on purpose, so it must never reach a deployment.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from './client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { hashPassword } from 'better-auth/crypto';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { authAccount, user } from './schema';
 import { SEED_USERS, seedDemo } from './seed';
 

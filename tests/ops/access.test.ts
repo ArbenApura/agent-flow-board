@@ -2,9 +2,9 @@
 // INSIDE THEM, SEARCH SHOWS ONLY WHAT THE CALLER MAY SEE, AN AGENT CANNOT SWITCH OFF THE RULE THAT KEEPS COMPLETED FOR PEOPLE, AND A
 // REUSED REQUEST ID ON ANOTHER REQUEST IS REFUSED. (REVIEW OF THE WHOLE BUILD, PHASE 13.)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { searchBoard } from '../../src/lib/server/ops/board';
 import { createTask, updateTask } from '../../src/lib/server/ops/docs';
 import { createItem, getItem, trashItem, updateItem } from '../../src/lib/server/ops/items';

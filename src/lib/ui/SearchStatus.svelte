@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 
 	// -- REQUIRED PROPS -- //

@@ -1,6 +1,6 @@
 // TESTS OF STATUS, DOCTOR --FIX AND CLEAR: WHAT IS FOUND, WHAT IS REMOVED BY RECORDED NAME ONLY, WHAT IS NEVER TOUCHED (A LIVE RUN, A YOUNG FOLDER, A SCRIPT).
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawnSync } from 'node:child_process';
 import {
 	appendFileSync,
@@ -17,7 +17,7 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mintApproval } from './approve.js';
 import {
 	auditFile,

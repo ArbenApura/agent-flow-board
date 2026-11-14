@@ -1,6 +1,6 @@
 // TESTS OF THE SEALED SECRETS: EVERY IMPORT RULE, NAMES-ONLY OUTPUT, THE BINDING TO ONE REGISTRATION AND THE USE OF THE VALUES
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	copyFileSync,
 	linkSync,
@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { auditFile, stateDirFor } from './paths.js';
 import {
 	forgetSecrets,

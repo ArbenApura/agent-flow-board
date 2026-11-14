@@ -1,8 +1,8 @@
 // MOCKUP READING COST (AFB-20261114-0409, PHASE B): A REPLY CARRIES THE NOTES OF ONE VERSION, NOT ALL OF THEM
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { createItem } from '../../src/lib/server/ops/items';
 import {

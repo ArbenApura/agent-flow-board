@@ -1,8 +1,8 @@
 // THE CHECKS TAB: ONE WORD FOR A CHECK, ONE SENTENCE FOR A FAILURE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	checkStatus,
 	closedStep,

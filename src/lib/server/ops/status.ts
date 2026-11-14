@@ -1,12 +1,12 @@
 // STATUS: MANUAL CHANGES, THE AUTOMATIC MOVES OF SPEC 9.1, AND THE COMPLETED RULES (ADR-027, ADR-028)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { effectiveStepVisible } from '../../shared/screenGlobs';
 import { computeHealthForItem } from '../db/calc';
 import { appendEvent } from '../db/events';

@@ -3,14 +3,14 @@
 // checks the caller's live role and the note's visibility itself, counts against its own rate bucket (never the write bucket),
 // and writes no event row, so live typing never shows in Activity. Updates travel as base64.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import * as Y from 'yjs';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { NOTE_LIMITS, noteRef } from '../../shared/notes';
 import { appendEvent } from '../db/events';
 import { note, noteUpdate } from '../db/schema';

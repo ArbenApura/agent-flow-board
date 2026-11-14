@@ -1,8 +1,8 @@
 // SERVES ONE PICTURE OF THE NOTE A PUBLIC ADDRESS NAMES. NO SESSION IS READ, AND EVERY KIND OF FAILURE ANSWERS THE SAME 404
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getStorage } from '#lib/server/adapters/index.js';
 import { getDb } from '#lib/server/db/index.js';
 import { publicRateAllowed } from '#lib/server/mockups/limit.js';

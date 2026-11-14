@@ -1,6 +1,6 @@
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	CLOSED_COLUMN_LIMIT,
 	NO_PRIORITY,

@@ -1,10 +1,10 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import { renderMarkdown } from '#lib/markdown.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';

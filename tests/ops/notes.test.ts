@@ -1,8 +1,8 @@
 // NOTE VERBS: ROLES, PRIVACY, VERSIONS, STALE WRITES, TRASH AND FAVOURITES (AFB-20261111-0035, step 2.1)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { OpError } from '../../src/lib/server/ops/context';
 import { createFolder, trashFolder } from '../../src/lib/server/ops/noteFolders';
 import {

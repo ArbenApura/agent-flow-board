@@ -1,11 +1,11 @@
 // THE PREVIEW ENVIRONMENT: DATABASE AND MAIL VARIABLES STRIPPED, THE REST ADOPTED, THE RUN'S OWN SETTINGS KEPT, AND NO VALUE IN ANY NOTE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { buildAdoptedEnv, buildPreviewEnv, parseEnvText } from './envPolicy.js';
 
 // -- FUNCTIONS -- //

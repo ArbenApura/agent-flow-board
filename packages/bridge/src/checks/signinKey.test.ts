@@ -1,11 +1,11 @@
 // TESTS OF THE SIGN IN KEY: WHAT THE BOARD'S BROWSER ENCRYPTS THIS MACHINE OPENS, ONLY FOR THE SAME ORG, RUNNER, REGISTRATION AND KEY, AND NO PASSWORD EVER REACHES A LOG, AN AUDIT LINE OR AN ARGUMENT.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	SIGNIN_ALG,
 	encryptSignin,

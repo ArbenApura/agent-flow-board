@@ -2,10 +2,10 @@
 // It is LISTEN and NOTIFY on the PostgreSQL connection.
 // A null change means the listening connection was lost, so every stream tells its page to refetch.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from '../db/client';
 import type { Change } from './notify';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { CHANNEL } from './notify';
 
 // -- TYPES -- //

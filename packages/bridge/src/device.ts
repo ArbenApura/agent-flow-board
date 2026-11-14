@@ -1,6 +1,6 @@
 // DEVICE CODE SIGN IN FOR THE BRIDGE (RFC 8628). THE PERSON TYPES THE CODE ON THE SERVER'S /device PAGE; NOTHING IS PRE FILLED.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 
 // -- TYPES -- //

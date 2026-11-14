@@ -1,9 +1,9 @@
 // THE FAITHFUL RENDERING CHECK: EVERY WARNING, A CLEAN PAGE, A CLEAN KIT AND A HOSTILE PAGE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	kitFacts,
 	lintKitHtml,

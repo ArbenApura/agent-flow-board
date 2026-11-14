@@ -1,4 +1,4 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
 
 // -- FUNCTIONS -- //

@@ -2,11 +2,11 @@
 // Private items and every attachment are left out always. The files are the same on every run for the same data, so an
 // unchanged project writes no commit. A file never carries a person's name beyond an assignee who is still a member.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	attachment,
 	decision,

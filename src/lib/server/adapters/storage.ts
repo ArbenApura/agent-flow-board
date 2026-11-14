@@ -1,7 +1,7 @@
 // FILE STORAGE ADAPTERS: DISK AND MEMORY, AND ANY S3 COMPATIBLE SERVICE (MINIO, AWS S3, ANY OTHER)
 // Files are served only through short lived signed URLs, never by a public path (SPEC 6).
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize, resolve } from 'node:path';

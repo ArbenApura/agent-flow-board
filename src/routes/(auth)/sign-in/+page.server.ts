@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Actions, PageServerLoad } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { fail, redirect } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getAuth, googleEnabled } from '#lib/server/auth/index.js';
 import { safeNext } from '#lib/server/auth/next.js';
 import { resendVerification } from '#lib/server/auth/register.js';

@@ -1,8 +1,8 @@
 // THE OUTSIDE SERVICES A REQUEST OR A PAGE LOAD HANDS TO THE OPERATIONS LAYER, BUILT FROM THE ENVIRONMENT
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './ops/context';
-// -- ENVS -- //
+// IMPORTED ENVS
 import {
 	AFB_BASE_URL,
 	AFB_MASTER_KEY,
@@ -11,7 +11,7 @@ import {
 	BETTER_AUTH_SECRET,
 	MOCKUP_ORIGIN
 } from '$app/env/private';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getStorage } from './adapters/index';
 import { getMailer } from './auth/index';
 import { getJobs } from './jobs/index';

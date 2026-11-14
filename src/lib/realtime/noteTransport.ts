@@ -1,7 +1,7 @@
 // THE NOTE'S LIVE ENDPOINTS AS A TRANSPORT FOR THE PROVIDER (AFB-20261111-0035, 8.3)
 // The only place that knows the addresses and the base64 form. A failure is sorted into the few kinds the provider acts on.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ApiError, api } from '../board/api';
 import {
 	TransportError,

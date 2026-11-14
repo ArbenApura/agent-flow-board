@@ -3,13 +3,13 @@
 // idle after a generous time without being released silently, moves to the next open phase when a phase finishes, and is
 // cleared when its item closes. Everything here warns and asks; nothing blocks work (ADR-014 Warn, never block).
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { StepEvidenceWaiver } from '../db/schema';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, inArray, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { check, checkRun, item, phase, session, step } from '../db/schema';
 import { notifyChange } from '../realtime/notify';
 import { OpError } from './context';

@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Popover from '#lib/ui/Popover.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	import { MONTHS, WEEKDAYS, formatLong, monthGrid, parseIso, shiftMonth } from '#lib/ui/dates.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';

@@ -1,11 +1,11 @@
 // THE INSTALL: THE COMMAND PER PACKAGE MANAGER, THE CACHE RULE FOR PNPM, WINDOWS SHIMS AND THE REAL HAPR COMMANDS AGAINST THE GUARDRAILS (NO INSTALL IS RUN)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { commandProblem } from './guardrails.js';
 import {
 	forgetPackageManagerVersions,

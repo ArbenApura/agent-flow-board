@@ -2,11 +2,11 @@
 // A row never holds a payload, an argument or an error message (a message can quote what a person wrote). It is written after the
 // call has settled, in its own short transaction, and a failure here is only logged: timing must never break or slow the call it measures.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from '../ops/context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { lt, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mcpCallTiming } from '../db/schema';
 import { run } from '../ops/context';
 import { findItem, findProject } from '../ops/resolve';

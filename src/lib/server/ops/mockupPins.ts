@@ -2,12 +2,12 @@
 // A pin belongs to one version. Its text is written by a person, so it is stored as plain Markdown text, returned marked
 // untrusted with its author, and sanitised again whenever it is rendered. Only people who can write may pin.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendEvent } from '../db/events';
 import { MOCKUP_SCREEN_KEYS, mockupPin, mockupVersion } from '../db/schema';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';

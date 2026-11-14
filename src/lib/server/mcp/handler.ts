@@ -2,11 +2,11 @@
 // Each request builds its own server and transport, answers with plain JSON, and forgets everything. State lives in the
 // database (sessions, claims), so the endpoint behaves the same on one server and on several processes.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { connectionName, isOrgSlug, orgMcpUrl, toolPrefix } from '../../shared/orgConnection';
 import { org } from '../db/schema';
 import { withTenant } from '../db/tenant';

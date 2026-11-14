@@ -16,7 +16,7 @@
 // agent-flow-board mockup inspect <mockup id>[@version] --server <url> --org <slug> [--screen S] [--state T] [--width W] [--height H]   inspect rendered DOM box/styles/text
 // agent-flow-board mockup renders <mockup id> --server <url> --org <slug> [--version <n>] [--widths 408,820,1280,1600] [--render-states a,b]   re-render an existing version, no file written
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

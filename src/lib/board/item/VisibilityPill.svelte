@@ -1,15 +1,15 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { Component } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Globe from '@lucide/svelte/icons/globe';
 	import Lock from '@lucide/svelte/icons/lock';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Popover from '#lib/ui/Popover.svelte';
 
 	// -- REQUIRED PROPS -- //

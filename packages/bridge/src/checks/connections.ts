@@ -1,10 +1,10 @@
 // THE BOARDS THIS MACHINE IS CONNECTED TO FOR CHECKS: SERVER AND ORGANISATION ONLY, NEVER A TOKEN (THE TOKEN IS IN THE TOKEN STORE)
 // `check watch` re-reads this list on every loop, so a `check connect` for a second organisation is picked up without a restart.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { checksHome, ensureDir, ORG_SLUG } from './paths.js';
 import { renameRetry } from './fsretry.js';
 

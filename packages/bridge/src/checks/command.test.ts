@@ -1,12 +1,12 @@
 // THE `check` COMMAND GROUP: IT IS DISPATCHED, IT NEVER WAITS ON A TERMINAL, AND THE HOOK PATH NEVER LOADS IT
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { checkMain, CHECK_USAGE } from './command.js';
 import { recordConnection } from './connections.js';
 import { fileStore } from '../tokenStore.js';

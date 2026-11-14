@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { onMount } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import { verbText } from '#lib/board/verbs.js';
@@ -11,7 +11,7 @@
 	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Undo2 from '@lucide/svelte/icons/undo-2';
 
 	// -- TYPES -- //

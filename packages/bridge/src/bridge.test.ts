@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- tool replies are parsed from JSON and read loosely in tests */
 // 6.9: THE STDIO BRIDGE END TO END AGAINST THE REAL /mcp HANDLER, WITH THE OFFLINE QUEUE, THE DEVICE SIGN IN AND THE TOKEN STORE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../../src/lib/server/adapters/storage';
 import { handleMcp } from '../../../src/lib/server/mcp/handler';
 import { approveDevice, pollDevice, startDevice } from '../../../src/lib/server/oauth/oauth';

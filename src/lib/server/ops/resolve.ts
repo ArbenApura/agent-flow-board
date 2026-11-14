@@ -1,12 +1,12 @@
 // FINDING THINGS BY THE NAMES PEOPLE USE: AN ITEM BY ID, REFERENCE (HAPR-20261017-0950), OR AN OLD ALIAS (HAPR-142, FLOW-20261007-1441), A PROJECT BY KEY
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 import type { Role } from '../orgs/roles';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { NOTE_LIMITS } from '../../shared/notes';
 import { item, itemAlias, note, project, projectCols, projectLogoV } from '../db/schema';
 import { effectiveProjectRole } from '../orgs/roles';

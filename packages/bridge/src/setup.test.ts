@@ -1,7 +1,7 @@
 // THE SETUP COMMAND (AFB-20261108-0427, B.3 AND B.4): THE CLAUDE HOOKS GO INTO A REPO'S SETTINGS FILE, MERGED, BACKED UP OUTSIDE THE REPO AND SAFE TO RUN TWICE
 // Each rule has a negative control, so a test cannot pass on a command that writes nothing.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	existsSync,
 	mkdirSync,
@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { planSetup, runSetup } from './hooks/setup.js';
 
 // -- CONSTANTS -- //

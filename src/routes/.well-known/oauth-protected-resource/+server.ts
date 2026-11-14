@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { AFB_BASE_URL } from '$app/env/private';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { oauthMetadata } from '#lib/server/mcp/handler.js';
 
 // -- FUNCTIONS -- //

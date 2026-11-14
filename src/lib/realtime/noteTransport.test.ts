@@ -1,8 +1,8 @@
 // THE LIVE ENDPOINTS AS A TRANSPORT: HOW A FAILED CALL IS SORTED (AFB-20261111-0035, 8.6)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ApiError } from '../board/api';
 import { httpTransport, sortFailure } from './noteTransport';
 import { TransportError, toBase64 } from './noteProvider';

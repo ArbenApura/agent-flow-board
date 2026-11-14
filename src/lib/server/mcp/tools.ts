@@ -1,17 +1,17 @@
 // THE MCP TOOLS (SPEC 7). A SMALL SET WITH SHORT DESCRIPTIONS, COMPACT REPLIES, A `fields` OPTION, BATCH WRITES AND A requestId ON EVERY WRITE.
 // Every tool is a thin wrapper around an operations verb, so the rules are the same as in the web app and the REST API.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Storage } from '../adapters/storage';
 import type { DbHandle } from '../db/client';
 import { searchBoard } from '../ops/board';
 import type { Capability, Ctx } from '../ops/context';
 import type { TokenAuth } from '../ops/tokens';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { item, project, projectCols } from '../db/schema';
 import { claimNotes, relatedPlans } from '../ops/related';
 import {

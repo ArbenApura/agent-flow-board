@@ -2,14 +2,14 @@
 // Trust split (step A.1): the board holds only advisory display facts (dev URL, profile names, last status, reason code and fix line).
 // Executable config (startCommand, allowWrites, writeAllowlist) lives ONLY in the bridge's local sealed registry and is refused here.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
 import type { DbHandle } from '../db/client';
 import type { RunnerAuth } from './environments';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendEvent } from '../db/events';
 import { DEV_STATUSES, devRegistration, member, org, project, runner } from '../db/schema';
 import { withTenant } from '../db/tenant';

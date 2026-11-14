@@ -1,6 +1,6 @@
 // TESTS OF THE REGISTRATIONS: SAVE, LIST, FORGET, EVERY UNIQUENESS RULE, THE FOLDER RULES BY REAL PATH, THE STATE REFUSAL, THE APPROVALS AND THE PIN.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	mkdirSync,
 	mkdtempSync,
@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mintApproval } from './approve.js';
 import { verifyAudit } from './audit.js';
 import { registrationsDir, stateDirFor } from './paths.js';

@@ -1,11 +1,11 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { ScreenKey } from '#lib/board/mockups.js';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { untrack } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { frameSize } from '#lib/board/frames.js';
 	import { cn } from '#lib/ui/cn.js';
 

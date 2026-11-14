@@ -4,7 +4,7 @@
 // fades drawn with `group-data-[fade-start]/fade:` and `group-data-[fade-end]/fade:` show a cut row as scrollable. A row that fits sets
 // neither, so nothing is drawn on a wide screen.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Action } from 'svelte/action';
 
 // -- FUNCTIONS -- //

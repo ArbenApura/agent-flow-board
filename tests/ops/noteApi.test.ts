@@ -1,8 +1,8 @@
 // THE NOTE REST ENDPOINTS THROUGH THE DISPATCHER: 200, 403, 404 AND 409 ON NOTES, FOLDERS AND FAVOURITES (AFB-20261111-0035, step 2.4)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleApi, type ApiDeps, type ApiResponse } from '../../src/lib/server/api/dispatch';
 import { buildOpenApi } from '../../src/lib/server/api/openapi';

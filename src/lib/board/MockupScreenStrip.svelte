@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { ConfigValue } from '#lib/board/mockups.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 

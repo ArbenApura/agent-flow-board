@@ -2,13 +2,13 @@
 // Tables come from the tenant table registry, so a new tenant table is backed up without anyone remembering to add it.
 // Parents are written before children, and the columns each table had are recorded so a restore can match them.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Storage } from '../adapters/storage';
 import type { Admin } from './admin';
 import type { Frame } from './archive';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { TENANT_TABLES } from '../db/schema';
 
 // -- TYPES -- //

@@ -1,8 +1,8 @@
 // THE OLD MOCKUP SETTINGS ADDRESS (AFB-20261107-1337): THE PAGE IS GONE, SO A BOOKMARK GOES TO THE MOCKUPS PAGE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { GET } from '../../src/routes/[org]/[project]/mockups/settings/+server';
 
 // -- FUNCTIONS -- //

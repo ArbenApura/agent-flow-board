@@ -1,6 +1,6 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { OpError } from '#lib/server/ops/context.js';
 import { listTrash } from '#lib/server/ops/history.js';
 import { childContext, pageError } from '#lib/server/web/ctx.js';

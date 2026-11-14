@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Lock from '@lucide/svelte/icons/lock';
 
 	// -- REQUIRED PROPS -- //

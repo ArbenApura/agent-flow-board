@@ -1,8 +1,8 @@
 // MOCKUP TABLES: MOCKUPS, VERSIONS, PINNED COMMENTS, PROJECT STYLE, PAGE TEMPLATES AND THE PROJECT KIT
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { NamedMockupScreen } from '../../../shared/screenGlobs';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 import {
 	bigint,
@@ -17,7 +17,7 @@ import {
 	uniqueIndex,
 	uuid
 } from 'drizzle-orm/pg-core';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { orgId, projectId } from './core';
 import { item } from './items';
 import { VISIBILITIES, id, oneOf, stamps, tenantTable, version } from './helpers';

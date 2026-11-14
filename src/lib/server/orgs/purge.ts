@@ -2,12 +2,12 @@
 // The purge claims the org first, so a restore can no longer race it. Files go before the org row, because their keys live
 // in the rows the cascade removes. Every step can run again after a failure.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from '../db/client';
 import type { Storage } from '../adapters/storage';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	attachment,
 	backupRun,

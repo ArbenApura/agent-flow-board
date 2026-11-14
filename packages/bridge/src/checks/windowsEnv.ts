@@ -1,11 +1,11 @@
 // WINDOWS CRLF AND GIT BASH ENVIRONMENT DIAGNOSTICS (STEP E.2, AFB-20261113-1008)
 // Detects core.autocrlf=true without LF normalization and emits actionable Windows/Git Bash guidance for check doctor.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Problem } from './doctor.js';
 
 export type WindowsEnvDeps = {

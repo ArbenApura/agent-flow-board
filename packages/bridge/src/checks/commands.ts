@@ -2,9 +2,9 @@
 // an exit code (0 done, 1 refused with the problems listed, 2 could not run). Nothing here reads a terminal. `check approve` only asks whether it IS on a terminal, because a code is
 // made by the owner and never by an agent.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { isatty } from 'node:tty';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	APPROVAL_ACTIONS,
 	Refusal,

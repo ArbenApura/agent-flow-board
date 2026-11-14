@@ -1,8 +1,8 @@
 // THE PARTS OF A MOCKUP THAT WERE READ (AFB-20261110-2331): MERGING, COUNTING AND "READ TO THE END"
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	coveredChars,
 	coversAll,

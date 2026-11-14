@@ -1,6 +1,6 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { LayoutServerLoad } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { avatarVersion } from '#lib/board/pictures.js';
 import { getDb } from '#lib/server/db/index.js';
 import { listMyOrgs } from '#lib/server/orgs/orgs.js';

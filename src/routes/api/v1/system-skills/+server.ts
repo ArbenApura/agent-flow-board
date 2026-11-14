@@ -1,8 +1,8 @@
 // THE SYSTEM SKILLS INDEX: BUNDLE VERSION, EACH SKILL'S VERSION, HASH AND FILES, AND THE CHANGELOG. PUBLIC, NO SIGN IN.
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { bundleSha256, systemSkillsIndex } from '#lib/server/system-skills/index.js';
 import { publicAnswer } from '#lib/server/system-skills/http.js';
 

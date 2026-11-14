@@ -1,5 +1,5 @@
 <script module lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Component } from 'svelte';
 
 	// -- TYPES -- //
@@ -17,11 +17,11 @@
 </script>
 
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { Box } from '#lib/ui/position.js';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { tick } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { portal } from '#lib/actions/portal.js';
 	import { optionId } from '#lib/board/notes/editorMenu.js';
 	import { cn } from '#lib/ui/cn.js';

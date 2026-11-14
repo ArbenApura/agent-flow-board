@@ -1,10 +1,10 @@
 // LIVE CO-EDITING VERBS: ORDER, EPOCHS, SEEDS, CHECKPOINTS, LIMITS, ACCESS AND NOTICES (AFB-20261111-0035, 8.2)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
 import { ZodError } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { OpError } from '../../src/lib/server/ops/context';
 import { createNote, getNote, updateNote } from '../../src/lib/server/ops/notes';
 import {

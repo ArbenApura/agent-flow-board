@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 // THE PICTURE UPLOAD CLIENT: THE CHECK BEFORE SENDING, THE PLAIN ERROR LINES AND THE ADDRESS MAPPING (AFB-20261111-0035, STEP 4.5)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { Editor } from '@tiptap/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ApiError } from '#lib/board/api.js';
 import { NOTE_LIMITS } from '#lib/shared/notes.js';
 import { editorExtensions, markdownOfDoc, toMarkdown } from './editorMarkdown.js';

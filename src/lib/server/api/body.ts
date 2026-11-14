@@ -1,6 +1,6 @@
 // HOW MUCH OF A REQUEST BODY THE API READS, BY ENDPOINT: THE DECLARED SIZE IS CHECKED FIRST AND THE STREAM IS CUT AT THE LIMIT
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { NOTE_LIMITS } from '../../shared/notes';
 import { MAX_MOCKUP_BYTES, MAX_SCREENSHOT_BYTES } from '../ops/mockups';
 import { MAX_BODY_BYTES } from './dispatch';

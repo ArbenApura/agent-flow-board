@@ -1,7 +1,7 @@
 // WHAT THE NOTES PAGE SHOWS, READ FROM AND WRITTEN TO THE ADDRESS, AND THE WORDS OF ITS EMPTY STATES
 // The address is the one place the open folder, the favourites view and the search live, so a view can be shared and Back works.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { TreeView } from './tree';
 
 export type NotesView = {

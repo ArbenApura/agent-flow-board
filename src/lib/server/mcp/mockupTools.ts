@@ -2,9 +2,9 @@
 // They are additive and thin: each wraps an operations verb. A harness with a shell uploads with the bridge command instead, and
 // these take the HTML as plain text for one with none. Everything they return that other people wrote is marked untrusted.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { OpError } from '../ops/context';
 import { listMockupPins, setMockupPinResolved } from '../ops/mockupPins';
 import {

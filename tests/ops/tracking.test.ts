@@ -1,9 +1,9 @@
 // PHASE 9: SESSION CLAIMS, EVIDENCE, CLOSE HANDLING, HOOK LOGIC, AND REMINDERS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { claim, startSession } from '../../src/lib/server/mcp/sessions';
 import { session, step } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';

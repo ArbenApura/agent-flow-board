@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { untrack } from 'svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import Button from '#lib/ui/Button.svelte';

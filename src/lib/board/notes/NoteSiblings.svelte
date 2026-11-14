@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import FolderOpen from '@lucide/svelte/icons/folder-open';
 	import Lock from '@lucide/svelte/icons/lock';
 	import NotebookText from '@lucide/svelte/icons/notebook-text';

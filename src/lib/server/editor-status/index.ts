@@ -4,10 +4,10 @@
 // board's own address. No organisation name, item text or other stored text is ever put into a step, because an agent follows the steps.
 // Nothing here is a secret: the mod files are public source and the plan holds no token, verifier or code.
 
-// -- ASSETS -- //
+// IMPORTED ASSETS
 // A static import, not the glob below: the production build's glob skips a folder that starts with a dot (.claude-plugin), so the manifest would be missing there
 import pluginManifest from '../../../../packages/claude-status-mod/.claude-plugin/plugin.json?raw';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { normalize, sha256Hex } from '../system-skills/hash';
 
 // -- TYPES -- //

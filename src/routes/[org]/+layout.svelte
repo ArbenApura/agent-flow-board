@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { LayoutProps } from './$types';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { navigating, page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { itemTabsBar } from '#lib/board/item/itemTabsBar.svelte.js';
 	import { itemTabsFrom } from '#lib/board/item/itemTabs.js';
 	import { projectTabs } from '#lib/board/projectTabs.js';
@@ -20,7 +20,7 @@
 	import RouteSkeleton from '#lib/ui/RouteSkeleton.svelte';
 	import ThemeToggle from '#lib/ui/ThemeToggle.svelte';
 	import { signOut } from '#lib/ui/signOut.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Settings from '@lucide/svelte/icons/settings';
 	import Menu from '@lucide/svelte/icons/menu';
 	import Search from '@lucide/svelte/icons/search';

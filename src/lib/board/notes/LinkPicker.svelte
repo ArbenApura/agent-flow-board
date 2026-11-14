@@ -1,15 +1,15 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { LinkKind, Target } from '#lib/board/notes/links.js';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { onMount } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { api } from '#lib/board/api.js';
 	import { LinkSearch } from '#lib/board/notes/editorMenu.js';
 	import { KIND_NAME, offerTargets, searchTargets } from '#lib/board/notes/links.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Search from '@lucide/svelte/icons/search';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Skeleton from '#lib/ui/Skeleton.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 

@@ -1,8 +1,8 @@
 // STORAGE KEYS OF MOCKUP FILES: ONE RESERVED PREFIX, SO THE GENERAL FILE ROUTE CAN REFUSE THEM
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomUUID } from 'node:crypto';
-// -- CONSTANTS -- //
+// IMPORTED CONSTANTS
 import { MOCKUP_KEY_PREFIX } from '../db/schema/mockups';
 
 // -- FUNCTIONS -- //

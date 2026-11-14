@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { AFB_BASE_URL } from '$app/env/private';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getDb } from '#lib/server/db/index.js';
 import { isOAuthError, startDevice } from '#lib/server/oauth/oauth.js';
 import { json, preflight, readParams } from '#lib/server/oauth/http.js';

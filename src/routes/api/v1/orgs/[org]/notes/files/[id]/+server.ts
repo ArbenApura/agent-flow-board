@@ -1,6 +1,6 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getStorage } from '#lib/server/adapters/index.js';
 import { getDb } from '#lib/server/db/index.js';
 import { serveNoteFile } from '#lib/server/web/noteFile.js';

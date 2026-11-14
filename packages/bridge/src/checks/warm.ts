@@ -5,11 +5,11 @@
 // survives separate processes. The preview is stopped by its owner when it expires, when the worker stops (stopAll), and by doctor (sweepWarm) when its owner is
 // gone or it expired. Only process ids recorded in a marker are ever killed, and only with killTree.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { linkSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { pidAlive } from './lock.js';
 import { ensureDir, poolDir } from './paths.js';
 import { renameRetry } from './fsretry.js';

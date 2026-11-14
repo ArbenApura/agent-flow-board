@@ -1,6 +1,6 @@
 // THE PRIVATE COPY: A LOCAL CLONE AT HEAD PLUS THE WORKING-TREE CHANGES, THE NEVER LIST, THE SIZE SKIP, THE CAPS OF A NON-GIT FOLDER, A MOVED HEAD AND LINKS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFileSync } from 'node:child_process';
 import {
 	existsSync,
@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { MAX_COPY_BYTES, makePrivateCopy, neverCopy } from './copy.js';
 
 // -- FUNCTIONS -- //

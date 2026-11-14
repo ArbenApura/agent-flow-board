@@ -1,9 +1,9 @@
 // SIGN UP AND RESEND, WITH A SEND FAILURE THAT IS NEVER HIDDEN (M2: "A VISIBLE ERROR WHEN EMAIL SENDING FAILS")
 // Better Auth swallows a verification mail error during sign up, so the mail is sent here where its failure is seen.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Auth } from './auth';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { MailError } from '../email/mailer';
 
 // -- TYPES -- //

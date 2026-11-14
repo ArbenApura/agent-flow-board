@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Actions, PageServerLoad } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { fail } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { projectPinInput } from '#lib/server/db/zod.js';
 import { orgOverview } from '#lib/server/ops/board.js';
 import { OpError } from '#lib/server/ops/context.js';

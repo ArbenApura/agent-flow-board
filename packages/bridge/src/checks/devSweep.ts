@@ -2,16 +2,16 @@
 // Reuses one warm Chromium browser (browserpool) and shared contexts per state across a whole matrix of screens, widths, and auth states,
 // waits for HMR readiness (Vite or fallback), runs early stock checks (CLS + <44px tap targets) on every cell, and measures cold vs warm separately.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { WriteRule } from './devPolicy.js';
 import type { DevReadinessMode } from './devReadiness.js';
 import type { EarlyStockCheckReport } from './earlyStockChecks.js';
 import type { GuardCounts } from './guard.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { playwrightRuntimeDir } from './browser.js';
 import { acquireBrowser, type BrowserLease } from './browserpool.js';
 import {

@@ -2,7 +2,7 @@
 // Layout: magic, version, salt, then blocks of [length][nonce][ciphertext and tag]. Each block's AAD is its index and whether
 // it is the last one, so a changed, swapped, dropped or truncated block fails to decrypt. The key comes from BACKUP_KEY.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:crypto';
 import { gunzipSync, gzipSync } from 'node:zlib';
 

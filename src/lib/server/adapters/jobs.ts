@@ -2,12 +2,12 @@
 // The handler is never given a database handle. It gets `tenant(fn)`, which sets the tenant before the first query (L5).
 // Adapters: memory (tests) and pg-boss (a real PostgreSQL server).
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle, Tx } from '../db/client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { org } from '../db/schema';
 import { withTenant } from '../db/tenant';
 

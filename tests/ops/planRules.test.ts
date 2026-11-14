@@ -1,8 +1,8 @@
 // THE PLAN RULES A PROJECT WRITES IN ITS RULES TEXT: PARSED, AND ENFORCED WHEN A PLAN IS WRITTEN
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { createItem } from '../../src/lib/server/ops/items';
 import { addManualChecks, addPhase, addSteps, updateStep } from '../../src/lib/server/ops/plan';
 import { parsePlanRules, planViolations } from '../../src/lib/server/ops/planRules';

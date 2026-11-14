@@ -1,9 +1,9 @@
 // THE LIVE EDITING ENDPOINTS THROUGH THE DISPATCHER: JSON ONLY, THIS SITE'S ORIGIN FOR A COOKIE CALLER (AFB-20261111-0035, 8.2)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { handleApi, type ApiDeps, type ApiResponse } from '../../src/lib/server/api/dispatch';
 import { createNote } from '../../src/lib/server/ops/notes';
 import { makePostgres, type TestDb } from '../support/db';

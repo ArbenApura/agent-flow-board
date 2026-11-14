@@ -1,8 +1,8 @@
 // NOTE LINKS: TEXT LINKS WORKED OUT FROM THE BODY AS A DIFFERENCE, PANEL LINKS, AND WHAT A READER MAY SEE (AFB-20261111-0035, step 5.1)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { extractNoteRefs } from '../../src/lib/shared/noteLinks';
 import { OpError } from '../../src/lib/server/ops/context';
 import {

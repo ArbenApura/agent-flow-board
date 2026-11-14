@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Actions, PageServerLoad } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { fail, redirect } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getDb } from '#lib/server/db/index.js';
 import {
 	approveDevice,

@@ -1,9 +1,9 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { json } from '@sveltejs/kit';
 import { sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getDb } from '#lib/server/db/index.js';
 import { userPref } from '#lib/server/db/schema/index.js';
 import { withTenant } from '#lib/server/db/tenant.js';

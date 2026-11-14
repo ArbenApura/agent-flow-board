@@ -3,7 +3,7 @@
 // one part, ask what changed since an older version, and be held to the authored source only. Pictures, the icon sprite and
 // generated CSS are machine output: they are listed as excluded ranges and never have to be read. Pure functions, no database.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { createHash } from 'node:crypto';
 
 // -- TYPES -- //

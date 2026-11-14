@@ -1,6 +1,6 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { renderMarkdown } from '#lib/markdown.js';
 import { getDb } from '#lib/server/db/index.js';
 import { publicRateAllowed } from '#lib/server/mockups/limit.js';

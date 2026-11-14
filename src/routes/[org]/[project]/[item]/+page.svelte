@@ -1,11 +1,11 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
 	import type { ItemView, TabEnv } from '#lib/board/item/types.js';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { itemTabsBar } from '#lib/board/item/itemTabsBar.svelte.js';
 	import { itemTabsFrom, parseItemTab } from '#lib/board/item/itemTabs.js';
@@ -48,7 +48,7 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Check from '@lucide/svelte/icons/check';
 	import CheckCheck from '@lucide/svelte/icons/check-check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';

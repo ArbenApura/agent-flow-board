@@ -1,15 +1,15 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { OrgPalette } from '#lib/server/db/schema/core.js';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import OrgTile from '#lib/board/OrgTile.svelte';
 	import { LABEL } from '#lib/board/sidebar-classes.js';
 	import SidebarHeading from '#lib/board/SidebarHeading.svelte';
 	import SidebarRow from '#lib/board/SidebarRow.svelte';
 	import SidebarShell from '#lib/board/SidebarShell.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Building2 from '@lucide/svelte/icons/building-2';
 	import Plug from '@lucide/svelte/icons/plug';
 	import Settings from '@lucide/svelte/icons/settings';

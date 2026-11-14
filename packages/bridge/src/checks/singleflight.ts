@@ -6,7 +6,7 @@
 // infrastructure failure (the work threw an error marked `infra: true`) makes one waiter the next builder. A builder that died leaves no result: the lock
 // goes stale and one waiter takes it over. The work should be async (spawned processes), because a blocked event loop cannot beat.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import {
 	linkSync,
@@ -18,7 +18,7 @@ import {
 	writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { assertName, ensureDir, locksDir } from './paths.js';
 
 // -- TYPES -- //

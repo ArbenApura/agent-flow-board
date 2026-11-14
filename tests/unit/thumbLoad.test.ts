@@ -1,8 +1,8 @@
 // WHEN A MOCKUP CARD MAY LOAD ITS PICTURE, WHICH ADDRESS IT KEEPS, THE LIVE FRAME SLOTS, AND WHICH FILE A CARD ASKS FOR
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { cardGrant } from '../../src/lib/server/mockups/thumbs';
 import {
 	MAX_LIVE_FRAMES,

@@ -3,12 +3,12 @@
 // claim, the audit and the step gate can tell "read to the end" from "the notes were enough". Only ids, versions and counts
 // ever leave this file: no mockup text is put in a notice or an error.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { event, mockup, mockupRead, mockupVersion, session } from '../db/schema';
 import { OpError, requireCap, run } from './context';
 import { canSeeMockup, loadMockup } from './mockups';

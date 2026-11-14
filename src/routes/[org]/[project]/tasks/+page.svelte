@@ -1,14 +1,14 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { TaskForm, TaskRow } from '#lib/board/tasks.js';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { untrack } from 'svelte';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { createOptimistic } from '#lib/board/optimistic.svelte.js';
 	import { parseMode, parseTool } from '#lib/shared/continue.js';
@@ -33,7 +33,7 @@
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -42,7 +42,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
 	import Trash from '@lucide/svelte/icons/trash';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import BoardColumn from '#lib/board/BoardColumn.svelte';
 	import ContinueDialog from '#lib/board/ContinueDialog.svelte';

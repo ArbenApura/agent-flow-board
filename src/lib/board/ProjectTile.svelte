@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { projectPictureUrl } from '#lib/board/pictures.js';
 	import { cn } from '#lib/ui/cn.js';
 

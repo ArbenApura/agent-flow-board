@@ -70,7 +70,7 @@ A plan with a new or changed screen carries a sourced `design-brief` section (`/
 - Zero `<style>` blocks and no component-level CSS variables. Tailwind utilities on the element. The only inline `style=""` uses are a multi-stop gradient and runtime layout coordinates (percent widths, popover coordinates), each with an uppercase comment saying why.
 - Comments: section headers and dividers are UPPERCASE (`// -- STATES -- //`, `<!-- SECTION NAME -->`); notes and explanations use natural sentence case. Technical terms, names, paths and keywords keep their casing. Never remove existing comments.
 - Imports in nine groups, in this order, with no blank lines inside or between groups:
-  `// -- ASSETS -- //`, DEP-TYPES, TYPES, ENVS, CONSTANTS, DEP-MODULES, MODULES, DEP-COMPONENTS, COMPONENTS. Use the same `// -- NAME -- //` form for the labels.
+  `// IMPORTED ASSETS`, DEP-TYPES, TYPES, ENVS, CONSTANTS, DEP-MODULES, MODULES, DEP-COMPONENTS, COMPONENTS. Use the same `// IMPORTED NAME` form for the labels (the same as hapr-gameplan and clinicapp; the `// -- NAME -- //` form is for component sections only, so an import group never looks like a TYPES or CONSTANTS section).
 - Component sections in this order, each header followed by one blank line: REQUIRED PROPS, OPTIONAL PROPS, DEBUGGING, TYPES, CONSTANTS, STATES, PERSISTED STORES, STORES, REACTIVE STATES, REACTIVE STATEMENTS, FUNCTIONS, SUBSCRIPTIONS, LIFECYCLES.
 - Icons: `import Name from 'phosphor-svelte/lib/Name'`.
 - Every `<img>` has `alt=""` or a descriptive alt.

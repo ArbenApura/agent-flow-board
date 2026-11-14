@@ -1,14 +1,14 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { CommentRow, PinFilter } from '#lib/board/mockups.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { PIN_FILTERS, PIN_FILTER_LABEL } from '#lib/board/mockups.js';
 	import { ago } from '#lib/board/status.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import History from '@lucide/svelte/icons/history';
 	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';

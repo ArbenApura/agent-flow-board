@@ -1,12 +1,12 @@
 // ATTACHMENT VERBS (SPEC 5, 6). PRIVATE BY DEFAULT, SERVED ONLY THROUGH SHORT LIVED SIGNED LINKS
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomUUID } from 'node:crypto';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendEvent } from '../db/events';
 import { attachment, checkRun, item, org, step } from '../db/schema';
 import { isMockupKey, mockupEvidenceKey } from '../mockups/keys';

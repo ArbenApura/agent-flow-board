@@ -1,9 +1,9 @@
 // PHASE C.4 TESTS: VERTICAL-SLICE GATE, CLAIM WAITING STATE, AND UNBLOCK ON VERIFICATION/WAIVER (AFB-20261113-1008)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { session } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';

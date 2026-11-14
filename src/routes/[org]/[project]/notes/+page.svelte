@@ -1,15 +1,15 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { Folder } from '#lib/board/notes/tree.js';
 	import type { MenuItem } from '#lib/ui/ActionMenu.svelte';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { untrack } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { crumbs, moveRefusal } from '#lib/board/notes/tree.js';
 	import {
@@ -24,7 +24,7 @@
 	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import FolderInput from '@lucide/svelte/icons/folder-input';
 	import FolderTreeIcon from '@lucide/svelte/icons/folder-tree';
 	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
@@ -33,7 +33,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Search from '@lucide/svelte/icons/search';
 	import Trash from '@lucide/svelte/icons/trash';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import FolderTree from '#lib/board/notes/FolderTree.svelte';
 	import MoveDialog from '#lib/board/notes/MoveDialog.svelte';
 	import NameDialog from '#lib/board/notes/NameDialog.svelte';

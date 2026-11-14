@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import ColorPanel from '#lib/settings/ColorPanel.svelte';
 	import ModePreview from '#lib/settings/ModePreview.svelte';
 	import { checkPalette, generatePalette } from '#lib/theme/palette.js';

@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- tool replies are parsed from JSON and read loosely in tests */
 // A REAL MCP CLIENT TALKING TO THE /mcp HANDLER IN PROCESS, WITH NO HTTP SERVER IN BETWEEN
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { handleMcp } from '../../src/lib/server/mcp/handler';
 import type { McpDeps } from '../../src/lib/server/mcp/tools';
 

@@ -4,13 +4,13 @@
 // a stale worker lock, and the oldest finished runs beyond the newest 30. It never lists Docker to find things to remove, never prunes, never removes a live run or anything
 // younger than two minutes, and never touches the scripts folder. Every message carries names and counts only: no value, no token, no path of a secret.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { TokenStore } from '../tokenStore.js';
 import type { Registration } from './types.js';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, lstatSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { verifyAudit } from './audit.js';
 import { localFingerprint } from './signinKey.js';
 import { machineTotals } from './broker.js';

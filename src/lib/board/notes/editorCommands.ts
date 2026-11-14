@@ -1,10 +1,10 @@
 // THE TOOLBAR OF THE NOTE EDITOR AS DATA (AFB-20261111-0035, STEP 4.2)
 // Each tool is one command on the editor and one test of the Markdown it writes. The screen only draws them.
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Editor } from '@tiptap/core';
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { parseAfbLink } from '../../markdown';
 
 // -- TYPES -- //

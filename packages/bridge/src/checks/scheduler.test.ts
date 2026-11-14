@@ -1,11 +1,11 @@
 // THE SCHEDULER: SLOTS AND OVERLAP, AN OVERLOADED MACHINE LEAVES RUNS UNCLAIMED, THE BEAT STARTS AT THE CLAIM AND NEVER STOPS WAITING, A STOP GIVES BACK ONLY ITS OWN RUNS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	FairGate,
 	createScheduler,

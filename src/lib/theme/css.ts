@@ -1,7 +1,7 @@
 // THE STYLE RULES AN ORG PALETTE BECOMES (SPEC 11)
 // The values come from the palette generator and are checked once more here, so only a six digit colour can ever reach a page.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { OrgPalette } from '../server/db/schema/core';
 import type { Palette } from './palette';
 

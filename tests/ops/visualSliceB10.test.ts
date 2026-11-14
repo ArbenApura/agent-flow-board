@@ -2,7 +2,7 @@
 // Proves end-to-end across real Postgres, real Runner/Mockup HTTP server, real Playwright two-context comparison, and real DB evidence storage:
 // 1 screen, 1 width, hosted mockup (with externalized kit asset & HKDF signature) against a running local app, picture pair saved, and diff read (pass + drift).
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createServer, type Server } from 'node:http';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleRunnerApi } from '../../src/lib/server/api/runner';
 import { attachment, checkRun, org } from '../../src/lib/server/db/schema';

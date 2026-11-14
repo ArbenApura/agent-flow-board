@@ -1,4 +1,4 @@
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	existsSync,
 	mkdirSync,
@@ -12,7 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { findLink, readPlainFile, JPEG_MAGIC } from './evidence.js';
 import {
 	cleanResult,

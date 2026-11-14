@@ -1,7 +1,7 @@
 // THE RUNNER PROGRAM'S OWN RULES: WHAT NEEDS THE OWNER'S YES, WHEN A BUILD IS REUSED, WHAT A FAILED BUILD REPORTS, THE DEPLOYED
 // VERSION WAIT AND THE LOCKED DOWN CONTAINER OF A HOSTED RUN (SPEC 10, L1, L26, L27)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawn, spawnSync } from 'node:child_process';
 import {
 	existsSync,
@@ -17,7 +17,7 @@ import { createServer as netServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ApiError, CALL_TIMEOUT_MS, RunnerApi, UPLOAD_TIMEOUT_MS, retryDelay } from './api';
 import { Approvals, NeedsApproval } from './approvals';
 import { SCRIPT_TIMEOUT_MS, runCheckJob, withTimeout } from './checks';

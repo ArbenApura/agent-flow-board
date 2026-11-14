@@ -1,8 +1,8 @@
 // NOTE PICTURES AND LINK TARGETS: UPLOAD LIMITS, THE READER CHECKED AGAINST THE PICTURE'S OWN NOTE, CLEAN UP, PURGE (AFB-20261111-0035, steps 4.4 and 4.5)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage, type Storage } from '../../src/lib/server/adapters/storage';
 import { bodyLimit, readBodyCapped } from '../../src/lib/server/api/body';
 import { handleApi, type ApiDeps } from '../../src/lib/server/api/dispatch';

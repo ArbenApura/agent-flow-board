@@ -2,12 +2,12 @@
 // Each section saves on its own, so every verb here changes one group of fields. All of them need the manage capability,
 // which admins and owners hold. The palette is generated and checked on the server, never taken as CSS from the browser.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { storedPalette } from '../../theme/css';
 import { checkPalette, generatePalette } from '../../theme/palette';
 import { backupHealth } from '../backup/run';

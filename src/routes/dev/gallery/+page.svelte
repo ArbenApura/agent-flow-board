@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { onMount } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { applyMode, type ModeChoice } from '#lib/theme/mode.js';
 	import { checkPalette, generatePalette } from '#lib/theme/palette.js';
 	import ActionMenu from '#lib/ui/ActionMenu.svelte';
@@ -39,7 +39,7 @@
 	import Tooltip from '#lib/ui/Tooltip.svelte';
 	import VirtualList from '#lib/ui/VirtualList.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Archive from '@lucide/svelte/icons/archive';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Trash from '@lucide/svelte/icons/trash';

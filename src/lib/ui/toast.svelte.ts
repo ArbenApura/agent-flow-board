@@ -1,6 +1,6 @@
 // TOAST WRAPPER OVER svelte-sonner: SHORT NOTICES THAT FADE, FAILURES THAT STAY UNTIL DISMISSED, AND PROMISE TOASTS FOR AWAITED ACTIONS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { toast as sonner } from 'svelte-sonner';
 
 // -- TYPES -- //

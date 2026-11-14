@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- API and tool replies are parsed from JSON and read loosely in checks */
 // SHARED HELPERS FOR THE PRODUCT'S BROWSER CHECKS: SIGN IN, FRESH PEOPLE, THE MAIL OUTBOX AND A TINY MCP CLIENT OVER HTTP
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 

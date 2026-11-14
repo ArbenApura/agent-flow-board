@@ -2,16 +2,16 @@
 // Captures picture pairs per (screen, state, width), dumps DOM measurements for both, applies structured Free rules (from design-brief)
 // and per-plan overrides (with reason), evaluates tight pixel/colour/font tolerances via pairing.ts, and returns a ranked diff + saved evidence.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Fetch } from '../device.js';
 import type { CheckJob, RunReport } from './board.js';
 import type { CompareResult, MismatchEntry, PairingManifest, StateDriver } from './pairing.js';
 import type { ProjectConfig, Registration } from './types.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { BoardError, RunnerBoard } from './board.js';
 import { slotsHeader } from './broker.js';
 import { ensureBrowser } from './browser.js';

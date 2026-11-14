@@ -4,10 +4,10 @@
 // message here names variables and files, never values. The caller keeps what is returned in `startEnv` OUT of install and build (adopted values reach the START step only),
 // runs databaseProblems() (envrules.ts) over it, and puts `redactions` into the redaction needles.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { closeSync, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { expandRefs } from './envrules.js';
 
 // -- TYPES -- //

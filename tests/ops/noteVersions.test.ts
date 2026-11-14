@@ -1,8 +1,8 @@
 // NOTE HISTORY AND THE PUBLIC LINK: THE CUT RULES, RESTORE (ALSO ON AN OPEN NOTE), THE SAME ANSWER FOR EVERY KIND OF REFUSED LINK, PICTURES UNDER A LINK (AFB-20261111-0035, 7.1 AND 7.2)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleApi, type ApiDeps } from '../../src/lib/server/api/dispatch';
 import { OpError, type Ctx } from '../../src/lib/server/ops/context';

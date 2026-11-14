@@ -1,10 +1,10 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { AFB_BASE_URL } from '$app/env/private';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { redirect } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getDb } from '#lib/server/db/index.js';
 import { callbackUrl, checkAuthorize } from '#lib/server/oauth/authorize.js';
 import { isOAuthError, issueCode } from '#lib/server/oauth/oauth.js';

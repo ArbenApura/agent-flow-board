@@ -1,13 +1,13 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Component } from 'svelte';
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { Folder, TreeKey, TreeView } from '#lib/board/notes/tree.js';
 	import type { MenuItem } from '#lib/ui/ActionMenu.svelte';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import {
 		hasChildren,
 		indentClass,
@@ -17,7 +17,7 @@
 		visibleRows
 	} from '#lib/board/notes/tree.js';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import FolderIcon from '@lucide/svelte/icons/folder';
 	import FolderInput from '@lucide/svelte/icons/folder-input';
@@ -27,7 +27,7 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Star from '@lucide/svelte/icons/star';
 	import Trash from '@lucide/svelte/icons/trash';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import ActionMenu from '#lib/ui/ActionMenu.svelte';
 	import Button from '#lib/ui/Button.svelte';
 

@@ -1,11 +1,11 @@
 // PLAN VERBS: ADD PHASES, STEPS AND MANUAL CHECKS TO AN ITEM THAT ALREADY EXISTS (A PLAN GROWS AS THE WORK IS UNDERSTOOD)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { effectiveStepVisible } from '../../shared/screenGlobs';
 import { recalcItem } from '../db/calc';
 import { appendEvent } from '../db/events';

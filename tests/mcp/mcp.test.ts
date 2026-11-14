@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- tool replies are parsed from JSON and read loosely in tests */
 // 6.4 TO 6.11 AND 6.13: THE MCP SERVER THROUGH A REAL CLIENT, WITH TOKENS, SESSIONS, WORKFLOWS AND THE COMPATIBILITY VERBS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import {
 	comment,

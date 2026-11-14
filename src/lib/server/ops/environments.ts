@@ -2,14 +2,14 @@
 // Environments say where a check may run and whether it may write. Secrets are test accounts, sealed with the org's data key and
 // never returned by any call. Runners are the programs that run checks; a runner token is shown once and stored as a hash.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Capability, Ctx } from './context';
 import type { DbHandle } from '../db/client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendEvent } from '../db/events';
 import {
 	checkRun,

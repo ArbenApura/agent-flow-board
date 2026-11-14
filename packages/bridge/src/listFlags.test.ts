@@ -1,8 +1,8 @@
 // ONE SHARED READER OF THE LIST FLAGS (rule R2, AFB-20261114-0611), AND THE LISTS THAT ARE NEVER CONVERTED
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { listFlag, strictList, HOSTNAME_PATTERN } from './listFlags.js';
 
 // -- FUNCTIONS -- //

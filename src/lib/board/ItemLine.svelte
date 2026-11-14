@@ -1,14 +1,14 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { ItemRow, Running } from '#lib/board/rows.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { draggable } from '#lib/actions/dnd.svelte.js';
 	import { LIST_COLS, STATUS_STYLE, ago } from '#lib/board/status.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Progress from '#lib/ui/Progress.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Lock from '@lucide/svelte/icons/lock';
 	import Play from '@lucide/svelte/icons/play';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';

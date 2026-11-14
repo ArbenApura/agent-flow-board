@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Button from '#lib/ui/Button.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import CircleAlert from '@lucide/svelte/icons/circle-alert';
 
 	// -- REQUIRED PROPS -- //

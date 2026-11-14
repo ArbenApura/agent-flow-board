@@ -1,6 +1,6 @@
 // THE MOCKUP PUSH COMMAND: NO SIGN IN, A FILE THAT IS TOO BIG OR NOT HTML, A REPEATED REQUEST ID ON A RETRY, AND THE ORDER OF THE CALLS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	existsSync,
 	mkdirSync,
@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	MAX_MOCKUP_BYTES,
 	pullMockup,

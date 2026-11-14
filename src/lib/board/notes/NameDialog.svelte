@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { untrack } from 'svelte';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Button from '#lib/ui/Button.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import TextField from '#lib/ui/TextField.svelte';

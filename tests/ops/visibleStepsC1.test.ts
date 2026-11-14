@@ -1,8 +1,8 @@
 // PHASE C.1 & D.7 TESTS: VISUAL STEP INFERENCE, SHARED PROGRESS, HEALTH FLAGS & PROJECT LENS PACKS (AFB-20261113-1008)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { createItem, getItem } from '../../src/lib/server/ops/items';
 import { publishMockup, readMockupHtml } from '../../src/lib/server/ops/mockups';

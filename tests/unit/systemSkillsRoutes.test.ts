@@ -1,8 +1,8 @@
 // THE PUBLIC SYSTEM SKILLS ROUTES (AFB-20261021-0401): TYPES, ETAGS, 304, THE ZIP BYTES AND NO CALLER DATA
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { GET as getIndex } from '../../src/routes/api/v1/system-skills/+server';
 import { GET as getZip } from '../../src/routes/api/v1/system-skills/bundle.zip/+server';
 import { GET as getFile } from '../../src/routes/api/v1/system-skills/files/[name]/[...path]/+server';

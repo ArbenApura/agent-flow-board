@@ -3,13 +3,13 @@
 // master key from AFB_MASTER_KEY. Every sealed value is bound to its org, project and name, so a row copied to another place does
 // not open. Rotating the master key re-wraps the data keys and leaves every secret as it is.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Admin } from '../backup/admin';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:crypto';
 import { and, desc, eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { orgDataKey } from '../db/schema';
 import { OpError } from '../ops/context';
 

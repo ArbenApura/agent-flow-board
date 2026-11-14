@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
 
 	// -- REQUIRED PROPS -- //

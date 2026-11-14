@@ -4,7 +4,7 @@
 // A later run sweeps what a dead process left: only the exact run folders and copies named by a dead marker (or by no marker and old enough), never a
 // folder that was not made by a run.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
@@ -19,7 +19,7 @@ import {
 	writeFileSync
 } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { pidAlive } from './lock.js';
 import {
 	NAME,

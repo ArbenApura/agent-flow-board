@@ -1,9 +1,9 @@
 // THE READ ONLY SESSION STATUS LOOKUP: WHICH ITEM IS THE CONVERSATION WITH THIS EXTERNAL ID WORKING ON?
 // Real rows, real tokens and the real dispatcher. Each rule has a negative control, so a test cannot pass on an empty answer.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleApi, type ApiDeps, type ApiResponse } from '../../src/lib/server/api/dispatch';
 import { buildOpenApi } from '../../src/lib/server/api/openapi';

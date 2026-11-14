@@ -1,7 +1,7 @@
 // DRAG AND DROP FOR THE BOARD, AS TWO SVELTE ACTIONS AND ONE SHARED STATE
 // `use:draggable` marks a card and `use:dropzone` marks a column. The shared state lets a column show it is the target.
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Action } from 'svelte/action';
 
 // -- TYPES -- //

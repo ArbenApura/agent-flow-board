@@ -1,10 +1,10 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Change } from '#lib/server/realtime/notify.js';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { error } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getDb } from '#lib/server/db/index.js';
 import { latestEventId, mayReceive } from '#lib/server/ops/board.js';
 import { OpError } from '#lib/server/ops/context.js';

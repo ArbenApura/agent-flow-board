@@ -1,7 +1,7 @@
 // THE SECTIONS OF A SETTINGS PAGE, COLLECTED AS THEY RENDER, SO THE SIDE NAVIGATION AND THE ONE VISIBLE SECTION AGREE (ADR-004)
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Component } from 'svelte';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { getContext, setContext } from 'svelte';
 
 // -- TYPES -- //

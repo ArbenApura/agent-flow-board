@@ -1,12 +1,12 @@
 // THE PROJECT KIT'S HEAD AND HOW IT REACHES A MOCKUP: A MOCKUP CARRIES ONLY A MARKER, THE BOARD PUTS THE PROJECT'S STYLESHEET AND FONTS IN WHEN IT SERVES THE PAGE
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Storage } from '../adapters/storage';
 import type { Tx } from '../db/client';
 import type { KitFacts } from './lint';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { desc, eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mockupKit, mockupKitAsset } from '../db/schema';
 import { extractKitAssets } from './kitAssets';
 import { kitFacts } from './lint';

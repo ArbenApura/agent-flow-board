@@ -1,8 +1,8 @@
 // THE OPENAPI DOCUMENT, GENERATED FROM THE ROUTE TABLE AND ITS ZOD SCHEMAS (5.10)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { routes } from './routes';
 
 // -- FUNCTIONS -- //

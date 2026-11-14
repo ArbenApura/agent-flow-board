@@ -2,12 +2,12 @@
 // One verb behind the MCP tool and /api/v1. It finds plans by any of the words and files of a request, groups them per item,
 // and keeps every rule of search: only items the caller may see, never a trashed one, never a project a token is not limited to.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, inArray, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { noteRef } from '../../shared/notes';
 import { decision, event, item, note, project, projectMember, section, step } from '../db/schema';
 import { relatedTokens, searchRelated } from '../db/search';

@@ -1,13 +1,13 @@
 // SINGLE-FLIGHT: ONE BUILDER, WAITERS THAT GET ITS RESULT, A KILLED BUILDER TAKEN OVER AFTER ITS HEARTBEAT STOPS, AN INFRASTRUCTURE FAILURE RETRIED, A DETERMINISTIC ONE SHARED
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { locksDir } from './paths.js';
 import { FlightTimeoutError, InfraError, SharedBuildError, singleFlight } from './singleflight.js';
 

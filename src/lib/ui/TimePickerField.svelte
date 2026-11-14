@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Select from '#lib/ui/Select.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	import { formatTime, parseTime } from '#lib/ui/dates.js';

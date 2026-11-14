@@ -1,12 +1,12 @@
 // AGENT SESSIONS (ADR-022). THE SERVER MINTS A SESSION ID AND EVERY TRACKING AND WRITE TOOL TAKES IT,
 // SO TWO TOOLS THAT SHARE ONE TOKEN ARE STILL TWO SESSIONS. CLAIMS (ITEM AND PHASE) LIVE ON THE SESSION ROW.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from '../ops/context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import { and, eq, ne, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { canonicalTool } from '../../shared/tool';
 import { item, phase, session, step } from '../db/schema';
 import { OpError, isLivePersonSession, run } from '../ops/context';

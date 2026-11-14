@@ -1,6 +1,6 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getDb } from '#lib/server/db/index.js';
 import { isOAuthError, registerClient } from '#lib/server/oauth/oauth.js';
 import { json, preflight } from '#lib/server/oauth/http.js';

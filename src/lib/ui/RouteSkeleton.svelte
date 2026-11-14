@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import Skeleton from '#lib/ui/Skeleton.svelte';
 

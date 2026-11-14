@@ -1,11 +1,11 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Actions, PageServerLoad } from './$types';
 import type { Ctx } from '#lib/server/ops/context.js';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { AFB_BASE_URL } from '$app/env/private';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { fail, redirect } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { agentSetupMarkdown } from '#lib/connect/agentSetup.js';
 import { editorSetupMarkdown } from '#lib/connect/editorSetup.js';
 import { skillsBriefMarkdown } from '#lib/connect/skillsBrief.js';

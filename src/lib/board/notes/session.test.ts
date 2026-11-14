@@ -1,8 +1,8 @@
 // WHICH WINDOWS EDIT LIVE (AFB-20261111-0035, 8.6): ONLY A PERSON WHO CAN WRITE OPENS A SESSION, SO ONLY THEY GET A PROVIDER
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { liveSnapshot, nextSession, sessionKey } from './session';
 
 // -- FUNCTIONS -- //

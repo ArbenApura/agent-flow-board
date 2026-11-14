@@ -1,13 +1,13 @@
 // INVITES BOUND TO ONE EMAIL ADDRESS (SPEC 6.1). THE TOKEN IS `<orgId>.<secret>`, ONLY ITS HASH IS STORED, IT IS MAILED ONCE.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from '../db/client';
 import type { Mailer } from '../email/mailer';
 import type { Role } from './roles';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { invite, member, org, user } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { inviteMail } from '../email/templates';

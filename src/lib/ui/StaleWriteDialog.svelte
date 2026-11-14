@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Button from '#lib/ui/Button.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 

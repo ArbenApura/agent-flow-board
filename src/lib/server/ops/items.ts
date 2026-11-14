@@ -1,12 +1,12 @@
 // ITEM VERBS: CREATE, READ, LIST, UPDATE, TRASH AND RESTORE (SPEC 5)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { allocateItemNumber } from '../db/numbering';
 import { RefSuffixesTaken, freeRefs, insertItemWithFreshRef } from '../db/flowId';
 import { recalcItem } from '../db/calc';

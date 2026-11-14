@@ -1,8 +1,8 @@
 // NOTE TABLES: NOTES, FOLDERS, VERSIONS, LINKS, PICTURES, FAVOURITES AND LIVE EDITING UPDATES (AFB-20261111-0035)
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 import {
 	bigint,
@@ -16,7 +16,7 @@ import {
 	uniqueIndex,
 	uuid
 } from 'drizzle-orm/pg-core';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { orgId, projectId, user } from './core';
 import { VISIBILITIES, id, oneOf, stamps, tenantTable, tsvector, version } from './helpers';
 

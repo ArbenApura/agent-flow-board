@@ -11,12 +11,12 @@
 </script>
 
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Popover from '#lib/ui/Popover.svelte';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Component } from 'svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import Check from '@lucide/svelte/icons/check';
 

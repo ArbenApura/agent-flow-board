@@ -1,9 +1,9 @@
 // THE CHANGE NOTICE: WHAT IS SENT THROUGH NOTIFY WHEN A PROJECT CHANGES, SO OTHER OPEN PAGES CAN REFRESH (SPEC 11, 12)
 // The notice is small on purpose (Postgres limits a payload to 8000 bytes) and holds ids only, never content.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 
 // -- TYPES -- //

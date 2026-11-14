@@ -1,6 +1,6 @@
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { needlesFromEnv, redact, redactPatterns } from './redact.js';
 
 const PASSWORD = 'correct-horse-battery';

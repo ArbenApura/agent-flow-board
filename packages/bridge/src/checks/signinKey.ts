@@ -3,11 +3,11 @@
 // goes to the page through Playwright `fill` and is never an argument, an environment variable, a log line or an audit line. The format mirrors src/lib/shared/signinCrypto.ts.
 // Honest limit: a process that runs as the same OS user can read the key files, like every other local secret here.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, webcrypto } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendAudit } from './audit.js';
 import { checksHome, ensureDir } from './paths.js';
 import { seal, unseal } from './store.js';

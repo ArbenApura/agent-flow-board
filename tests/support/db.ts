@@ -3,15 +3,15 @@
 // the migrations never run again and files cannot see each other's rows. The owner is NOT a superuser, so forced row level
 // security binds it exactly like production (ADR-021); `admin` is the superuser, for seeding rows across orgs.
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { DbHandle } from '../../src/lib/server/db/client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { inject } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { createPostgres } from '../../src/lib/server/db/client';
-// -- CONSTANTS -- //
+// IMPORTED CONSTANTS
 import { TEMPLATE } from './globalSetup';
 
 // -- TYPES -- //

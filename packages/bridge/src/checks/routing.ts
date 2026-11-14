@@ -1,9 +1,9 @@
 // WHICH REGISTRATION A RUN USES. Never a guess. In order: (1) the one named on the run, (2) the one saved on the check, (3) a "// afb-registration: NAME" line in the first 12 lines of
 // the script, (4) the only registration of the board project. Otherwise a refusal with a code an agent can act on and the list of choices.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Registration } from './types.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { REGISTRATION_NAME, listRegistrations } from './registry.js';
 
 // -- TYPES -- //

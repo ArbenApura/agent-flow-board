@@ -4,7 +4,7 @@
 // every transition and animation (in the authored CSS and in utility classes) with its trigger, property, duration and easing. The
 // agent reads the source and marks the lines; this only makes sure nothing the source says is left off. Pure functions.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { MockupSegment } from './segments';
 
 export type InventoryCounts = {

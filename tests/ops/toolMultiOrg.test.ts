@@ -1,9 +1,9 @@
 // ONE MACHINE, MORE THAN ONE ORGANISATION: EACH ORGANISATION HAS ITS OWN TOOL RUNNER AND TOKEN, A TOKEN NEVER REACHES ANOTHER ORGANISATION'S RUNS, GIVING RUNS BACK TOUCHES ONLY THAT RUNNER'S, AND THE CAPACITY
 // THE TOOL REPORTS IS ONLY SHOWN: STRICTLY PARSED, BOUNDED, AND NEVER USED TO DECIDE WHERE A RUN GOES.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleRunnerApi } from '../../src/lib/server/api/runner';
 import {

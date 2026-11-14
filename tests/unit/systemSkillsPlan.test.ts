@@ -1,8 +1,8 @@
 // THE INSTALL PLANNER OF THE SYSTEM SKILLS (AFB-20261021-0803): ONE ACTION PER SKILL, AND "ASK" WHENEVER AN EDIT CANNOT BE RULED OUT
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { systemSkills } from '../../src/lib/server/system-skills';
 import {
 	HARNESSES,

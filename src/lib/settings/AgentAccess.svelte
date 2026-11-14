@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { untrack } from 'svelte';
 	import { deserialize } from '$app/forms';
 	import { invalidate } from '$app/navigation';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { approvalSentence, approvalState } from '#lib/settings/approvalText.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';

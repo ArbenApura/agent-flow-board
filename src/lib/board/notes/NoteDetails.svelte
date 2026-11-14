@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ago } from '#lib/board/status.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import FolderIcon from '@lucide/svelte/icons/folder';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import Card from '#lib/ui/Card.svelte';
 	import Switch from '#lib/ui/Switch.svelte';

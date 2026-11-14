@@ -17,17 +17,17 @@
 </script>
 
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { MenuItem } from '#lib/ui/ActionMenu.svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { markedParts } from '#lib/board/notes/view.js';
 	import { ago } from '#lib/board/status.js';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Lock from '@lucide/svelte/icons/lock';
 	import Star from '@lucide/svelte/icons/star';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import ActionMenu from '#lib/ui/ActionMenu.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 

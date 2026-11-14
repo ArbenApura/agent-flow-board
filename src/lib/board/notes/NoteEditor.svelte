@@ -1,18 +1,18 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Component } from 'svelte';
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { CaretProvider } from '#lib/board/notes/editorMarkdown.js';
 	import type { LinkTarget, SlashId } from '#lib/board/notes/editorMenu.js';
 	import type { MenuUpdate } from '#lib/board/notes/editorMenuPlugin.js';
 	import type { MenuRow } from '#lib/board/notes/EditorMenu.svelte';
 	import type { UploadedPicture } from '#lib/board/notes/pictureUpload.js';
 	import type { Box } from '#lib/ui/position.js';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { Editor } from '@tiptap/core';
 	import { onMount } from 'svelte';
 	import * as Y from 'yjs';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { api, upload } from '#lib/board/api.js';
 	import { TOOLS, applyLink, type Tool, type ToolId } from '#lib/board/notes/editorCommands.js';
 	import {
@@ -34,7 +34,7 @@
 		uploadPicture
 	} from '#lib/board/notes/pictureUpload.js';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Bold from '@lucide/svelte/icons/bold';
 	import Code from '@lucide/svelte/icons/square-code';
 	import FileText from '@lucide/svelte/icons/file-text';
@@ -56,7 +56,7 @@
 	import TableIcon from '@lucide/svelte/icons/table';
 	import Undo from '@lucide/svelte/icons/undo-2';
 	import X from '@lucide/svelte/icons/x';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import EditorMenuList from '#lib/board/notes/EditorMenu.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import TextField from '#lib/ui/TextField.svelte';

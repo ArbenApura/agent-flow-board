@@ -4,14 +4,14 @@
 // scripts folder, its own run folder, the folder of its own code and the Playwright runtime, and can write ONLY its run folder. It starts no
 // program and no worker, loads no addon, and gets an environment of PATH, SystemRoot, TEMP, TMP and AFB_PLAYWRIGHT_DIR and nothing else.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { ChildJob, ChildResult } from './types.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { playwrightRuntimeDir } from './browser.js';
 import { MAX_RESULT_BYTES, findLink, isPlainFile, readPlainFile } from './evidence.js';
 import { ensureDir, isInside, runsDir } from './paths.js';

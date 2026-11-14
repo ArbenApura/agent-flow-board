@@ -1,6 +1,6 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { LayoutServerLoad } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { projectSummary } from '#lib/server/ops/board.js';
 import { OpError } from '#lib/server/ops/context.js';
 import { childContext, pageError } from '#lib/server/web/ctx.js';

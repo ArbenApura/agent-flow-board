@@ -1,12 +1,12 @@
 // MIGRATION RUNNER. APPLIES THE DRIZZLE SQL FILES IN ORDER AS THE OWNER, THEN THE ROLES, GRANTS AND ROW LEVEL SECURITY.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { SqlExecutor } from './executor';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { securityStatements } from './security';
 
 // -- CONSTANTS -- //

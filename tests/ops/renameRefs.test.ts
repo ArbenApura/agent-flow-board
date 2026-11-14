@@ -1,9 +1,9 @@
 // RENAMING EXISTING ITEMS TO <PROJECT KEY>-YYYYMMDD-HHMM IN UTC, ON A THROWAWAY DATABASE (FLOW-20261017-0950, SPEC 4.4)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { liveOrgIds, renameOrg } from '../../src/lib/server/db/renameRefs';
 import { OpError } from '../../src/lib/server/ops/context';
 import { createItem, getItem, trashItem } from '../../src/lib/server/ops/items';

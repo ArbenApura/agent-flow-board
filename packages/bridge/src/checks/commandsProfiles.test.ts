@@ -1,11 +1,11 @@
 // `check project profiles` AND `check project forget --profile`: LISTING AND REMOVING A REGISTRATION'S SAVED SIGN-INS WITHOUT EVER SHOWING A VALUE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { projectCommand } from './commands.js';
 import { listProfiles, profileKey, saveProfile } from './profiles.js';
 

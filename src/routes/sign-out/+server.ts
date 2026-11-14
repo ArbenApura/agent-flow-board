@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { redirect } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getAuth } from '#lib/server/auth/index.js';
 
 // -- FUNCTIONS -- //

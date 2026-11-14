@@ -2,11 +2,11 @@
 // Both verbs only compose the existing ones (createItem, upsertSection, upsertDecision, recordSteps), so the live role check, the rate
 // limits, the plan rules and the idempotency of each write stay where they are. A call is one transaction.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { OpError, subRequest } from './context';
 import { upsertDecision, upsertSection } from './docs';
 import { tabNameSchema } from '../db/zod';

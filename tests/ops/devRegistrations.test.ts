@@ -1,9 +1,9 @@
 // ACCESS AND REFUSAL TESTS FOR ADVISORY DEV REGISTRATIONS (STEP A.1, AFB-20261113-1008)
 // Every refusal asserts zero database side effects, live role checks, tenant RLS and trust split.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleApi } from '../../src/lib/server/api/dispatch';
 import { handleRunnerApi } from '../../src/lib/server/api/runner';

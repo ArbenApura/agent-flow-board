@@ -2,7 +2,7 @@
 // It never blocks a save, never stores anything and never throws. A mockup runs sandboxed with no network, so a font, icon or
 // picture loaded by address silently becomes the system font or nothing. Each warning says what and what to do about it.
 
-// -- CONSTANTS -- //
+// IMPORTED CONSTANTS
 import { MAX_CONFIG_OPTIONS, MAX_CONFIG_SCREENS, MAX_CONFIG_VALUES } from '../../board/mockups';
 
 // -- TYPES -- //

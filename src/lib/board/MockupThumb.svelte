@@ -1,8 +1,8 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { addressToShow, mayLoad } from '#lib/board/thumbLoad.js';
 	import { thumbSlots } from '#lib/board/thumbSlots.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
 
 	// -- REQUIRED PROPS -- //

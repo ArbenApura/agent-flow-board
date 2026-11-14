@@ -1,15 +1,15 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Component } from 'svelte';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { LABEL } from '#lib/board/sidebar-classes.js';
 	import { cn } from '#lib/ui/cn.js';
 	import SidebarRow from '#lib/board/SidebarRow.svelte';
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
 	import SidebarShell from '#lib/board/SidebarShell.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Activity from '@lucide/svelte/icons/activity';
 	import Building2 from '@lucide/svelte/icons/building-2';
 	import House from '@lucide/svelte/icons/house';

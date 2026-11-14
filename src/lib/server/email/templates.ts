@@ -1,8 +1,8 @@
 // EMAIL TEMPLATES: ONE SHARED LAYOUT, PLAIN WORDS, ONE BUTTON PER MAIL
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Mail } from './mailer';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { EMAIL_COLOURS as C } from '../../theme/email';
 
 // -- FUNCTIONS -- //

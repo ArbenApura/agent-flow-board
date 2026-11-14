@@ -1,6 +1,6 @@
 // THE REST DISPATCHER. KNOWS NOTHING ABOUT SVELTEKIT, SO IT IS TESTED DIRECTLY AND CALLED FROM THE ROUTE GLUE
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { JobRunner } from '../adapters/jobs';
 import type { Storage } from '../adapters/storage';
 import type { Mailer } from '../email/mailer';
@@ -8,7 +8,7 @@ import type { DbHandle } from '../db/client';
 import type { Actor, Ctx } from '../ops/context';
 import { fingerprintOf } from '../ops/context';
 import { requireSession } from '../mcp/sessions';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { clearMyAvatar, setMyAvatar } from '../ops/pictures';
 import { authenticateToken } from '../ops/tokens';
 import { listMyOrgs, orgForSlug } from '../orgs/orgs';

@@ -1,6 +1,6 @@
 // THE RUNNER'S VIEW OF THE SERVER: THE FEW CALLS IT MAKES WITH ITS OWN TOKEN (SPEC 10)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { CheckJob } from '../../../src/lib/server/ops/checks';
 
 export type Job = CheckJob;

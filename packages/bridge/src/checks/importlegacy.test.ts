@@ -1,11 +1,11 @@
 // TESTS OF `check import-legacy`: FIXTURE FOLDERS MADE IN A TEMP DIR THAT MIMIC THE OLD LAYOUT (NEVER THE REAL OLD TOOL).
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mintApproval } from './approve.js';
 import { verifyAudit } from './audit.js';
 import { importLegacy, importLegacyCommand } from './importlegacy.js';

@@ -1,10 +1,10 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { ItemView, TabEnv } from '#lib/board/item/types.js';
 	import type { ItemMockups } from '#lib/server/web/itemMockups.js';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { mockupPrompt, screensOf } from '#lib/board/mockups.js';
 	import { ago } from '#lib/board/status.js';
 	import MockupPreview from '#lib/board/MockupPreview.svelte';
@@ -15,7 +15,7 @@
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Copy from '@lucide/svelte/icons/copy';
 	import ExternalLink from '@lucide/svelte/icons/external-link';
 

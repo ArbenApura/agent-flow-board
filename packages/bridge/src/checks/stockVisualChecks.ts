@@ -3,7 +3,7 @@
 // Covers CLS per screen/state, tap targets < 44px, sideways scroll, default browser button chrome,
 // contrast pairs (WCAG), skeleton vs loaded height, focus visible, reduced motion, and console errors.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	DEFAULT_MAX_CLS,
 	DEFAULT_MIN_TAP_PX,

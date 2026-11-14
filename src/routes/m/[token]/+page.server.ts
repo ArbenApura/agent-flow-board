@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { MOCKUP_ORIGIN } from '$app/env/private';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getDb } from '#lib/server/db/index.js';
 import { publicRateAllowed } from '#lib/server/mockups/limit.js';
 import { buildMockupUrl, parseMockupOrigin } from '#lib/server/mockups/origin.js';

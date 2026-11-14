@@ -1,11 +1,11 @@
 // PHASE 11: SECRETS, ENVIRONMENTS, RUNNERS AND THE BROWSER CHECK QUEUE. A pass on the required target closes the plan, a weaker
 // one does not, a later fail reopens, nothing with a secret in it is stored, and a runner only ever sees its own projects.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { deflateRawSync } from 'node:zlib';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { adminFromExecutor } from '../../src/lib/server/backup/admin';
 import { attachment, checkRun, manualCheck, secret, step } from '../../src/lib/server/db/schema';

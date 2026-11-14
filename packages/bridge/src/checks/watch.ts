@@ -4,15 +4,15 @@
 // A queued run for a project with a registration is routed by the registration rules (run.ts); a project with none runs in the folder where `check run` was used
 // before, and with neither the run ends "could not run" and the current directory is never a fallback.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Fetch } from '../device.js';
 import type { TokenStore } from '../tokenStore.js';
 import type { CheckJob } from './board.js';
 import type { SchedConnection } from './scheduler.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendAudit } from './audit.js';
 import { boundFolder, pinStatus } from './bind.js';
 import { BoardError, RunnerBoard } from './board.js';

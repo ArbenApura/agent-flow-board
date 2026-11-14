@@ -1,8 +1,8 @@
 // PHASE C.6 TESTS: EVIDENCE GATE BYPASS REFUSAL & NO SIDE EFFECTS ON FAILURE (AFB-20261113-1008)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import {
 	claimCheckJob,

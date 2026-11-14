@@ -1,9 +1,9 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Actions, PageServerLoad } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { fail } from '@sveltejs/kit';
 import { sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { avatarVersion } from '#lib/board/pictures.js';
 import { getAuth } from '#lib/server/auth/index.js';
 import { getDb } from '#lib/server/db/index.js';

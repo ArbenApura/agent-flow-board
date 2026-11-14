@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Actions, PageServerLoad } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { fail } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { approvalList, setAutoApprove } from '#lib/server/ops/approvals.js';
 import { OpError } from '#lib/server/ops/context.js';
 import { getProject } from '#lib/server/ops/projects.js';

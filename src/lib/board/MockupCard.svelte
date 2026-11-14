@@ -1,11 +1,11 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { MockupRow } from '#lib/board/mockups.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ago } from '#lib/board/status.js';
 	import MockupThumb from '#lib/board/MockupThumb.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Globe from '@lucide/svelte/icons/globe';
 	import Lock from '@lucide/svelte/icons/lock';
 	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';

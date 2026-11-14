@@ -1,9 +1,9 @@
 // THE UPDATE LINE FOR AN OLDER EDITOR STATUS MOD (AFB-20261108-0856): THE COMPARE AND WHAT A START EVENT ANSWERS
 // The compare is checked on its own, then through the real hook handler with real rows. Each case that stays quiet sits next to one that speaks.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { modVersion } from '../../src/lib/server/editor-status';
 import { isOlder, updateNotice } from '../../src/lib/server/editor-status/version';
 import { handleHook } from '../../src/lib/server/ops/hooks';

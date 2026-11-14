@@ -1,9 +1,9 @@
 // LEGIBILITY (FLOW-20261016-0935, SPEC 2.1 AND 7). NO TEXT UNDER 13 PX EXCEPT BADGES AND COUNTS, AND NO TEXT THAT FAILS ITS CONTRAST, ON EVERY SCREEN
 // IN LIGHT AND DARK, AT 1440 AND 390 WIDE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { expect, test } from '@playwright/test';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { signIn } from './helpers';
 
 // -- CONSTANTS -- //

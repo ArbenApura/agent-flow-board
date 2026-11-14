@@ -2,7 +2,7 @@
 // One file replaces three places that held the same facts: the Keep and Free notes, the design brief's Free list and the compare manifest.
 // It is stored with the version as a part and never goes into the page.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { z } from 'zod';
 
 // -- CONSTANTS -- //

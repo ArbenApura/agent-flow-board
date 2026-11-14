@@ -1,12 +1,12 @@
 // TESTS OF REGISTRATION ROUTING: THE ORDER OF THE FOUR WAYS TO CHOOSE, THE HEADER LINE, THE THREE REFUSAL CODES AND THE REAL HEADER LINES OF THE 235 EXISTING CHECK SCRIPTS.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Registration } from './types.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { REGISTRATION_NAME } from './registry.js';
 import { RegistrationError, pickRegistration, registrationHeader, routeRun } from './routing.js';
 

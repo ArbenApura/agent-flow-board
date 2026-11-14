@@ -2,12 +2,12 @@
 // The setting lives only inside the transaction (set_config with is_local = true), so a pooled connection can never
 // carry one request's tenant into the next one.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle, Tx } from './client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 import pg from 'pg';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { RUNTIME_ROLE } from './security';
 
 // -- TYPES -- //

@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 // SPIKE 4.1 (a) AND (b): MARKDOWN IN, THE SAME MARKDOWN OUT, ON A LOCAL YJS DOCUMENT WITH YJS UNDO
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { Editor } from '@tiptap/core';
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	editorExtensions,
 	loadMarkdown,

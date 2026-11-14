@@ -1,7 +1,7 @@
 // PURE HELPERS FOR THE SYSTEM SKILLS (AFB-20261021-0401): LINE ENDINGS, HASHES, FRONT MATTER AND THE VERSION STAMP
 // No Vite and no file access here, so the sync script (tsx), the loader and the tests all use the same functions.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 
 // -- TYPES -- //

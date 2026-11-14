@@ -1,11 +1,11 @@
 // HOST RULES IN THE WRITE ALLOWLIST, STORAGE SIGN-IN DETECTION AND THE HOSTS HANDED TO THE SEED (AFB-20261114-1120)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	allowlistHosts,
 	cleanWriteAllowlist,

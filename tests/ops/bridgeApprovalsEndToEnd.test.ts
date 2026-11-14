@@ -1,12 +1,12 @@
 // THE WHOLE FLOW ONCE: THE BRIDGE'S OWN CODE (askOwner, RunnerBoard, the local code store) TALKING TO THE REAL RUNNER API ON THE EMBEDDED SERVER, WITH THE PERSON'S SWITCH TURNED ON BY THE REAL VERB.
 // Unit tests of each half missed real defects before (AFB-20261108-0925), so this one joins them: request, instant approval, claim, mint, and a use of the code.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { askOwner } from '../../packages/bridge/src/checks/askBoard';
 import { consumeApprovalNote, peekApproval } from '../../packages/bridge/src/checks/approve';
 import { RunnerBoard } from '../../packages/bridge/src/checks/board';

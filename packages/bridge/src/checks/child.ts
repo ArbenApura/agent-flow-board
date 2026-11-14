@@ -4,16 +4,16 @@
 // Under the permission model there are no child processes, no worker threads and no file access outside the folders sandbox.ts names,
 // and the only environment variable it reads is AFB_PLAYWRIGHT_DIR. It imports nothing that touches the bridge's token store.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DevReadinessMode, DevReadyPageLike } from './devReadiness.js';
 import type { EarlyCheckPageLike, EarlyStockCheckReport } from './earlyStockChecks.js';
 import type { ChildJob, ChildResult } from './types.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { DEV_READINESS_INIT_SCRIPT, DevReadinessError, waitForDevReady } from './devReadiness.js';
 import {
 	EARLY_CLS_INIT_SCRIPT,

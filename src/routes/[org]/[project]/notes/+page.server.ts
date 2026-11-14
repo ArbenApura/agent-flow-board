@@ -1,6 +1,6 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { NOTES_LAYOUT_COOKIE, parseNotesLayout, readNotesView } from '#lib/board/notes/view.js';
 import { OpError } from '#lib/server/ops/context.js';
 import { listFolders } from '#lib/server/ops/noteFolders.js';

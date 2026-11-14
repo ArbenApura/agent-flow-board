@@ -1,7 +1,7 @@
 // THE LOCAL GIT HOOK: A POST-COMMIT WARNING WHEN A COMMIT NAMES NO BOARD ITEM. WARN ONLY, IT NEVER BLOCKS A COMMIT (ADR-014)
 // The hook is a short block between markers, so it can sit beside a hook the person already has and be removed cleanly.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';

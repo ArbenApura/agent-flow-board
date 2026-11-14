@@ -1,8 +1,8 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Badge from '#lib/ui/Badge.svelte';
 	import Card from '#lib/ui/Card.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import FileCode from '@lucide/svelte/icons/file-code';
 
 	// -- REQUIRED PROPS -- //

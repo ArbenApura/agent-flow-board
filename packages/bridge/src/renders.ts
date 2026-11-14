@@ -3,12 +3,12 @@
 // one screen after the other, and the picture and the rendered element tree of each are uploaded. The tree comes from the page as
 // it is drawn, so markup built by script is in it, which the server's outline cannot see. A render that fails is said, never fatal.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Fetch } from './device.js';
 import type { ResolvedMockupTarget } from './checks/mockupTarget.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { inspectUrl, redactSignedAddress } from './checks/inspect.js';
 import {
 	rankQualityChecks,

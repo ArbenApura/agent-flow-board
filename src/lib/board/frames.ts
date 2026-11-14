@@ -1,8 +1,8 @@
 // THE GEOMETRY OF THE DEVICE FRAMES AROUND A MOCKUP: SCREEN SIZES, THE CHROME OF EACH DEVICE, THE SCALE TO A STAGE AND THE DEVICES A PROJECT OFFERS
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { ScreenKey } from '#lib/board/mockups.js';
-// -- CONSTANTS -- //
+// IMPORTED CONSTANTS
 import { ALL_SCREENS, SCREEN_WIDTH, screensOf } from '#lib/board/mockups.js';
 
 // -- TYPES -- //

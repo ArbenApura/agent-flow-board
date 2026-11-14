@@ -1,9 +1,9 @@
 // THE APP'S AUTH AND MAILER, BUILT ONCE FROM THE ENVIRONMENT
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Auth } from './auth';
 import type { Mailer } from '../email/mailer';
-// -- ENVS -- //
+// IMPORTED ENVS
 import {
 	AFB_BASE_URL,
 	AFB_MAIL_FAIL_PATTERN,
@@ -20,9 +20,9 @@ import {
 	SMTP_URL
 } from '$app/env/private';
 import { getRequestEvent } from '$app/server';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sveltekitCookies } from 'better-auth/svelte-kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getDb } from '../db';
 import { createMailer } from '../email/mailer';
 import { createAuth } from './auth';

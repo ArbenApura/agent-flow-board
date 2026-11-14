@@ -1,8 +1,8 @@
 // STRESS (FLOW-20261016-0935, SPEC 7). VERY LONG AND RIGHT TO LEFT TEXT MUST NOT PUSH THE PAGE SIDEWAYS ON ANY WIDTH, AND THE BOARD DRAWER MUST BE ADDRESSABLE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { expect, test } from '@playwright/test';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { signIn } from './helpers';
 
 // -- CONSTANTS -- //

@@ -1,6 +1,6 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { bodyPreview } from '#lib/board/tasks.js';
 import { renderMarkdownCached } from '#lib/markdown.js';
 import { refsFor } from '#lib/server/ops/board.js';

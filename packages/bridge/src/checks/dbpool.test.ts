@@ -1,7 +1,7 @@
 // THE POOLED THROWAWAY DATABASES: ALL UNIT TESTS USE A FAKE DOCKER THAT UNDERSTANDS THE FEW SQL STATEMENTS THE POOL SENDS, SO NO CONTAINER IS EVER STARTED.
 // One opt-in test (AFB_REAL_DOCKER=1) starts a real pool container (afb-checks-pool-...) and proves the isolation and the clone time.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	mkdtempSync,
 	mkdirSync,
@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	DatabasePool,
 	PoolUnavailableError,

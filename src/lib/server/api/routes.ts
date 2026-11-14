@@ -2,13 +2,13 @@
 // The dispatcher validates input with the entry's Zod schema, builds the context from the caller's live role, and calls the verb.
 // The OpenAPI document is generated from this same table, so the docs cannot drift from the code.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import { searchBoard } from '../ops/board';
 import { relatedPlans } from '../ops/related';
 import type { Ctx } from '../ops/context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	addComment,
 	commentInput,

@@ -2,10 +2,10 @@
 // site it checks. One JSON file each in registrations/<org>/<NAME>.json, sealed with an HMAC so a hand edit (an adoptEnv switched on, a repo moved outside the roots) is refused.
 // Sign-ins, sealed secrets and kept builds live in stateDirFor(org, NAME) and belong to that one registration.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { WriteRule } from './devPolicy.js';
 import type { ProjectConfig, Registration } from './types.js';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import {
 	existsSync,
@@ -19,7 +19,7 @@ import {
 	writeFileSync
 } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendAudit } from './audit.js';
 import { appDirText, normalizeAppDir, walkAppDir } from './appdir.js';
 import { Refusal, consumeApproval, peekApproval, sameMac, seal } from './approve.js';

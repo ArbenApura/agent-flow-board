@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import Badge from '#lib/ui/Badge.svelte';

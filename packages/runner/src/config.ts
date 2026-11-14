@@ -2,7 +2,7 @@
 // Build and start commands come only from this file in the repo the runner works in, never from the server and never from MCP.
 // A local runner asks its owner before it runs a command it has not seen (approvals.ts).
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 

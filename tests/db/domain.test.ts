@@ -1,9 +1,9 @@
 // 3.5 TO 3.8: NUMBERING, EVENTS AND UNDO, WRITE TIME VALUES, FULL TEXT SEARCH, ON A REAL POSTGRESQL
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { percentOf, recalcItem, driftFlags } from '../../src/lib/server/db/calc';
 import { appendEvent, undoEvent } from '../../src/lib/server/db/events';
 import { allocateItemNumber, allocateTaskNumber } from '../../src/lib/server/db/numbering';

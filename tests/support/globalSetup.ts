@@ -3,16 +3,16 @@
 // level security is tested where PostgreSQL really applies it (ADR-021). Starting the server and migrating cost several seconds,
 // so both happen once here; a test file then gets its own database in a fraction of a second (see makePostgres in db.ts).
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { TestProject } from 'vitest/node';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import EmbeddedPostgres from 'embedded-postgres';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { migrate } from '../../src/lib/server/db/migrate';
 
 // -- TYPES -- //

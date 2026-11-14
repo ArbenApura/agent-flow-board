@@ -1,10 +1,10 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { createTabs } from '#lib/settings/tabs.svelte.js';
 	import { cn } from '#lib/ui/cn.js';
 

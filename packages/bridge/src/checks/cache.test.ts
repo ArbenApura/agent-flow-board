@@ -1,6 +1,6 @@
 // THE DEPENDENCY AND BUILD CACHES: KEYS, EVERY NO-CACHE RULE, PUBLISH AND RESTORE, HARD LINKS THAT ARE READ-ONLY, A DAMAGED ENTRY REFUSED, EVICTION AND CLEAN-UP
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import {
 	existsSync,
@@ -20,7 +20,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	CacheCorruptError,
 	acquireUse,

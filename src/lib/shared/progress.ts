@@ -1,6 +1,6 @@
 // HONEST PROGRESS CALCULATION (WRITTEN VS VERIFIED) AND BUILT-CLAIM CROSS-CHECK (D.4, D.8)
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { effectiveStepVisible } from './screenGlobs';
 
 // -- TYPES -- //

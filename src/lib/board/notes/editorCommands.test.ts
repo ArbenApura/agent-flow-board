@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 // EVERY TOOLBAR COMMAND AND THE MARKDOWN IT WRITES, AND THE TEARDOWN OF THE EDITOR (AFB-20261111-0035, STEP 4.2)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { Editor } from '@tiptap/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { applyLink, normalizeLinkUrl, toolById, type ToolId } from './editorCommands.js';
 import { editorExtensions, seedUpdate, toMarkdown } from './editorMarkdown.js';
 

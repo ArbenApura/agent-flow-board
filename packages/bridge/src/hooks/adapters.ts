@@ -2,7 +2,7 @@
 // Claude Code and Antigravity payloads follow what was captured on real runs. The Gemini CLI mapping follows its documented hook
 // protocol and has not been captured on a real install. Every adapter prints one JSON object, `{}` when there is nothing to say.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import type { HookAnswer, HookEvent } from './call.js';
 
 // -- TYPES -- //

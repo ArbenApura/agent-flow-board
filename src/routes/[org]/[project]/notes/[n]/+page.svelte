@@ -1,17 +1,17 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
 	import type * as Y from 'yjs';
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { Folder } from '#lib/board/notes/tree.js';
 	import type { CreateKind } from '#lib/shared/continue.js';
 	import type { MenuItem } from '#lib/ui/ActionMenu.svelte';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { onMount, untrack } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api } from '#lib/board/api.js';
 	import { markdownOfDoc } from '#lib/board/notes/editorMarkdown.js';
 	import {
@@ -38,7 +38,7 @@
 	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Check from '@lucide/svelte/icons/check';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 	import CloudOff from '@lucide/svelte/icons/cloud-off';
@@ -50,7 +50,7 @@
 	import Share2 from '@lucide/svelte/icons/share-2';
 	import Star from '@lucide/svelte/icons/star';
 	import Trash from '@lucide/svelte/icons/trash';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import ContinueDialog from '#lib/board/ContinueDialog.svelte';
 	import LinksPanel from '#lib/board/notes/LinksPanel.svelte';
 	import MoveDialog from '#lib/board/notes/MoveDialog.svelte';

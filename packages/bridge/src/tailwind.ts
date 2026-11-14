@@ -4,7 +4,7 @@
 // installed in the project (never one fetched from the network), writes only to a temporary folder outside the repo, and the result
 // is stored as a generated style that nobody has to read.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	existsSync,
 	mkdtempSync,

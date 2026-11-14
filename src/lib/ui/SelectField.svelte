@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { SelectOption } from '#lib/ui/Select.svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Select from '#lib/ui/Select.svelte';
 	import { cn } from '#lib/ui/cn.js';
 

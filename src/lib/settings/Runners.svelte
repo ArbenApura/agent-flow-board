@@ -1,8 +1,8 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import type { listRunners } from '#lib/server/ops/environments.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import Section from '#lib/settings/Section.svelte';
@@ -10,7 +10,7 @@
 	import Button from '#lib/ui/Button.svelte';
 	import Checkbox from '#lib/ui/Checkbox.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Server from '@lucide/svelte/icons/server';
 
 	// -- TYPES -- //

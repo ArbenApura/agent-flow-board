@@ -1,13 +1,13 @@
 // THE RENDER QUALITY CHECKS (rules R5 to R9, AFB-20261114-0611): FIXTURES IN A REAL BROWSER FOR THE THREE
 // CHECKS, AND THE GROUPING AND SUMMARY AS PURE TESTS. THE CHECKS ARE ADVISORY: A FINDING IS NEVER A GATE.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createServer, type Server } from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { inspectUrl } from './inspect.js';
 import {
 	groupQualityFindings,

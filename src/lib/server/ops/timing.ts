@@ -1,11 +1,11 @@
 // THE SLOWEST MCP CALLS OF A PROJECT (AFB-20261105-0653): READS WHAT src/lib/server/mcp/timing.ts WRITES. ADMINS ONLY, AND ONLY THE PROJECTS THE TOKEN MAY SEE.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, desc, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mcpCallTiming } from '../db/schema';
 import { OpError, projectAllowed, requireCap, run } from './context';
 import { findProject } from './resolve';

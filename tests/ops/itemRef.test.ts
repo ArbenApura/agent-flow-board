@@ -1,9 +1,9 @@
 // THE REFERENCE OF A NEW ITEM: <PROJECT KEY>-YYYYMMDD-HHMM IN UTC, -b, -c ... WHEN THE MINUTE IS TAKEN, NO CLASH WITH AN ALIAS (FLOW-20261017-0950)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { allocateItemNumber } from '../../src/lib/server/db/numbering';
 import { insertItemWithFreshRef, takenRefs } from '../../src/lib/server/db/flowId';
 import { item, itemAlias } from '../../src/lib/server/db/schema';

@@ -1,9 +1,9 @@
 // NOTE FOLDERS: THE TREE, NAMES, MOVES THAT CANNOT MAKE A LOOP, TRASH AND RESTORE (AFB-20261111-0035, step 2.2)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { OpError, run } from '../../src/lib/server/ops/context';
 import {
 	createFolder,

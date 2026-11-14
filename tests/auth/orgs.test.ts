@@ -1,9 +1,9 @@
 // 4.7: ORGS, MEMBERS, ROLES, PER PROJECT OVERRIDES, EMAIL BOUND INVITES, THE LAST OWNER RULE AND THE OWNER RESET
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { createAuth, type Auth } from '../../src/lib/server/auth/auth';
 import { apiToken, authAccount, member, project } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';

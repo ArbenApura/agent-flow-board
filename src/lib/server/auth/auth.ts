@@ -1,14 +1,14 @@
 // BETTER AUTH SETUP: EMAIL WITH PASSWORD AND GOOGLE ONLY, NO TWO STEP VERIFICATION (ADR-007)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from '../db/client';
 import type { Mailer } from '../email/mailer';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { haveIBeenPwned } from 'better-auth/plugins';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { authAccount, authRateLimit, authSession, authVerification, user } from '../db/schema';
 import { resetPasswordMail, verifyEmailMail } from '../email/templates';
 import { noteSignIn } from './devices';

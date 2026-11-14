@@ -1,8 +1,8 @@
 // THE THROWAWAY DATABASE: ONLY THE REFUSALS ARE TESTED, WITH DOCKER STUBBED. NO TEST EVER STARTS A REAL CONTAINER.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	checkDockerArgs,
 	freePort,

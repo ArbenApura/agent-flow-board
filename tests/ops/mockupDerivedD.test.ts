@@ -1,8 +1,8 @@
 // PHASE D TESTS: DERIVED MOCKUP ASSETS, HOOK CITATION CHECKS, AND PROJECT LENS PACKS (AFB-20261113-1008)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import {
 	extractMockupDerived,

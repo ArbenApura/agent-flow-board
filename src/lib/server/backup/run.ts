@@ -2,14 +2,14 @@
 // Database rows and attachment files, encrypted
 // with BACKUP_KEY, stored apart from the app's own file storage.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Storage } from '../adapters/storage';
 import type { DbHandle } from '../db/client';
 import type { Mailer } from '../email/mailer';
 import type { Admin } from './admin';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { backupRun } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { writeArchive } from './archive';

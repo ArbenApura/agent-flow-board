@@ -1,14 +1,14 @@
 // VISIBLE STEPS, SERVER-VERIFIED COMPARE EVIDENCE, VERTICAL-SLICE GATE, AND OWNER WAIVERS (PHASE C, AFB-20261113-1008)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { NamedMockupScreen } from '../../shared/screenGlobs';
 import type { StepEvidence, StepEvidenceWaiver } from '../db/schema';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	DEFAULT_SCREEN_GLOBS,
 	anyFileMatchesScreenGlobs,

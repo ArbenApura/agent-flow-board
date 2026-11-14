@@ -1,9 +1,9 @@
 // THE EDITOR'S EXTENSION SET AND THE MARKDOWN WAY IN AND OUT (AFB-20261111-0035, STEP 4.1)
 // Pure TypeScript with no Svelte, so the same set runs in the browser editor and in the tests and the seed builder.
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Extensions } from '@tiptap/core';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { Editor } from '@tiptap/core';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
@@ -15,7 +15,7 @@ import { Markdown } from '@tiptap/markdown';
 import { prosemirrorToYXmlFragment, yXmlFragmentToProseMirrorRootNode } from '@tiptap/y-tiptap';
 import StarterKit from '@tiptap/starter-kit';
 import * as Y from 'yjs';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { displaySrc, storedSrc } from './pictureUpload.js';
 
 // -- TYPES -- //

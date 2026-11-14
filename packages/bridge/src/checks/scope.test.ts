@@ -1,6 +1,6 @@
 // THE RUN SCOPE: MARKER FIRST, RESOURCES CLOSED NEWEST FIRST, DEAD RUNS SWEPT AND LIVE ONES KEPT, AND A WHOLE PROCESS TREE KILLED
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawn } from 'node:child_process';
 import {
 	existsSync,
@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { pidAlive } from './lock.js';
 import { pooledNames } from './dbpool.js';
 import { copiesDir, logDirFor, markerPath, runsDir } from './paths.js';

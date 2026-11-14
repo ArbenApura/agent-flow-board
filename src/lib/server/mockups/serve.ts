@@ -2,13 +2,13 @@
 // A mockup is HTML written by an agent, so it runs sandboxed: no cookies, no same origin, no network. Every response of both
 // routes is built here in one try/catch, errors and 500s included, so no answer can leave without the headers.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from '../db/client';
 import type { Storage } from '../adapters/storage';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ALL_SCREENS } from '../../board/mockups';
 import { item, mockup, mockupKitAsset, mockupVersion, project, user } from '../db/schema';
 import { withTenant } from '../db/tenant';

@@ -1,6 +1,6 @@
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { hexToHsv, hsvToHex } from '#lib/theme/hsv.js';
 
 describe('hsv', () => {

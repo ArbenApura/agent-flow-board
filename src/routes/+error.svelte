@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Button from '#lib/ui/Button.svelte';
 	import Illustration from '#lib/ui/Illustration.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';

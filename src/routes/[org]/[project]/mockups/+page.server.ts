@@ -1,6 +1,6 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { listMockups } from '#lib/server/ops/mockups.js';
 import { childContext } from '#lib/server/web/ctx.js';
 import { cardThumb } from '#lib/server/web/mockupThumbs.js';

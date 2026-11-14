@@ -1,13 +1,13 @@
 // SCHEMA HELPERS: EVERY TENANT TABLE CARRIES org_id AND IS REGISTERED, SO ROW LEVEL SECURITY IS GENERATED FOR ALL OF THEM (ADR-021)
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type {
 	AnyPgColumn,
 	ExtraConfigColumn,
 	PgColumnBuilderBase,
 	PgTableExtraConfigValue
 } from 'drizzle-orm/pg-core';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 import { check, customType, integer, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core';
 

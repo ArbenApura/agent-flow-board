@@ -4,9 +4,9 @@
 // Product words stay allowed because no pattern below matches them: Agent Flow Board, the afb-checks tool, afb-tab, afb-boot,
 // the agent-flow-board hooks command, the mcp__afb- prefix and the <KEY>-YYYYMMDD-HHMM reference form.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { sourceFiles } from '../../src/lib/server/system-skills';
 import { frontMatterKeys } from '../../src/lib/server/system-skills/hash';
 

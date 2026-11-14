@@ -1,6 +1,6 @@
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { guardContext, lintCheck, pageForCheck, unwrap } from './guard.js';
 import type { RouteLike } from './guard.js';
 

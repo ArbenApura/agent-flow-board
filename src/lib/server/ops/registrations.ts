@@ -2,13 +2,13 @@
 // The tool tells the board which it holds (one header on every call). The board uses that list to send a run that names a registration only to a tool that holds it, and to refuse
 // a run that names none when the project has several. The list is text from whoever holds the token: every entry is checked against a plain pattern and anything else is dropped whole.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle, Tx } from '../db/client';
 import type { ToolRegistration } from '../db/schema/integrations';
 import type { RunnerAuth } from './environments';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { runner } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { RUNNER_ONLINE_SECONDS } from './environments';

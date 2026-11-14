@@ -1,6 +1,6 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { refsFor } from '#lib/server/ops/board.js';
 import { listEvents } from '#lib/server/ops/history.js';
 import { childContext } from '#lib/server/web/ctx.js';

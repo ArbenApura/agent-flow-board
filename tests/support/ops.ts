@@ -1,6 +1,6 @@
 // SHARED SETUP FOR OPERATIONS TESTS: ONE ORG WITH PEOPLE IN EVERY ROLE, A PROJECT AND HELPERS TO ACT AS EACH OF THEM
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Actor, Ctx } from '../../src/lib/server/ops/context';
 import type { TestDb } from './db';
 

@@ -2,11 +2,11 @@
 // Opens the target in a Chromium context (strictly zero storageState / zero writes for mockups), triggers the requested screen/state/width,
 // waits until layout and fonts settle, and dumps { box, computed style whitelist, text } for every data-ref or paired app selector plus unlisted data-refs.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { WriteRule } from './devPolicy.js';
 import type { ElementPairSpec, InspectDump, InspectElementDump, StateDriver } from './pairing.js';
 import type { Fetch } from '../device.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ensureBrowser, loadPlaywright } from './browser.js';
 import { acquireBrowser } from './browserpool.js';
 import {

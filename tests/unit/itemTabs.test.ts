@@ -1,8 +1,8 @@
 // THE TABS OF AN ITEM, READ FROM THE PAGE DATA FOR THE CARD AND FOR THE TOP BAR (AFB-20261112-2350)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	ITEM_ROUTE,
 	ITEM_TABS,

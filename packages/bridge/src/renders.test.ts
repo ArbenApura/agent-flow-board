@@ -1,8 +1,8 @@
 // THE RENDERS TAKEN AFTER A PUSH (AFB-20261114-0409, C.2): WHICH SCREENS A PAGE DECLARES, AND THE UPLOAD OF EACH RENDER
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	DEFAULT_RENDER_WIDTHS,
 	captureRenders,

@@ -1,7 +1,7 @@
 // ROLES, GRANTS AND FORCED ROW LEVEL SECURITY, GENERATED FROM THE TENANT TABLE REGISTRY (ADR-021)
 // No schema diff can express these, and generating them from the registry means no tenant table can be forgotten.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { TenantEntry } from './schema';
 // -- MODULES -- //
 // Importing the whole schema registers every tenant table before the statements are generated

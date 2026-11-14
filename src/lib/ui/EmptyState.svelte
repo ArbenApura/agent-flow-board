@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { IllustrationKind } from '#lib/ui/Illustration.svelte';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Illustration from '#lib/ui/Illustration.svelte';
 
 	// -- REQUIRED PROPS -- //

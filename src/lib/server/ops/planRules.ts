@@ -4,11 +4,11 @@
 //   forbid-plan: <phrase>|<phrase> :: <reason>        a step, check or title containing any phrase is refused (case insensitive)
 //   no-browser-steps                                   a step with a required target or an automatic check is refused
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { project } from '../db/schema';
 import { OpError } from './context';
 

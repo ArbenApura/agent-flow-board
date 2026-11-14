@@ -1,8 +1,8 @@
 // A LIVE EDITING NOTICE GOES TO THE NOTE PAGE'S LISTENER AND NEVER TO THE PAGE REFRESH (AFB-20261111-0035, 8.1)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { connectStream, onNoteLive, type NoteLiveNotice } from './stream.svelte';
 
 // -- TYPES -- //

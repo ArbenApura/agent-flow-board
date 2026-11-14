@@ -1,10 +1,10 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import { ApiError, api } from '#lib/board/api.js';

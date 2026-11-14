@@ -3,15 +3,15 @@
 // A pass on the required target (or a stronger one) closes the check's manual check and the step it was started for. A pass on a
 // weaker target is recorded and ticks nothing (L25). A later fail on the same target reopens what the pass had closed (L29).
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { DbHandle } from '../db/client';
 import type { Ctx } from './context';
 import type { RunnerAuth } from './environments';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { effectiveStepVisible } from '../../shared/screenGlobs';
 import { classifyRun } from '../../shared/runErrors';
 import { findSecret, maskSecrets, type Needle } from '../../shared/scan';

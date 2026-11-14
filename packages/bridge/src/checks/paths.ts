@@ -2,10 +2,10 @@
 // The bridge home also holds the token store (key and token files). Nothing here ever names those, and the sandboxed child of a check is
 // given read access to the scripts folder, its own run folder and the Playwright runtime only (see sandbox.ts).
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { configDir } from '../tokenStore.js';
 
 // -- CONSTANTS -- //

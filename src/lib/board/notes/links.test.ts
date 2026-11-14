@@ -1,8 +1,8 @@
 // THE LINKS OF A NOTE: THE SECTIONS, WHAT CAN BE REMOVED, WHERE A LINK GOES, WHAT THE PICKER OFFERS AND THE CALLS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	addLink,
 	canRemove,

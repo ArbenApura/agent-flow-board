@@ -2,14 +2,14 @@
 // An undo never edits history. It writes a new event that reverses an earlier one, and says so when later events
 // touched the same thing, so nothing is overwritten silently.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from './client';
 import type { Patch } from './schema';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, gt, isNotNull, sql } from 'drizzle-orm';
 import { getTableColumns } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { notifyChange } from '../realtime/notify';
 import { syncMockupsOfItem } from './mockupSync';
 import {

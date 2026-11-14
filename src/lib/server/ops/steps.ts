@@ -1,12 +1,12 @@
 // RECORDING PROGRESS: MARKING STEPS AND MANUAL CHECKS, WITH THE AUTOMATIC STATUS MOVES AND THE NEXT PHASE (SPEC 9.1, 9.2)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
 import type { Status, StatusChange } from './status';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { effectiveStepVisible } from '../../shared/screenGlobs';
 import { recalcItem } from '../db/calc';
 import { appendEvents, type NewEvent } from '../db/events';

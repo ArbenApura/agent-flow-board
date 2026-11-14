@@ -1,10 +1,10 @@
 // 4.3 TO 4.6: SIGN UP, VERIFY, SIGN IN, RESET, LOCKOUT, NEW DEVICE ALERTS AND THE UNVERIFIED DUPLICATE RULE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { createAuth, type Auth } from '../../src/lib/server/auth/auth';
 import { registerAccount, resendVerification } from '../../src/lib/server/auth/register';
 import { MAX_FAILURES, lockMinutes } from '../../src/lib/server/auth/lockout';

@@ -4,12 +4,12 @@
 // context, so the script stops at its next step instead of running on. Tracing and video start after the sign-in, in a new
 // context, and every file is scanned for the project's secrets before it is uploaded.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, type Browser } from '@playwright/test';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { findSecret, maskSecrets, type Needle } from '../../../src/lib/shared/scan';
 import type { CheckJob } from '../../../src/lib/server/ops/checks';
 import { NeedsApproval, type Approvals } from './approvals';

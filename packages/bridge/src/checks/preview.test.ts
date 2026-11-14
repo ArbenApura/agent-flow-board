@@ -1,6 +1,6 @@
 // THE PREVIEW: THE PRIVATE COPY, THE PORT PICK, THE READY WAIT AND A WHOLE RUN OF A SMALL NODE APP FROM A FIXTURE REPO (NO BUILD TOOL NEEDED)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFileSync } from 'node:child_process';
 import {
 	existsSync,
@@ -17,7 +17,7 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { makePrivateCopy } from './copy.js';
 import { FORBIDDEN_PORTS } from './guardrails.js';
 import { copiesDir, logDirFor, runsDir } from './paths.js';

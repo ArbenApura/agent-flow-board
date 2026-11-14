@@ -2,9 +2,9 @@
 // Splits large kit stylesheets and embedded base64 font/image files out of the kit head into stored files
 // so served mockup pages carry lightweight <link> tags instead of multi-megabyte inline CSS/font blobs.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { kitHeadOf } from './kitHead';
 
 // -- TYPES -- //

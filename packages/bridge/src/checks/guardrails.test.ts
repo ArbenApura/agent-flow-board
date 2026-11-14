@@ -1,11 +1,11 @@
 // TESTS OF THE GUARDRAILS: EVERY FORBIDDEN PORT, EVERY SHELL CHARACTER CLASS, AND EVERY RULE OF checkRepoFolder, POSITIVE AND NEGATIVE.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, parse } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	FORBIDDEN_PORTS,
 	checkRepoFolder,

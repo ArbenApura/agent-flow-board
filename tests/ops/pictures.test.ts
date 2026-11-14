@@ -1,10 +1,10 @@
 // AVATARS AND PROJECT LOGOS (AFB-20261017-1202): WHO MAY SET A PICTURE, WHO MAY SEE IT, AND THAT NO READ CARRIES THE BYTES
 // A picture is a data address in its row. Reads carry a version number, and /pictures serves the bytes to people who may see them.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { handleApi, type ApiDeps, type ApiResponse } from '../../src/lib/server/api/dispatch';
 import { user } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';

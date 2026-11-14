@@ -1,6 +1,6 @@
 // THE PreToolUse GUARD THAT REFUSES COMMANDS WHICH EMPTY THE LOCAL DOCKER POSTGRES
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawnSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 

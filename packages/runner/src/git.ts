@@ -2,7 +2,7 @@
 // A build or a run is tied to the commit plus a hash of the working tree, so a change nobody committed is never mistaken for
 // the committed code. Only git commands that read are run.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';

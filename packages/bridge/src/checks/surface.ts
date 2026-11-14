@@ -2,7 +2,7 @@
 // build config is noticed and the commands are checked against the guardrails again before the new hash is pinned. This is change detection for the build setup, not a defence
 // against the agent: the preview runs the app's own code, which the agent writes.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';

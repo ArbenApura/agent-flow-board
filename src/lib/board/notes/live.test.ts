@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 // SPIKE 4.1 (c) AND (d): A HAND WRITTEN PROVIDER WITH AWARENESS OVER A FAKE TRANSPORT, AND THE FIRST OPEN RULE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { Editor } from '@tiptap/core';
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { editorExtensions, markdownOfDoc } from './editorMarkdown.js';
 import { LiveProvider, type LiveHandlers, type LiveTransport } from './liveProvider.js';
 import { openDocument, type LiveSnapshot, type SeedApi } from './seed.js';

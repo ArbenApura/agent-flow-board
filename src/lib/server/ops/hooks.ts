@@ -2,14 +2,14 @@
 // The adapters in the bridge turn each tool's own hook payload into one small event and turn the answer back. Every rule lives
 // here, so Claude Code, Antigravity and Gemini CLI behave alike. Hooks warn and ask, they never block work (ADR-014).
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
 import type { SessionStatus } from './sessionStatus';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { commits, isCodeFile } from '../../shared/code';
 import { item, phase, session, step } from '../db/schema';
 import { modVersion } from '../editor-status';

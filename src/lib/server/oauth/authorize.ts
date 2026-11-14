@@ -1,10 +1,10 @@
 // VALIDATES AN AUTHORIZATION REQUEST BEFORE THE CONSENT PAGE SHOWS ANYTHING (OAUTH 2.1)
 // A bad client or a redirect address the client did not register is shown as an error on this site and never redirected to.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from '../db/client';
 import type { Capability } from '../ops/context';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getClient, parseScopes, redirectHost, isOAuthError } from './oauth';
 
 // -- TYPES -- //

@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Component } from 'svelte';
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { ItemTab, ItemTabCounts } from '#lib/board/item/itemTabs.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { scrollFade } from '#lib/actions/scrollFade.js';
 	import { ITEM_TAB_LABEL, itemTabHref } from '#lib/board/item/itemTabs.js'; // -- DEP-COMPONENTS -- //
 	import Activity from '@lucide/svelte/icons/activity';

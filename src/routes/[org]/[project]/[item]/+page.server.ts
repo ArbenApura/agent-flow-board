@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { error, redirect } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { renderMarkdownCached } from '#lib/markdown.js';
 import { itemCore, itemExtras } from '#lib/server/ops/board.js';
 import { OpError } from '#lib/server/ops/context.js';

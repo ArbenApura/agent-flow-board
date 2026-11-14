@@ -1,10 +1,10 @@
 // THE APP'S BACKGROUND JOB RUNNER STARTED ONCE WHEN THE SERVER STARTS.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { JobRunner } from '../adapters/jobs';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { BACKUP_KEY, DATABASE_OWNER_URL, DATABASE_URL } from '$app/env/private';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { pgBossJobs } from '../adapters/jobs';
 import { getStorage } from '../adapters/index';
 import { backupStorage, registerBackups } from '../backup/index';

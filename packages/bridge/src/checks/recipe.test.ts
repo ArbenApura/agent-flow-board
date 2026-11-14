@@ -1,11 +1,11 @@
 // TESTS OF THE RECIPE: VALIDATION RULE BY RULE, PLAIN DETECTION, THE DECIDING FILES AND THE PIN.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	RECIPE_FILE,
 	decidingFiles,

@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import { Toaster } from 'svelte-sonner';
 </script>
 

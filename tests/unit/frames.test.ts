@@ -1,8 +1,8 @@
 // THE GEOMETRY OF THE DEVICE FRAMES: SIZES, THE SCALE TO A STAGE, AND WHICH DEVICE IS SHOWN
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	effectiveDevice,
 	firstDevice,

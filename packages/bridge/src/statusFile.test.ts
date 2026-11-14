@@ -1,7 +1,7 @@
 // THE STATUS FILE OF A CONVERSATION (AFB-20261108-0427, S.2): WHEN THE BRIDGE ASKS FOR THE STATUS, WHAT IT WRITES, REPLACES, REMOVES AND PURGES
 // Each rule has a negative control, so a test cannot pass on a bridge that does nothing.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	existsSync,
 	mkdtempSync,
@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { antigravity, claude, gemini } from './hooks/adapters.js';
 import type { HookEvent } from './hooks/call.js';
 import { PURGE_AFTER_MS, applyStatusFile, statusName } from './hooks/statusFile.js';

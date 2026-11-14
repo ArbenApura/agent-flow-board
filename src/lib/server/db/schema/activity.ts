@@ -1,6 +1,6 @@
 // ACTIVITY TABLES: EVENT LOG, SESSIONS, IDEMPOTENCY LOG, COMMIT LINKS (SPEC 5, 7 AND 9)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 import {
 	bigint,
@@ -14,7 +14,7 @@ import {
 	uniqueIndex,
 	uuid
 } from 'drizzle-orm/pg-core';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { orgId, projectId } from './core';
 import { item } from './items';
 import { id, stamps, tenantTable } from './helpers';

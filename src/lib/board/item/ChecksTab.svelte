@@ -1,8 +1,8 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { ItemView, TabEnv } from '#lib/board/item/types.js';
 	import type { itemChecks } from '#lib/server/ops/checks.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import {
@@ -13,7 +13,7 @@
 		seconds
 	} from '#lib/shared/checksTab.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -22,7 +22,7 @@
 	import ImageOff from '@lucide/svelte/icons/image-off';
 	import Maximize2 from '@lucide/svelte/icons/maximize-2';
 	import Play from '@lucide/svelte/icons/play';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Fold from '#lib/board/item/Fold.svelte';
 	import TabCard from '#lib/board/item/TabCard.svelte';
 	import Badge from '#lib/ui/Badge.svelte';

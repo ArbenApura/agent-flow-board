@@ -1,8 +1,8 @@
 // RELATED PLANS: THE CLOSEST EARLIER PLANS TO A NEW IDEA, FOUND BY ANY OF ITS WORDS, GROUPED PER ITEM, SHORT, AND ONLY WHAT THE CALLER MAY SEE (AFB-20261019-2356)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { relatedTokens } from '../../src/lib/server/db/search';
 import { searchBoard } from '../../src/lib/server/ops/board';
 import { upsertDecision } from '../../src/lib/server/ops/docs';

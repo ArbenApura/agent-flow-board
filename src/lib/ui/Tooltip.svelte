@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { portal } from '#lib/actions/portal.js';
 	import { boxOf, place } from '#lib/ui/position.js';
 

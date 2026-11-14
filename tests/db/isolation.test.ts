@@ -1,9 +1,9 @@
 // 3.10: DATABASE LEVEL ISOLATION, RUN AS app_runtime ON A REAL POSTGRESQL SERVER
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { item, project, projectPin } from '../../src/lib/server/db/schema';
 import { TENANT_TABLES } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';

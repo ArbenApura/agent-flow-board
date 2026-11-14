@@ -1,8 +1,8 @@
 // THE SERVED WORKFLOW TEXT CARRIES THE PROGRESS FIRST RULE FOR EVERY TOOL
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	WORKFLOWS,
 	WORKFLOW_FILE_NAMES,

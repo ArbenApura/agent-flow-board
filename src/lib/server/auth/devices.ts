@@ -1,12 +1,12 @@
 // KNOWN DEVICES AND NEW DEVICE ALERTS (SPEC 6.1). A device is a user agent plus a network prefix, kept only as a hash.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Db } from '../db/client';
 import type { Mailer } from '../email/mailer';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { authDevice, user } from '../db/schema';
 import { newDeviceMail } from '../email/templates';
 

@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { StreamRow } from '#lib/board/streams.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import {
 		MAX_NAME,
 		MAX_SCOPES,
@@ -11,7 +11,7 @@
 		withIds
 	} from '#lib/board/streams.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Button from '#lib/ui/Button.svelte';
 	import TagInput from '#lib/ui/TagInput.svelte';
 	import TextField from '#lib/ui/TextField.svelte';

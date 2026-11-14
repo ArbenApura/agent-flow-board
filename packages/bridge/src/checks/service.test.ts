@@ -1,12 +1,12 @@
 // THE CHECK SERVICE: THE LAUNCHER BYTES, THE RESTART MATH, TERMINAL STOPS, ONE SUPERVISOR, A SAFE UNINSTALL, THE LOG AND THE STALE VERSION RESTART
 // No real service is installed: the Startup folder is a temporary one (AFB_CHECKS_STARTUP) and the worker is a tiny node script.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { acquireSlot } from './broker.js';
 import { checksHome } from './paths.js';
 import {

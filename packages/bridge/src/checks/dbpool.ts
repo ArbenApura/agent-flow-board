@@ -17,11 +17,11 @@
 // The container is removed by its owner process when no run is live (removeWhenIdle) or by sweepPool() (doctor) when the owner is dead, no run is live and the
 // marker is old enough. Nothing else removes it.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { FORBIDDEN_PORTS } from './guardrails.js';
 import { acquireLock, pidAlive, withLockSync, type Lock } from './lock.js';
 import { NAME, ensureDir, poolDir } from './paths.js';

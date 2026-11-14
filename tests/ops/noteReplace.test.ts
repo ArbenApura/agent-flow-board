@@ -2,10 +2,10 @@
 // The server half of "the text was replaced under an open editor": the earlier text is kept in History, the epoch rises, the
 // live updates go, the old epoch can write nothing any more, and the open pages hear about it.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { createNote, getNote, updateNote } from '../../src/lib/server/ops/notes';
 import {
 	appendNoteUpdates,

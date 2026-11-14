@@ -2,7 +2,7 @@
 // No library provider: this one only moves bytes between a Yjs document, an awareness object and a transport the page supplies
 // (later the note's live endpoints). It knows nothing about the network, so the tests run it over a fake transport.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	Awareness,
 	applyAwarenessUpdate,

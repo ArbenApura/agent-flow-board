@@ -1,6 +1,6 @@
 // TESTS OF THE FOLDER BINDING: STORE, READ, LIST, REMOVE, VALIDATION AND THE PIN STATUS.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	existsSync,
 	mkdirSync,
@@ -14,7 +14,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { bindFolder, boundFolder, listBindings, pinStatus, unbind } from './bind.js';
 import { bindingsFile } from './paths.js';
 import { pinFiles } from './recipe.js';

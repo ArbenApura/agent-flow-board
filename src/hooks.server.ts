@@ -1,12 +1,12 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Handle, HandleServerError, ServerInit } from '@sveltejs/kit/hooks';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { building } from '$app/env';
 import { AFB_BASE_URL, AFB_SEED_DEMO, MOCKUP_ORIGIN } from '$app/env/private';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sequence } from '@sveltejs/kit/hooks';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getAuth } from '#lib/server/auth/index.js';
 import { getDb } from '#lib/server/db/index.js';
 import { getJobs } from '#lib/server/jobs/index.js';

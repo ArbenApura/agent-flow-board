@@ -1,11 +1,11 @@
 // PROJECT VERBS: LIST, CREATE, READ AND SETTINGS (SPEC 5)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { standardStreams, streamsProblem } from '../../board/streams';
 import { appendEvent } from '../db/events';
 import {

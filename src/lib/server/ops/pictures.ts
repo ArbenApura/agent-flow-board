@@ -1,12 +1,12 @@
 // PICTURES: A PERSON'S AVATAR AND A PROJECT'S LOGO, KEPT AS SMALL DATA ADDRESSES AND SERVED FROM /pictures (ADR 1 OF AFB-20261017-1202)
 // Reads never carry the picture. They carry a version number, and the page asks /pictures/{kind}/{id}?v=<version> for the bytes.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from '../db/client';
 import type { Actor, Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendEvent } from '../db/events';
 import { member, project, user } from '../db/schema';
 import { withTenant } from '../db/tenant';

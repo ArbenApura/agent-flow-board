@@ -1,6 +1,6 @@
 // TESTS OF THE ROOTS: AT MOST FIVE, SEALED, THE REFUSED FOLDERS, AN APPROVAL TO ADD OR REMOVE, AND THE HOLDING ROOT BY REAL PATH.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	mkdirSync,
 	mkdtempSync,
@@ -13,7 +13,7 @@ import {
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, parse } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mintApproval } from './approve.js';
 import { rootsFile } from './paths.js';
 import { MAX_ROOTS, addRoot, listRoots, readRoots, removeRoot, rootHolding } from './roots.js';

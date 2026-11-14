@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { Hsv } from '#lib/theme/hsv.js';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { untrack } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import {
 		areaGradient,
 		handleRing,

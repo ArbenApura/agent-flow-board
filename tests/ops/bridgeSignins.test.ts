@@ -1,9 +1,9 @@
 // TEST ACCOUNT SIGN INS TYPED ON THE BOARD: THE SERVER KEEPS CIPHERTEXT ONLY, LEASES IT TO THE ONE MACHINE IT WAS MADE FOR, AND NEVER RETURNS IT ANYWHERE ELSE.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createECDH, randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleRunnerApi } from '../../src/lib/server/api/runner';
 import { registerToolRunner } from '../../src/lib/server/ops/environments';

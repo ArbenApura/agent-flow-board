@@ -1,10 +1,10 @@
 // KEEPING A PLAN'S MOCKUPS IN STEP WITH THE PLAN: VISIBILITY AND THE PUBLIC LINK
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from './client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mockup } from './schema';
 
 // -- FUNCTIONS -- //

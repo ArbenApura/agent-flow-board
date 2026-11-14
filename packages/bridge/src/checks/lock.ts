@@ -3,11 +3,11 @@
 // temporary file and linked into place in one step. A stale lock that is unlinked and then created again lets two contenders in, so a stale lock is RENAMED
 // aside, what was moved is compared with the stale one that was seen, and a fresh lock that was moved by mistake is put back.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import { linkSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { renameRetry } from './fsretry.js';
 import { assertName, ensureDir, locksDir } from './paths.js';
 

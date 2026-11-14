@@ -2,7 +2,7 @@
 // Waits until Vite HMR is connected and idle with no pending updates or in-flight network requests,
 // and falls back to load + settle window on non-Vite dev servers. Fails loudly with redacted overlay detail + fixed fix line on dev error overlay.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { redact } from './redact.js';
 
 // -- TYPES -- //

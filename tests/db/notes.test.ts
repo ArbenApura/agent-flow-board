@@ -1,10 +1,10 @@
 // NOTE TABLES AT THE DATABASE LEVEL: REGISTRY, COUNTER, SIBLING NAMES, BYTES, ISOLATION, HISTORY GRANTS AND THE PUBLIC READ POLICIES (AFB-20261111-0035)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { allocateNoteNumber } from '../../src/lib/server/db/numbering';
 import {
 	TENANT_TABLES,

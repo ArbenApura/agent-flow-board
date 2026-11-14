@@ -1,8 +1,8 @@
 // THE BROWSER SIDE HELPERS OF THE MOCKUP SCREENS: THE FILTERS, THE SCALE AND THE ONE MESSAGE A MOCKUP MAY SEND
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	boxPlace,
 	filterMockups,

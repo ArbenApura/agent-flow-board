@@ -7,7 +7,7 @@
 // The heavy walks (snapshot, publish, verify, restore) are generators that yield every few hundred files: the `...Async` forms let the event loop run between
 // batches (the single-flight heartbeat and the board beat must never starve while a big tree is copied); the plain forms run the same code to the end.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import {
 	chmodSync,
@@ -28,7 +28,7 @@ import {
 	writeFileSync
 } from 'node:fs';
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { pidAlive } from './lock.js';
 
 // -- TYPES -- //

@@ -1,7 +1,7 @@
 // `check secrets import|list|forget`: THE COMMAND SIDE OF THE SEALED STORE (secrets.ts holds every rule)
 // Import needs the owner's approval code (check approve --request --action secrets --target <org>/<NAME>): an agent cannot mint one. Names only are ever printed.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { strictList } from '../listFlags.js';
 import { findRegistration } from './registry.js';
 import { forgetSecrets, importSecrets, listSecrets } from './secrets.js';

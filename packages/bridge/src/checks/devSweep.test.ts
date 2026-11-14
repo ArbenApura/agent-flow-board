@@ -2,13 +2,13 @@
 // Proves: 7 screens x 4 widths warm sweep completes under 60s on one warm browser, measures coldMs and warmMs separately,
 // detects layout shifts (CLS) and sub-44px tap targets during sweeps, and routes writes through the browser guard.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createServer, type Server } from 'node:http';
 import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { playwrightRuntimeDir } from './browser.js';
 import { closeAllBrowsers } from './browserpool.js';
 import { runDevSweep } from './devSweep.js';

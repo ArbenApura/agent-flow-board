@@ -1,9 +1,9 @@
 // ONE BOARD PROJECT, SEVERAL AFB-CHECKS REGISTRATIONS (repo folders). The tool reports which it holds in a header; a run that names one goes only to a tool that holds it; a run that names
 // none is refused when the project has several; the result is accepted only from the registration that was asked for; and the board shows which registration and branch ran.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleRunnerApi } from '../../src/lib/server/api/runner';
 import {

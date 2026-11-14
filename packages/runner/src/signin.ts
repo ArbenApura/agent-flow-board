@@ -2,7 +2,7 @@
 // Signing in happens in its own browser context that records nothing: no trace, no video, no screenshots. Only the cookies and
 // storage it ends with are handed to the context the script runs in, so the password is never typed in front of a recorder.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Browser } from '@playwright/test';
 import type { Account } from './api';
 import type { RunnerConfig } from './config';

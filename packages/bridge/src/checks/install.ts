@@ -2,7 +2,7 @@
 // The commands are constants: nothing in the repo can change them. They install exactly what the lock file says and, where the package manager
 // allows it, with the package scripts switched off (a postinstall script would run a program the agent wrote).
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';

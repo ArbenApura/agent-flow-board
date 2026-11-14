@@ -2,14 +2,14 @@
 // Operator only, through the server command. A restore changes data for real, so the command asks for a confirmation that
 // names the database, and it never runs from the web app.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Storage } from '../adapters/storage';
 import type { Admin } from './admin';
 import type { BackupMeta } from './dump';
 import type { Frame } from './archive';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { BackupError, readArchive } from './archive';
 import { writableColumns } from './dump';
 

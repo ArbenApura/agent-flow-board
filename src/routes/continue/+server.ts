@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { json } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { continueChoice } from '#lib/server/db/zod.js';
 import { saveContinueChoice } from '#lib/server/web/continuePref.js';
 

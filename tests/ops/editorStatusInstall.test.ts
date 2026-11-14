@@ -1,12 +1,12 @@
 // THE EDITOR STATUS INSTALL TOOL (AFB-20261108-0427, C.1 AND C.4): THE PLAN FOR THE CALLER'S OWN ORGANISATION, AND THE MOD FILES WITH THEIR CHECKSUMS
 // Each rule has a negative control, so a test cannot pass on an empty answer.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { MOD_PART, installPlan, modFiles } from '../../src/lib/server/editor-status';
 import { isOAuthError, pollDevice, startDevice } from '../../src/lib/server/oauth/oauth';
 import { bridgeSignIn, editorStatusInstall } from '../../src/lib/server/ops/editorStatus';

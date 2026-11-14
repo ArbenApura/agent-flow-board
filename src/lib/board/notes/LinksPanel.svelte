@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { NoteLink, NoteLinks, Target } from '#lib/board/notes/links.js';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { untrack } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api } from '#lib/board/api.js';
 	import {
 		addLink,
@@ -16,10 +16,10 @@
 		staysInText
 	} from '#lib/board/notes/links.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Plus from '@lucide/svelte/icons/plus';
 	import X from '@lucide/svelte/icons/x';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import LinkDialog from '#lib/board/notes/LinkDialog.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Card from '#lib/ui/Card.svelte';

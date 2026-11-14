@@ -2,9 +2,9 @@
 // The counter row is locked by the upsert and the lock lasts until the transaction ends, so two concurrent creates
 // can never share a number, and a rolled back create gives its number back (no gaps from failures).
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from './client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 
 // -- FUNCTIONS -- //

@@ -1,9 +1,9 @@
 // 3.9: THE SEED DATA, INCLUDING THE 5,000 ITEM LOAD PROJECT, AND A FIRST LOOK AT REGISTRY QUERY SPEED
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, count, eq, gt } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { item, project } from '../../src/lib/server/db/schema';
 import { SEED, seedDemo } from '../../src/lib/server/db/seed';
 import { withTenant } from '../../src/lib/server/db/tenant';

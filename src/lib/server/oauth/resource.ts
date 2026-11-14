@@ -1,7 +1,7 @@
 // THE `resource` OF AN AUTHORIZATION REQUEST (RFC 8707): A CLIENT SENDS THE MCP ADDRESS IT WAS GIVEN, SO /mcp/<slug> NAMES THE ORG
 // One parser, used by the consent page and the decision endpoint, so both read the address the same way.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { isOrgSlug, orgMcpUrl } from '../../shared/orgConnection';
 
 // -- FUNCTIONS -- //

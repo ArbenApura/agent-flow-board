@@ -1,6 +1,6 @@
 // THE FILE LOCKS: ONE HOLDER AT A TIME, A STALE LOCK TAKEN OVER BY ONLY ONE CONTENDER, AND A LOCK FILE THAT IS NEVER VISIBLE EMPTY
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawn } from 'node:child_process';
 import {
 	existsSync,
@@ -15,7 +15,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { acquireLock, lockHolderPid, machineLock, withLockSync } from './lock.js';
 import { locksDir } from './paths.js';
 

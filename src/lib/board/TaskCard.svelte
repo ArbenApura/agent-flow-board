@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { TaskRow } from '#lib/board/tasks.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { draggable } from '#lib/actions/dnd.svelte.js';
 	import { TASK_STATUS_STYLE, asTaskState, bodyPreview } from '#lib/board/tasks.js';
 	import { cn } from '#lib/ui/cn.js';

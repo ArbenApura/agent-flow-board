@@ -1,8 +1,8 @@
 // FULL TEXT SEARCH ACROSS ITEMS, SECTIONS, DECISIONS AND TASKS (SPEC 12, GIN INDEXES ON GENERATED tsvector COLUMNS)
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Tx } from './client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 
 // -- TYPES -- //

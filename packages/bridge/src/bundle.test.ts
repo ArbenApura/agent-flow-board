@@ -1,11 +1,11 @@
 // THE BUNDLE COMMANDS (AFB-20261114-0409, D.3): A FOLDER OF PARTS GOES UP AS ONE JSON BODY AND COMES BACK AS THE SAME FOLDER
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { MANIFEST_FILE, pullParts, pushBundle, readBundle } from './bundle.js';
 
 // -- FUNCTIONS -- //

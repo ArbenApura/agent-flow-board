@@ -1,11 +1,11 @@
 // TESTS OF ASKING THE OWNER ON THE BOARD, WITH A FAKE BOARD: APPROVED, REFUSED, EXPIRED, CANCELLED, A LATE CLAIM, A REPLAY, A WRONG TARGET, TWO AGENTS, A 25 ENTRY BATCH.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ASK_LIMIT, askOwner, parseEntries, targetFor, type AskBoard } from './askBoard.js';
 import { consumeApproval, consumeApprovalNote, mintFromDecision, peekApproval } from './approve.js';
 import { BoardError } from './board.js';

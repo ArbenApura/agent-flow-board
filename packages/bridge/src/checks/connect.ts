@@ -3,12 +3,12 @@
 // code on the /device page), one call that makes this machine a runner of the organisation, then only the runner token is kept. The personal
 // token is forgotten at once. The runner token has its own entry in the token store, apart from the sign in of the hooks and MCP.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { hostname } from 'node:os';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Fetch } from '../device.js';
 import type { TokenStore } from '../tokenStore.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { deviceLogin } from '../device.js';
 import { accountKey } from '../tokenStore.js';
 

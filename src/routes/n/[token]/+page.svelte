@@ -1,11 +1,11 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Logo from '#lib/ui/Logo.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import ThemeToggle from '#lib/ui/ThemeToggle.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Link2Off from '@lucide/svelte/icons/link-2-off';
 
 	// -- REQUIRED PROPS -- //

@@ -1,15 +1,15 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { Folder } from '#lib/board/notes/tree.js';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { untrack } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { indentClass, moveTargets, pastIndent } from '#lib/board/notes/tree.js';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Check from '@lucide/svelte/icons/check';
 	import FolderIcon from '@lucide/svelte/icons/folder';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Button from '#lib/ui/Button.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 

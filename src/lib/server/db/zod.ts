@@ -1,10 +1,10 @@
 // ZOD SCHEMAS GENERATED FROM THE DRIZZLE TABLES (drizzle-zod), SHARED BY THE API, THE MCP TOOL INPUTS AND THE FORMS
 // Refinements add the rules a column type cannot hold: the tab name pattern.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-zod';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { CONTINUE_MODES, CONTINUE_TOOL_IDS, validPair } from '../../shared/continue';
 import { NOTE_LIMITS, NOTE_PICTURE_TYPES } from '../../shared/notes';
 import { TAB_NAME } from '../../shared/tabName';

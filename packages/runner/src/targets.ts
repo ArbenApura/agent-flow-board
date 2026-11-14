@@ -3,7 +3,7 @@
 // same, served from a process this runner starts and stops. The dev server is only ever chosen by hand and is warmed first. The
 // deployed site is opened as it is, after an optional wait until it reports the commit being tested.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import {
 	existsSync,
@@ -16,7 +16,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import type { Approvals } from './approvals';
 import type { RunnerConfig, Served } from './config';
 import { appHash, headCommit } from './git';

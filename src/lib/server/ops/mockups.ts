@@ -2,15 +2,15 @@
 // A build follows the mockup of its plan (AFB-20261110-2331). Every version owns its own stored file and nothing is ever deleted by a restore.
 // Everything an agent reads that another person wrote is returned marked untrusted, with its author.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 import type { RunnerAuth } from './environments';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, ilike, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { extractMockupScreensFromHtml } from '../../shared/screenGlobs';
 import { appendEvent } from '../db/events';
 import { syncMockupsOfItem } from '../db/mockupSync';

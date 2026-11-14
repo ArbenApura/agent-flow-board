@@ -1,11 +1,11 @@
 // WHICH SAVED SIGN-IN A RUN OPENS WITH: PORT-FREE BINDING, NAMED PROFILES THAT NEVER FALL BACK, AND NO CROSS-USE BETWEEN REGISTRATIONS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	assertProfileName,
 	bindBaseFor,

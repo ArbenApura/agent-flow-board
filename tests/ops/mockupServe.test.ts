@@ -1,9 +1,9 @@
 // MOCKUP ROUTES (AFB-20261107-0346): THE SAME ISOLATING HEADERS ON EVERY ANSWER, SIGNED LINKS, THE PUBLIC LINK AND THE PIN SCRIPT
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import {
 	buildMockupUrl,

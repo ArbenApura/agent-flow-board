@@ -2,13 +2,13 @@
 // The versions themselves are kept by keepNoteVersion (notes.ts) before every change. They are only ever added: nothing here
 // changes or removes one. A restore keeps the current text as a version first, then writes the old text on top as the newest.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { noteRef } from '../../shared/notes';
 import { note, noteUpdate, noteVersion, user } from '../db/schema';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';

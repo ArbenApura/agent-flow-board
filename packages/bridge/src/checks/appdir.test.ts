@@ -1,11 +1,11 @@
 // THE APP FOLDER: NORMALISATION, THE SEGMENT RULES, LINK AND JUNCTION REFUSAL, THE PACKAGE.JSON, ESCAPES AND THE RELATIVE APP PATHS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	appDirProblem,
 	appDirText,

@@ -1,10 +1,10 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Actions } from './$types';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { AFB_BASE_URL } from '$app/env/private';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { fail } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getAuth } from '#lib/server/auth/index.js';
 
 // -- FUNCTIONS -- //

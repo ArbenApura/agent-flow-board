@@ -1,14 +1,14 @@
 // TESTS FOR DEV SERVER LIFECYCLE (STEP A.2, AFB-20261113-1008)
 // Verifies reusing an already-answering dev server (never stopping or restarting it) and starting/owning/stopping --start servers.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createServer, type Server } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mintApproval } from './approve.js';
 import { devApprovalTarget, devConfigHash } from './devPolicy.js';
 import { ensureDevServer, DevServerError } from './devServer.js';

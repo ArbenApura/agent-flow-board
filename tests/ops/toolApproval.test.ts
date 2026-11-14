@@ -2,12 +2,12 @@
 // hash the tool sent), needs the manage permission of the caller today and of the caller's token, gives only `manage`, is safe to repeat, counts refusals per
 // caller token, and returns nothing secret. The person's own flow at /device is unchanged and is covered by tests/mcp/oauth.test.ts.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Capability } from '../../src/lib/server/ops/context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { approveToolConnection } from '../../src/lib/server/ops/environments';
 import { isOAuthError, pollDevice, startDevice } from '../../src/lib/server/oauth/oauth';
 import { makePostgres, type TestDb } from '../support/db';

@@ -1,11 +1,11 @@
 // THE ROOTS: THE FOLDERS THE OWNER APPROVED AS PARENTS OF REGISTERED REPOS. At most five, sealed with an HMAC so a hand-written list is refused. A root is never a drive,
 // the home folder (or a folder above it), the bridge home or a folder of keys and logins. Adding or removing one needs a single-use approval code (approve.ts).
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, parse, relative, resolve, sep } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendAudit } from './audit.js';
 import { Refusal, consumeApproval, sameMac, seal, writeFileAtomic } from './approve.js';
 import { withLockSync } from './lock.js';

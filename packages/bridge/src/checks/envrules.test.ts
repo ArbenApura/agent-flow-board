@@ -1,8 +1,8 @@
 // TESTS OF THE DATABASE RULE OF AN ADOPTED ENVIRONMENT: EVERY SPELLING OF THE LOCAL DATABASE AND THE PERSON'S SERVER PORTS IS REFUSED, A SEALED TEST HOST IS ALLOWED, NO VALUE IS NAMED
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { databaseProblems, expandRefs, isLoopbackHost, normalizeHost } from './envrules.js';
 
 // -- CONSTANTS -- //

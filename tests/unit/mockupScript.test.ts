@@ -1,10 +1,10 @@
 // THE SCRIPT THE BOARD ADDS TO A MOCKUP: THE SCREENS AN OPTION APPLIES TO AND THE CHECK THAT A CHOICE CHANGED SOMETHING (AFB-20261112-2350)
 // The script text is run in a node vm with a stub page, so what it posts to the board is what is asserted, not a search of its source.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { PIN_SCRIPT, PUBLIC_SCRIPT } from '../../src/lib/server/mockups/pinScript';
 
 // -- TYPES -- //

@@ -9,11 +9,11 @@
 // The websocket endpoint is NOT written: it is a capability. Sharing one browser across processes is the machine broker's job; until it exists a pool
 // lives in one process, and the marker only lets doctor see (and sweep, when the owner is dead) what was left.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import { readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { launchBrowserServer, type BrowserServer } from './browser.js';
 import { pidAlive } from './lock.js';
 import { ensureDir, poolDir } from './paths.js';

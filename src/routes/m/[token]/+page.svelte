@@ -1,16 +1,16 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { screensOf } from '#lib/board/mockups.js';
 	import MockupPreview from '#lib/board/MockupPreview.svelte';
 	import Logo from '#lib/ui/Logo.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import ThemeToggle from '#lib/ui/ThemeToggle.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Link2Off from '@lucide/svelte/icons/link-2-off';
 
 	// -- REQUIRED PROPS -- //

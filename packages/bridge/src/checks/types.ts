@@ -1,6 +1,6 @@
 // THE SHARED SHAPES OF THE CHECK COMMANDS. EVERY MODULE IN THIS FOLDER IMPORTS FROM HERE, SO THE PARTS FIT.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { WriteRule } from './devPolicy.js';
 
 /** What a run needs to know about the repo it builds and previews. Built by recipe.ts from `.afb-checks.json` or plain detection. */

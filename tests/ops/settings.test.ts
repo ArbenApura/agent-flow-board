@@ -1,10 +1,10 @@
 // PHASE 10: ORGANISATION SETTINGS (NAME, PALETTE, LOGO, LIMITS, AUDIT LOG), PROJECT SETTINGS, THE EXPORT, AND THE
 // NOTIFICATIONS A PERSON CAN SWITCH OFF. Each verb changes one group of fields, and only admins and owners change them.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { adminFromExecutor } from '../../src/lib/server/backup/admin';
 import { runBackup } from '../../src/lib/server/backup/run';
 import { org, userPref } from '../../src/lib/server/db/schema';

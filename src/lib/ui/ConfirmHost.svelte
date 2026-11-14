@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { confirmStore } from '#lib/ui/confirm.svelte.js';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte';
 
 	// -- STATES -- //

@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { enhance } from '$app/forms';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Notice from '#lib/ui/Notice.svelte';
 	import AuthShell from '#lib/ui/AuthShell.svelte';
 	import Button from '#lib/ui/Button.svelte';

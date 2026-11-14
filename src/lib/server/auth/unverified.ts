@@ -3,11 +3,11 @@
 // happens into a verified account (Better Auth's requireLocalEmailVerified), and an unverified duplicate is removed
 // so the owner gets a clean account that no one else holds a password for.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Db } from '../db/client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { authAccount, user } from '../db/schema';
 
 // -- FUNCTIONS -- //

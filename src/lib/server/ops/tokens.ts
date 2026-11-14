@@ -1,14 +1,14 @@
 // PERSONAL ACCESS TOKENS (SPEC 6.2): SHOWN ONCE, STORED AS A HASH, PREFIXED FOR SECRET SCANNING, 90 DAYS AT MOST, SCOPED
 // A token is `afb_<orgId>.<secret>`. The org id lets the lookup run inside that org's row level security.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from '../db/client';
 import type { Capability, Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { apiToken, member, org } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { ALL_CAPS, OpError, capsOf, run } from './context';

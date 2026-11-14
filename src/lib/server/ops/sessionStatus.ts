@@ -2,15 +2,15 @@
 // It never renews a session, writes an event or sends a change notice, so a status line can poll it all day without
 // keeping a dead conversation "running". The percent, status and step counts are the values the board already stored.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { WaitingBlocker } from '../db/schema/activity';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { item, itemAlias, org, phase, project, section, session, step } from '../db/schema';
 import { OpError, requireCap, run } from './context';
 import { mayView } from './resolve';

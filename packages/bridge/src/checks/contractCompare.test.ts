@@ -1,8 +1,8 @@
 // A MOCKUP CONTRACT GIVES COMPARE ITS PAIRING, FREE LINES AND STATES (AFB-20261114-0409, D.5)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { fetchMockupContract, manifestFromContract } from './compare.js';
 
 // -- FUNCTIONS -- //

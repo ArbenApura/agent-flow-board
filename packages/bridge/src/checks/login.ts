@@ -6,15 +6,15 @@
 // Nothing here starts a preview itself: the caller injects `target`, and the sign in function is injected too, so tests launch no browser.
 // A cookie, a password or a token is never printed.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFile } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Registration } from './types.js';
 import type { ProfileMeta, SavedProfile } from './profiles.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { consumeApproval, peekApproval } from './approve.js';
 import { appendAudit } from './audit.js';
 import { loadPlaywright } from './browser.js';

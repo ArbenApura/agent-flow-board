@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 // THE SLASH MENU AND THE LINK MENU: WHAT OPENS THEM, THEIR ROWS AND KEYS, THE LINKS THEY WRITE, AND THE PLUGIN THAT REPORTS TYPING (AFB-20261111-0035, STEP 4.4)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { Editor } from '@tiptap/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { editorExtensions, toMarkdown } from './editorMarkdown.js';
 import {
 	LinkSearch,

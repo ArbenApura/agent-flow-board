@@ -1,8 +1,8 @@
 // THE PARTS OF A MOCKUP PAGE AND ITS MACHINE OUTPUT (AFB-20261114-0409, B.2 AND B.3)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	diffSegments,
 	rangeChars,

@@ -1,11 +1,11 @@
 // ACTIVITY, UNDO AND TRASH VERBS (SPEC 6: "SAFETY NET IN PLACE OF APPROVALS", L14, L17)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { effectiveStepVisible } from '../../shared/screenGlobs';
 import { recalcItem } from '../db/calc';
 import { undoEvent, type UndoResult } from '../db/events';

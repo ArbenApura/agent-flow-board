@@ -1,10 +1,10 @@
 // BUILDS THE OPERATIONS CONTEXT FOR A PAGE LOAD, FROM THE SIGNED IN PERSON AND THE ORG THE URL NAMES
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from '../ops/context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { error, redirect } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appServices } from '../services';
 import { getDb } from '../db/index';
 import { OpError } from '../ops/context';

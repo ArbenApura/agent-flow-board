@@ -1,13 +1,13 @@
 // TESTS FOR STEP B.4: `--mockup ID[@VERSION]` IN `check run` WITH ISOLATED ZERO-COOKIE BROWSER CONTEXT.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { parseMockupRef } from './mockupTarget.js';
 import { runsDir, scriptPath } from './paths.js';
 import { runCheck, type RunOptions } from './run.js';

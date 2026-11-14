@@ -1,13 +1,13 @@
 // `check run --local`: A SCRIPT RUN HERE WITH NO BOARD CALL AT ALL, ON EVERY PATH THAT ENDS BEFORE A BROWSER STARTS
 // The stand-in board has no address. These tests also make the network throw, so any call that slipped through would fail the run it belongs to.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { checkMain } from './command.js';
 import { LocalSink } from './localSink.js';
 import { scriptPath } from './paths.js';

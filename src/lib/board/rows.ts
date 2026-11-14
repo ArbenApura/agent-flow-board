@@ -1,6 +1,6 @@
 // THE SLIM ROW A LIST SHOWS, BUILT THE SAME WAY ON THE SERVER (FIRST PAGE) AND IN THE BROWSER (LATER PAGES)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Status } from './status';
 
 export type WaitingBlocker = {

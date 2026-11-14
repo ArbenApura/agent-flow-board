@@ -1,12 +1,12 @@
 // THE MACHINE BROKER: THE SLOT COUNT HOLDS ACROSS PROCESSES, REGISTRATIONS TAKE TURNS, THE MACHINE CHECK WAITS INSTEAD OF FAILING, AND A KILLED PROCESS LOSES ITS SLOT
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	acquireSlot,
 	canTake,

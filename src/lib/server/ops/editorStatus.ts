@@ -2,12 +2,12 @@
 // The organisation comes from the connection the call arrived on (ctx.orgId), never from an argument. The caller needs the read
 // permission. Nothing returned is a secret: the plan is a constant template and the files are the mod's public source.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { apiToken, org } from '../db/schema';
 import { MOD_PART, installPlan, servedModFile } from '../editor-status';
 import { pageText } from '../system-skills/plan';

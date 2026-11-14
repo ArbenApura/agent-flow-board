@@ -1,10 +1,10 @@
 // DELETING A PERSON: THEIR ACCOUNT GOES, THE HISTORY STAYS BUT NO LONGER NAMES THEM (L19, ADR-025)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from '../db/client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { comment, event, item, member, step, user } from '../db/schema';
 import { withTenant } from '../db/tenant';
 

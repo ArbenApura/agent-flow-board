@@ -3,11 +3,11 @@
 // to the registration and the site address (the AAD), and lives under that registration's own state folder. It is used only for the site it
 // was saved for, and it never reaches a check except through the child's stdin.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ensureDir, ORG_SLUG, stateDirFor } from './paths.js';
 import { renameRetry } from './fsretry.js';
 import { seal, unseal } from './store.js';

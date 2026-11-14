@@ -1,10 +1,10 @@
 // THE APP'S DATABASE HANDLE: THE POSTGRESQL SERVER IN DATABASE_URL. THE APP STOPS AT START WITHOUT IT.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from './client';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { AFB_AUTO_MIGRATE, DATABASE_OWNER_URL, DATABASE_URL } from '$app/env/private';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { createPostgres } from './client';
 import { migrate } from './migrate';
 

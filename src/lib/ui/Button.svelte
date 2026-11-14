@@ -1,11 +1,11 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
 	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ripple } from '#lib/actions/ripple.js';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 
 	// -- TYPES -- //

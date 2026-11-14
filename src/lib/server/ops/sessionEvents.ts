@@ -2,13 +2,13 @@
 // The session row is overwritten in place, so how long a claim lasted and how often a session was reminded could not be told
 // afterwards. This log only appends. It is how a later change to the hooks or the prompts is measured.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { sessionEvent } from '../db/schema';
 import { requireCap, run } from './context';
 import { findItem } from './resolve';

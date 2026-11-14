@@ -1,8 +1,8 @@
 // THE SYSTEM SKILLS BUNDLE AS ONE ZIP: ONE FOLDER PER SKILL, EVERY FILE AS IT IS INSTALLED. PUBLIC, NO SIGN IN.
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { MANIFEST, bundleSha256, systemSkillsZip } from '#lib/server/system-skills/index.js';
 import { publicAnswer } from '#lib/server/system-skills/http.js';
 

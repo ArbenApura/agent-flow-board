@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { scrollFade } from '#lib/actions/scrollFade.js';
 	import { cn } from '#lib/ui/cn.js';
 

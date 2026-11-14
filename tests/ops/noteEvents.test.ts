@@ -1,8 +1,8 @@
 // NOTE EVENTS, THE STREAM FILTER, THE TRASH LIST AND THE PURGE (AFB-20261111-0035, step 2.3)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { mayReceive } from '../../src/lib/server/ops/board';
 import { listEvents, listTrash, purgeTrash } from '../../src/lib/server/ops/history';

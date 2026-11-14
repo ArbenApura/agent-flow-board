@@ -1,8 +1,8 @@
 // WHAT A MOCKUP OFFERS: THE SCREENS AN OPTION APPLIES TO AND THE MESSAGE THAT A CHOICE CHANGED NOTHING (AFB-20261112-2350)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	optionApplies,
 	parseConfigMessage,

@@ -1,11 +1,11 @@
 // TESTS OF THE HANDLERS OF `check project`, `check approve` AND `check roots`: EXIT CODES AND WHAT THEY PRINT.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { approveCommand, projectCommand, rootsCommand } from './commands.js';
 import { devApprovalTarget, devConfigHash } from './devPolicy.js';
 import { readRegistrations } from './registry.js';

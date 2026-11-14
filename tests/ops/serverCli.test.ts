@@ -1,12 +1,12 @@
 // THE SERVER COMMAND (scripts/server.ts), RUN FOR REAL AGAINST DATABASES CLONED ON THE EMBEDDED POSTGRESQL: BACKUP, LIST, VERIFY, AND THE CONFIRMED RESTORES
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { seedDemo, SEED } from '../../src/lib/server/db/seed';
 import { makePostgres, type TestDb } from '../support/db';
 

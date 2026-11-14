@@ -1,10 +1,10 @@
 // SERVES ONE SIGNED KIT ASSET FILE (CSS, FONT OR IMAGE) WITH ISOLATING HEADERS AND CORS FOR SANDBOXED MOCKUPS
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { BETTER_AUTH_SECRET } from '$app/env/private';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getStorage } from '#lib/server/adapters/index.js';
 import { getDb } from '#lib/server/db/index.js';
 import { serveMemberKitAsset } from '#lib/server/mockups/serve.js';

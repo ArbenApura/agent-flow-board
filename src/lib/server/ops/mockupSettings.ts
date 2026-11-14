@@ -3,13 +3,13 @@
 // screen of its own: the agent builds it from the repo and saves it here. Admins and owners write, and everyone who can see the
 // project reads. The kit text is returned marked untrusted, because other people wrote it.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendEvent } from '../db/events';
 import { mockupKit, mockupKitAsset } from '../db/schema';
 import { mockupKey } from '../mockups/keys';

@@ -2,9 +2,9 @@
 // On a server that is a role made for the purpose (BYPASSRLS) given in DATABASE_BACKUP_URL. In tests the connection is the
 // superuser of the embedded server. Nothing outside the backup code and the server command ever sees this.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { SqlExecutor } from '../db/executor';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import pg from 'pg';
 
 // -- TYPES -- //

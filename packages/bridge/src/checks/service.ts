@@ -5,7 +5,7 @@
 // A process is stopped by `uninstall` only when its id AND its start time match what the lock recorded (a reused process id is never touched).
 // Everything the service writes to its log passes redact.ts first.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFile, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
@@ -21,7 +21,7 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { machineTotals } from './broker.js';
 import { pidAlive } from './lock.js';
 import { checksHome, ensureDir } from './paths.js';

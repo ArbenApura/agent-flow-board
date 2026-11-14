@@ -2,16 +2,16 @@
 // Focus never leaves the editor: the person keeps typing into it, and this plugin reports what the typing asks for and hands
 // the menu keys to the screen first. The Tiptap suggestion package is not installed, so this is the small plugin it would be.
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Editor } from '@tiptap/core';
 import type { EditorView } from '@tiptap/pm/view';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Box } from '#lib/ui/position.js';
 import type { MenuKind } from './editorMenu.js';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { parseTrigger } from './editorMenu.js';
 
 // -- TYPES -- //

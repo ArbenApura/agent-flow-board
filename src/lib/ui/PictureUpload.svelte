@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { PICTURE_ACCEPT } from '#lib/board/pictures.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Button from '#lib/ui/Button.svelte';

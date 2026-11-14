@@ -1,6 +1,6 @@
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { createOptimistic } from './optimistic.svelte.js';
 
 // -- TESTS -- //

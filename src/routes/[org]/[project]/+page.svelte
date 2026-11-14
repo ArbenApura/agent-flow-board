@@ -1,13 +1,13 @@
 <script lang="ts">
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { untrack } from 'svelte';
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
 	import type { ApiItem, ItemRow, Running } from '#lib/board/rows.js';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { activityText } from '#lib/board/projects.js';
 	import { slimItem } from '#lib/board/rows.js';
@@ -35,7 +35,7 @@
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import VirtualList from '#lib/ui/VirtualList.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Check from '@lucide/svelte/icons/check';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';

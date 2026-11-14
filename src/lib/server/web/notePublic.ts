@@ -3,12 +3,12 @@
 // address set for the transaction, never with the owner role. A wrong address, a link that is off, a note in the trash and a
 // private note all give null, and the first lookup costs the same in each case. The address is never logged.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Storage } from '../adapters/storage';
 import type { DbHandle } from '../db/client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { hashToken as sha256 } from '../ops/mockups';
 import { note, noteFile, project, user } from '../db/schema';
 import { withTenant } from '../db/tenant';

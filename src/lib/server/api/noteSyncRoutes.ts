@@ -1,9 +1,9 @@
 // THE LIVE EDITING ENDPOINTS OF A NOTE (AFB-20261111-0035, 8.2). THIN WRAPPERS AROUND THE VERBS IN ops/noteSync.ts
 // They are for the open page: JSON only, this site's Origin for a cookie caller (see `live` on Route), their own rate bucket.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Route } from './routes';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	appendNoteUpdates,
 	checkpointNote,

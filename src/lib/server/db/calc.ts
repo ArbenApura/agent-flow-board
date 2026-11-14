@@ -1,12 +1,12 @@
 // WRITE TIME CALCULATED VALUES: PERCENT, COUNTS AND DRIFT FLAGS ARE UPDATED IN THE SAME TRANSACTION AS THE CHANGE (ADR-016)
 // The item row is locked first (SELECT ... FOR UPDATE), so two concurrent step changes cannot lose an update.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from './client';
 import type { ItemHealth } from './schema';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, inArray, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { computeVisualProgress } from '../../shared/progress';
 import { item, manualCheck, step } from './schema';
 

@@ -1,8 +1,8 @@
 // PINNED PROJECTS (AFB-20261017-0537): PERSONAL, NEVER LEAKING, CLEARED WITH THE PERSON
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { orgOverview } from '../../src/lib/server/ops/board';
 import { createItem } from '../../src/lib/server/ops/items';
 import { pinProject, unpinProject } from '../../src/lib/server/ops/pins';

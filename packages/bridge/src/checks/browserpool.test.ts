@@ -1,13 +1,13 @@
 // THE BROWSER POOL: KEY LOGIC, REFERENCE COUNTING, IDLE CLOSE, CRASH REPLACEMENT AND DEDICATED BROWSERS WITH A FAKE LAUNCHER (NO REAL BROWSER).
 // One opt-in test (AFB_REAL_BROWSER=1) starts the real Chromium and proves the isolation the pool relies on.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { PLAYWRIGHT_VERSION, loadPlaywright, type BrowserServer } from './browser.js';
 import { BrowserPool, browserKey, listBrowserMarkers, sweepBrowserMarkers } from './browserpool.js';
 import { poolDir } from './paths.js';

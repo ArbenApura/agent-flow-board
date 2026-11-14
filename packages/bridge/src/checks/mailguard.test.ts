@@ -1,6 +1,6 @@
 // TESTS OF THE MAIL GUARD: THE HOOK RUN IN A REAL CHILD PROCESS (REWRITE, REFUSE, COUNT, LISTENING) AND THE TOOL SIDE (NODE_OPTIONS ORDER, FAIL CLOSED OVER THE MAIL SET)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	enforceMailSet,
 	fenceProblem,

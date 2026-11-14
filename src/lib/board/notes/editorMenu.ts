@@ -2,7 +2,7 @@
 // What typed text opens a menu, which rows it shows, what each key does, and the link a picked result writes. No Svelte and
 // no ProseMirror view, so all of it runs in the tests. The screen only draws the rows and forwards the keys.
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Editor } from '@tiptap/core';
 
 // -- TYPES -- //

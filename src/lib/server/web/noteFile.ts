@@ -2,10 +2,10 @@
 // The reader is checked against the picture's own note, never against the note whose text names it. Every refusal is the same
 // 404, so an id cannot be used to find out whether a private note has pictures.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from '../db/client';
 import type { Storage } from '../adapters/storage';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { OpError } from '../ops/context';
 import { readNoteFile } from '../ops/notes';
 import { orgForSlug } from '../orgs/orgs';

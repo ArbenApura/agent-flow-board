@@ -1,6 +1,6 @@
 // THE LIVE LIGHT OR DARK MODE OF THIS PAGE, SHARED BY THE TOP BAR SWITCH AND THE ACCOUNT SETTINGS
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { applyMode, type ResolvedMode } from '#lib/theme/mode.js';
 
 // -- STATES -- //

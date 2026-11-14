@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { OrgPalette } from '#lib/server/db/schema/core.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { tileStyle } from '#lib/theme/css.js';
 	import { cn } from '#lib/ui/cn.js';
 

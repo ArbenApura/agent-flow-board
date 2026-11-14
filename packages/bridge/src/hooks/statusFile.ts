@@ -3,7 +3,7 @@
 // so the editor mod reads a local file and needs no token. The file holds the status fields only, never a token or a verifier.
 // A hook must never fail or slow down because of this file, so every function here swallows its errors.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	existsSync,
 	mkdirSync,

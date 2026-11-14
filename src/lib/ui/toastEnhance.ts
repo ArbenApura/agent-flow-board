@@ -1,8 +1,8 @@
 // SVELTEKIT use:enhance THAT SHOWS ONE TOAST FOR THE LIFE OF A FORM SUBMIT: LOADING, THEN SUCCESS (FADES) OR ERROR (STAYS)
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { SubmitFunction } from '$app/forms';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { toast } from './toast.svelte.js';
 
 // -- TYPES -- //

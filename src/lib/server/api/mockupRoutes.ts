@@ -2,11 +2,11 @@
 // A published file goes up as the raw body with the plan and title in the query. Notes, screenshot and settings are their own calls,
 // so no text has to fit in an address.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Route } from './routes';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { OpError } from '../ops/context';
 import {
 	addMockupPin,

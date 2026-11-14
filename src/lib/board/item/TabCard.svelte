@@ -1,14 +1,14 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { onMount, untrack } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Card from '#lib/ui/Card.svelte';
 
 	// -- REQUIRED PROPS -- //

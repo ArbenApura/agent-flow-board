@@ -13,14 +13,14 @@
 // a command or a script it has not seen. A hosted runner (--hosted) runs in a throwaway container and needs no approval.
 // The token is read from --token or AFB_RUNNER_TOKEN. It is never printed.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { chromium } from '@playwright/test';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ApiError, RunnerApi, retryDelay, type Job } from './api';
 import { Approvals } from './approvals';
 import { runCheckJob } from './checks';

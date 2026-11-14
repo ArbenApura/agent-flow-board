@@ -1,13 +1,13 @@
 // TESTS FOR STEP B.6: `check compare` TWO-CONTEXT MOCKUP VS APP DIFF, PICTURE PAIRS, FREE EXEMPTIONS AND SIGNED-IN PICTURE GATE.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createServer, type Server } from 'node:http';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { devConfigHash } from './devPolicy.js';
 import { checkMain } from './command.js';
 import { runCompare } from './compare.js';

@@ -5,7 +5,7 @@
 // (free disk, free memory per run that started in the last 90 s) is part of taking a slot and WAITS instead of failing. Nothing here blocks the event loop for
 // longer than a few small file reads.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import {
 	linkSync,
@@ -19,7 +19,7 @@ import {
 } from 'node:fs';
 import { cpus, freemem } from 'node:os';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { pidAlive } from './lock.js';
 import { brokerDir, checksHome, ensureDir, poolDir } from './paths.js';
 

@@ -2,7 +2,7 @@
 // A pure function. The matchers are the renderer's own (parseAfbLink and BARE_REF in markdown.ts), so what the screen draws
 // as a link and what the server stores as a link are the same set. Code spans and fenced blocks name nothing.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { BARE_REF, parseAfbLink } from '../markdown';
 
 // -- TYPES -- //

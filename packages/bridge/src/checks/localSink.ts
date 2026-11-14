@@ -3,7 +3,7 @@
 // upload or finish. The run is written against this stand-in, which has no address and no token and so cannot reach a network, whatever path the run takes (a signal, a
 // sandbox error, a thrown error). A run that exists on the board is never touched.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { RunnerBoard } from './board.js';
 
 // -- TYPES -- //

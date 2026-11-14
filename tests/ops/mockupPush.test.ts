@@ -2,7 +2,7 @@
 // A small node server stands in for the SvelteKit route and does exactly what it does (read the body up to its endpoint's cap, call handleApi).
 // With AFB_PROOF_DIR set to a folder holding kit.html, mockup.html, keep.md, free.md and a PNG, the same test publishes those real files (the proof run of step 5.4).
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -10,7 +10,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { RunnerBoard } from '../../packages/bridge/src/checks/board.js';
 import { mintMockupUrlCli, pushMockup } from '../../packages/bridge/src/mockup.js';
 import { memoryStorage } from '../../src/lib/server/adapters/storage';

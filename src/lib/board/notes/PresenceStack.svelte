@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { Peer } from '#lib/realtime/noteProvider.js';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Avatar from '#lib/ui/Avatar.svelte';
 
 	// -- REQUIRED PROPS -- //

@@ -3,14 +3,14 @@
 // server composes the one page that is stored and served as always, and keeps each part as a file of its own, so a pull returns the
 // same parts and a new version can be read part by part. A single HTML file stays a valid mockup.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendEvent } from '../db/events';
 import { MOCKUP_PART_KINDS, mockupPart, mockupVersion } from '../db/schema';
 import { composeMockup, PART_KEY, SLOTS, type ComposePart } from '../mockups/compose';

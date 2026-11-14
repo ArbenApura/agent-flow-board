@@ -2,11 +2,11 @@
 // A pin belongs to one person and is invisible to everyone else. The row filter names the org and the person, and the verbs
 // always write the caller's own id, never one that came from the request.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { member, project, projectPin } from '../db/schema';
 import { OpError, requireCap, run } from './context';
 import { findProject, isUuid } from './resolve';

@@ -1,8 +1,8 @@
 // THE 5 MINUTE ADDRESSES OF MOCKUP FILES FOR A PAGE LOAD: THE LOADER ASKS AN OPERATION FOR THE CHECKED GRANT, THEN SIGNS IT HERE
 
-// -- ENVS -- //
+// IMPORTED ENVS
 import { BETTER_AUTH_SECRET, MOCKUP_ORIGIN } from '$app/env/private';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { buildMockupUrl } from '../mockups/origin';
 import { signMockupGrant, type MockupGrant } from '../mockups/serve';
 

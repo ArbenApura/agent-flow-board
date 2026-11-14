@@ -1,13 +1,13 @@
 // WAITING-FOR-A-PERSON BLOCKER STATE (STEP D.5): FIRST-CLASS SESSION BLOCKER THAT HALTS CARRY-ON STOP REMINDERS UNTIL CLEARED
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 import type { WaitingBlocker, WaitingKind } from '../db/schema/activity';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { item, session, WAITING_KINDS } from '../db/schema';
 import { notifyChange } from '../realtime/notify';
 import { OpError, requireCap, run } from './context';

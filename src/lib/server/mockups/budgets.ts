@@ -3,7 +3,7 @@
 // authored characters there are, and warns about the things that make it big without carrying design: pictures embedded in the
 // page, hand-written CSS next to a kit, heavy script, markup repeated again and again, keyframes buried in generated CSS.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { rangeChars, segmentMockupHtml } from './segments';
 
 // -- TYPES -- //

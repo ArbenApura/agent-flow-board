@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { Palette } from '#lib/theme/palette.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { paletteStyle } from '#lib/theme/palette.js';
 	import { cn } from '#lib/ui/cn.js';
 

@@ -2,14 +2,14 @@
 // The run is requested with the person's own sign in (the one the hooks and MCP use), claimed with this machine's runner token, and finished
 // with it. The folder is the repo the agent is in: running a check there is the approval of that folder for `check watch`.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Fetch } from '../device.js';
 import type { ChildJob, ChildResult, ProjectConfig, Registration } from './types.js';
 import type { CheckJob, RunReport } from './board.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendAudit, verifyAudit } from './audit.js';
 import { bindFolder } from './bind.js';
 import { BoardError, RunnerBoard } from './board.js';

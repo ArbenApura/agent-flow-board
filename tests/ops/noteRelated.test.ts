@@ -1,8 +1,8 @@
 // NOTES IN related_plans AND IN THE CLAIM REPLY: THE CALLER'S ROLE ON EACH PROJECT, PRIVATE NOTES, AND A LOOKUP THAT NEVER FAILS THE CALL (AFB-20261111-0035, step 6.2)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { createItem } from '../../src/lib/server/ops/items';
 import { createFolder } from '../../src/lib/server/ops/noteFolders';
 import { createNote, linkNote } from '../../src/lib/server/ops/notes';

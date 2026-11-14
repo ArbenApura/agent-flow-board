@@ -1,8 +1,8 @@
 // THE SYSTEM SKILLS BRIEF (AFB-20261021-0401): THE RULES THE AGENT MUST BE TOLD, AND NOTHING SECRET
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { skillsBriefMarkdown } from './skillsBrief';
 import { STAMP_KEYS } from '../server/system-skills/hash';
 import { skillsFolder } from '../server/system-skills/plan';

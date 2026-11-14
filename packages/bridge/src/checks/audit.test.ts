@@ -1,11 +1,11 @@
 // THE AUDIT CHAIN: A TRUE CHAIN VERIFIES, AND AN EDITED MIDDLE LINE, A CUT TAIL AND A DELETED LINE ALL SHOW
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendAudit, verifyAudit } from './audit.js';
 import { auditFile, checksHome } from './paths.js';
 

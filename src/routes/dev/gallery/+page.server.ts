@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { AFB_ENABLE_GALLERY } from '$app/env/private';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { error } from '@sveltejs/kit';
 
 // -- FUNCTIONS -- //

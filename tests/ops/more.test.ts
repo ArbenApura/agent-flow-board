@@ -1,9 +1,9 @@
 // 5.8 TO 5.13: DOCUMENTS, ATTACHMENTS AND STORAGE, TOKENS, ACTIVITY AND UNDO, ACCOUNT DELETION, JOBS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	memoryStorage,
 	signedFileUrl,

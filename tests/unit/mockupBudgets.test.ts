@@ -1,8 +1,8 @@
 // WHAT A MOCKUP PAGE COSTS TO READ AND THE BUDGET WARNINGS (AFB-20261114-0409, B.4)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { lintMockupBudgets, readCostOf } from '../../src/lib/server/mockups/budgets';
 
 // -- CONSTANTS -- //

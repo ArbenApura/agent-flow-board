@@ -1,7 +1,7 @@
 // ENVIRONMENT VARIABLES, VALIDATED WHEN THE APP STARTS. A MISSING OR BAD VALUE FAILS LOUDLY, NEVER SILENTLY.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { defineEnvVars } from '@sveltejs/kit/env';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { parseMockupOrigin } from './lib/server/mockups/origin';
 
 // -- FUNCTIONS -- //

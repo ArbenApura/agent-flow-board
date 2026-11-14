@@ -1,12 +1,12 @@
 // ORGANISATIONS AND MEMBERS. EVERY ORG HAS AT LEAST ONE OWNER, EVEN WHEN TWO PEOPLE LEAVE AT THE SAME MOMENT (L11).
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle, Tx } from '../db/client';
 import type { Role } from './roles';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomUUID } from 'node:crypto';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	apiToken,
 	attachment,

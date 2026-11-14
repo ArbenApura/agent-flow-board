@@ -1,8 +1,8 @@
 // TESTS FOR WINDOWS CRLF / GIT BASH ENVIRONMENT CHECKS IN DOCTOR (STEP E.2, AFB-20261113-1008)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { checkWindowsEnvironment, hasCrlfLineEndings } from './windowsEnv.js';
 
 // -- TESTS -- //

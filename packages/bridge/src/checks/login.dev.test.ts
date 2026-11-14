@@ -1,11 +1,11 @@
 // MULTI-PROFILE SIGN-IN AND SEEDED OPTION TESTS FOR DEV REGISTRATIONS (STEP A.4, AFB-20261113-1008)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mintApproval } from './approve.js';
 import { loginCommand } from './login.js';
 import { stateDirFor } from './paths.js';

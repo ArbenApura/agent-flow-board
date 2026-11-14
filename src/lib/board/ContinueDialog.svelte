@@ -1,17 +1,17 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type {
 		ContinueAction,
 		ContinueMode,
 		ContinueToolId,
 		CreateKind
 	} from '#lib/shared/continue.js';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { onMount, untrack } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import {
 		ACTION_TITLE,
 		CONTINUE_MODE_LABEL,
@@ -35,7 +35,7 @@
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import TextArea from '#lib/ui/TextArea.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Code from '@lucide/svelte/icons/code';
 	import Copy from '@lucide/svelte/icons/copy';
 	import Terminal from '@lucide/svelte/icons/terminal';

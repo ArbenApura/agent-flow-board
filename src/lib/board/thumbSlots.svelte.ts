@@ -1,8 +1,8 @@
 // THE LIVE PREVIEW FRAMES THAT EXIST RIGHT NOW. SHARED BY EVERY CARD, SO NO MORE THAN MAX_LIVE_FRAMES RUN AT ONCE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { SvelteMap } from 'svelte/reactivity';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { planSlot } from '#lib/board/thumbLoad.js';
 
 // -- CONSTANTS -- //

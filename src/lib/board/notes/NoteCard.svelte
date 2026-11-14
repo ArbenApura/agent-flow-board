@@ -1,13 +1,13 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { NoteListRow } from '#lib/board/notes/NoteRow.svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ago } from '#lib/board/status.js';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Lock from '@lucide/svelte/icons/lock';
 	import Star from '@lucide/svelte/icons/star';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Avatar from '#lib/ui/Avatar.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 

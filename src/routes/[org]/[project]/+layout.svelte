@@ -1,10 +1,10 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { LayoutProps } from './$types';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { invalidate } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import { clearCache } from '#lib/board/swr.js';
 	import { connectStream } from '#lib/realtime/stream.svelte.js';

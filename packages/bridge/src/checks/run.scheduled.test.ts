@@ -1,13 +1,13 @@
 // `check run` AS THE WORKER'S SCHEDULER USES IT: A STOP REACHES EACH RUN THROUGH ITS SIGNAL, NO RUN INSTALLS A SIGNAL HANDLER, ENDS THE PROCESS OR REPORTS A RUN THE SCHEDULER GIVES BACK
 // The preview is replaced by one that waits for the signal, so no build tool or browser is needed.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { auditFile, markerPath, scriptPath } from './paths.js';
 import { limitSentence, runCheck, runLimitMs, type RunOptions } from './run.js';
 

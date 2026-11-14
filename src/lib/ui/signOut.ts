@@ -1,8 +1,8 @@
 // SIGN OUT WITH A TOAST: POSTS TO /sign-out, THEN GOES TO THE SIGN IN PAGE WITH THE TOAST STILL SHOWING
 
-// -- ENVS -- //
+// IMPORTED ENVS
 import { goto } from '$app/navigation';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { toast } from './toast.svelte.js';
 
 // -- CONSTANTS -- //

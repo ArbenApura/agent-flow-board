@@ -1,12 +1,12 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
@@ -34,7 +34,7 @@
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Settings from '@lucide/svelte/icons/settings';
 	import Palette from '@lucide/svelte/icons/palette';
 	import Users from '@lucide/svelte/icons/users';

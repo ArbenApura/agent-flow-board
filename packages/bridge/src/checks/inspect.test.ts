@@ -1,13 +1,13 @@
 // TESTS FOR STEP B.5: `mockup inspect` AND MATCHING APP DOM DUMP (`inspect.ts` + `inspectApp.ts`).
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createServer, type Server } from 'node:http';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { checkMain } from './command.js';
 import { devConfigHash } from './devPolicy.js';
 import { inspectMockupCli, inspectUrl, redactSignedAddress } from './inspect.js';

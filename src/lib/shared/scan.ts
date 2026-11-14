@@ -3,7 +3,7 @@
 // slipped into a trace is caught on both sides. A trace is a zip, so its entries are opened and scanned too. A secret is also
 // looked for in the common ways a program writes a text: as it is, URL encoded, base64, and JSON escaped.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { inflateRawSync } from 'node:zlib';
 
 // -- TYPES -- //

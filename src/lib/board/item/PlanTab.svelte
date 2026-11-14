@@ -1,12 +1,12 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { ItemView, TabEnv } from '#lib/board/item/types.js';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { tick } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import ProgressRing from '#lib/ui/ProgressRing.svelte';
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { createOptimistic } from '#lib/board/optimistic.svelte.js';
@@ -23,7 +23,7 @@
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
 	import Plus from '@lucide/svelte/icons/plus';
 

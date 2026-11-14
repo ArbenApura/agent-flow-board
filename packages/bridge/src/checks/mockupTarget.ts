@@ -1,8 +1,8 @@
 // RESOLVES AND VALIDATES `--mockup ID[@VERSION]` TARGETS FOR ISOLATED MOCKUP CHECKS AND INSPECTIONS.
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { Fetch } from '../device.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mintMockupUrlCli } from '../mockup.js';
 import { RunnerBoard } from './board.js';
 

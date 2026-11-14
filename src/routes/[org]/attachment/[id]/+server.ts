@@ -1,8 +1,8 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { error } from '@sveltejs/kit';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { OpError } from '#lib/server/ops/context.js';
 import { serveAttachmentResponse } from '#lib/server/ops/attachments.js';
 import { orgContext } from '#lib/server/web/ctx.js';

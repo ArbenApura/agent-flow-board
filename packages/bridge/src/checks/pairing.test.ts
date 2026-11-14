@@ -1,8 +1,8 @@
 // PAIRING CONTRACT AND NORMALISATION UNIT TESTS (STEP B.8, AFB-20261113-1008)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	applyStateDriverToUrl,
 	colorsMatch,

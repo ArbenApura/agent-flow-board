@@ -1,8 +1,8 @@
 // THE EDITOR STATUS PROMPT (AFB-20261108-0427, C.2): ONE ORGANISATION, NO SECRET, THE CONSENT RULES IN THE TEXT
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { editorSetupMarkdown } from './editorSetup';
 
 // -- FUNCTIONS -- //

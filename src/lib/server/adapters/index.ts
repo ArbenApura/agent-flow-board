@@ -1,8 +1,8 @@
 // THE APP'S FILE STORAGE, BUILT ONCE FROM THE ENVIRONMENT (DISK BY DEFAULT)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Storage } from './storage';
-// -- ENVS -- //
+// IMPORTED ENVS
 import {
 	AFB_STORAGE_DIR,
 	BETTER_AUTH_SECRET,
@@ -11,7 +11,7 @@ import {
 	S3_ENDPOINT,
 	S3_SECRET_ACCESS_KEY
 } from '$app/env/private';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { diskStorage, s3Storage } from './storage';
 
 // -- STATES -- //

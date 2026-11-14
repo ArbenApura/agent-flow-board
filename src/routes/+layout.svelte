@@ -1,17 +1,17 @@
 <script lang="ts">
-	// -- ASSETS -- //
+	// IMPORTED ASSETS
 	import '../app.css';
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { LayoutProps } from './$types';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { browser } from '$app/env';
 	import { invalidateAll } from '$app/navigation';
 	import { navigating, page } from '$app/state';
 	import { onMount } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { installSwr } from '#lib/board/swr.js';
 	import { styleFor } from '#lib/theme/css.js';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import ConfirmHost from '#lib/ui/ConfirmHost.svelte';
 	import Toaster from '#lib/ui/Toaster.svelte';
 

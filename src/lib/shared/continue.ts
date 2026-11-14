@@ -1,7 +1,7 @@
 // CONTINUE WITH A CODING TOOL: THE PROMPT, THE COMMAND AND THE LINK THAT HAND AN ITEM TO CLAUDE CODE, CODEX OR GEMINI CLI (FLOW-20261017-0916)
 // Free text (the item title, anything typed) is never put into a shell command. The command is built from controlled text only.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { isItemRef } from './ref';
 
 // -- TYPES -- //

@@ -1,12 +1,12 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { focusTrap } from '#lib/actions/focusTrap.js';
 	import { portal } from '#lib/actions/portal.js';
 	import { lockScroll, unlockScroll } from '#lib/actions/scrollLock.js';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import X from '@lucide/svelte/icons/x';
 
 	// -- REQUIRED PROPS -- //

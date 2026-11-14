@@ -1,11 +1,11 @@
 // TESTS OF LIVE-SITE SETTINGS AND THE NO-WRITES RULE.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { guardContext } from './guard.js';
 import type { RouteLike } from './guard.js';
 import { isLiveSite, liveSiteGuardOptions, liveSiteProblems } from './live.js';

@@ -1,11 +1,11 @@
 // WARM PREVIEWS: A CHANGED TREE OR PIN NEVER FINDS AN OLD PREVIEW, A PREVIEW EXPIRES, AND ONLY RECORDED PROCESSES ARE EVER STOPPED
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { WarmStore, warmAllowed, warmKey, type WarmKeyParts, type WarmPreview } from './warm.js';
 
 // -- CONSTANTS -- //

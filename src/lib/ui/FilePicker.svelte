@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Upload from '@lucide/svelte/icons/upload';
 
 	// -- REQUIRED PROPS -- //

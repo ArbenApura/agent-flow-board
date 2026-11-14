@@ -3,9 +3,9 @@
 // accepted only as update number 1 of the epoch. A window that loses the race drops its own seed and loads the winner's
 // updates, so the text exists once. Two seeds of the same text are different Yjs content and would double it if both stayed.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import * as Y from 'yjs';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { NOTE_LIMITS } from '../../shared/notes';
 import { seedUpdate } from './editorMarkdown.js';
 

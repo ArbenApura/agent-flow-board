@@ -1,9 +1,9 @@
 // THE SYSTEM SKILLS BUNDLE (AFB-20261021-0401): THE MANIFEST, THE VERSION GUARD, THE SERVED TEXT AND THE ZIP
 // A skill text changed without a version bump fails here, so nobody ships a changed skill under an old version number.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	MANIFEST,
 	bundleSha256,

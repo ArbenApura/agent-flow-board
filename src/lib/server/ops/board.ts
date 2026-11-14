@@ -2,13 +2,13 @@
 // They sit in the operations layer so the web app, REST and MCP read the same rules. Private items are left out of every
 // count, list and search hit for people who may not see them.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Running } from '../../board/rows';
 import type { Ctx } from './context';
 import type { Role } from '../orgs/roles';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	event,
 	item,

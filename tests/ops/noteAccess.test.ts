@@ -1,9 +1,9 @@
 // WHO MAY SEE A NOTE: THE CREATOR OF A PRIVATE NOTE ONLY, NEVER A GUEST, NEVER UNDER A TRASHED FOLDER (AFB-20261111-0035, step 1.4)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { note } from '../../src/lib/server/db/schema';
 import { OpError, run } from '../../src/lib/server/ops/context';
 import {

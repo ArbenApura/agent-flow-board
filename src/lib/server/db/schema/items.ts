@@ -1,6 +1,6 @@
 // ITEM TABLES: ITEMS, ALIASES, PHASES, STEPS, CHECKS, DECISIONS, SECTIONS, TASKS, COMMENTS, ATTACHMENTS (SPEC 5)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 import {
 	bigint,
@@ -14,7 +14,7 @@ import {
 	uniqueIndex,
 	uuid
 } from 'drizzle-orm/pg-core';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { orgId, projectId, user } from './core';
 import {
 	STATUSES,

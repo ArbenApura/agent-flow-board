@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { enhance, type SubmitFunction } from '$app/forms';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import OrgTile from '#lib/board/OrgTile.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
@@ -21,7 +21,7 @@
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { toastEnhance } from '#lib/ui/toastEnhance.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Activity from '@lucide/svelte/icons/activity';
 	import Bot from '@lucide/svelte/icons/bot';
 	import Check from '@lucide/svelte/icons/check';

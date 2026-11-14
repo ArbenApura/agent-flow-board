@@ -2,7 +2,7 @@
 // Pure, so the text is tested. It holds no token, no verifier and no code, and nothing the organisation's people wrote: only the
 // organisation's slug (validated by the app) and the board's own address. The steps themselves come from the editor_status_install tool.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { toolPrefix } from '../shared/orgConnection';
 
 // -- FUNCTIONS -- //

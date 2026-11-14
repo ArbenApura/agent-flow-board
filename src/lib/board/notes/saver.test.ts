@@ -1,8 +1,8 @@
 // SAVING A NOTE: THE QUIET PERIOD, THE CONFLICT, A FAILED SAVE THAT KEEPS THE TEXT, AND A REFRESH THAT CHANGES NOTHING
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { Saver, saveLine, type SaveRequest, type SaveStatus } from './saver.js';
 import { nextSession, sessionKey, type NoteSnapshot } from './session.js';
 

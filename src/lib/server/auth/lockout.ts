@@ -1,10 +1,10 @@
 // SIGN IN LOCKOUT. REPEATED FAILED PASSWORDS LOCK THE ACCOUNT FOR A WHILE, AND THE LOCK GROWS WITH EACH ROUND (SPEC 6.1)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Db } from '../db/client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { authLockout } from '../db/schema';
 
 // -- CONSTANTS -- //

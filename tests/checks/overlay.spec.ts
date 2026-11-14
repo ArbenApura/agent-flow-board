@@ -1,8 +1,8 @@
 // OVERLAYS (FLOW-20261016-0935, ADR-010). ESCAPE CLOSES ONLY THE TOPMOST LAYER, FOCUS MOVES IN AND RETURNS, A DIALOG TRAPS TAB, AND A PHONE GETS A SHEET
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { expect, test } from '@playwright/test';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { signIn } from './helpers';
 
 // -- TESTS -- //

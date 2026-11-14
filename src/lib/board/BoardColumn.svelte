@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { drag, dropzone } from '#lib/actions/dnd.svelte.js';
 	import { cn } from '#lib/ui/cn.js';
 

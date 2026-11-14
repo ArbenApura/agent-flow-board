@@ -1,10 +1,10 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { invalidate, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import PictureUpload from '#lib/ui/PictureUpload.svelte';
@@ -28,7 +28,7 @@
 	import TagInput from '#lib/ui/TagInput.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Settings from '@lucide/svelte/icons/settings';
 	import Eye from '@lucide/svelte/icons/eye';
 	import Layers from '@lucide/svelte/icons/layers';

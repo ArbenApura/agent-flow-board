@@ -1,7 +1,7 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- ENVS -- //
-// -- MODULES -- //
+// IMPORTED ENVS
+// IMPORTED MODULES
 import { bodyLimit, readBodyCapped } from '#lib/server/api/body.js';
 import { handleApi } from '#lib/server/api/dispatch.js';
 import { appServices } from '#lib/server/services.js';

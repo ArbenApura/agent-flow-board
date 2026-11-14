@@ -1,8 +1,8 @@
 // THE STANDARD STREAMS A NEW PROJECT STARTS WITH, AND THE RULES A LIST OF STREAMS MUST KEEP ON CREATE AND ON UPDATE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	MAX_SCOPES,
 	MAX_STREAMS,

@@ -1,8 +1,8 @@
 // THE SHAPE OF AN API ANSWER AND HOW EVERY KIND OF ERROR BECOMES ONE, SHARED BY THE USER API AND THE RUNNER API
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { ApiResponse } from './dispatch';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { OpError } from '../ops/context';
 import { OrgError } from '../orgs/orgs';
 

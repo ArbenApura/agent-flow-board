@@ -1,8 +1,8 @@
 // SAVES THE "CONTINUE WITH" CHOICE OF A PERSON. ONLY THESE TWO COLUMNS CHANGE, SO THE LIGHT AND DARK CHOICE AND THE OTHER PREFERENCES STAY AS THEY ARE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getDb } from '../db/index.js';
 import { userPref } from '../db/schema/index.js';
 import { withTenant } from '../db/tenant.js';

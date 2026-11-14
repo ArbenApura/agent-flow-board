@@ -1,9 +1,9 @@
 // 6.6 TO 6.8: OAUTH 2.1 WITH PKCE, DYNAMIC REGISTRATION, REFRESH ROTATION, THE DEVICE CODE FLOW AND CONNECTED APPS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	approveDevice,
 	exchangeCode,

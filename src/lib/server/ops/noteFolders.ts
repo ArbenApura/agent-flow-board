@@ -2,13 +2,13 @@
 // Every verb that changes the tree takes one lock for the project first and checks the tree only after it, so two moves
 // at the same moment can never make a loop.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { NOTE_LIMITS } from '../../shared/notes';
 import { appendEvent } from '../db/events';
 import { NO_PARENT, note, noteFolder } from '../db/schema';

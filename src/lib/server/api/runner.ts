@@ -3,10 +3,10 @@
 // that one run's project while the run is running, upload evidence and report a result. It can do nothing else: it is not a person
 // and not a personal access token, and a personal token cannot do any of this.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from '../ops/context';
 import type { ApiDeps, ApiRequest, ApiResponse } from './dispatch';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	beatCheckRun,
 	claimCheckJob,

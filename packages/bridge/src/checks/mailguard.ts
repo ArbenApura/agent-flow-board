@@ -3,11 +3,11 @@
 // setting that did not come from the sealed store is never given to a preview, and a run with sealed mail settings counts only when the guard reported listening on the preview port.
 // A recipe cannot ask for the guard, change it or turn it off: the environment is built here after every recipe check.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { EMAIL, MAIL_SET_NAME } from './sealedNames.js';
 
 // -- TYPES -- //

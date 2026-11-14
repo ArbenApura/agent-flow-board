@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { WaitingBlocker } from '#lib/board/rows.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Badge from '#lib/ui/Badge.svelte';
 
 	// -- REQUIRED PROPS -- //

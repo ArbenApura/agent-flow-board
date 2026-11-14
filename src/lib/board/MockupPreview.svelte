@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Component, Snippet } from 'svelte';
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type {
 		FramePin,
 		FrameConfig,
@@ -10,12 +10,12 @@
 		PinPoint,
 		ScreenKey
 	} from '#lib/board/mockups.js';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { untrack } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { effectiveDevice, fitScale, showsSwitch } from '#lib/board/frames.js';
 	import {
 		SCREEN_LABEL,
@@ -42,7 +42,7 @@
 	import Select from '#lib/ui/Select.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Laptop from '@lucide/svelte/icons/laptop';
 	import Monitor from '@lucide/svelte/icons/monitor';
 	import Smartphone from '@lucide/svelte/icons/smartphone';

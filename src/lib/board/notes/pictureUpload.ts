@@ -2,7 +2,7 @@
 // A picture is stored as afb:file/<id> in the note's text and Markdown. The editor shows it from the real address
 // (noteFileUrl), and copying it out of the editor turns that address back into afb:file/<id>.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ApiError } from '#lib/board/api.js';
 import { NOTE_LIMITS, NOTE_PICTURE_TYPES, noteFileUrl } from '#lib/shared/notes.js';
 

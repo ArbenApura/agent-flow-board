@@ -1,7 +1,7 @@
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { PROJECT_TAB_LABELS, projectTabs } from './projectTabs';
 
 describe('the pages of a project', () => {

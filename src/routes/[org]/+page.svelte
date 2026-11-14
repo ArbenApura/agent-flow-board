@@ -1,10 +1,10 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
 	import type { SubmitFunction } from '$app/forms';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { enhance } from '$app/forms';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
@@ -33,7 +33,7 @@
 	import Select from '#lib/ui/Select.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import ArrowUpDown from '@lucide/svelte/icons/arrow-up-down';
 	import Pin from '@lucide/svelte/icons/pin';
 	import Plus from '@lucide/svelte/icons/plus';

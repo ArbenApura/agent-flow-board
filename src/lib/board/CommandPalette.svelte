@@ -1,12 +1,12 @@
 <script lang="ts">
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { goto } from '$app/navigation';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { api } from '#lib/board/api.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Badge from '#lib/ui/Badge.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Search from '@lucide/svelte/icons/search';
 
 	// -- TYPES -- //

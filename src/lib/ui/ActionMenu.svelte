@@ -1,5 +1,5 @@
 <script module lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Component } from 'svelte';
 
 	// -- TYPES -- //
@@ -14,11 +14,11 @@
 </script>
 
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Button from '#lib/ui/Button.svelte';
 	import Popover from '#lib/ui/Popover.svelte';
 	import { cn } from '#lib/ui/cn.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Ellipsis from '@lucide/svelte/icons/ellipsis';
 
 	// -- REQUIRED PROPS -- //

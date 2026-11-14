@@ -1,8 +1,8 @@
 // ACCESSIBILITY (FLOW-20261016-0935, SPEC 7). EVERY CONTROL HAS A NAME, EVERY RING AND BAR HAS A VALUE AS TEXT, AND THE KEYBOARD REACHES WHAT MOVED INTO A POPOVER
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { expect, test } from '@playwright/test';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { signIn } from './helpers';
 
 // -- CONSTANTS -- //

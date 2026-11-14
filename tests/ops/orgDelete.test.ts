@@ -1,9 +1,9 @@
 // FLOW-20261017-0007: DELETING AN ORGANISATION. OWNER ONLY, LOCKED AT ONCE, RESTORABLE UNTIL THE PURGE CLAIMS IT, THEN ERASED.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { contextFor } from '../../src/lib/server/adapters/jobs';
 import { handleApi } from '../../src/lib/server/api/dispatch';

@@ -5,9 +5,9 @@
 // accounts. The container has no volume, a read only file system, no capabilities, limited memory, CPU and processes, and a
 // deadline after which the supervisor kills it. Which networks it can reach is the operator's firewall (docs).
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawn } from 'node:child_process';
-// -- MODULES -- //
+// IMPORTED MODULES
 import type { RunnerApi } from './api';
 
 // -- TYPES -- //

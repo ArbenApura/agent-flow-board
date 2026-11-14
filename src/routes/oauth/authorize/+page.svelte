@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Notice from '#lib/ui/Notice.svelte';
 	import { ROLE_LABEL } from '#lib/shared/roles.js';
 	import AuthShell from '#lib/ui/AuthShell.svelte';

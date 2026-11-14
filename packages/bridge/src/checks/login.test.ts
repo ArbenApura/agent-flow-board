@@ -1,6 +1,6 @@
 // TESTS OF `check login`, THE SEEDED ACCOUNT, WHEN A SAVED SIGN-IN IS USED, AND WHEN PICTURES MAY BE UPLOADED.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -14,7 +14,7 @@ vi.mock('./store.js', () => ({
 	unseal: (_aad: string, blob: Uint8Array) => blob
 }));
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	chooseState,
 	desktopProblem,

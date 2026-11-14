@@ -1,16 +1,16 @@
 // THE OPERATIONS CONTEXT: WHO IS ACTING, WHAT THEIR LIVE ROLE ALLOWS, RATE LIMITS AND RETRY SAFETY (SPEC 4, 6 AND 7)
 // Every verb of the operations layer takes a Ctx and checks the caller's CURRENT role inside its own transaction (L8).
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle, Tx } from '../db/client';
 import type { Role } from '../orgs/roles';
 import type { Storage } from '../adapters/storage';
 import type { Mailer } from '../email/mailer';
 import type { JobRunner } from '../adapters/jobs';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { member, org, project, projectCols, projectMember, requestLog } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { effectiveProjectRole } from '../orgs/roles';

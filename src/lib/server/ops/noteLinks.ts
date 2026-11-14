@@ -5,12 +5,12 @@
 // Reading: what a reader may see is decided when the link is read, from either end. A target the reader cannot see, or that
 // is in the trash, is left out; a note that links here is left out of "Mentioned by" the same way.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { NoteLinkKind } from '../db/schema';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, inArray, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { noteNumberOf, noteRef } from '../../shared/notes';
 import { extractNoteRefs } from '../../shared/noteLinks';
 import { note, noteLink } from '../db/schema';

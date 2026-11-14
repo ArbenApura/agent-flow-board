@@ -1,6 +1,6 @@
 // INTEGRATION TABLES: BROWSER CHECKS, UI SHOTS, RUNNERS, SECRETS, BACKUPS, TOKENS AND CONNECTIONS (SPEC 5, 6, 8 AND 10)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 import {
 	boolean,
@@ -14,7 +14,7 @@ import {
 	uniqueIndex,
 	uuid
 } from 'drizzle-orm/pg-core';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { orgId, projectId, user } from './core';
 import { item } from './items';
 import { TARGETS, id, oneOf, stamps, tenantTable, version } from './helpers';

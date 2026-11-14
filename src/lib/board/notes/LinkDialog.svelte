@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- TYPES -- //
+	// IMPORTED TYPES
 	import type { LinkKind, Target } from '#lib/board/notes/links.js';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import LinkPicker from '#lib/board/notes/LinkPicker.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';

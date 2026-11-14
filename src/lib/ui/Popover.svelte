@@ -1,10 +1,10 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
 	import type { Placement } from '#lib/ui/position.js';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { tick } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { clickOutside } from '#lib/actions/clickOutside.js';
 	import { portal } from '#lib/actions/portal.js';
 	import { boxOf, place } from '#lib/ui/position.js';

@@ -1,9 +1,9 @@
 // 5.2 TO 5.7: PERMISSIONS, STALE WRITES, RETRIES, LIMITS, THE AUTOMATIC STATUS MOVES AND THE COMPLETED RULES
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { event, item, project, task } from '../../src/lib/server/db/schema';
 import { LIMITS, OpError } from '../../src/lib/server/ops/context';
 import {

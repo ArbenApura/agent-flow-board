@@ -4,15 +4,15 @@
 // session or an agent), a decision is single use (one action, one server-normalised target, one machine, ten minutes), and the claim is one conditional update by the asking machine.
 // The agent's own words (`why`) are untrusted plain text.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
 import type { DbHandle, Tx } from '../db/client';
 import type { RunnerAuth } from './environments';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, getTableColumns, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { APPROVAL_ACTIONS, bridgeApproval, org, project, runner } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { OpError, capsOf, orgRoleOf, requireCap, run } from './context';

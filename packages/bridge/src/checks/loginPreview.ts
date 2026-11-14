@@ -3,10 +3,10 @@
 // exactly as a run does it. The owner signs in on that preview once; the sign-in is bound to the loopback and the sealed project, not to the port, so every later run finds it.
 // The preview is stopped by the login's own scope when the login ends, whatever ends it.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Registration } from './types.js';
 import type { LoginTarget } from './login.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ensureBrowser } from './browser.js';
 import { startPreview } from './preview.js';
 import { configFor, pinState } from './registry.js';

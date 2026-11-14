@@ -1,8 +1,8 @@
 // NOTE SEARCH: THE GENERATED VECTOR, THE NOTE BRANCH OF searchAll AND WHAT searchBoard SHOWS EACH READER (AFB-20261111-0035, step 6.1)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { searchAll } from '../../src/lib/server/db/search';
 import { run } from '../../src/lib/server/ops/context';
 import { searchBoard } from '../../src/lib/server/ops/board';

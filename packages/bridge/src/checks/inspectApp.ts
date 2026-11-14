@@ -2,7 +2,7 @@
 // Opens a registered app target (dev registration or site URL, with optional saved --profile sign-in),
 // drives screen/state/width, waits until settled, and returns the exact same InspectDump format as mockup inspect.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ensureDevServer } from './devServer.js';
 import { inspectUrl, type InspectUrlResult } from './inspect.js';
 import { liveSiteGuardOptions } from './live.js';

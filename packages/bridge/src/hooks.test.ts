@@ -1,12 +1,12 @@
 // THE HOOK ADAPTERS, THE CALL TO THE SERVER, THE PRINTED SETTINGS AND THE WARN-ONLY GIT HOOK OF THE BRIDGE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ADAPTERS, antigravity, claude, gemini, runHook } from './hooks/adapters.js';
 import { callHook, type HookEvent } from './hooks/call.js';
 import { installedModVersion } from './hooks/modVersion.js';

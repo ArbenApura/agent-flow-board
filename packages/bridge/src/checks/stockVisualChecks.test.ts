@@ -1,11 +1,11 @@
 // TESTS FOR VERSIONED STOCK VISUAL CHECKS (STEP E.1, AFB-20261113-1008)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createServer, type Server } from 'node:http';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { playwrightRuntimeDir } from './browser.js';
 import { closeAllBrowsers, acquireBrowser } from './browserpool.js';
 import {

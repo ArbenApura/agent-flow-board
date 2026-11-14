@@ -2,11 +2,11 @@
 // It holds no tool code, schemas or workflow text, so a server update never needs a reconnect. It only adds three things:
 // sign in by device code, an offline queue for writes, and a protocol version check on start.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Readable, Writable } from 'node:stream';
 import type { Fetch } from './device.js';
 import type { Queue, SendResult } from './queue.js';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createInterface } from 'node:readline';
 
 // -- TYPES -- //

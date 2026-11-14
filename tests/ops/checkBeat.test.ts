@@ -1,9 +1,9 @@
 // THE HEARTBEAT OF A RUN (AFB-20261019-0510 STEP 4.2): a tool that beats is held to its beat, a runner that never beats keeps the longer rule,
 // a run the board gave up on cannot be finished by a late tool, and a beat is only accepted from the runner that holds the run.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { handleRunnerApi } from '../../src/lib/server/api/runner';
 import {
 	BEAT_TIMEOUT_MINUTES,

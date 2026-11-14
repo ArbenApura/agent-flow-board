@@ -3,7 +3,7 @@
 // in an interactive terminal (npm asks you to approve with your passkey or one time code), and waits until the registry shows the new version.
 // npm is used for the publish only: it holds your npm sign in (yarn npm has none configured here). Nothing is committed or pushed by this script.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

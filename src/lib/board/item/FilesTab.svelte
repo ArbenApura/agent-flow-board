@@ -1,13 +1,13 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { ItemExtras, ItemView, TabEnv } from '#lib/board/item/types.js';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api, upload } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
 	import { cn } from '#lib/ui/cn.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import FileCode from '@lucide/svelte/icons/file-code';
 	import FileSpreadsheet from '@lucide/svelte/icons/file-spreadsheet';
 	import FileText from '@lucide/svelte/icons/file-text';
@@ -19,7 +19,7 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Upload from '@lucide/svelte/icons/upload';
 	import X from '@lucide/svelte/icons/x';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import ActionMenu, { type MenuItem } from '#lib/ui/ActionMenu.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';

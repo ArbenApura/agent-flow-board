@@ -1,13 +1,13 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Component, Snippet } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Badge from '#lib/ui/Badge.svelte';
 	import AuthCard from '#lib/ui/AuthCard.svelte';
 	import Logo from '#lib/ui/Logo.svelte';
 	import MeshField from '#lib/ui/MeshField.svelte';
 	import Texture from '#lib/ui/Texture.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Bot from '@lucide/svelte/icons/bot';
 	import Circle from '@lucide/svelte/icons/circle';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';

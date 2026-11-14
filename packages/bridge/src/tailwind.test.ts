@@ -1,10 +1,10 @@
 // THE TAILWIND COMPILE AT PUSH TIME (AFB-20261114-0409, C.1): THE PROJECT'S OWN TAILWIND, THE PAGE AS THE ONLY SOURCE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	compileTailwind,
 	dropLayer,

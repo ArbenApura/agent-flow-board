@@ -3,10 +3,10 @@
 // (FLOW-20261007-1441, FEAT-066) resolve through item_alias inside the caller's org. They have no sessionId field, so an
 // implicit session per token and tool carries the claim.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { event, item, project, section, session, step } from '../db/schema';
 import { boardBrief, searchBoard } from '../ops/board';
 import { parsePlanRules, planViolations } from '../ops/planRules';

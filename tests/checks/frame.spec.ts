@@ -1,8 +1,8 @@
 // ONE CONTAINER (FLOW-20261016-0935, ADR-003 AND SPEC 6.1). EVERY SCREEN, THE NAVIGATION INCLUDED, SITS IN THE SAME FRAME WITH THE SAME LEFT EDGE AND WIDTH
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { expect, test } from '@playwright/test';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { signIn } from './helpers';
 
 // -- CONSTANTS -- //

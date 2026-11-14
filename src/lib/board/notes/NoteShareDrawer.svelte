@@ -1,11 +1,11 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Copy from '@lucide/svelte/icons/copy';
-	// -- COMPONENTS -- //
+	// IMPORTED COMPONENTS
 	import Button from '#lib/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';

@@ -1,7 +1,7 @@
 <script lang="ts" generics="T">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { cn } from '#lib/ui/cn.js';
 
 	// -- REQUIRED PROPS -- //

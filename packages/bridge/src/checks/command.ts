@@ -2,14 +2,14 @@
 // Loaded only when the first argument is `check`, so the hooks and the MCP forwarder never load any of it (and never load Playwright).
 // Nothing here waits on a terminal: every command takes its input from flags and ends on its own.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Fetch } from '../device.js';
 import type { TokenStore } from '../tokenStore.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { bindFolder } from './bind.js';
 import { ensureBrowser } from './browser.js';
 import { listFlag, strictList } from '../listFlags.js';

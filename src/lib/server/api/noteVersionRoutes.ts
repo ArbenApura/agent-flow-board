@@ -1,10 +1,10 @@
 // THE NOTE HISTORY AND PUBLIC LINK ENDPOINTS OF THE REST ROUTE TABLE (AFB-20261111-0035, 7.1 AND 7.2)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Route } from './routes';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { OpError } from '../ops/context';
 import {
 	getNoteVersion,

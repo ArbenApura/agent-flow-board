@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Component, Snippet } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { useTabs } from '#lib/settings/tabs.svelte.js';

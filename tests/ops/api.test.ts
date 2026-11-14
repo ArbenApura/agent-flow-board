@@ -1,8 +1,8 @@
 // 5.10: THE REST API THROUGH ITS DISPATCHER, WITH SESSIONS AND TOKENS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage, verifySignedFile } from '../../src/lib/server/adapters/storage';
 import { handleApi, type ApiDeps, type ApiResponse } from '../../src/lib/server/api/dispatch';
 import { buildOpenApi } from '../../src/lib/server/api/openapi';

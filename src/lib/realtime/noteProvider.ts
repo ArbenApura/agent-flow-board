@@ -5,13 +5,13 @@
 // reconnect. The Markdown checkpoint follows 2 seconds after the last change. It knows nothing about fetch or the page: a
 // transport and a listener are handed in, so the tests run two providers over a fake server.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { NoteLiveNotice } from './stream.svelte';
 import type { LiveSnapshot, OpenedDocument, SeedApi } from '../board/notes/seed';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { encodeAwarenessUpdate } from 'y-protocols/awareness';
 import * as Y from 'yjs';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { LiveProvider, type LiveHandlers } from '../board/notes/liveProvider';
 import { openDocument } from '../board/notes/seed';
 import { NOTE_LIMITS } from '../shared/notes';

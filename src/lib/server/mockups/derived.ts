@@ -1,6 +1,6 @@
 // DERIVED MOCKUP ASSETS (OUTLINE, HOOKS, TOKENS, SNAPSHOT, SHOTS) AND DESIGN-BRIEF HOOK VERIFICATION (D.1, D.2, D.3)
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { extractMockupScreensFromHtml, type NamedMockupScreen } from '../../shared/screenGlobs';
 import { segmentMockupHtml, type CharRange, type MockupSegment } from './segments';
 

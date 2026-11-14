@@ -1,7 +1,7 @@
 // EMAIL SENDER ADAPTERS: RESEND, POSTMARK, SMTP, AND A LOG SENDER FOR DEVELOPMENT AND TESTS (4.4)
 // A failed send always throws MailError with a plain reason, so the page can show it and offer a resend.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 

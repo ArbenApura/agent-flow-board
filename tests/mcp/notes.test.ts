@@ -1,8 +1,8 @@
 // THE NOTE MCP TOOLS THROUGH A REAL CLIENT (AFB-20261111-0035, step 2.5): LIST, READ IN PAGES, WRITE, FOLDERS, TRASH
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { createItem } from '../../src/lib/server/ops/items';
 import { createNote, getNote, linkNote } from '../../src/lib/server/ops/notes';

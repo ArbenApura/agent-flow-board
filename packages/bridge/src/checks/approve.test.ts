@@ -1,11 +1,11 @@
 // TESTS OF THE OWNER APPROVAL CODES: SINGLE USE, TEN MINUTES, ONE ACTION AND TARGET, HASHED STORAGE, A TERMINAL TO MAKE ONE.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { APPROVAL_TTL_MS, consumeApproval, mintApproval } from './approve.js';
 import { approvalsFile, checksHome } from './paths.js';
 

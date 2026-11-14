@@ -1,11 +1,11 @@
 // THE APP'S BACKUP SETUP FROM THE ENVIRONMENT: WHERE ARCHIVES GO, THE PRIVILEGED CONNECTION, AND THE NIGHTLY AND HOURLY JOBS
 // Backups stay off until BACKUP_KEY is set. A key on a PostgreSQL server with no backup connection stops the app at start.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { JobRunner } from '../adapters/jobs';
 import type { Storage } from '../adapters/storage';
 import type { Admin } from './admin';
-// -- ENVS -- //
+// IMPORTED ENVS
 import {
 	AFB_BACKUP_HOUR,
 	BACKUP_DIR,
@@ -17,7 +17,7 @@ import {
 	BETTER_AUTH_SECRET,
 	DATABASE_BACKUP_URL
 } from '$app/env/private';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { diskStorage, s3Storage } from '../adapters/storage';
 import { getStorage } from '../adapters/index';
 import { getMailer } from '../auth/index';

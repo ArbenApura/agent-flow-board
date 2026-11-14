@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { Snippet } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { LABEL } from '#lib/board/sidebar-classes.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Avatar from '#lib/ui/Avatar.svelte';
@@ -9,7 +9,7 @@
 	import Mark from '#lib/ui/Mark.svelte';
 	import Popover from '#lib/ui/Popover.svelte';
 	import { signOut } from '#lib/ui/signOut.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import CircleUser from '@lucide/svelte/icons/circle-user';
 	import LogOut from '@lucide/svelte/icons/log-out';

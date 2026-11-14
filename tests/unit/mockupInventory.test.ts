@@ -1,8 +1,8 @@
 // THE INVENTORY SEEDED FROM A MOCKUP'S SOURCE (AFB-20261114-0409, D.6)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	behaviourPointers,
 	motionInClasses,

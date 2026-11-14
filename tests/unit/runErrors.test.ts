@@ -1,8 +1,8 @@
 // THE RUN ERROR CLASSIFIER: EVERY LOG LINE SEEN ON 2026-10-19 GETS ITS CODE, AND THE FIX LINE IS THE BOARD'S OWN
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { RUN_FIXES, classifyRun } from '../../src/lib/shared/runErrors';
 
 // -- CONSTANTS -- //

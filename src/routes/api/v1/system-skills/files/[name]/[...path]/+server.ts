@@ -1,8 +1,8 @@
 // ONE FILE OF A SYSTEM SKILL, AS IT IS INSTALLED (THE SKILL.md CARRIES ITS VERSION STAMP). PUBLIC, NO SIGN IN.
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { servedFile } from '#lib/server/system-skills/index.js';
 import { sha256Hex } from '#lib/server/system-skills/hash.js';
 import { notFound, publicAnswer } from '#lib/server/system-skills/http.js';

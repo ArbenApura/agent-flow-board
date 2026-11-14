@@ -1,7 +1,7 @@
 // AUTH TABLES: BETTER AUTH'S SESSION, ACCOUNT AND VERIFICATION, PLUS LOCKOUT, KNOWN DEVICES AND ORG INVITES (SPEC 6.1)
 // Better Auth's own models are named auth_* so they never clash with the agent `session` table of SPEC 5.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	bigint,
 	boolean,
@@ -12,7 +12,7 @@ import {
 	timestamp,
 	unique
 } from 'drizzle-orm/pg-core';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { orgId, user } from './core';
 import { ROLES, id, oneOf, stamps, tenantTable } from './helpers';
 

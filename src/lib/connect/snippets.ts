@@ -2,7 +2,7 @@
 // Each organisation has its own connection: the name is afb-<org-slug> and the address is /mcp/<org-slug>, so one person can
 // hold several organisations in different folders without the sign ins clashing.
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { connectionName, orgMcpUrl } from '../shared/orgConnection';
 
 // -- TYPES -- //

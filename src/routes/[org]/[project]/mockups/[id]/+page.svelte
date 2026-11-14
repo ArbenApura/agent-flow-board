@@ -1,14 +1,14 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
 	import type { CommentRow, PinFilter, PinKey, PinMessage, PinPoint } from '#lib/board/mockups.js';
 	import type { ScreenKey } from '#lib/board/mockups.js';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { tick, untrack } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { ALL_SCREENS, SCREEN_LABEL, inPinFilter, onDevice, pinsOf } from '#lib/board/mockups.js';
 	import MockupComments from '#lib/board/MockupComments.svelte';
@@ -30,7 +30,7 @@
 	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import History from '@lucide/svelte/icons/history';
 	import Link from '@lucide/svelte/icons/link';
 	import MessageSquare from '@lucide/svelte/icons/message-square';

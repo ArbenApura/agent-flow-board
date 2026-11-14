@@ -3,11 +3,11 @@
 // Nothing here touches a network: the "server" is a list of numbered updates in memory, and a notice is a function call.
 // What this proves is the provider's own logic (order, gaps, throttles, queues, stops). It does not prove the real stream.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { encodeAwarenessUpdate, outdatedTimeout } from 'y-protocols/awareness';
 import * as Y from 'yjs';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { markdownOfDoc } from '../board/notes/editorMarkdown';
 import {
 	CHECKPOINT_MS,

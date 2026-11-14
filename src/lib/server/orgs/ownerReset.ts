@@ -1,12 +1,12 @@
 // OWNER RESET FOR SELF HOSTERS WITH NO EMAIL (L11). RUN FROM THE SERVER CLI BY THE OPERATOR, NEVER OVER HTTP.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Auth } from '../auth/auth';
 import type { DbHandle } from '../db/client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { authAccount, authLockout, authSession, member, org, user } from '../db/schema';
 import { MIN_PASSWORD } from '../auth/auth';
 import { withTenant } from '../db/tenant';

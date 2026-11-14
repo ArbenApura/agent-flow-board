@@ -1,4 +1,4 @@
-// -- MODULES -- //
+// IMPORTED MODULES
 import { hexToRgb, rgbToHex } from '#lib/theme/palette.js';
 
 // -- TYPES -- //

@@ -1,13 +1,13 @@
 // `check run`, THE PATHS THAT END BEFORE A BROWSER STARTS: A MISSING SCRIPT, AN UNSAFE SCRIPT, A RUN THE BOARD DOES NOT GIVE, A RUN FOR ANOTHER CHECK
 // The whole run against a real preview and browser is proved by step 4.1 against the product's own build.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mintApproval } from './approve.js';
 import { saveRegistration } from './registry.js';
 import { addRoot } from './roots.js';

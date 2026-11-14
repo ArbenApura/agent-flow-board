@@ -1,6 +1,6 @@
 // THE SHAPE OF THE DATA THE ITEM PAGE AND ITS TABS SHARE
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { itemCore, itemExtras } from '#lib/server/ops/board.js';
 
 type Core = Awaited<ReturnType<typeof itemCore>>;

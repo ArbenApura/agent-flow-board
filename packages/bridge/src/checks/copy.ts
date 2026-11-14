@@ -5,11 +5,11 @@
 // files git lists; a folder that is not a git repo is copied with caps on files and size. Env files, keys, links and programs named like the
 // package managers are never copied. If HEAD moves while the copy is made, the copy is made once more.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFile } from 'node:child_process';
 import { copyFileSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ensureDir, under } from './paths.js';
 
 // -- TYPES -- //

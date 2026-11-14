@@ -1,7 +1,7 @@
 <script lang="ts">
-	// -- DEP-MODULES -- //
+	// IMPORTED DEP-MODULES
 	import { onMount } from 'svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import WifiOff from '@lucide/svelte/icons/wifi-off';
 
 	// -- REQUIRED PROPS -- //

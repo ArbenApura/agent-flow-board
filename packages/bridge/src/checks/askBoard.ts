@@ -3,9 +3,9 @@
 // The board is injected, so the tests use a fake one. A board that does not know the path gives a plain message with the terminal fallback, the only way left there.
 // Every other refusal names what the agent does next and never sends the owner to a terminal (AFB-20261110-1448): the owner's switch, a reconnect, a retry.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { ApprovalRequested, ApprovalState, ClaimedFromBoard } from './board.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	APPROVAL_ACTIONS,
 	Refusal,

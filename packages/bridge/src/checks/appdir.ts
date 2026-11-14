@@ -2,10 +2,10 @@
 // A registration may name that folder with `appDir`; the private copy is still made from the git root, but install, build and start run in the
 // app folder, and the files that decide what runs (package.json, lockfile, recipe) are read from there. Without appDir the app folder is the repo root.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, lstatSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { isInside } from './paths.js';
 
 // -- TYPES -- //

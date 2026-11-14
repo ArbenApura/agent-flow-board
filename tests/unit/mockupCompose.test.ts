@@ -1,8 +1,8 @@
 // COMPOSING A MOCKUP FROM ITS PARTS, AND ITS CONTRACT (AFB-20261114-0409, D.2 AND D.5)
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { composeMockup, notesFromContract, renderPart } from '../../src/lib/server/mockups/compose';
 import {
 	contractProblems,

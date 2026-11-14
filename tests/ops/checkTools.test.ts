@@ -2,10 +2,10 @@
 // Every verb here is the one the MCP tools call. A run id is not a handle: a private item, another org and a project a token does
 // not cover all answer the same NOT_FOUND.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { manualCheck } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import {

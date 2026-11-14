@@ -3,11 +3,11 @@
 // or a clash between a ref and an alias. findItem matches upper() and reads the ref before the alias. So the check here compares
 // upper() on both tables, and the unique index is only the last guard.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from './client';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, eq, inArray, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { refCandidates } from '../../shared/ref';
 import { item, itemAlias } from './schema';
 

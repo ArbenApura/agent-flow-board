@@ -1,8 +1,8 @@
 // THE MOCKUP MCP TOOLS THROUGH A REAL CLIENT (AFB-20261107-0346): PUBLISH, READ IN PARTS, RESTORE, LINK, STYLE AND KIT
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { projectSummary } from '../../src/lib/server/ops/board';
 import { listEvents, undoChange } from '../../src/lib/server/ops/history';

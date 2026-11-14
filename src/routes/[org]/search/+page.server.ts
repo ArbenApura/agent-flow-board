@@ -1,6 +1,6 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { searchBoard } from '#lib/server/ops/board.js';
 import { childContext } from '#lib/server/web/ctx.js';
 

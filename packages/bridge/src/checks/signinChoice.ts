@@ -3,9 +3,9 @@
 // sealed test project host it was made on, so a run on any preview port finds it and a run on another project does not. A named profile (a role proof) is never replaced
 // by another sign-in: when it is missing, damaged, expired or made on another project the run does not start. The default profile only says why it was not used.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Registration } from './types.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	bindBaseFor,
 	DEFAULT_PROFILE,

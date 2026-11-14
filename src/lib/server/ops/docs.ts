@@ -1,12 +1,12 @@
 // DOCUMENT VERBS: DECISIONS, SECTIONS, TASKS AND COMMENTS (SPEC 5)
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { allocateTaskNumber } from '../db/numbering';
 import { appendEvent } from '../db/events';
 import {

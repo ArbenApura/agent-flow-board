@@ -5,10 +5,10 @@
 // A skill whose text changed while its version stayed the same is refused: bump the version in manifest.json first, add a
 // changelog entry for the new bundle version, then run this again. --amend replaces the hash of a version not yet released.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { normalize, skillHash, type SkillFile } from '../src/lib/server/system-skills/hash';
 
 // -- TYPES -- //

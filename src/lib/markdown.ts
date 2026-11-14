@@ -4,11 +4,11 @@
 // With a link base (the org and project the text lives in) the renderer also turns afb: links and bare references into
 // board addresses. It is still a pure function: it looks nothing up, it shows the reference as written (AFB-20261111-0035).
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Token } from 'markdown-it';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import MarkdownIt from 'markdown-it';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { noteFileUrl } from './shared/notes';
 
 // -- TYPES -- //

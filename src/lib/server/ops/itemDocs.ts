@@ -1,11 +1,11 @@
 // READING ONE DOCUMENT OF AN ITEM: A SECTION, A PHASE OR A DECISION, WITHOUT LOADING THE WHOLE ITEM
 // The item is found and checked exactly as getItem does (same visibility and read rules); only the requested rows are read after that.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { and, asc, eq } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { decision, phase, section, step } from '../db/schema';
 import { OpError, requireCap, run } from './context';
 import { canSeeItem, findItem } from './resolve';

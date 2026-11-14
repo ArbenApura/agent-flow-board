@@ -1,8 +1,8 @@
 // IDENTITY AND STRUCTURE TABLES: USER, ORG, MEMBER, PROJECT (SPEC 5)
 
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { AnyPgColumn } from 'drizzle-orm/pg-core';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { getTableColumns, sql } from 'drizzle-orm';
 import {
 	boolean,
@@ -15,7 +15,7 @@ import {
 	unique,
 	uuid
 } from 'drizzle-orm/pg-core';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { CONTINUE_MODES, CONTINUE_TOOL_IDS } from '../../../shared/continue';
 import { ROLES, id, oneOf, stamps, tenantTable, version } from './helpers';
 

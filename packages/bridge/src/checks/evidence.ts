@@ -3,7 +3,7 @@
 // read only when it is a regular file (not a link, not a hard link), its real path is inside the folder it should be in, it is small enough, and it starts with the
 // bytes of its kind. It is opened without following a link where the platform allows it, and the handle is compared with the first look.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	closeSync,
 	constants,
@@ -14,7 +14,7 @@ import {
 	readdirSync
 } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { isInside } from './paths.js';
 
 // -- TYPES -- //

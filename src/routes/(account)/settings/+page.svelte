@@ -1,9 +1,9 @@
 <script lang="ts">
-	// -- DEP-TYPES -- //
+	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { invalidateAll } from '$app/navigation';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
@@ -46,7 +46,7 @@
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import OrgTile from '#lib/board/OrgTile.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import User from '@lucide/svelte/icons/user';
 	import KeyRound from '@lucide/svelte/icons/key-round';
 	import MonitorSmartphone from '@lucide/svelte/icons/monitor-smartphone';

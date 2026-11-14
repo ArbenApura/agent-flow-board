@@ -1,8 +1,8 @@
 // THE AGENT HANDLES BRIDGE APPROVALS ON ITS OWN: THE PERSON'S SWITCH, INSTANT APPROVAL, CLAIM ONCE, AND EVERY WAY A PROMPT-INJECTED AGENT COULD TRY TO TURN IT ON FOR ITSELF. Each negative control is a named test.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleRunnerApi } from '../../src/lib/server/api/runner';
 import { approvalList, setAutoApprove } from '../../src/lib/server/ops/approvals';

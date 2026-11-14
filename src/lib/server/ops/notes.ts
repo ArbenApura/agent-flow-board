@@ -2,15 +2,15 @@
 // The UI, /api/v1 and /mcp all call these. Each checks the caller's live role itself and its own visibility rule, and
 // answers a write with a short result (never the body), because idempotent() stores results in request_log.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { NoteCause, NoteLinkKind } from '../db/schema';
 import type { Actor, Ctx } from './context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomUUID } from 'node:crypto';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { EXCERPT_SOURCE_CHARS, noteExcerpt, noteMatch } from '../../shared/noteExcerpt';
 import { NOTE_LIMITS, noteNumberOf, noteRef, sniffPicture } from '../../shared/notes';
 import { appendEvent } from '../db/events';

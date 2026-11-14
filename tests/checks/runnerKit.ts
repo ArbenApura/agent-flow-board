@@ -1,6 +1,6 @@
 // SHARED BY THE RUNNER AND UI SHOTS CHECKS: START THE REAL RUNNER PROGRAM FOR ONE PASS OVER THE QUEUE
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -3,9 +3,9 @@
 // hash and the changelog. They are read with import.meta.glob so they are inside the build, never from a folder at run time.
 // Nothing here is per organisation or per person: the index, the files and the zip are the same for every caller.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { SkillFile } from './hash';
-// -- MODULES -- //
+// IMPORTED MODULES
 import manifestJson from './manifest.json';
 import {
 	frontMatterKeys,

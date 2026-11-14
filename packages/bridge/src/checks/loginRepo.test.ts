@@ -1,8 +1,8 @@
 // `check login` FOR A REPO REGISTRATION: THE PREVIEW IS ITS SITE, THE SIGN-IN IS BOUND TO THE LOOPBACK AND THE SEALED PROJECT, AND EVERY REFUSAL HAPPENS BEFORE A WINDOW OPENS
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { describe, expect, it, vi } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { allowedHosts, linkProblem, loginCommand } from './login.js';
 import type { HeadedOutcome, LoginCtx, LoginTarget } from './login.js';
 import type { Registration } from './types.js';

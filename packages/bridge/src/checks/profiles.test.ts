@@ -1,6 +1,6 @@
 // TESTS OF SAVED SIGN-INS: SEALED PER REGISTRATION AND SITE, BOUND BY AAD, NAMES ONLY IN A LISTING.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import {
 	copyFileSync,
 	existsSync,
@@ -39,7 +39,7 @@ vi.mock('./store.js', () => {
 	};
 });
 
-// -- MODULES -- //
+// IMPORTED MODULES
 import { stateDirFor } from './paths.js';
 import {
 	expiryNote,

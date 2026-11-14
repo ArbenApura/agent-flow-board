@@ -1,7 +1,7 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
 import type { Status } from '#lib/board/status.js';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { slimItem } from '#lib/board/rows.js';
 import { BOARD_COLUMNS, STATUSES, VIEWS, type View } from '#lib/board/status.js';
 import { listItems } from '#lib/server/ops/items.js';

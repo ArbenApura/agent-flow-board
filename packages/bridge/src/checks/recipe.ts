@@ -5,14 +5,14 @@
 // Sealed secrets ({secret:NAME}) are allowed only on Supabase-style and mail settings (sealedNames.ts), a mail setting takes only the sealed value of its own name, and a
 // service key never goes to a PUBLIC_, VITE_ or NEXT_PUBLIC_ name. The values are filled in by secrets.ts when the preview starts; this file only checks the shape.
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { ProjectConfig } from './types.js';
 import type { Scripts } from './guardrails.js';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { FORBIDDEN_PORTS, checkRepoFolder, commandProblem } from './guardrails.js';
 import { MAIL_ENV_KEY, SECRET_ENV_KEY, placeholderProblems } from './sealedNames.js';
 

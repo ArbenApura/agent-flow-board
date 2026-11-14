@@ -2,13 +2,13 @@
 // People sign in with Better Auth; this module only decides what an agent tool may hold. Access tokens are the same
 // org bound afb_ tokens the REST API and /mcp already verify, so there is one token check everywhere (L8).
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { DbHandle } from '../db/client';
 import type { Capability, Ctx } from '../ops/context';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import {
 	apiToken,
 	deviceCode,

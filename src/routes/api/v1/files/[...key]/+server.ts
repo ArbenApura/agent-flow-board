@@ -1,10 +1,10 @@
-// -- DEP-TYPES -- //
+// IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { error } from '@sveltejs/kit';
-// -- ENVS -- //
+// IMPORTED ENVS
 import { BETTER_AUTH_SECRET } from '$app/env/private';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { getStorage } from '#lib/server/adapters/index.js';
 import { verifySignedFile } from '#lib/server/adapters/storage.js';
 import { isMockupKey } from '#lib/server/mockups/keys.js';

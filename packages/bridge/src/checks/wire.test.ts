@@ -1,11 +1,11 @@
 // TESTS OF WHAT THE BOARD IS TOLD: THE REGISTRATIONS HEADER AND THE CLEANED REPORT FIELDS.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { readBranch, registrationsHeader, sanitiseReport } from './wire.js';
 
 // -- TYPES -- //

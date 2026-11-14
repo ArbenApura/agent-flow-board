@@ -2,10 +2,10 @@
 // Per-run limits for picture pairs and diff reports, step pinning past retention, MOCKUP_KEY_PREFIX storage, missing pair refusal,
 // uploadSignedInPictures enforcement, public-item refusal, escaped diff text, and sandbox + nosniff serving headers.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleRunnerApi } from '../../src/lib/server/api/runner';
 import { adminFromExecutor } from '../../src/lib/server/backup/admin';

@@ -1,8 +1,8 @@
 // THE MOCKUPS OF ONE PLAN FOR ITS PAGE: A COUNT AND A LIST ON EVERY LOAD, AND THE PREVIEW AND BUILD NOTES ONLY WHEN THE MOCKUPS TAB IS OPEN
 
-// -- TYPES -- //
+// IMPORTED TYPES
 import type { Ctx } from '../ops/context';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ALL_SCREENS } from '../../board/mockups';
 import { getMockup, listMockups, mockupFileGrant } from '../ops/mockups';
 import { memberMockupUrl } from './mockupLinks';

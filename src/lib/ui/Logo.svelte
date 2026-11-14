@@ -1,5 +1,5 @@
 <script lang="ts">
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import Mark from '#lib/ui/Mark.svelte';
 
 	// -- OPTIONAL PROPS -- //

@@ -1,7 +1,7 @@
 // A SETUP FILE FOR THE BRIDGE TESTS: WHEN A TEST FILE UNDER packages/bridge DOES NOT SET AFB_BRIDGE_HOME ITSELF, IT GETS A THROWAWAY FOLDER,
 // SO A TEST THAT FORGETS IT NEVER TOUCHES THE REAL ~/.agent-flow-board. A TEST THAT SETS ITS OWN HOME KEEPS IT.
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

@@ -1,10 +1,10 @@
 <script lang="ts">
-	// -- ENVS -- //
+	// IMPORTED ENVS
 	import { onMount } from 'svelte';
-	// -- MODULES -- //
+	// IMPORTED MODULES
 	import { live, setLiveMode, syncLive } from '#lib/theme/live.svelte.js';
 	import Button from '#lib/ui/Button.svelte';
-	// -- DEP-COMPONENTS -- //
+	// IMPORTED DEP-COMPONENTS
 	import Moon from '@lucide/svelte/icons/moon';
 	import Sun from '@lucide/svelte/icons/sun';
 

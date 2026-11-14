@@ -1,11 +1,11 @@
 // TESTS OF THE SEALED STORE: ROUND TRIP, BOUND TO ITS TEXT, DAMAGE REFUSED, KEY CREATED ONCE OUTSIDE THE CHECKS FOLDER
 
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { checksHome } from './paths.js';
 import { seal, sealKeyFile, unseal } from './store.js';
 
