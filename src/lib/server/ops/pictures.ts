@@ -6,6 +6,8 @@ import type { DbHandle } from '../db/client';
 import type { Actor, Ctx } from './context';
 // IMPORTED DEP-MODULES
 import { and, eq, sql } from 'drizzle-orm';
+// IMPORTED CONSTANTS
+import { MAX_PICTURE_BYTES, MAX_STORED_LENGTH } from '../../shared/pictures';
 // IMPORTED MODULES
 import { appendEvent } from '../db/events';
 import { member, project, user } from '../db/schema';
@@ -17,9 +19,6 @@ import { findProject } from './resolve';
 
 // -- CONSTANTS -- //
 
-export const MAX_PICTURE_BYTES = 200 * 1024;
-/** A 200 KB picture as a base64 data address, with room for the prefix. The same cap as userPictureV. */
-const MAX_STORED_LENGTH = 300_000;
 const PICTURE_TYPES: Record<string, string> = {
 	'image/png': 'png',
 	'image/jpeg': 'jpg',
@@ -29,7 +28,8 @@ const PICTURE_TYPES: Record<string, string> = {
 // -- FUNCTIONS -- //
 
 /**
- * Checks a picture and returns it as a data address. The type must be PNG, JPEG or WebP, the size 200 KB at most, and the
+ * Checks a picture and returns it as a data address. The type must be PNG, JPEG or WebP, the size 512 KB at most (the picture
+ * editor shrinks a chosen file of up to 10 MB before it is sent), and the
  * first bytes must be that type's own signature, so a renamed file is not taken for a picture.
  */
 export function pictureDataAddress(bytes: Uint8Array, mime: string, what = 'picture'): string {

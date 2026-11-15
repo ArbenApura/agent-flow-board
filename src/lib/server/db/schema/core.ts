@@ -17,6 +17,7 @@ import {
 } from 'drizzle-orm/pg-core';
 // IMPORTED MODULES
 import { CONTINUE_MODES, CONTINUE_TOOL_IDS } from '../../../shared/continue';
+import { MAX_STORED_LENGTH } from '../../../shared/pictures';
 import { ROLES, id, oneOf, stamps, tenantTable, version } from './helpers';
 
 // -- TYPES -- //
@@ -163,10 +164,10 @@ export const projectLogoV = sql<
 	number | null
 >`case when ${project.logo} is not null then floor(extract(epoch from ${project.updatedAt}) * 1000)::float8 end`;
 
-/** The version of a person's avatar as a number, or null when they have none. Only a small PNG, JPEG or WebP data address counts as a picture, whatever wrote the column. */
+/** The version of a person's avatar as a number, or null when they have none. Only a PNG, JPEG or WebP data address of up to 512 KB counts as a picture, whatever wrote the column. */
 export const userPictureV = sql<
 	number | null
->`case when ${user.image} ~ '^data:image/(png|jpeg|webp);base64,' and length(${user.image}) <= 300000 then floor(extract(epoch from ${user.updatedAt}) * 1000)::float8 end`;
+>`case when ${user.image} ~ '^data:image/(png|jpeg|webp);base64,' and length(${user.image}) <= ${sql.raw(String(MAX_STORED_LENGTH))} then floor(extract(epoch from ${user.updatedAt}) * 1000)::float8 end`;
 
 /** The project reference every project scoped table carries. */
 export const projectId = () =>

@@ -11,6 +11,7 @@
 		hint,
 		accept,
 		multiple = false,
+		prompt,
 		required = false,
 		disabled = false,
 		el = $bindable(),
@@ -25,6 +26,8 @@
 		accept?: string;
 		/** Lets the person pick several files at once. They arrive together in onfiles. */
 		multiple?: boolean;
+		/** What the field says before a file is chosen. Without it: Choose a file, or Choose files. */
+		prompt?: string;
 		required?: boolean;
 		disabled?: boolean;
 		/** The native input, so a form can read its files and clear it. */
@@ -55,7 +58,7 @@
 	>
 		<Upload size={18} class="shrink-0 text-muted" aria-hidden="true" />
 		<span class="min-w-0 flex-1 truncate text-sm {name ? 'text-ink' : 'text-muted'}"
-			>{name || (multiple ? 'Choose files' : 'Choose a file')}</span
+			>{name || prompt || (multiple ? 'Choose files' : 'Choose a file')}</span
 		>
 		<span class="shrink-0 text-sm font-medium text-accent-text">Browse</span>
 		<input

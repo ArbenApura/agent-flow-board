@@ -53,7 +53,7 @@ describe('pictures', () => {
 			setProjectLogo(w.ctx('admin'), w.projectKey, new Uint8Array(12), 'image/png')
 		).rejects.toMatchObject({ code: 'INVALID' });
 		await expect(
-			setProjectLogo(w.ctx('admin'), w.projectKey, new Uint8Array(200 * 1024 + 1), 'image/png')
+			setProjectLogo(w.ctx('admin'), w.projectKey, new Uint8Array(512 * 1024 + 1), 'image/png')
 		).rejects.toMatchObject({ code: 'INVALID' });
 		await expect(
 			setProjectLogo(w.ctx('admin'), w.projectKey, new Uint8Array(), 'image/png')
@@ -143,7 +143,7 @@ describe('pictures', () => {
 		await withTenant(db, { userId: w.people.viewer }, (tx) =>
 			tx
 				.update(user)
-				.set({ image: `data:image/png;base64,${'A'.repeat(400_000)}` })
+				.set({ image: `data:image/png;base64,${'A'.repeat(800_000)}` })
 				.where(eq(user.id, w.people.viewer))
 		);
 		expect(await readUserPicture(db, w.people.viewer, w.people.viewer)).toBeNull();
@@ -194,5 +194,18 @@ describe('pictures', () => {
 		expect((await call('PUT', logo, { as: 'admin', bytes: new Uint8Array(3) })).status).toBe(400);
 		expect((await call('DELETE', logo, { as: 'viewer' })).status).toBe(403);
 		expect((await call('DELETE', logo, { as: 'admin' })).status).toBe(200);
+	});
+
+	it('a picture of exactly 512 KB is inside the ceiling and reads back, so the SQL version column agrees with the check', async () => {
+		const edge = new Uint8Array(512 * 1024);
+		edge.set(PNG);
+		await setProjectLogo(w.ctx('admin'), w.projectKey, edge, 'image/png');
+		expect((await readProjectPicture(db, w.people.viewer, w.projectId))?.bytes.byteLength).toBe(
+			512 * 1024
+		);
+		expect(
+			(await listProjects(w.ctx('viewer'))).find((p) => p.id === w.projectId)?.logoV
+		).toBeGreaterThan(0);
+		await clearProjectLogo(w.ctx('admin'), w.projectKey);
 	});
 });

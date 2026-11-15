@@ -314,7 +314,7 @@
 			<TextField label="Your name" bind:value={name} data-testid="profile-name" />
 			<PictureUpload
 				label="Picture"
-				hint="Saves as soon as you choose a file. A PNG, JPEG or WebP under 200 KB"
+				shape="round"
 				removeLabel="Remove the picture"
 				hasPicture={Boolean(data.me.imageV)}
 				canEdit
@@ -322,11 +322,11 @@
 				onupload={(f) => changeAvatar(() => putPicture('/me/avatar', f), 'Picture saved.')}
 				onremove={() => changeAvatar(() => deletePicture('/me/avatar'), 'Picture removed.')}
 			>
-				{#snippet preview()}<Avatar
+				{#snippet preview(size)}<Avatar
 						name={data.me.name}
 						userId={data.me.id}
 						v={data.me.imageV}
-						size={40}
+						{size}
 					/>{/snippet}
 			</PictureUpload>
 			<div class="text-xs text-muted">Everyone you share an organisation with sees it.</div>

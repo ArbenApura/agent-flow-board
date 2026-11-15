@@ -205,8 +205,8 @@ describe('settings', () => {
 		await expect(
 			setOrgLogo(ctx(), new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]), 'image/png')
 		).rejects.toThrow(/not the kind of picture/);
-		await expect(setOrgLogo(ctx(), new Uint8Array(200 * 1024 + 1), 'image/png')).rejects.toThrow(
-			/smaller than 200 KB/
+		await expect(setOrgLogo(ctx(), new Uint8Array(512 * 1024 + 1), 'image/png')).rejects.toThrow(
+			/smaller than 512 KB/
 		);
 		await expect(setOrgLogo(ctx(), new Uint8Array(), 'image/png')).rejects.toThrow();
 		const saved = await setOrgLogo(ctx(), PNG, 'image/png');

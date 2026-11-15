@@ -19,7 +19,7 @@
 		/** The person, with the version of their picture: the avatar is read from /pictures/user. Without a version it shows initials. */
 		userId?: string | null;
 		v?: number | null;
-		size?: 24 | 32 | 40;
+		size?: 24 | 32 | 40 | 96;
 		/** An agent tool shows a square mark, a person a circle. */
 		kind?: 'person' | 'agent';
 		class?: string;
@@ -27,7 +27,13 @@
 
 	// -- CONSTANTS -- //
 
-	const DIMS = { 24: 'size-6 text-[10px]', 32: 'size-8 text-xs', 40: 'size-10 text-sm' } as const;
+	const DIMS = {
+		24: 'size-6 text-[10px]',
+		32: 'size-8 text-xs',
+		40: 'size-10 text-sm',
+		// 96 is the picture of a person in the picture area on a tablet or a phone
+		96: 'size-24 text-3xl'
+	} as const;
 
 	// -- STATES -- //
 

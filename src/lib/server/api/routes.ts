@@ -605,7 +605,7 @@ export const routes: Route[] = [
 		method: 'PUT',
 		path: '/orgs/{org}/logo',
 		summary:
-			'Set the logo. Send the picture bytes as the body with its type in the content type (PNG, JPEG or WebP, 200 KB at most).',
+			'Set the logo. Send the picture bytes as the body with its type in the content type (PNG, JPEG or WebP, 512 KB at most).',
 		tag: 'Settings',
 		sessionOnly: true,
 		upload: true,
@@ -624,7 +624,7 @@ export const routes: Route[] = [
 		method: 'PUT',
 		path: '/orgs/{org}/projects/{project}/logo',
 		summary:
-			'Set the logo of a project (needs the manage right on it). Send the picture bytes as the body with its type in the query (PNG, JPEG or WebP, 200 KB at most).',
+			'Set the logo of a project (needs the manage right on it). Send the picture bytes as the body with its type in the query (PNG, JPEG or WebP, 512 KB at most).',
 		tag: 'Projects',
 		sessionOnly: true,
 		upload: true,

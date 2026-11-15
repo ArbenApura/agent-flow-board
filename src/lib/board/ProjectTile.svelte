@@ -16,7 +16,7 @@
 		projectKey: string;
 		/** The version of the project's logo, or null when it has none. The picture is read from /pictures/project. */
 		logoV?: number | null;
-		size?: 24 | 40;
+		size?: 24 | 40 | 96;
 		class?: string;
 	} = $props();
 
@@ -25,7 +25,9 @@
 	// Whole class names, Tailwind builds only those. The same two boxes as OrgTile
 	const DIMS = {
 		24: 'size-6 min-h-6 max-h-6 min-w-6 max-w-6 rounded-md text-xs',
-		40: 'size-10 min-h-10 max-h-10 min-w-10 max-w-10 rounded-lg text-sm'
+		40: 'size-10 min-h-10 max-h-10 min-w-10 max-w-10 rounded-lg text-sm',
+		// 96 is the logo in the picture area on a tablet or a phone
+		96: 'size-24 min-h-24 max-h-24 min-w-24 max-w-24 rounded-2xl text-3xl'
 	} as const;
 
 	// -- STATES -- //

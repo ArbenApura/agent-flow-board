@@ -168,7 +168,7 @@
 
 				<PictureUpload
 					label="Logo"
-					hint="Saves as soon as you choose a file. A PNG, JPEG or WebP under 200 KB"
+					previewName={p.name}
 					removeLabel="Remove the logo"
 					hasPicture={Boolean(p.logoV)}
 					canEdit={Boolean(can)}
@@ -178,11 +178,11 @@
 					onremove={() =>
 						changeLogo(() => deletePicture(`/orgs/${org}/projects/${key}/logo`), 'Logo removed.')}
 				>
-					{#snippet preview()}<ProjectTile
+					{#snippet preview(size)}<ProjectTile
 							id={p.id}
 							projectKey={p.key}
 							logoV={p.logoV}
-							size={40}
+							{size}
 						/>{/snippet}
 				</PictureUpload>
 

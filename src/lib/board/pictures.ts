@@ -1,9 +1,12 @@
 // WHERE A PERSON'S AVATAR AND A PROJECT'S LOGO ARE SERVED FROM. Pages carry a version number, never the picture itself.
 
+// IMPORTED CONSTANTS
+import { MAX_STORED_LENGTH } from '#lib/shared/pictures.js';
+
 // -- CONSTANTS -- //
 
-/** The picture types the upload areas offer. The server checks the type, the size (200 KB) and the file's own signature again. */
-export const PICTURE_ACCEPT = 'image/png,image/jpeg,image/webp';
+/** The files the upload areas offer: any picture the browser can read. The editor turns it into a small PNG, JPEG or WebP, and the server checks the type, the size (512 KB) and the file's own signature again. */
+export const PICTURE_ACCEPT = 'image/*';
 
 // -- FUNCTIONS -- //
 
@@ -23,8 +26,12 @@ export function avatarVersion(u: {
 	image?: string | null;
 	updatedAt?: Date | string | null;
 }): number | null {
-	// The same test as userPictureV in SQL: a small PNG, JPEG or WebP data address
-	if (!u.image || u.image.length > 300_000 || !/^data:image\/(png|jpeg|webp);base64,/.test(u.image))
+	// The same test as userPictureV in SQL: a PNG, JPEG or WebP data address of up to 512 KB
+	if (
+		!u.image ||
+		u.image.length > MAX_STORED_LENGTH ||
+		!/^data:image\/(png|jpeg|webp);base64,/.test(u.image)
+	)
 		return null;
 	if (!u.updatedAt) return null;
 	return new Date(u.updatedAt).getTime();

@@ -144,13 +144,17 @@ test('M8 an organisation: each section saves on its own, the palette preview sho
 	await page
 		.getByTestId('logo-file')
 		.setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: PNG });
+	// The picture editor opens at once, and Save hands it the cropped picture
+	await expect(page.getByTestId('picture-stage')).toBeVisible();
+	await expect(page.getByTestId('picture-save')).toBeEnabled();
+	await page.getByTestId('picture-save').click();
 	await expect(page.getByTestId('org-logo')).toBeVisible();
 	await page.getByTestId('logo-file').setInputFiles({
 		name: 'big.png',
 		mimeType: 'image/png',
-		buffer: Buffer.concat([PNG.subarray(0, 8), Buffer.alloc(210 * 1024)])
+		buffer: Buffer.concat([PNG.subarray(0, 8), Buffer.alloc(10 * 1024 * 1024 + 1024)])
 	});
-	await expect(page.getByText('smaller than 200 KB')).toBeVisible();
+	await expect(page.getByText('smaller than 10 MB')).toBeVisible();
 	await page.getByTestId('logo-remove').click();
 	await expect(page.getByTestId('org-logo')).toHaveCount(0);
 

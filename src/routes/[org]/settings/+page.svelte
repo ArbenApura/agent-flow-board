@@ -289,10 +289,11 @@
 				hasPicture={Boolean(s.logo)}
 				canEdit={can}
 				testid="logo"
-				onupload={(f) => void uploadLogo(f)}
+				previewName={data.org.name}
+				onupload={(f) => uploadLogo(f)}
 				onremove={() => act(() => deletePicture(`/orgs/${org}/logo`), 'Logo removed.')}
 			>
-				{#snippet preview()}<OrgTile name={data.org.name} logo={s.logo} size={40} />{/snippet}
+				{#snippet preview(size)}<OrgTile name={data.org.name} logo={s.logo} {size} />{/snippet}
 			</PictureUpload>
 		</Section>
 

@@ -17,7 +17,7 @@
 		logo?: string | null;
 		/** The accent of this organisation. Without one the tile uses the page accent. */
 		palette?: OrgPalette | null;
-		size?: 20 | 24 | 40;
+		size?: 20 | 24 | 40 | 96;
 	} = $props();
 
 	// -- CONSTANTS -- //
@@ -34,6 +34,12 @@
 			box: 'size-10 min-h-10 max-h-10 min-w-10 max-w-10',
 			text: 'text-sm',
 			radius: 'rounded-lg'
+		},
+		// 96 is the logo in the picture area on a tablet or a phone
+		96: {
+			box: 'size-24 min-h-24 max-h-24 min-w-24 max-w-24',
+			text: 'text-3xl',
+			radius: 'rounded-2xl'
 		}
 	} as const;
 
