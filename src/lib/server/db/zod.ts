@@ -17,7 +17,6 @@ import {
 	devRegistration,
 	environment,
 	item,
-	manualCheck,
 	member,
 	mockup,
 	mockupKit,
@@ -59,7 +58,6 @@ export const projectSelect = createSelectSchema(project);
 export const itemSelect = createSelectSchema(item);
 export const phaseSelect = createSelectSchema(phase);
 export const stepSelect = createSelectSchema(step);
-export const manualCheckSelect = createSelectSchema(manualCheck);
 export const decisionSelect = createSelectSchema(decision);
 export const sectionSelect = createSelectSchema(section);
 export const taskSelect = createSelectSchema(task);
@@ -107,7 +105,6 @@ export const orgInsert = createInsertSchema(org, {
 export const memberInsert = createInsertSchema(member);
 export const phaseInsert = createInsertSchema(phase);
 export const stepInsert = createInsertSchema(step);
-export const manualCheckInsert = createInsertSchema(manualCheck);
 export const decisionInsert = createInsertSchema(decision);
 export const sectionInsert = createInsertSchema(section);
 export const taskInsert = createInsertSchema(task);

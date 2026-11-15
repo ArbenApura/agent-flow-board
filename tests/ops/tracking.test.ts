@@ -147,7 +147,7 @@ describe('tracking', () => {
 		const whole = await newSession();
 		await claim(agent('member', phased), phased, it.ref, '1');
 		// An item with no phases has no phase to claim: the claim is at item level and still shows the item as running
-		const bare = await newItem('Bare', { phases: [], manualChecks: [] });
+		const bare = await newItem('Bare', { phases: [] });
 		await claim(agent('member', whole), whole, bare.ref);
 		expect((await sessionRow(whole)).claimedPhase).toBeNull();
 		expect((await sessionRow(whole)).claimedItemId).toBe(bare.id);
@@ -362,7 +362,7 @@ describe('tracking', () => {
 			run: { target: string; result: string; commit?: string }
 		) => {
 			const rows = await db.admin.query<{ id: string }>(
-				`insert into "check" (org_id, project_id, item_id, manual_key, script, required_target) values ('${w.orgId}', '${w.projectId}', '${itemId}', '${key}', 'x.mjs', 'preview') returning id`
+				`insert into "check" (org_id, project_id, item_id, check_key, script, required_target) values ('${w.orgId}', '${w.projectId}', '${itemId}', '${key}', 'x.mjs', 'preview') returning id`
 			);
 			const runRows = await db.admin.query<{ id: string }>(
 				`insert into check_run (org_id, project_id, check_id, target, result${run.commit ? ', "commit"' : ''}) values ('${w.orgId}', '${w.projectId}', '${rows[0].id}', '${run.target}', '${run.result}'${run.commit ? `, '${run.commit}'` : ''}) returning id`
@@ -714,7 +714,7 @@ describe('tracking', () => {
 		// No claim and no open step mean no nudge
 		await hookSession('nudge-conversation-n', null);
 		for (let i = 0; i < 7; i++) expect((await edit('nudge-conversation-n')).nudge).toBeUndefined();
-		const bare = await newItem('No open steps', { phases: [], manualChecks: [] });
+		const bare = await newItem('No open steps', { phases: [] });
 		await hookSession('nudge-conversation-b', bare.ref);
 		for (let i = 0; i < 7; i++) expect((await edit('nudge-conversation-b')).nudge).toBeUndefined();
 

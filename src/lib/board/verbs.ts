@@ -12,6 +12,7 @@ const TEXT: Record<string, string> = {
 	'phase.create': 'added a phase',
 	'step.create': 'added a step',
 	'step.update': 'marked a step',
+	// Manual checks are gone, but their old history lines still read
 	'manual_check.create': 'added a manual check',
 	'manual_check.update': 'marked a manual check',
 	'decision.create': 'added a decision',

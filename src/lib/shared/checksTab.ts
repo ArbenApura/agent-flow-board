@@ -32,15 +32,10 @@ const RESULT: Record<string, CheckStatus> = {
 export const resultStatus = (result: string): CheckStatus =>
 	RESULT[result] ?? { label: result, tone: 'neutral' };
 
-/**
- * The status of a check: its newest run when it has one, else what its manual check says (Open, or Closed once a pass closed it).
- * `runs` are newest first.
- */
-export function checkStatus(manualState: string, runs: CheckRunLite[]): CheckStatus {
+/** The status of a check: its newest run when it has one, else Not run yet. `runs` are newest first. */
+export function checkStatus(runs: CheckRunLite[]): CheckStatus {
 	if (runs[0]) return resultStatus(runs[0].result);
-	return manualState === 'open'
-		? { label: 'Open', tone: 'neutral' }
-		: { label: 'Closed', tone: 'success' };
+	return { label: 'Not run yet', tone: 'neutral' };
 }
 
 /** The first line of a reason, cut to one readable sentence. */

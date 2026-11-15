@@ -8,7 +8,7 @@ import { and, eq } from 'drizzle-orm';
 // IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { adminFromExecutor } from '../../src/lib/server/backup/admin';
-import { attachment, checkRun, manualCheck, secret, step } from '../../src/lib/server/db/schema';
+import { attachment, checkRun, secret, step } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import {
 	claimCheckJob,
@@ -136,7 +136,6 @@ describe('browser checks', () => {
 					]
 				}
 			],
-			manualChecks: [{ key: 'M1', text: 'The page works', auto: true }],
 			...extra
 		});
 	const stepState = (itemId: string, key: string) =>
@@ -147,12 +146,6 @@ describe('browser checks', () => {
 				.where(and(eq(step.itemId, itemId), eq(step.key, key)));
 			return s;
 		});
-	const manualState = (itemId: string) =>
-		withTenant(
-			db,
-			{ orgId: w.orgId },
-			async (tx) => (await tx.select().from(manualCheck).where(eq(manualCheck.itemId, itemId)))[0]
-		);
 	let token = '';
 	let auth: NonNullable<Awaited<ReturnType<typeof authenticateRunner>>>;
 
@@ -374,7 +367,7 @@ describe('browser checks', () => {
 		);
 	});
 
-	it('a pass on the required target closes the check and its step, a weaker pass closes nothing, a later fail reopens', async () => {
+	it('a pass on the required target closes the step, a weaker pass closes nothing, a later fail reopens', async () => {
 		const it2 = await newItem();
 		await saveCheck(as('member'), {
 			item: it2.ref,
@@ -393,7 +386,7 @@ describe('browser checks', () => {
 			expect(job?.id).toBe(asked.run.id);
 			return job!;
 		};
-		// Preview pass: the manual check M1 and step 1.2 close
+		// Preview pass: step 1.2 closes
 		const p1 = await ask('preview', '1.2');
 		expect(p1.environment.url).toBe('http://localhost:5180');
 		expect(p1.readOnly).toBe(false);
@@ -404,9 +397,8 @@ describe('browser checks', () => {
 			{ result: 'pass', commit: 'abc1234', diffHash: 'd1', durationMs: 900 },
 			services
 		);
-		expect(r1.ticked.sort()).toEqual(['1.2', 'M1']);
+		expect(r1.ticked).toEqual(['1.2']);
 		expect((await stepState(it2.id, '1.2')).state).toBe('done');
-		expect((await manualState(it2.id)).state).toBe('waived');
 		// A dev pass for the step that needs deployed: recorded, nothing closed
 		const p2 = await ask('dev', '1.3');
 		const r2 = await finishCheckRun(
@@ -466,10 +458,9 @@ describe('browser checks', () => {
 			{ result: 'fail', commit: 'abc1234', diffHash: 'd1', reason: 'Save button missing' },
 			services
 		);
-		expect(r4.reopened.sort()).toEqual(['1.2', 'M1']);
+		expect(r4.reopened).toEqual(['1.2']);
 		expect(r4.flaky).toBe(true);
 		expect((await stepState(it2.id, '1.2')).state).toBe('open');
-		expect((await manualState(it2.id)).state).toBe('open');
 		// The deployed pass is untouched by a preview fail
 		expect((await stepState(it2.id, '1.3')).state).toBe('done');
 		const flagged = await withTenant(db, { orgId: w.orgId }, (tx) =>
@@ -484,7 +475,7 @@ describe('browser checks', () => {
 		expect(all.length).toBeGreaterThanOrEqual(4);
 	});
 
-	it('a run asked for from the page names no step: a pass closes only the check’s own manual check, never a step that shares its target', async () => {
+	it('a run asked for from the page names no step: a pass changes nothing on the plan, so no step that shares its target closes', async () => {
 		const it5 = await newItem();
 		await saveCheck(as('member'), {
 			item: it5.ref,
@@ -502,8 +493,7 @@ describe('browser checks', () => {
 			{ result: 'pass', commit: 'c1', diffHash: 'd9' },
 			services
 		);
-		expect(done.ticked).toEqual(['M1']);
-		expect((await manualState(it5.id)).state).toBe('waived');
+		expect(done.ticked).toEqual([]);
 		// Two open steps need the same target, and neither was named: both stay open
 		expect((await stepState(it5.id, '1.2')).state).toBe('open');
 		expect((await stepState(it5.id, '1.3')).state).toBe('open');

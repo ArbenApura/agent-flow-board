@@ -53,8 +53,7 @@ describe('the heartbeat of a run', () => {
 		const made = await createItem(as('member'), {
 			project: w.projectKey,
 			title: `Beat item ${++n}`,
-			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Run it' }] }],
-			manualChecks: [{ key: 'M1', text: 'Works' }]
+			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Run it' }] }]
 		});
 		await saveCheck(as('member'), { item: made.ref, key: 'M1', script: 's' });
 		await db.admin.exec(`update runner set last_seen_at = now()`);

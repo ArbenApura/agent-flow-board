@@ -76,5 +76,5 @@ export const DRIFT_TEXT: Record<string, string> = {
 		'Every step is done, so the status should be in review. Set it, or add the steps still missing.',
 	'in-review-with-open-steps':
 		'This item is in review but a step is open. Set it back to in progress if more work is coming.',
-	'ready-for-sign-off': 'Every step and manual check is closed. It is ready for sign-off.'
+	'ready-for-sign-off': 'Every step is closed. It is ready for sign-off.'
 };

@@ -13,7 +13,6 @@ import {
 	event,
 	item,
 	itemAlias,
-	manualCheck,
 	phase,
 	project,
 	section,
@@ -88,11 +87,6 @@ export async function loadPublishable(tx: Tx, projectId: string) {
 		.from(step)
 		.where(eq(step.projectId, projectId))
 		.orderBy(asc(step.position));
-	const checks = await tx
-		.select()
-		.from(manualCheck)
-		.where(eq(manualCheck.projectId, projectId))
-		.orderBy(asc(manualCheck.position));
 	const decisions = await tx
 		.select()
 		.from(decision)
@@ -110,7 +104,6 @@ export async function loadPublishable(tx: Tx, projectId: string) {
 		phases: phases
 			.filter((p) => p.itemId === it.id)
 			.map((p) => ({ ...p, steps: steps.filter((s) => s.phaseId === p.id) })),
-		manualChecks: checks.filter((c) => c.itemId === it.id),
 		decisions: decisions.filter((d) => d.itemId === it.id),
 		sections: sections.filter((s) => s.itemId === it.id),
 		aliases: aliases.filter((a) => a.itemId === it.id).map((a) => a.alias)
@@ -162,21 +155,6 @@ function planMarkdown(i: PublishItem): string {
 			if (s.state === 'waived' && s.reason) out.push(`  - Waived: ${line(s.reason)}`);
 		}
 	}
-	if (i.manualChecks.length) {
-		out.push('', '## Manual checks');
-		for (const c of i.manualChecks) {
-			const mark =
-				c.state === 'done'
-					? 'x'
-					: c.state === 'waived'
-						? '-'
-						: c.state === 'superseded'
-							? '~'
-							: ' ';
-			out.push(`- [${mark}] ${c.key}${c.auto ? ' [auto]' : ''} ${line(c.text)}`);
-			if (c.state === 'waived' && c.reason) out.push(`  - Waived: ${line(c.reason)}`);
-		}
-	}
 	return out.join('\n') + '\n';
 }
 
@@ -217,8 +195,7 @@ function progressMarkdown(i: PublishItem): string {
 		'',
 		`- Status: ${it.status}`,
 		`- Progress: ${it.percent}%`,
-		`- Steps done: ${it.doneSteps} of ${it.totalSteps}`,
-		`- Manual checks open: ${it.openManual}`
+		`- Steps done: ${it.doneSteps} of ${it.totalSteps}`
 	];
 	if (it.health.drift.length) out.push(`- Warnings: ${it.health.drift.join(', ')}`);
 	out.push(
@@ -270,13 +247,6 @@ function snapshotItem(i: PublishItem) {
 				reason: s.reason,
 				requiredTarget: s.requiredTarget
 			}))
-		})),
-		manualChecks: i.manualChecks.map((c) => ({
-			key: c.key,
-			text: c.text,
-			auto: c.auto,
-			state: c.state,
-			reason: c.reason
 		})),
 		decisions: i.decisions.map((d) => ({
 			kind: d.kind,

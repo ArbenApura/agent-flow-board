@@ -248,8 +248,7 @@ describe('B.10 vertical-slice exit (hosted mockup vs running app end-to-end)', (
 		const created = await createItem(as('admin'), {
 			project: w.projectKey,
 			title: 'B10 vertical slice item',
-			visibility: 'private',
-			manualChecks: [{ key: 'M1', text: 'Settings visual match', auto: true }]
+			visibility: 'private'
 		});
 		const itemRef = created.item.ref;
 		await addPhase(as('admin'), {

@@ -1,4 +1,4 @@
-// RECORDING PROGRESS: MARKING STEPS AND MANUAL CHECKS, WITH THE AUTOMATIC STATUS MOVES AND THE NEXT PHASE (SPEC 9.1, 9.2)
+// RECORDING PROGRESS: MARKING STEPS, WITH THE AUTOMATIC STATUS MOVES AND THE NEXT PHASE (SPEC 9.1, 9.2)
 
 // IMPORTED TYPES
 import type { Ctx } from './context';
@@ -9,7 +9,7 @@ import { z } from 'zod';
 // IMPORTED MODULES
 import { recalcItem } from '../db/calc';
 import { appendEvents, type NewEvent } from '../db/events';
-import { item, manualCheck, phase, step, type StepEvidence } from '../db/schema';
+import { item, phase, step, type StepEvidence } from '../db/schema';
 import { OpError, idempotent, maybeDry, rateLimit, requireCap } from './context';
 import { actorFields, checkVersion } from './items';
 import { gatedState, mockupUnreadError, unreadForGate, unreadLine } from './mockupReads';
@@ -39,8 +39,11 @@ export type RecordOptions = {
 export const LOG_MAX = 500;
 const LOG_MAX_INPUT = 5000;
 
+// A key from the old manual checks (M1, M2 ...). It still passes the schema so the call is refused with a message that names it
+const MANUAL_KEY = /^M[0-9]+$/;
+
 const markIn = z.object({
-	/** A step key such as 3.2, or a manual check key such as M2. */
+	/** A step key such as 3.2. */
 	key: z.string().regex(/^(?:[0-9A-Za-z]+\.[0-9]+[a-z]?|M[0-9]+)$/),
 	mark: z.enum(['done', 'open', 'waived', 'superseded']),
 	reason: z.string().min(3).max(200).optional(),
@@ -68,7 +71,7 @@ export const recordInput = z.object({
 // -- FUNCTIONS -- //
 
 /**
- * Marks steps and manual checks, recalculates the item, and applies the automatic status moves, all in one
+ * Marks steps, recalculates the item, and applies the automatic status moves, all in one
  * transaction with the item row locked. A replayed requestId returns the stored result. `dryRun` shows the result and
  * writes nothing.
  */
@@ -88,25 +91,25 @@ export async function recordSteps(
 			await requireCap(tx, ctx, 'write', it.projectId);
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
-			const stepKeys = input.marks.filter((m) => !/^M[0-9]+$/.test(m.key)).map((m) => m.key);
-			const checkKeys = input.marks.filter((m) => /^M[0-9]+$/.test(m.key)).map((m) => m.key);
+			// An agent on an older skill may still send a manual check key. The whole call is refused and nothing is recorded,
+			// so the message names the key and says to send the call again without it
+			const oldKeys = input.marks.filter((m) => MANUAL_KEY.test(m.key)).map((m) => m.key);
+			if (oldKeys.length)
+				throw new OpError(
+					'INVALID',
+					`Manual checks no longer exist, so ${oldKeys.join(', ')} cannot be marked. Nothing was recorded; send the call again without ${oldKeys.length > 1 ? 'those keys' : 'that key'}.`
+				);
+			const stepKeys = input.marks.map((m) => m.key);
 			const steps = stepKeys.length
 				? await tx
 						.select()
 						.from(step)
 						.where(and(eq(step.itemId, it.id), inArray(step.key, stepKeys)))
 				: [];
-			const checks = checkKeys.length
-				? await tx
-						.select()
-						.from(manualCheck)
-						.where(and(eq(manualCheck.itemId, it.id), inArray(manualCheck.key, checkKeys)))
-				: [];
 			const changed: { key: string; from: string; to: string }[] = [];
 			const writes = new Map<
 				string,
 				{
-					isCheck: boolean;
 					mark: Mark['mark'];
 					reason: string | null;
 					evidence: StepEvidence | null;
@@ -125,31 +128,21 @@ export async function recordSteps(
 						'INVALID',
 						`A superseded mark needs the item that replaces it (${m.key}).`
 					);
-				const isCheck = /^M[0-9]+$/.test(m.key);
-				const row = isCheck
-					? checks.find((c) => c.key === m.key)
-					: steps.find((s) => s.key === m.key);
-				if (!row)
-					throw new OpError(
-						'NOT_FOUND',
-						`No ${isCheck ? 'manual check' : 'step'} "${m.key}" on ${it.ref}.`
-					);
+				const row = steps.find((s) => s.key === m.key);
+				if (!row) throw new OpError('NOT_FOUND', `No step "${m.key}" on ${it.ref}.`);
 				if (row.state === m.mark) {
 					already.push(m.key);
 					continue;
 				}
 				const storedEvidence: StepEvidence | null = m.evidence ? { ...m.evidence } : null;
-				if (!isCheck) {
-					const stepRow = row as typeof step.$inferSelect;
-					if (m.mark === 'done' && (storedEvidence || stepRow.requiredTarget)) {
-						const evForCheck = storedEvidence
-							? {
-									...storedEvidence,
-									target: storedEvidence.target as 'dev' | 'preview' | 'deployed' | undefined
-								}
-							: undefined;
-						await validateEvidence(tx, ctx, it, stepRow, evForCheck);
-					}
+				if (m.mark === 'done' && (storedEvidence || row.requiredTarget)) {
+					const evForCheck = storedEvidence
+						? {
+								...storedEvidence,
+								target: storedEvidence.target as 'dev' | 'preview' | 'deployed' | undefined
+							}
+						: undefined;
+					await validateEvidence(tx, ctx, it, row, evForCheck);
 				}
 				const reason =
 					m.mark === 'waived'
@@ -158,9 +151,8 @@ export async function recordSteps(
 							? `Replaced by ${m.supersededBy}`
 							: null;
 				// Rows with the same new state, reason and evidence are written by one update after the loop
-				const groupKey = JSON.stringify([isCheck, m.mark, reason, storedEvidence]);
+				const groupKey = JSON.stringify([m.mark, reason, storedEvidence]);
 				const group = writes.get(groupKey) ?? {
-					isCheck,
 					mark: m.mark,
 					reason,
 					evidence: storedEvidence,
@@ -173,13 +165,10 @@ export async function recordSteps(
 					projectId: it.projectId,
 					itemId: it.id,
 					...actorFields(ctx),
-					verb: `${isCheck ? 'manual_check' : 'step'}.update`,
-					targetType: isCheck ? 'manual_check' : 'step',
+					verb: 'step.update',
+					targetType: 'step',
 					targetId: row.id,
-					before: {
-						state: row.state,
-						...(isCheck ? {} : { evidence: (row as typeof step.$inferSelect).evidence ?? null })
-					} as never,
+					before: { state: row.state, evidence: row.evidence ?? null } as never,
 					after: {
 						state: m.mark,
 						key: m.key,
@@ -187,31 +176,24 @@ export async function recordSteps(
 					} as never
 				});
 				changed.push({ key: m.key, from: row.state, to: m.mark });
-				if (!isCheck) {
-					// Only a changed COUNTED step can move a status. A waived or superseded step is not counted.
-					changedCounted = true;
-					if (m.mark === 'done') anyDone = true;
-				}
+				// Only a changed COUNTED step can move a status. A waived or superseded step is not counted.
+				changedCounted = true;
+				if (m.mark === 'done') anyDone = true;
 			}
 			// One update per group of identical changes, then one insert for all the events and one change notice
 			for (const g of writes.values()) {
-				const table = g.isCheck ? manualCheck : step;
 				await tx
-					.update(table)
+					.update(step)
 					.set({
 						state: g.mark,
 						reason: g.reason,
-						...(g.isCheck
-							? {}
-							: {
-									evidence: g.evidence,
-									doneAt: g.mark === 'done' ? sql`now()` : null,
-									doneBy: g.mark === 'done' ? ctx.actor.userId : null
-								}),
+						evidence: g.evidence,
+						doneAt: g.mark === 'done' ? sql`now()` : null,
+						doneBy: g.mark === 'done' ? ctx.actor.userId : null,
 						updatedAt: sql`now()`,
-						version: sql`${table.version} + 1`
+						version: sql`${step.version} + 1`
 					} as never)
-					.where(inArray(table.id, g.ids));
+					.where(inArray(step.id, g.ids));
 			}
 			if (input.log) {
 				events.push({
@@ -232,7 +214,7 @@ export async function recordSteps(
 					? await recalcItem(tx, it.id)
 					: {
 							item: it,
-							counts: { total: it.totalSteps, done: it.doneSteps, openManual: it.openManual },
+							counts: { total: it.totalSteps, done: it.doneSteps },
 							percent: it.percent
 						};
 			// Automatic status moves, in order, only when a counted step changed (ADR-028)

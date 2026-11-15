@@ -148,7 +148,7 @@ async function writeDocs(
 const marks = z
 	.array(
 		z.object({
-			key: z.string().describe('A step key such as 3.2, or a manual check key such as M2'),
+			key: z.string().describe('A step key such as 3.2'),
 			mark: z.enum(['done', 'open', 'waived', 'superseded']),
 			reason: z.string().optional().describe('Required for waived'),
 			supersededBy: z
@@ -290,9 +290,10 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 		})),
 		// A long step text is cut: item_doc phase:<key> reads the whole step list
 		nextOpen: open.slice(0, 5).map((s) => ({ key: s.key, text: clip(s.text, STEP_CHARS) })),
-		openChecks: d.manualChecks
-			.filter((c) => c.state === 'open')
-			.map((c) => ({ key: c.key, text: c.text, auto: c.auto }))
+		// The browser checks that have not passed yet (never run, or the newest run did not pass)
+		openChecks: d.checks
+			.filter((c) => c.lastResult !== 'pass')
+			.map((c) => ({ key: c.key, title: c.title, requiredTarget: c.requiredTarget }))
 	};
 	if (fields.includes('steps'))
 		out.steps = steps.map((s) => ({
@@ -304,12 +305,11 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 			...(s.reason ? { reason: s.reason } : {})
 		}));
 	if (fields.includes('checks'))
-		out.checks = d.manualChecks.map((c) => ({
+		out.checks = d.checks.map((c) => ({
 			key: c.key,
-			state: c.state,
-			text: c.text,
-			auto: c.auto,
-			...(c.reason ? { reason: c.reason } : {})
+			title: c.title,
+			requiredTarget: c.requiredTarget,
+			lastResult: c.lastResult
 		}));
 	if (fields.includes('decisions'))
 		out.decisions = d.decisions.map((x) => ({
@@ -945,7 +945,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'item_new',
-		'Create an item with its phases, steps and manual checks. Give it a short tab name of one to three words.',
+		'Create an item with its phases and steps. Give it a short tab name of one to three words.',
 		{
 			project: z.string(),
 			title: z.string().min(3),
@@ -972,8 +972,9 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				)
 				.optional(),
 			manualChecks: z
-				.array(z.object({ key: z.string(), text: z.string(), auto: z.boolean().optional() }))
-				.optional(),
+				.array(z.unknown())
+				.optional()
+				.describe('Retired: manual checks no longer exist. Ignored.'),
 			aliases: z.array(z.string()).optional(),
 			sections: z
 				.array(z.object({ slug: z.string(), title: z.string(), body: z.string().optional() }))
@@ -990,7 +991,8 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				id: made.id,
 				status: made.item.status,
 				tabName: made.item.tabName,
-				steps: made.item.totalSteps
+				steps: made.item.totalSteps,
+				...(made.notice ? { notice: made.notice } : {})
 			};
 		}
 	);
@@ -1099,7 +1101,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'record',
-		'Mark steps and manual checks done, open, waived (with a reason) or superseded, and add one log line.',
+		'Mark steps done, open, waived (with a reason) or superseded, and add one log line.',
 		{
 			item: itemName.optional(),
 			marks: marks.optional(),
@@ -1186,12 +1188,10 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'plan_add_checks',
-		'Add manual checks (M1, M2 ...) to an item. They are never counted toward the percent.',
+		'Retired: manual checks no longer exist, so this writes nothing and answers with a notice. Save a browser check with check_save.',
 		{
 			item: itemName.optional(),
-			checks: z
-				.array(z.object({ key: z.string(), text: z.string(), auto: z.boolean().optional() }))
-				.min(1),
+			checks: z.array(z.unknown()).optional(),
 			expectVersion
 		},
 		{ session: true },
@@ -1470,10 +1470,18 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'check_save',
-		'Save the browser check script of a manual check and mark it automatic so it can run. Replaces an existing script. Also write the same script to checks/<item>/<check>.mjs on the machine that runs it: the tool only runs a local file.',
+		'Save one browser check of an item: its script and the weakest target whose pass counts. Replaces the script of the same key, or adds a new check. Also write the same script to checks/<item>/<check>.mjs on the machine that runs it: the tool only runs a local file.',
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
-			check: z.string().describe('The manual check key, for example M2'),
+			check: z
+				.string()
+				.optional()
+				.describe('The check key, for example C1. Leave it out to add a new check'),
+			title: z
+				.string()
+				.max(300)
+				.optional()
+				.describe('What the check proves, in a few words. Leave it out to keep the saved title'),
 			script: z
 				.string()
 				.min(1)
@@ -1515,6 +1523,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			(await saveCheck(ctx, {
 				item: need(a.item, claimed),
 				key: a.check,
+				title: a.title,
 				script: a.script,
 				edit: a.edit,
 				requiredTarget: a.target,
@@ -1526,10 +1535,10 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'check_delete',
-		'Remove the browser check of a manual check. The manual check is plain again unless it was already closed.',
+		'Remove one browser check of an item, with its runs.',
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
-			check: z.string().describe('The manual check key, for example M2')
+			check: z.string().describe('The check key, for example C1')
 		},
 		{ session: true },
 		async (a, { ctx, claimed }) => (await deleteCheck(ctx, need(a.item, claimed), a.check)) as never
@@ -1537,10 +1546,10 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'check_run',
-		'Ask for a browser check run. A pass on the required target closes the check and the step you name. An open run for the same check, target and registration is returned, not a second. Pass wait (at most 50 seconds) for the finished run; if unfinished, follow its next line. A failed run carries a code and a fix line.',
+		'Ask for a browser check run. A pass on the required target closes the step you name. An open run for the same check, target and registration is returned, not a second. Pass wait (at most 50 seconds) for the finished run; if unfinished, follow its next line. A failed run carries a code and a fix line.',
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
-			check: z.string().describe('The manual check key, for example M8'),
+			check: z.string().describe('The check key, for example C1'),
 			target: z.enum(['dev', 'preview', 'deployed']).optional(),
 			step: z
 				.string()
@@ -1657,7 +1666,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				devTargets: v.devTargets,
 				checks: v.checks.map((c) => ({
 					key: c.key,
-					state: c.state,
+					title: c.title,
 					requiredTarget: c.requiredTarget,
 					pinnedTarget: c.pinnedTarget,
 					registration: c.registration,
@@ -1688,7 +1697,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		'The saved script of one browser check, so a small fix can be made with check_save edit.',
 		{
 			item: itemName.optional().describe('Defaults to your claimed item'),
-			check: z.string().describe('The manual check key, for example M2')
+			check: z.string().describe('The check key, for example C1')
 		},
 		{ readOnly: true },
 		async (a, { ctx, claimed }) => {

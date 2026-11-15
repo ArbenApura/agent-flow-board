@@ -15,7 +15,6 @@
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
-	import Checkbox from '#lib/ui/Checkbox.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
@@ -33,7 +32,6 @@
 		text: string;
 		state: string;
 		reason?: string | null;
-		auto?: boolean;
 		files?: string[];
 	};
 
@@ -65,9 +63,6 @@
 	let addingPhase = $state(false);
 	let phaseKey = $state('');
 	let phaseTitle = $state('');
-	let addingCheck = $state(false);
-	let checkText = $state('');
-	let checkAuto = $state(false);
 	let busy = $state(false);
 	let formError = $state('');
 
@@ -75,7 +70,6 @@
 
 	const ref = $derived(detail.item.ref);
 	const nextPhaseKey = $derived(String(detail.phases.length + 1));
-	const nextCheckKey = $derived(`M${detail.manualChecks.length + 1}`);
 	const show = $derived(page.url.searchParams.get('show') === 'open' ? 'open' : 'all');
 	// Every state comes from stateOf, so a click shows at once: the counts, the "Up next" row and the filter all follow it
 	const phases = $derived(
@@ -101,9 +95,6 @@
 	const next = $derived(phases.flatMap((p) => p.rows).find((r) => r.state === 'open') ?? null);
 	const totalSteps = $derived(phases.reduce((n, p) => n + p.counted, 0));
 	const doneSteps = $derived(phases.reduce((n, p) => n + p.done, 0));
-	const checkRows = $derived<Row[]>(
-		detail.manualChecks.map((c) => ({ ...c, state: stateOf(c.key, c.state) }))
-	);
 
 	// -- REACTIVE STATEMENTS -- //
 
@@ -111,7 +102,6 @@
 	$effect(() => {
 		const server: Record<string, string> = {};
 		for (const ph of detail.phases) for (const s of ph.steps) server[s.key] = s.state;
-		for (const c of detail.manualChecks) server[c.key] = c.state;
 		optimistic.confirm(server);
 	});
 
@@ -197,7 +187,7 @@
 	}
 </script>
 
-<!-- ONE ROW FOR A STEP AND FOR A MANUAL CHECK -->
+<!-- ONE ROW FOR A STEP -->
 {#snippet row(s: Row, testid: string, isNext: boolean)}
 	<li
 		id={testid === 'step' ? `step-${s.id}` : undefined}
@@ -237,10 +227,9 @@
 					>
 				{/if}
 			</span>
-			{#if isNext || s.auto || s.state === 'superseded' || (env.canWrite && s.state === 'open')}
+			{#if isNext || s.state === 'superseded' || (env.canWrite && s.state === 'open')}
 				<span class="flex shrink-0 flex-wrap items-center gap-2">
 					{#if isNext}<Badge class="bg-surface ring-1 ring-line">Up next</Badge>{/if}
-					{#if s.auto}<Badge tone="info">auto</Badge>{/if}
 					{#if s.state === 'superseded'}
 						<Badge>superseded</Badge>
 					{/if}
@@ -407,40 +396,6 @@
 			>
 		</div>
 	{/if}
-
-	<TabCard
-		collapsible
-		storageKey={`afb:collapse:${env.org}:${detail.item.id}:manual-checks`}
-		role="region"
-		aria-label="Manual checks"
-	>
-		{#snippet heading()}Manual checks{/snippet}
-		{#snippet meta()}
-			<span class="text-sm text-muted tabular-nums">{checkRows.length}</span>
-		{/snippet}
-		<p class="border-b border-line px-4 py-2 text-xs text-muted max-sm:px-3.5">
-			Checks a person or a tool does. They are not part of the percent.
-		</p>
-		<ul>
-			{#each checkRows as c (c.id)}
-				{@render row(c, 'manual-check', false)}
-			{:else}
-				<li class="px-4 py-3 text-sm text-muted">No manual checks.</li>
-			{/each}
-		</ul>
-		{#if env.canWrite}
-			<div class="border-t border-line px-2 py-1.5 max-sm:px-1.5">
-				<Button
-					variant="ghost"
-					size="sm"
-					onclick={() => {
-						addingCheck = true;
-						formError = '';
-					}}><Plus size={14} aria-hidden="true" /> Add a manual check</Button
-				>
-			</div>
-		{/if}
-	</TabCard>
 </div>
 
 <ResponsiveModal
@@ -495,37 +450,6 @@
 		<div class="flex justify-end gap-2">
 			<Button onclick={() => (addingPhase = false)} disabled={busy}>Cancel</Button>
 			<Button type="submit" variant="primary" loading={busy}>Add phase</Button>
-		</div>
-	</form>
-</ResponsiveModal>
-
-<ResponsiveModal
-	open={addingCheck}
-	onclose={() => (addingCheck = false)}
-	title="Add a manual check"
-	size="sm"
-	{busy}
->
-	<form
-		class="flex flex-col gap-3"
-		onsubmit={(e) => {
-			e.preventDefault();
-			void write(
-				`/items/${ref}/checks`,
-				{ checks: [{ key: nextCheckKey, text: checkText.trim(), auto: checkAuto }] },
-				'Check added.',
-				() => {
-					addingCheck = false;
-					checkText = '';
-				}
-			);
-		}}
-	>
-		<TextField label="What is checked" bind:value={checkText} error={formError} required />
-		<Checkbox label="A tool can run this check" bind:checked={checkAuto} />
-		<div class="flex justify-end gap-2">
-			<Button onclick={() => (addingCheck = false)} disabled={busy}>Cancel</Button>
-			<Button type="submit" variant="primary" loading={busy}>Add check</Button>
 		</div>
 	</form>
 </ResponsiveModal>

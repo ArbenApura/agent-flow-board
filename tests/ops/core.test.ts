@@ -72,7 +72,6 @@ describe('operations', () => {
 			project: w.projectKey,
 			title: 'A planned item',
 			phases: PLAN.phases,
-			manualChecks: PLAN.manualChecks,
 			...extra
 		});
 
@@ -88,7 +87,6 @@ describe('operations', () => {
 			['1.1', '1.2'],
 			['2.1', '2.2']
 		]);
-		expect(d.manualChecks.map((m) => m.key)).toEqual(['M1', 'M2']);
 	});
 
 	it('refuses a step key the record tools could not use, so a plan never holds an unrecordable step', async () => {
@@ -265,7 +263,7 @@ describe('operations', () => {
 		}
 	});
 
-	it('M17 status moves: first done step, last step, reopen, log only, manual check, waived', async () => {
+	it('M17 status moves: first done step, last step, reopen, log only, waived', async () => {
 		const made = await create('member');
 		const rec = (
 			marks: {
@@ -280,10 +278,11 @@ describe('operations', () => {
 		const logged = await rec([], { log: 'Looked around the code' });
 		expect(logged.statusChanges).toEqual([]);
 		expect((await getItem(w.ctx('member'), made.ref)).item.status).toBe('PLANNED');
-		// A manual check moves nothing
-		expect(
-			(await rec([{ key: 'M1', mark: 'waived', reason: 'Arben checked it' }])).statusChanges
-		).toEqual([]);
+		// An M key is refused with INVALID and nothing is recorded
+		await expect(
+			rec([{ key: 'M1', mark: 'waived', reason: 'Arben checked it' }])
+		).rejects.toMatchObject({ code: 'INVALID' });
+		await expect(rec([{ key: 'M1', mark: 'done' }])).rejects.toThrow(/M1.*Nothing was recorded/s);
 		// A waived counted step is not counted, so it moves nothing either
 		const waived = await rec([{ key: '2.2', mark: 'waived', reason: 'Not needed any more' }]);
 		expect(waived.statusChanges).toEqual([]);
@@ -324,8 +323,7 @@ describe('operations', () => {
 
 	it('a PLANNED item that reaches 100% in one call gets both moves in order', async () => {
 		const made = await create('member', {
-			phases: [{ key: '1', title: 'One', steps: [{ text: 'Only step' }] }],
-			manualChecks: []
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'Only step' }] }]
 		});
 		const r = await recordSteps(w.ctx('member'), {
 			item: made.ref,
@@ -336,8 +334,7 @@ describe('operations', () => {
 
 	it('ON HOLD never moves by itself, and an item with no steps is never complete', async () => {
 		const made = await create('member', {
-			phases: [{ key: '1', title: 'One', steps: [{ text: 'Only step' }] }],
-			manualChecks: []
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'Only step' }] }]
 		});
 		await setStatus(w.ctx('member'), {
 			item: made.ref,
@@ -352,7 +349,6 @@ describe('operations', () => {
 		expect(r.status).toBe('ON HOLD');
 		const empty = await create('member', {
 			phases: [],
-			manualChecks: [],
 			title: 'No steps at all'
 		});
 		expect(
@@ -385,36 +381,6 @@ describe('operations', () => {
 		expect(history.filter((e) => e.verb === 'item.status')).toHaveLength(1);
 	});
 
-	it('a manual check ticks, unticks and ticks again, and a replayed request writes once', async () => {
-		const made = await create('member');
-		const mark = (to: 'done' | 'open', requestId?: string) =>
-			recordSteps(w.ctx('member', requestId ? { requestId } : {}), {
-				item: made.ref,
-				marks: [{ key: 'M1', mark: to }]
-			});
-		const state = async () =>
-			(await getItem(w.ctx('member'), made.ref)).manualChecks.find((c) => c.key === 'M1')?.state;
-		expect((await mark('done', 'req-check-1')).changed).toEqual([
-			{ key: 'M1', from: 'open', to: 'done' }
-		]);
-		expect(await state()).toBe('done');
-		// The same request again returns the first answer and writes nothing
-		expect((await mark('done', 'req-check-1')).changed).toEqual([
-			{ key: 'M1', from: 'open', to: 'done' }
-		]);
-		// A second click that asks for the state it already has changes nothing
-		expect((await mark('done')).already).toEqual(['M1']);
-		expect((await mark('open')).changed).toEqual([{ key: 'M1', from: 'done', to: 'open' }]);
-		expect(await state()).toBe('open');
-		expect((await mark('done')).changed).toEqual([{ key: 'M1', from: 'open', to: 'done' }]);
-		expect(await state()).toBe('done');
-		const history = await withTenant(db, { orgId: w.orgId }, (tx) =>
-			tx.select().from(event).where(eq(event.itemId, made.id))
-		);
-		// Done, open, done: three writes, the replay and the no-op wrote none
-		expect(history.filter((e) => e.verb === 'manual_check.update')).toHaveLength(3);
-	});
-
 	it('a dry run shows the result and writes nothing', async () => {
 		const made = await create('member');
 		const dry = await recordSteps(w.ctx('member'), {
@@ -444,8 +410,7 @@ describe('operations', () => {
 
 	it('COMPLETED needs every step closed, the capability, and respects the people-only switch', async () => {
 		const made = await create('member', {
-			phases: [{ key: '1', title: 'One', steps: [{ text: 'Only step' }] }],
-			manualChecks: []
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'Only step' }] }]
 		});
 		await expect(
 			setStatus(w.ctx('member'), { item: made.ref, status: 'COMPLETED', note: 'Done now' })
@@ -479,7 +444,6 @@ describe('operations', () => {
 		);
 		const other = await create('member', {
 			phases: [],
-			manualChecks: [],
 			title: 'Closed by an agent'
 		});
 		await expect(
@@ -498,8 +462,7 @@ describe('operations', () => {
 
 	it('linked tasks follow progress but are never set DONE', async () => {
 		const made = await create('member', {
-			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }, { text: 'b' }] }],
-			manualChecks: []
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }, { text: 'b' }] }]
 		});
 		await db.admin.exec(
 			`insert into task (org_id, project_id, number, title, status, linked_item_ids) values ('${w.orgId}', '${w.projectId}', ${900 + Math.floor(Math.random() * 90000)}, 'Linked task', 'TODO', array['${made.id}']::uuid[])`
@@ -554,8 +517,7 @@ describe('operations', () => {
 
 	it('two recorders marking different steps at once both count', async () => {
 		const made = await create('member', {
-			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }, { text: 'b' }, { text: 'c' }] }],
-			manualChecks: []
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }, { text: 'b' }, { text: 'c' }] }]
 		});
 		await Promise.all(
 			['1.1', '1.2', '1.3'].map((key) =>

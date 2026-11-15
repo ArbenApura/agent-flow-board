@@ -2,7 +2,7 @@
 // A repo has rules about what a plan may contain (no browser steps, no mockups, no demo hosts, no database reset). They used to live
 // in prose that a model had to remember. Two line forms in the project rules text turn them into a refusal with the reason:
 //   forbid-plan: <phrase>|<phrase> :: <reason>        a step, check or title containing any phrase is refused (case insensitive)
-//   no-browser-steps                                   a step with a required target or an automatic check is refused
+//   no-browser-steps                                   a step with a required target is refused
 
 // IMPORTED TYPES
 import type { Tx } from '../db/client';
@@ -21,7 +21,7 @@ export type PlanRules = {
 export type PlanText = {
 	/** Titles, step texts and check texts to test against the forbid lines. */
 	texts: string[];
-	/** Whether any step carries a required target or any manual check is automatic. */
+	/** Whether any step carries a required target. */
 	browser: boolean;
 };
 
@@ -67,9 +67,7 @@ export function planViolations(rules: PlanRules, plan: PlanText): string[] {
 	for (const f of rules.forbid)
 		if (plan.texts.some((t) => f.pattern.test(t.slice(0, MAX_TEXT)))) out.push(f.reason);
 	if (rules.noBrowserSteps && plan.browser)
-		out.push(
-			'this project keeps browser steps out of plans (no required target on a step, no automatic check)'
-		);
+		out.push('this project keeps browser steps out of plans (no required target on a step)');
 	return out;
 }
 

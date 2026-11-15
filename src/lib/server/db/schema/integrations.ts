@@ -68,7 +68,10 @@ export const check = tenantTable(
 		itemId: uuid('item_id')
 			.notNull()
 			.references(() => item.id, { onDelete: 'cascade' }),
-		manualKey: text('manual_key').notNull(),
+		/** The check's own key on its item, such as C1 (older checks keep an M key). */
+		checkKey: text('check_key').notNull(),
+		/** What the check proves, in a few words. Empty means the Checks tab shows the key. */
+		title: text('title').notNull().default(''),
 		script: text('script').notNull(),
 		coveredPaths: jsonb('covered_paths')
 			.$type<string[]>()
@@ -83,7 +86,7 @@ export const check = tenantTable(
 		version: version()
 	},
 	(t) => [
-		unique('check_item_key_uq').on(t.itemId, t.manualKey),
+		unique('check_item_key_uq').on(t.itemId, t.checkKey),
 		oneOf('check_target_chk', t.requiredTarget, TARGETS)
 	]
 );

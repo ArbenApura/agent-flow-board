@@ -67,8 +67,7 @@ describe('several registrations for one board project', () => {
 					title: 'Build',
 					steps: [{ text: 'Check it', requiredTarget: 'preview' as const }]
 				}
-			],
-			manualChecks: [{ key: 'M1', text: 'Works', auto: true }]
+			]
 		});
 		await saveCheck(as('member'), {
 			item: item.ref,

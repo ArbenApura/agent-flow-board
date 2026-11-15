@@ -21,7 +21,7 @@ describe('pure calculations', () => {
 		expect(percentOf(0, 0)).toBe(0);
 	});
 	it('drift flags follow SPEC 9.4 and never fire for a legacy item', () => {
-		const base = { total: 4, done: 4, openManual: 0, legacy: false };
+		const base = { total: 4, done: 4, legacy: false };
 		expect(driftFlags({ ...base, status: 'IN PROGRESS' })).toEqual(['complete-not-in-review']);
 		expect(driftFlags({ ...base, status: 'IN REVIEW' })).toEqual(['ready-for-sign-off']);
 		expect(driftFlags({ ...base, status: 'IN REVIEW', done: 3 })).toEqual([
@@ -132,7 +132,7 @@ describe('database domain helpers', () => {
 			await tx.update(step).set({ state: 'done' }).where(eq(step.id, ids[0]));
 			await tx.update(step).set({ state: 'waived' }).where(eq(step.id, ids[1]));
 			const r = await recalcItem(tx, it.id);
-			expect(r.counts).toEqual({ total: 3, done: 1, openManual: 0 });
+			expect(r.counts).toEqual({ total: 3, done: 1 });
 			expect(r.percent).toBe(33);
 		});
 		const [row] = await withTenant(db, tenant(), (tx) =>

@@ -327,7 +327,7 @@ export const routes: Route[] = [
 	{
 		method: 'POST',
 		path: '/orgs/{org}/items/{item}/checks',
-		summary: 'Add manual checks (never counted toward the percent)',
+		summary: 'Retired: manual checks no longer exist. Answers with a notice and writes nothing',
 		tag: 'Plan',
 		body: strip(addChecksInput, 'item'),
 		handler: ({ ctx, params, body }) =>
@@ -990,7 +990,7 @@ export const routes: Route[] = [
 	{
 		method: 'PUT',
 		path: '/orgs/{org}/items/{item}/browser-checks',
-		summary: 'Save the browser check of one manual check',
+		summary: 'Save one browser check of an item',
 		tag: 'Browser checks',
 		body: strip(checkInput, 'item'),
 		handler: ({ ctx, params, body }) =>
@@ -999,7 +999,7 @@ export const routes: Route[] = [
 	{
 		method: 'DELETE',
 		path: '/orgs/{org}/items/{item}/browser-checks/{key}',
-		summary: 'Remove the browser check of a manual check',
+		summary: 'Remove one browser check of an item',
 		tag: 'Browser checks',
 		handler: ({ ctx, params }) => deleteCheck(ctx, params.item, params.key)
 	},

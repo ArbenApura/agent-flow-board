@@ -81,7 +81,7 @@ Write answers to the board as you go, not at the end. **One decision per `item_u
 
 - **Decisions**: one `adr` for each decision that shapes the design (context, decision, alternatives, consequences), titled with the date and "the user (plan interview)" plus their name when the session knows it in its context; a proposed value is recorded with the word PROPOSED in its title. Questions you settled from the documents are `settled` decisions with `answer` and `source`.
 - **Plan**: if an answer changes steps, follow `/flow` section 3 step 7 (the user's answer is the confirmation for the change it names, nothing more; a step you infer beyond the answer is asked first): `plan_add_steps` or `plan_add_phase` for new work, `step_update` to reword or remove an open step, `record` (waived with a reason, or superseded) for steps that are already closed.
-- **Spec and validation**: update the affected sections with `item_update`, one per call. Add the checks the user described for "Done" to `validation`, and keep manual checks as `M` checks with `plan_add_checks`.
+- **Spec and validation**: update the affected sections with `item_update`, one per call. Add the checks the user described for "Done" to `validation`.
 - **Log and notes**: one `record` call with `log` "Plan interview: N questions answered, M left open" (at most 500 characters, with the Checked-before-asking list in short form), and the open ones in the `blockers` or `resume-here` section.
 
 ## Step 5 - Close

@@ -105,8 +105,7 @@ describe('the afb-checks tool as a runner', () => {
 					title: 'Build',
 					steps: [{ text: 'Check it', requiredTarget: 'preview' as const }]
 				}
-			],
-			manualChecks: [{ key: 'M1', text: 'Works', auto: true }]
+			]
 		});
 		await saveCheck(as('member'), { item: item.ref, key: 'M1', script: 'await page.goto("/")' });
 		// Nothing is connected yet (the tools made by the earlier tests are removed first)
@@ -156,11 +155,7 @@ describe('the afb-checks tool as a runner', () => {
 		const item = await createItem(as('member'), {
 			project: w.projectKey,
 			title: 'No default target',
-			phases: [{ key: '1', title: 'B', steps: [{ text: 'x' }] }],
-			manualChecks: [
-				{ key: 'M1', text: 'a', auto: true },
-				{ key: 'M2', text: 'b', auto: true }
-			]
+			phases: [{ key: '1', title: 'B', steps: [{ text: 'x' }] }]
 		});
 		await saveCheck(as('member'), { item: item.ref, key: 'M1', script: 's' });
 		await saveCheck(as('member'), { item: item.ref, key: 'M2', script: 's', pinnedTarget: 'dev' });
@@ -186,8 +181,7 @@ describe('the afb-checks tool as a runner', () => {
 		const item = await createItem(as('member'), {
 			project: w.projectKey,
 			title: 'Hosted',
-			phases: [{ key: '1', title: 'B', steps: [{ text: 'x' }] }],
-			manualChecks: [{ key: 'M1', text: 'w', auto: true }]
+			phases: [{ key: '1', title: 'B', steps: [{ text: 'x' }] }]
 		});
 		await saveCheck(as('member'), { item: item.ref, key: 'M1', script: 's' });
 		const tool = await registerToolRunner(as('admin'), { name: 'Other afb-checks', projects: [] });

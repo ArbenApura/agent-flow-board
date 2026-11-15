@@ -155,7 +155,7 @@ Inspect the schema, migrations, jobs and database interactions:
 Inspect test coverage, error handling, and component resilience:
 
 - [ ] **Alignment with the validation section**
-  Do the automated or manual checks in the item's `validation` section accurately verify the actual implemented behaviour? Are tests in the folder the repo's layout expects?
+  Do the checks in the item's `validation` section accurately verify the actual implemented behaviour? Are tests in the folder the repo's layout expects?
   (example) `tests/ops`, `tests/db`, `tests/auth`, `tests/mcp`, `tests/checks`, `packages/*/src`.
 - [ ] **Refusals Prove No Side Effect**
   Do access and isolation tests cover each role and a limited token, and assert that nothing was written, queued or sent behind a refusal?

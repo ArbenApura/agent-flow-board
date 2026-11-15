@@ -36,15 +36,12 @@ describe('the Checks tab', () => {
 		expect(resultStatus('something-new')).toEqual({ label: 'something-new', tone: 'neutral' });
 	});
 
-	it('gives a check the status of its newest run, or Open, or Closed when a pass closed it', () => {
-		expect(checkStatus('open', [])).toEqual({ label: 'Open', tone: 'neutral' });
-		expect(checkStatus('waived', [])).toEqual({ label: 'Closed', tone: 'success' });
-		expect(checkStatus('open', [run({ result: 'running' }), run({ result: 'pass' })]).label).toBe(
+	it('gives a check the status of its newest run, or Not run yet', () => {
+		expect(checkStatus([])).toEqual({ label: 'Not run yet', tone: 'neutral' });
+		expect(checkStatus([run({ result: 'running' }), run({ result: 'pass' })]).label).toBe(
 			'Running'
 		);
-		expect(checkStatus('open', [run({ result: 'fail' }), run({ result: 'pass' })]).label).toBe(
-			'Failed'
-		);
+		expect(checkStatus([run({ result: 'fail' }), run({ result: 'pass' })]).label).toBe('Failed');
 	});
 
 	it('says what went wrong in one sentence and what to do, never the raw log', () => {

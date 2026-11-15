@@ -31,7 +31,6 @@ type Answer = {
 		percent: number;
 		phase: { key: string; title: string; position: number; of: number } | null;
 		steps: { done: number; open: number; waived: number; total: number };
-		manualChecksOpen: number;
 		resumeHere: string;
 		blockers: string;
 		updatedAt: string;
@@ -75,8 +74,7 @@ describe('session status by external id', () => {
 			body: {
 				title: 'Status line item',
 				tabName: 'STATUS_LINE',
-				phases: PLAN.phases,
-				manualChecks: PLAN.manualChecks
+				phases: PLAN.phases
 			}
 		});
 		ref = (made.body as { ref: string }).ref;
@@ -179,7 +177,6 @@ describe('session status by external id', () => {
 			phase: { key: '1', title: 'Build', position: 1, of: 2 },
 			// Four steps, one waived: three count, one is done, two are open
 			steps: { done: 1, open: 2, waived: 1, total: 3 },
-			manualChecksOpen: 2,
 			url: `${BASE}/${slug()}/${w.projectKey}/${ref}`
 		});
 		const page = await getItem();

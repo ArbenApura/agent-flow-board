@@ -64,8 +64,7 @@ async function setup(
 							{ text: 'Run the check on the live site', requiredTarget: 'deployed' }
 						]
 					}
-				],
-				manualChecks: [{ key: 'M1', text: 'The organisation page opens', auto: true }]
+				]
 			}
 		})
 	);
@@ -112,7 +111,7 @@ const plan = async (page: Page, ref: string) => {
 	const steps = Object.fromEntries(
 		it.phases.flatMap((p: any) => p.steps).map((s: any) => [s.key, s.state])
 	);
-	return { steps, m1: it.manualChecks.find((c: any) => c.key === 'M1').state as string };
+	return { steps };
 };
 
 test('M11 a preview pass closes the plan, a dev pass does not, a fail reopens, production is read only, and no stored file holds the password', async ({
@@ -150,7 +149,6 @@ test('M11 a preview pass closes the plan, a dev pass does not, a fail reopens, p
 	expect(pass.evidence.length).toBeGreaterThanOrEqual(2);
 	let state = await plan(page, p.ref);
 	expect(state.steps['1.1']).toBe('done');
-	expect(state.m1).toBe('waived');
 
 	// The live site is production: read only, so a write the script tries is blocked, and the pass closes the live step
 	const guard = `
@@ -178,7 +176,6 @@ log('a write was blocked');
 	expect(v.checks[0].runs[0].reason).toMatch(/this sentence is not on the page|Timeout|expect/i);
 	state = await plan(page, p.ref);
 	expect(state.steps['1.1']).toBe('open');
-	expect(state.m1).toBe('open');
 	expect(state.steps['1.2']).toBe('done');
 
 	// Nothing stored from any run holds the password: pictures, traces, videos, logs and the activity log

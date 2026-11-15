@@ -67,7 +67,7 @@ A deployed site that names its version closes steps only once it shows this comm
 
 ## Writing a check
 
-On an item's **Checks** tab, a manual check marked `[auto]` can have a script. It receives a signed-in `page` and `context`, `expect`, `baseUrl` and `log`:
+On an item's **Checks** tab, each browser check has a script. It receives a signed-in `page` and `context`, `expect`, `baseUrl` and `log`:
 
 ```
 await page.goto('/');
@@ -75,7 +75,7 @@ await expect(page.locator('h1')).toBeVisible();
 log('the home page opened');
 ```
 
-A failed script runs once more, and a pass on the retry is shown as flaky. Pick a target per run, or pin the check to one. When the run is for a plan step, a pass on that step's required target (or a stronger one) closes it and the manual check; a pass on a weaker target is kept and closes nothing; a later failure on the same target reopens what it closed. If no runner that can reach the target is online, the run says so and offers the targets that can run. It is never moved to another target for you.
+A failed script runs once more, and a pass on the retry is shown as flaky. Pick a target per run, or pin the check to one. When the run is for a plan step, a pass on that step's required target (or a stronger one) closes it; a pass on a weaker target is kept and closes nothing; a later failure on the same target reopens what it closed. If no runner that can reach the target is online, the run says so and offers the targets that can run. It is never moved to another target for you.
 
 Evidence (a final picture, a trace, a video on a failure) is stored as private files of the item. Every file and the log are scanned for your test accounts' passwords before they leave the runner and again on the server, and a file with one in it is refused.
 

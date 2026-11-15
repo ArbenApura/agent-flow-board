@@ -5,13 +5,13 @@
 import type { Tx } from './client';
 import type { ItemHealth } from './schema';
 // IMPORTED DEP-MODULES
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 // IMPORTED MODULES
-import { item, manualCheck, step } from './schema';
+import { item, step } from './schema';
 
 // -- TYPES -- //
 
-export type Counts = { total: number; done: number; openManual: number };
+export type Counts = { total: number; done: number };
 export type DriftInput = { status: string; legacy: boolean } & Counts;
 
 // -- FUNCTIONS -- //
@@ -33,7 +33,7 @@ export function driftFlags(i: DriftInput): string[] {
 	if (i.status === 'PLANNED' && i.done > 0) out.push('planned-with-done-steps');
 	if (i.status === 'IN PROGRESS' && complete) out.push('complete-not-in-review');
 	if (i.status === 'IN REVIEW' && i.done < i.total) out.push('in-review-with-open-steps');
-	if (i.status === 'IN REVIEW' && complete && i.openManual === 0) out.push('ready-for-sign-off');
+	if (i.status === 'IN REVIEW' && complete) out.push('ready-for-sign-off');
 	return out;
 }
 
@@ -53,11 +53,7 @@ export async function countsFor(tx: Tx, itemId: string): Promise<Counts> {
 		})
 		.from(step)
 		.where(eq(step.itemId, itemId));
-	const [m] = await tx
-		.select({ open: sql<number>`count(*)::int` })
-		.from(manualCheck)
-		.where(and(eq(manualCheck.itemId, itemId), inArray(manualCheck.state, ['open'])));
-	return { total: s.total, done: s.done, openManual: m.open };
+	return { total: s.total, done: s.done };
 }
 
 /** Computes health flags and drift warnings for one item. */
@@ -96,7 +92,6 @@ export async function recalcItem(tx: Tx, itemId: string) {
 			percent,
 			doneSteps: counts.done,
 			totalSteps: counts.total,
-			openManual: counts.openManual,
 			health,
 			lastActivityAt: sql`now()`,
 			updatedAt: sql`now()`,

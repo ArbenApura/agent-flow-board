@@ -134,7 +134,7 @@ describe('REST API', () => {
 		).toBe(409);
 		const created = await call('POST', `${base()}/projects/API/items`, {
 			as: 'member',
-			body: { title: 'REST made item', phases: PLAN.phases, manualChecks: PLAN.manualChecks }
+			body: { title: 'REST made item', phases: PLAN.phases }
 		});
 		expect(created.status).toBe(200);
 		const ref = (created.body as { ref: string }).ref;

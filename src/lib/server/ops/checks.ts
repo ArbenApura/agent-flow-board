@@ -1,7 +1,7 @@
 // BROWSER CHECKS: DEFINITIONS, THE RUN QUEUE, TARGET CHOICE AND WHAT A RESULT DOES TO THE PLAN (SPEC 10, ADR-017)
-// A check belongs to one manual check (M8) of an item. A run is asked for, queued, taken by a runner and finished with a result.
-// A pass on the required target (or a stronger one) closes the check's manual check and the step it was started for. A pass on a
-// weaker target is recorded and ticks nothing (L25). A later fail on the same target reopens what the pass had closed (L29).
+// A check has its own key on an item (C1). A run is asked for, queued, taken by a runner and finished with a result.
+// A pass on the required target (or a stronger one) closes the step it was started for. A pass on a weaker target is
+// recorded and ticks nothing (L25). A later fail on the same target reopens what the pass had closed (L29).
 
 // IMPORTED TYPES
 import type { Tx } from '../db/client';
@@ -22,7 +22,6 @@ import {
 	devRegistration,
 	environment,
 	item,
-	manualCheck,
 	org,
 	project,
 	runner,
@@ -80,6 +79,8 @@ export const MAX_COMPARE_DIFF_BYTES = 2 * 1024 * 1024;
 export const MAX_RUN_PAIR_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_RUN_EVIDENCE_FILES = 30;
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
+/** A check key on an item. New checks get C1, C2 ...; checks saved before manual checks were removed keep their M keys. */
+export const CHECK_KEY = /^[MC][0-9]+$/;
 
 const HTML_ESCAPE: Record<string, string> = {
 	'&': '&amp;',
@@ -99,8 +100,10 @@ export const REGISTRATION_NAME = z
 
 export const checkInput = z.object({
 	item: z.string().min(1),
-	/** The manual check this closes, such as M8. */
-	key: z.string().regex(/^M[0-9]+$/, 'Use the manual check key, for example M8'),
+	/** The check's own key on the item, such as C1. Leave it out to save a new check under the next free C key. */
+	key: z.string().regex(CHECK_KEY, 'Use the check key, for example C1').optional(),
+	/** What the check proves, in a few words. Leave it out to keep the saved title. */
+	title: z.string().trim().min(1).max(300).optional(),
 	/** The whole script. Leave it out and give `edit` to change a saved script by one replacement. */
 	script: z.string().min(1).max(100_000).optional(),
 	/** One replacement in the saved script: `old` must appear exactly once. Saves resending a long script for a small fix. */
@@ -114,7 +117,7 @@ export const checkInput = z.object({
 
 export const requestRunInput = z.object({
 	item: z.string().min(1),
-	key: z.string().regex(/^M[0-9]+$/),
+	key: z.string().regex(CHECK_KEY),
 	/** Names a target for this run only. */
 	target: z.enum(TARGETS).optional(),
 	/** Names one environment of that target when the project has more than one. */
@@ -479,14 +482,14 @@ export async function sweepRuns(tx: Tx, orgId: string, minutes: number): Promise
 // -- FUNCTIONS: CHECKS -- //
 
 /**
- * Adds or replaces the browser check of one manual check, and marks that manual check automatic in the same transaction so
- * the check can run. A manual check that is already done or waived keeps its state and is not flipped; the answer says so.
+ * Adds or replaces one browser check of an item. The item row is locked, so two saves at once cannot pick the same new key.
+ * Leave the key out to add a new check under the next free C key.
  */
 export async function saveCheck(ctx: Ctx, raw: z.input<typeof checkInput>) {
 	const input = checkInput.parse(raw);
 	return run(ctx, (tx) =>
 		idempotent(ctx, tx, async () => {
-			const it = await findItem(tx, ctx, input.item);
+			const it = await findItem(tx, ctx, input.item, { lock: true });
 			await requireCap(tx, ctx, 'write', it.projectId);
 			const [p] = await tx.select().from(project).where(eq(project.id, it.projectId));
 			if (!p.webApp)
@@ -494,15 +497,23 @@ export async function saveCheck(ctx: Ctx, raw: z.input<typeof checkInput>) {
 					'INVALID',
 					'Browser checks are for web app projects. Turn on the web app switch in the project settings.'
 				);
-			const [mc] = await tx
-				.select()
-				.from(manualCheck)
-				.where(and(eq(manualCheck.itemId, it.id), eq(manualCheck.key, input.key)));
-			if (!mc) throw new OpError('NOT_FOUND', `${it.ref} has no manual check ${input.key}.`);
+			let key = input.key;
+			if (!key) {
+				// The next free C key. The item row is locked, so a parallel save waits and then sees this one
+				const taken = await tx
+					.select({ key: check.checkKey })
+					.from(check)
+					.where(eq(check.itemId, it.id));
+				const top = taken.reduce((m, c) => {
+					const n = /^C([0-9]+)$/.exec(c.key);
+					return n ? Math.max(m, Number(n[1])) : m;
+				}, 0);
+				key = `C${top + 1}`;
+			}
 			const [existing] = await tx
 				.select()
 				.from(check)
-				.where(and(eq(check.itemId, it.id), eq(check.manualKey, input.key)));
+				.where(and(eq(check.itemId, it.id), eq(check.checkKey, key)));
 			// The script is the whole text, or the saved text with one replacement. Both are read before anything is written
 			if ((input.script === undefined) === (input.edit === undefined))
 				throw new OpError(
@@ -514,7 +525,7 @@ export async function saveCheck(ctx: Ctx, raw: z.input<typeof checkInput>) {
 				if (!existing)
 					throw new OpError(
 						'NOT_FOUND',
-						`${input.key} has no saved script to edit. Save the whole script first.`
+						`${key} has no saved script to edit. Save the whole script first.`
 					);
 				const parts = existing.script.split(input.edit.old);
 				if (parts.length !== 2)
@@ -537,6 +548,8 @@ export async function saveCheck(ctx: Ctx, raw: z.input<typeof checkInput>) {
 			const keep = !!input.edit;
 			const values = {
 				script: script!,
+				// Left out keeps the saved title; a new check with no title shows its key
+				...(input.title === undefined ? {} : { title: input.title }),
 				coveredPaths: keep && !raw.coveredPaths ? existing!.coveredPaths : input.coveredPaths,
 				requiredTarget:
 					keep && !raw.requiredTarget ? existing!.requiredTarget : input.requiredTarget,
@@ -561,23 +574,11 @@ export async function saveCheck(ctx: Ctx, raw: z.input<typeof checkInput>) {
 						orgId: ctx.orgId,
 						projectId: it.projectId,
 						itemId: it.id,
-						manualKey: input.key,
+						checkKey: key,
 						...values
 					})
 					.returning({ id: check.id });
 				id = row.id;
-			}
-			// The manual check must be automatic for the check to run. A closed one is left as the person closed it
-			let auto = mc.auto;
-			let note: string | null = null;
-			if (mc.state !== 'open') {
-				note = `${input.key} is ${mc.state}, so its automatic flag was not changed.`;
-			} else if (!mc.auto) {
-				await tx
-					.update(manualCheck)
-					.set({ auto: true, updatedAt: sql`now()`, version: sql`${manualCheck.version} + 1` })
-					.where(eq(manualCheck.id, mc.id));
-				auto = true;
 			}
 			await appendEvent(tx, {
 				orgId: ctx.orgId,
@@ -588,15 +589,14 @@ export async function saveCheck(ctx: Ctx, raw: z.input<typeof checkInput>) {
 				targetType: 'check',
 				targetId: id,
 				after: {
-					key: input.key,
+					key,
 					requiredTarget: input.requiredTarget,
 					pinnedTarget: values.pinnedTarget,
-					registration: input.registration,
-					auto
+					registration: input.registration
 				} as never,
 				undoable: false
 			});
-			return { id, created: !existing, auto, note };
+			return { id, key, created: !existing };
 		})
 	);
 }
@@ -608,22 +608,10 @@ export async function deleteCheck(ctx: Ctx, itemName: string, key: string) {
 			await requireCap(tx, ctx, 'write', it.projectId);
 			const gone = await tx
 				.delete(check)
-				.where(and(eq(check.itemId, it.id), eq(check.manualKey, key)))
+				.where(and(eq(check.itemId, it.id), eq(check.checkKey, key)))
 				.returning({ id: check.id });
 			if (!gone.length)
 				throw new OpError('NOT_FOUND', `${it.ref} has no browser check for ${key}.`);
-			// With no browser check left the manual check is plain again. A closed one is left as it was closed
-			await tx
-				.update(manualCheck)
-				.set({ auto: false, updatedAt: sql`now()`, version: sql`${manualCheck.version} + 1` })
-				.where(
-					and(
-						eq(manualCheck.itemId, it.id),
-						eq(manualCheck.key, key),
-						eq(manualCheck.state, 'open'),
-						eq(manualCheck.auto, true)
-					)
-				);
 			await appendEvent(tx, {
 				orgId: ctx.orgId,
 				projectId: it.projectId,
@@ -666,7 +654,7 @@ const runView = (r: typeof checkRun.$inferSelect) => ({
 	...classifyRun(r.result, r.reason)
 });
 
-/** What the Checks view of an item shows: each check with its manual check, its newest runs and which targets can run now. */
+/** What the Checks view of an item shows: each check with its title, its newest runs and which targets can run now. */
 export async function itemChecks(ctx: Ctx, itemName: string) {
 	return run(ctx, async (tx) => {
 		const it = await findItem(tx, ctx, itemName);
@@ -679,8 +667,7 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 			.select()
 			.from(check)
 			.where(eq(check.itemId, it.id))
-			.orderBy(asc(check.manualKey));
-		const manual = await tx.select().from(manualCheck).where(eq(manualCheck.itemId, it.id));
+			.orderBy(asc(check.checkKey));
 		const runs = checks.length
 			? await tx
 					.select()
@@ -756,14 +743,10 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 				writeAllowed: e.writeAllowed
 			})),
 			checks: checks.map((c) => {
-				const mc = manual.find((m) => m.key === c.manualKey);
 				return {
 					id: c.id,
-					key: c.manualKey,
-					text: mc?.text ?? '',
-					auto: mc?.auto ?? false,
-					state: mc?.state ?? 'open',
-					reason: mc?.reason ?? null,
+					key: c.checkKey,
+					title: c.title,
 					script: c.script,
 					requiredTarget: c.requiredTarget,
 					pinnedTarget: c.pinnedTarget,
@@ -801,7 +784,7 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 			const [chk] = await tx
 				.select()
 				.from(check)
-				.where(and(eq(check.itemId, it.id), eq(check.manualKey, input.key)));
+				.where(and(eq(check.itemId, it.id), eq(check.checkKey, input.key)));
 			if (!chk)
 				throw new OpError(
 					'NOT_FOUND',
@@ -1011,7 +994,7 @@ export async function listRuns(ctx: Ctx, opts: { item?: string; limit?: number }
 		const base = tx
 			.select({
 				run: checkRun,
-				key: check.manualKey,
+				key: check.checkKey,
 				itemId: check.itemId,
 				ref: item.ref,
 				visibility: item.visibility,
@@ -1063,7 +1046,7 @@ export async function getRun(ctx: Ctx, runId: string) {
 		await sweepRuns(tx, ctx.orgId, queueMinutes(ctx));
 		const gone = () => new OpError('NOT_FOUND', 'No such run.');
 		const [row] = await tx
-			.select({ run: checkRun, itemId: check.itemId, key: check.manualKey })
+			.select({ run: checkRun, itemId: check.itemId, key: check.checkKey })
 			.from(checkRun)
 			.innerJoin(check, eq(check.id, checkRun.checkId))
 			.where(eq(checkRun.id, runId));
@@ -1470,7 +1453,7 @@ export async function claimCheckJob(
 			project: { id: p.id, key: p.key },
 			item: { id: it.id, ref: it.ref },
 			check: {
-				key: chk.manualKey,
+				key: chk.checkKey,
 				script: chk.script,
 				coveredPaths: chk.coveredPaths,
 				requiredTarget: chk.requiredTarget as Target
@@ -1695,7 +1678,7 @@ export async function storeRunArtifact(
 				filename: kind.name,
 				caption: file.caption,
 				kind: 'check-evidence',
-				refs: [chk.manualKey, runId],
+				refs: [chk.checkKey, runId],
 				visibility: 'private'
 			},
 			bytesToStore,
@@ -1923,7 +1906,7 @@ export async function finishCheckRun(
 			verb: 'check_run.finish',
 			targetType: 'check_run',
 			targetId: runId,
-			after: { key: chk.manualKey, target: r.target, result, flaky } as never,
+			after: { key: chk.checkKey, target: r.target, result, flaky } as never,
 			undoable: false
 		});
 		return { row, chk, it };
@@ -1962,41 +1945,30 @@ async function tickOnPass(
 ) {
 	const marks: {
 		key: string;
-		mark: 'done' | 'waived';
-		reason?: string;
+		mark: 'done';
 		evidence?: { checkRunId: string; runIds?: string[]; target: Target };
 	}[] = [];
 	const target = r.target as Target;
-	// The manual check closes only on a target at least as strong as the one the check requires
-	const mcRow = await run(ctx, async (tx) => {
-		const [mc] = await tx
-			.select()
-			.from(manualCheck)
-			.where(and(eq(manualCheck.itemId, it.id), eq(manualCheck.key, chk.manualKey)));
+	// Only the step the run was started for is ticked. A run with no step changes nothing on the plan
+	const stepRow = await run(ctx, async (tx) => {
 		const steps = r.stepKey
 			? await tx
 					.select()
 					.from(step)
 					.where(and(eq(step.itemId, it.id), eq(step.key, r.stepKey)))
 			: [];
-		return { mc, step: steps[0] };
+		return steps[0];
 	});
-	if (mcRow.mc && mcRow.mc.auto && mcRow.mc.state === 'open' && meets(target, chk.requiredTarget))
-		marks.push({
-			key: chk.manualKey,
-			mark: 'waived',
-			reason: `Browser check passed on ${target} (run ${r.id.slice(0, 8)})`
-		});
-	if (mcRow.step && mcRow.step.state === 'open') {
-		const need = mcRow.step.requiredTarget ?? chk.requiredTarget;
+	if (stepRow && stepRow.state === 'open') {
+		const need = stepRow.requiredTarget ?? chk.requiredTarget;
 		if (meets(target, need)) {
 			marks.push({
-				key: mcRow.step.key,
+				key: stepRow.key,
 				mark: 'done',
 				evidence: { checkRunId: r.id, target }
 			});
 		} else {
-			outcome.note = `Passed on ${target}, which is weaker than the ${need} that step ${mcRow.step.key} needs, so the step stays open.`;
+			outcome.note = `Passed on ${target}, which is weaker than the ${need} that step ${stepRow.key} needs, so the step stays open.`;
 		}
 	}
 	if (!marks.length) {
@@ -2010,7 +1982,7 @@ async function tickOnPass(
 		{
 			item: it.ref,
 			marks,
-			log: `Browser check ${chk.manualKey} passed on ${target}`
+			log: `Browser check ${chk.checkKey} passed on ${target}`
 		},
 		{ agentGate: false }
 	);
@@ -2059,27 +2031,16 @@ async function reopenOnFail(
 						)
 					)
 			: [];
-		const [mc] = await tx
-			.select()
-			.from(manualCheck)
-			.where(
-				and(
-					eq(manualCheck.itemId, it.id),
-					eq(manualCheck.key, chk.manualKey),
-					eq(manualCheck.state, 'waived'),
-					sql`${manualCheck.reason} like ${`Browser check passed on ${target}%`}`
-				)
-			);
-		return { steps: steps.map((s) => s.key), manual: mc?.key ?? null };
+		return { steps: steps.map((s) => s.key) };
 	});
-	const keys = [...found.steps, ...(found.manual ? [found.manual] : [])];
+	const keys = found.steps;
 	if (!keys.length) return;
 	await recordSteps(
 		ctx,
 		{
 			item: it.ref,
 			marks: keys.map((key) => ({ key, mark: 'open' as const })),
-			log: `Browser check ${chk.manualKey} failed on ${target} (run ${r.id.slice(0, 8)}), so ${keys.join(', ')} reopened`
+			log: `Browser check ${chk.checkKey} failed on ${target} (run ${r.id.slice(0, 8)}), so ${keys.join(', ')} reopened`
 		},
 		{ agentGate: false }
 	);

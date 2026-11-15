@@ -4,10 +4,7 @@
 
 // IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { and, eq } from 'drizzle-orm';
 // IMPORTED MODULES
-import { manualCheck } from '../../src/lib/server/db/schema';
-import { withTenant } from '../../src/lib/server/db/tenant';
 import {
 	claimCheckJob,
 	deleteCheck,
@@ -68,21 +65,8 @@ describe('checks an agent drives alone', () => {
 					steps: [{ text: 'Run it', requiredTarget: 'preview' as const }]
 				}
 			],
-			manualChecks: [{ key: 'M1', text: 'The page works' }],
 			...extra
 		});
-	const manual = (itemId: string) =>
-		withTenant(
-			db,
-			{ orgId: w.orgId },
-			async (tx) =>
-				(
-					await tx
-						.select()
-						.from(manualCheck)
-						.where(and(eq(manualCheck.itemId, itemId), eq(manualCheck.key, 'M1')))
-				)[0]
-		);
 	const checkCount = async (itemId: string) =>
 		(
 			await db.admin.query<{ n: number }>(
@@ -103,36 +87,35 @@ describe('checks an agent drives alone', () => {
 	}, 240_000);
 	afterAll(() => db?.stop());
 
-	it('check_save marks the manual check automatic, check_delete makes it plain, and a closed check keeps its state', async () => {
+	it('check_save creates a check, saving again replaces the script, check_delete removes it, and a save with no key makes the next free C key', async () => {
 		const it1 = await newItem();
-		expect((await manual(it1.id)).auto).toBe(false);
 		const saved = await saveCheck(as('member'), {
 			item: it1.ref,
 			key: 'M1',
 			script: 'await page.goto("/")'
 		});
-		expect(saved).toMatchObject({ created: true, auto: true, note: null });
-		const m = await manual(it1.id);
-		expect(m.auto).toBe(true);
-		expect(m.version).toBeGreaterThan(1);
+		expect(saved).toMatchObject({ created: true, key: 'M1' });
+		expect(await checkCount(it1.id)).toBe(1);
 		// Saving again replaces the script and changes nothing else
 		const again = await saveCheck(as('member'), { item: it1.ref, key: 'M1', script: 's2' });
-		expect(again).toMatchObject({ created: false, auto: true });
+		expect(again).toMatchObject({ created: false, key: 'M1' });
 		expect((await itemChecks(as('member'), it1.ref)).checks[0].script).toBe('s2');
 		await deleteCheck(as('member'), it1.ref, 'M1');
-		expect((await manual(it1.id)).auto).toBe(false);
+		expect(await checkCount(it1.id)).toBe(0);
 		await expect(deleteCheck(as('member'), it1.ref, 'M1')).rejects.toMatchObject({
 			code: 'NOT_FOUND'
 		});
-		// A manual check that is already done is not flipped, and the answer says why
+		// A save with no key takes the next free C key
 		const it2 = await newItem();
-		await db.admin.exec(`update manual_check set state = 'done' where item_id = '${it2.id}'`);
-		const closed = await saveCheck(as('member'), { item: it2.ref, key: 'M1', script: 's' });
-		expect(closed.auto).toBe(false);
-		expect(closed.note).toMatch(/done/);
-		expect((await manual(it2.id)).auto).toBe(false);
-		await deleteCheck(as('member'), it2.ref, 'M1');
-		expect((await manual(it2.id)).state).toBe('done');
+		expect(await saveCheck(as('member'), { item: it2.ref, script: 's' })).toMatchObject({
+			created: true,
+			key: 'C1'
+		});
+		expect(await saveCheck(as('member'), { item: it2.ref, script: 's' })).toMatchObject({
+			created: true,
+			key: 'C2'
+		});
+		expect(await checkCount(it2.id)).toBe(2);
 	});
 
 	it('check_save refuses a script the tool would block, and changes a saved script by one edit', async () => {
@@ -232,16 +215,14 @@ describe('checks an agent drives alone', () => {
 		await expect(
 			saveCheck(as('viewer'), { item: it3.ref, key: 'M1', script: 's' })
 		).rejects.toMatchObject({ code: 'FORBIDDEN' });
-		// A refusal leaves nothing behind: no check row, and the manual check is as it was
+		// A refusal leaves nothing behind: no check row
 		expect(await checkCount(it3.id)).toBe(0);
-		expect(await manual(it3.id)).toMatchObject({ auto: false, version: 1 });
 		// A private item of the admin is not found by the member, for save and for delete
 		const secret = await createItem(as('admin'), {
 			project: w.projectKey,
 			title: 'Private check item',
 			visibility: 'private',
-			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Run it' }] }],
-			manualChecks: [{ key: 'M1', text: 'Works' }]
+			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Run it' }] }]
 		});
 		await expect(
 			saveCheck(as('member'), { item: secret.ref, key: 'M1', script: 's' })
@@ -250,7 +231,6 @@ describe('checks an agent drives alone', () => {
 			code: 'NOT_FOUND'
 		});
 		expect(await checkCount(secret.id)).toBe(0);
-		expect(await manual(secret.id)).toMatchObject({ auto: false, version: 1 });
 		// A token limited to another project cannot reach this one
 		await expect(
 			saveCheck(limited(), { item: it3.ref, key: 'M1', script: 's' })
@@ -263,7 +243,6 @@ describe('checks an agent drives alone', () => {
 		).rejects.toMatchObject({ code: 'INVALID' });
 		await db.admin.exec(`update project set web_app = true where id = '${w.projectId}'`);
 		expect(await checkCount(it3.id)).toBe(0);
-		expect(await manual(it3.id)).toMatchObject({ auto: false, version: 1 });
 	});
 
 	it('check_run returns the open run instead of a second one, even for two calls at the same moment', async () => {
@@ -348,8 +327,7 @@ describe('checks an agent drives alone', () => {
 			project: w.projectKey,
 			title: 'Private run item',
 			visibility: 'private',
-			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Run it' }] }],
-			manualChecks: [{ key: 'M1', text: 'Works', auto: true }]
+			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Run it' }] }]
 		});
 		await saveCheck(as('admin'), { item: secret.ref, key: 'M1', script: 's' });
 		const asked = await requestRun(as('admin'), { item: secret.ref, key: 'M1', target: 'preview' });

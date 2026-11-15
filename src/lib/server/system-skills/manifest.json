@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.14.0",
-		"releasedAt": "2026-11-14"
+		"version": "1.15.0",
+		"releasedAt": "2026-11-15"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.7.4",
+			"version": "1.7.5",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -138,11 +138,15 @@
 				{
 					"version": "1.7.4",
 					"hash": "894edf32d8d5d2f0848147c7cbcf8fef02880a659758ced0e8140bab339785c6"
+				},
+				{
+					"version": "1.7.5",
+					"hash": "41c447d7d612ade751e0cd993bd545e3b1228b23f679f1fc885e8e89259ad972"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.3.2",
+			"version": "1.3.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -191,11 +195,15 @@
 				{
 					"version": "1.3.2",
 					"hash": "d7cecd3ecb962c84c1de96972cfbc3a1fb87ac16bf14f6e69f397d5cb730cd47"
+				},
+				{
+					"version": "1.3.3",
+					"hash": "9f2589005d240e8722c984a4eeef99bcebbfa9186781fa604ef57a3e47bc93a5"
 				}
 			]
 		},
 		"flow-check": {
-			"version": "1.3.1",
+			"version": "1.3.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -288,11 +296,15 @@
 				{
 					"version": "1.3.1",
 					"hash": "46d0abe9e39ef6208667c52cce3f865605d2d5a2c4168fb563ff1fc6227479ce"
+				},
+				{
+					"version": "1.3.2",
+					"hash": "3e54d90a1ad9038fe823e0307fcf17ef7be59a431d5b47e8bd840c854bf4d4e9"
 				}
 			]
 		},
 		"flow-critic": {
-			"version": "1.5.3",
+			"version": "1.5.4",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -361,11 +373,15 @@
 				{
 					"version": "1.5.3",
 					"hash": "f8b785d6ea65d473fce9f0ce2c68711cca1171826e9c8d9d3aa789e473309b18"
+				},
+				{
+					"version": "1.5.4",
+					"hash": "c64c804647d5485717b120759fe912c7ebb67f5aa719a08b17791b0a51351ee9"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.2.1",
+			"version": "1.2.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -414,6 +430,10 @@
 				{
 					"version": "1.2.1",
 					"hash": "9b8360c71bd8084d99b35aa555023daf753df0e0cdc34d3a25c6262d12b5515f"
+				},
+				{
+					"version": "1.2.2",
+					"hash": "e60fa2ccb8a9a2ab878fa04843ba3418428df4ed950c19d74afd9a33eaa6e59f"
 				}
 			]
 		},
@@ -567,6 +587,24 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.15.0",
+			"date": "2026-11-15",
+			"notes": [
+				"flow 1.7.5, flow-audit 1.3.3, flow-check 1.3.2, flow-critic 1.5.4, flow-interview 1.2.2: manual checks are removed. A plan is phases with counted steps only, there is no M key to tick, and plan_add_checks is retired to a notice. A browser check has its own key (C1, C2…; older ones keep M1…) and a title, check_save creates it, and a pass ticks only the step it was started for. Older skills that still send manualChecks or tick an M key get a clear message."
+			],
+			"skills": {
+				"flow": "1.7.5",
+				"flow-align": "1.3.0",
+				"flow-audit": "1.3.3",
+				"flow-check": "1.3.2",
+				"flow-critic": "1.5.4",
+				"flow-interview": "1.2.2",
+				"flow-mockup": "1.8.1",
+				"flow-task": "1.1.3",
+				"flow-verify": "1.3.0"
+			}
+		},
 		{
 			"version": "1.14.0",
 			"date": "2026-11-14",

@@ -41,7 +41,7 @@ import {
 	undoSession
 } from '../../src/lib/server/ops/history';
 import { createItem, getItem, trashItem, updateItem } from '../../src/lib/server/ops/items';
-import { addManualChecks, addPhase, addSteps } from '../../src/lib/server/ops/plan';
+import { addPhase, addSteps } from '../../src/lib/server/ops/plan';
 import { recordSteps } from '../../src/lib/server/ops/steps';
 import {
 	authenticateToken,
@@ -111,8 +111,7 @@ describe('verbs', () => {
 		createItem(ctx('member'), {
 			project: w.projectKey,
 			title,
-			phases: PLAN.phases,
-			manualChecks: PLAN.manualChecks
+			phases: PLAN.phases
 		});
 
 	it('decisions number themselves per kind, update in place, and refuse a stale edit', async () => {
@@ -656,16 +655,11 @@ describe('verbs', () => {
 			steps: [{ text: 'd' }, { text: 'e' }]
 		});
 		expect(phase2.percent).toBe(20);
-		await addManualChecks(ctx('member'), {
-			item: it.ref,
-			checks: [{ key: 'M1', text: 'By hand' }]
-		});
 		const d = await getItem(ctx('member'), it.ref);
 		expect(d.phases.map((p) => [p.key, p.steps.map((s) => s.key)])).toEqual([
 			['1', ['1.1', '1.2', '1.3']],
 			['2', ['2.1', '2.2']]
 		]);
-		expect(d.item.openManual).toBe(1);
 		await expect(
 			addPhase(ctx('member'), { item: it.ref, key: '2', title: 'Again' })
 		).rejects.toMatchObject({ code: 'CONFLICT' });
@@ -674,9 +668,6 @@ describe('verbs', () => {
 		).rejects.toMatchObject({ code: 'NOT_FOUND' });
 		await expect(
 			addSteps(ctx('member'), { item: it.ref, phase: '1', steps: [{ key: '1.1', text: 'clash' }] })
-		).rejects.toMatchObject({ code: 'CONFLICT' });
-		await expect(
-			addManualChecks(ctx('member'), { item: it.ref, checks: [{ key: 'M1', text: 'again' }] })
 		).rejects.toMatchObject({ code: 'CONFLICT' });
 		await expect(
 			addPhase(ctx('viewer'), { item: it.ref, key: '3', title: 'Nope' })

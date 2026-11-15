@@ -57,8 +57,6 @@
 
 	// -- REACTIVE STATES -- //
 
-	// Only checks the agent wrote a browser script for are listed
-	const autoChecks = $derived(detail.manualChecks.filter((c) => c.auto));
 	const runner = $derived(view?.targets.find((t) => t.target === 'preview'));
 	const waiting = $derived(
 		view?.checks.some((c) => c.runs.some((r) => r.result === 'queued' || r.result === 'running')) ??
@@ -97,7 +95,6 @@
 		}
 	}
 
-	const checkOf = (key: string) => view?.checks.find((c) => c.key === key);
 	const image = (id: string) => `/${env.org}/attachment/${id}`;
 	type RunFile = { id: string; filename: string; caption: string; mime: string };
 	/** The pictures of a run, in the order they were saved. */
@@ -115,7 +112,7 @@
 		}
 	}
 
-	/** Asks for a run. It names no plan step: a pass closes this check and nothing else, and the card changes by itself to say it is waiting. */
+	/** Asks for a run. It names no plan step, so a pass changes nothing on the plan, and the card changes by itself to say it is waiting. */
 	async function run(key: string) {
 		busy = key;
 		try {
@@ -243,7 +240,7 @@
 			</Notice>
 		{/if}
 
-		{#if autoChecks.length === 0}
+		{#if view.checks.length === 0}
 			<EmptyState
 				kind="checks"
 				title="No browser checks on this item yet"
@@ -251,130 +248,122 @@
 			/>
 		{/if}
 
-		{#each autoChecks as mc (mc.id)}
-			{@const c = checkOf(mc.key)}
-			{@const latest = c?.runs[0]}
-			{@const status = checkStatus(mc.state, c?.runs ?? [])}
+		{#each view.checks as c (c.id)}
+			{@const label = c.title ? `${c.key} ${c.title}` : c.key}
+			{@const latest = c.runs[0]}
+			{@const status = checkStatus(c.runs)}
 			{@const problem = latest ? failureSentence(latest) : null}
-			<TabCard role="region" aria-label={`${mc.key} ${mc.text}`} data-testid={`check-${mc.key}`}>
+			<TabCard role="region" aria-label={label} data-testid={`check-${c.key}`}>
 				{#snippet heading()}
 					<span class="rounded-[6px] bg-raised px-2 py-0.5 font-mono text-xs font-medium text-muted"
-						>{mc.key}</span
+						>{c.key}</span
 					>
-					<span class="min-w-0 break-words">{mc.text}</span>
+					{#if c.title}<span class="min-w-0 break-words">{c.title}</span>{/if}
 				{/snippet}
 				{#snippet actions()}
 					<Badge tone={status.tone}>{status.label}</Badge>
 				{/snippet}
 				<div class="flex flex-col gap-4 p-4 max-sm:p-3.5">
-					{#if !c}
-						<p class="text-sm text-muted">
-							No browser check has been written for this yet. Your agent writes it when it needs to
-							prove this.
-						</p>
-					{:else}
-						<!-- THE NEWEST RUN: ITS FACTS, WHAT WENT WRONG, AND ITS SCREENSHOTS -->
-						{#if latest}
-							{@const r = resultStatus(latest.result)}
-							<div
-								class="flex flex-col gap-3 rounded-lg border border-line bg-raised p-3"
-								data-testid="check-run"
-							>
-								<div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-									<Badge tone={r.tone}>{r.label}</Badge>
+					<!-- THE NEWEST RUN: ITS FACTS, WHAT WENT WRONG, AND ITS SCREENSHOTS -->
+					{#if latest}
+						{@const r = resultStatus(latest.result)}
+						<div
+							class="flex flex-col gap-3 rounded-lg border border-line bg-raised p-3"
+							data-testid="check-run"
+						>
+							<div class="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+								<Badge tone={r.tone}>{r.label}</Badge>
+								<span class="text-xs text-muted">
+									{ago(latest.createdAt)}{seconds(latest.durationMs)
+										? `, ${seconds(latest.durationMs)}`
+										: ''}
+								</span>
+								{#if closedStep(latest)}<span class="text-xs text-muted">{closedStep(latest)}</span
+									>{/if}
+								{#if latest.ran}
 									<span class="text-xs text-muted">
-										{ago(latest.createdAt)}{seconds(latest.durationMs)
-											? `, ${seconds(latest.durationMs)}`
+										on {latest.ran.repo ?? latest.ran.registration}{latest.ran.branch
+											? ` (${latest.ran.branch})`
 											: ''}
 									</span>
-									{#if closedStep(latest)}<span class="text-xs text-muted"
-											>{closedStep(latest)}</span
-										>{/if}
-									{#if latest.ran}
-										<span class="text-xs text-muted">
-											on {latest.ran.repo ?? latest.ran.registration}{latest.ran.branch
-												? ` (${latest.ran.branch})`
-												: ''}
-										</span>
-									{/if}
-								</div>
-								{#if problem}<p class="text-sm text-danger" role="status">{problem}</p>{/if}
-								{@render shots(picturesOf(latest.files), `${mc.key} ${mc.text}`, false)}
-								{@render others(latest.files)}
+								{/if}
 							</div>
-						{:else}
-							<p class="text-sm text-muted">It has not run yet.</p>
-						{/if}
+							{#if problem}<p class="text-sm text-danger" role="status">{problem}</p>{/if}
+							{@render shots(picturesOf(latest.files), label, false)}
+							{@render others(latest.files)}
+						</div>
+					{:else}
+						<p class="text-sm text-muted">It has not run yet.</p>
+					{/if}
 
-						{#if env.canWrite && view.canRun}
-							<div class="flex flex-wrap items-center gap-2" data-testid={`run-controls-${mc.key}`}>
-								<Button
-									loading={busy === mc.key}
-									onclick={() => run(mc.key)}
-									data-testid={`run-${mc.key}`}
-								>
-									<Play size={14} aria-hidden="true" /> Run check
-								</Button>
-							</div>
-							{#if notice[mc.key]}
-								<p class="text-sm text-warning" role="status" data-testid={`unavailable-${mc.key}`}>
-									{notice[mc.key]}
-								</p>
-							{/if}
+					{#if env.canWrite && view.canRun}
+						<div class="flex flex-wrap items-center gap-2" data-testid={`run-controls-${c.key}`}>
+							<Button
+								loading={busy === c.key}
+								onclick={() => run(c.key)}
+								data-testid={`run-${c.key}`}
+							>
+								<Play size={14} aria-hidden="true" /> Run check
+							</Button>
+						</div>
+						{#if notice[c.key]}
+							<p class="text-sm text-warning" role="status" data-testid={`unavailable-${c.key}`}>
+								{notice[c.key]}
+							</p>
 						{/if}
+					{/if}
 
-						<!-- EARLIER RUNS AND THE SCRIPT, BOTH FOLDED AWAY UNTIL SOMEONE WANTS THEM -->
-						{#if c.runs.length > 1}
-							<Fold label="Earlier runs" count={c.runs.length - 1}>
-								<ul class="flex flex-col" data-testid="check-earlier-runs">
-									{#each c.runs.slice(1) as r (r.id)}
-										{@const rs = resultStatus(r.result)}
-										<li
-											class="flex flex-col gap-2 border-b border-line py-3 first:pt-0 last:border-b-0 last:pb-0"
-											data-testid="check-earlier-run"
-										>
-											<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-												<Badge tone={rs.tone}>{rs.label}</Badge>
+					<!-- EARLIER RUNS AND THE SCRIPT, BOTH FOLDED AWAY UNTIL SOMEONE WANTS THEM -->
+					{#if c.runs.length > 1}
+						<Fold label="Earlier runs" count={c.runs.length - 1}>
+							<ul class="flex flex-col" data-testid="check-earlier-runs">
+								{#each c.runs.slice(1) as r (r.id)}
+									{@const rs = resultStatus(r.result)}
+									<li
+										class="flex flex-col gap-2 border-b border-line py-3 first:pt-0 last:border-b-0 last:pb-0"
+										data-testid="check-earlier-run"
+									>
+										<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+											<Badge tone={rs.tone}>{rs.label}</Badge>
+											<span class="text-xs text-muted">
+												{ago(r.createdAt)}{seconds(r.durationMs)
+													? `, ${seconds(r.durationMs)}`
+													: ''}
+											</span>
+											{#if r.ran}
 												<span class="text-xs text-muted">
-													{ago(r.createdAt)}{seconds(r.durationMs)
-														? `, ${seconds(r.durationMs)}`
+													on {r.ran.repo ?? r.ran.registration}{r.ran.branch
+														? ` (${r.ran.branch})`
 														: ''}
 												</span>
-												{#if r.ran}
-													<span class="text-xs text-muted">
-														on {r.ran.repo ?? r.ran.registration}{r.ran.branch
-															? ` (${r.ran.branch})`
-															: ''}
-													</span>
-												{/if}
-											</div>
-											{@render shots(picturesOf(r.files), `${mc.key}, ${ago(r.createdAt)}`, true)}
-											{@render others(r.files)}
-										</li>
-									{/each}
-								</ul>
-							</Fold>
-						{/if}
-						<Fold label="View the script">
-							{#snippet aside()}
-								<Button
-									size="sm"
-									variant="ghost"
-									onclick={() => copyScript(mc.key, c.script)}
-									aria-label={`Copy the script of ${mc.key}`}
-								>
-									{#if copied === mc.key}
-										<Check size={14} aria-hidden="true" /> Copied
-									{:else}
-										<Copy size={14} aria-hidden="true" /> Copy
-									{/if}
-								</Button>
-							{/snippet}
-							<pre
-								class="max-h-72 overflow-auto rounded-lg border border-line bg-raised p-3 font-mono text-xs whitespace-pre-wrap"
-								data-testid={`script-${mc.key}`}>{c.script}</pre>
+											{/if}
+										</div>
+										{@render shots(picturesOf(r.files), `${c.key}, ${ago(r.createdAt)}`, true)}
+										{@render others(r.files)}
+									</li>
+								{/each}
+							</ul>
 						</Fold>
 					{/if}
+					<Fold label="View the script">
+						{#snippet aside()}
+							<Button
+								size="sm"
+								variant="ghost"
+								onclick={() => copyScript(c.key, c.script)}
+								aria-label={`Copy the script of ${c.key}`}
+							>
+								{#if copied === c.key}
+									<Check size={14} aria-hidden="true" /> Copied
+								{:else}
+									<Copy size={14} aria-hidden="true" /> Copy
+								{/if}
+							</Button>
+						{/snippet}
+						<pre
+							class="max-h-72 overflow-auto rounded-lg border border-line bg-raised p-3 font-mono text-xs whitespace-pre-wrap"
+							data-testid={`script-${c.key}`}>{c.script}</pre>
+					</Fold>
 				</div>
 			</TabCard>
 		{/each}

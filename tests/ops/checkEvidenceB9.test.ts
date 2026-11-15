@@ -79,8 +79,7 @@ describe('B.9 evidence storage and signed-in picture rules', () => {
 		const created = await createItem(as('member'), {
 			project: w.projectKey,
 			title: `Item-${Math.random().toString(36).slice(2, 8)}`,
-			visibility,
-			manualChecks: [{ key: 'M1', text: 'Visual check', auto: true }]
+			visibility
 		});
 		const ref = created.item.ref;
 		await addPhase(as('member'), {

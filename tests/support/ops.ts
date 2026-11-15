@@ -63,14 +63,10 @@ export async function makeWorld(db: TestDb): Promise<World> {
 	};
 }
 
-/** A small plan with two phases and four steps, plus two manual checks. */
+/** A small plan with two phases and four steps. */
 export const PLAN = {
 	phases: [
 		{ key: '1', title: 'Build', steps: [{ text: 'Write the code' }, { text: 'Write the tests' }] },
 		{ key: '2', title: 'Release', steps: [{ text: 'Run the gates' }, { text: 'Ship' }] }
-	],
-	manualChecks: [
-		{ key: 'M1', text: 'Arben checks it by hand' },
-		{ key: 'M2', text: 'Runs by itself', auto: true }
 	]
 };

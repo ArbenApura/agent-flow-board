@@ -53,7 +53,7 @@ Your sole directive is to find concrete structural flaws, missing requirements, 
 ### Documents Under Review
 Item {ITEM_REF} ({ITEM_NAME}), {ITEM_URL}
 
-#### Implementation Plan (phases, steps, manual checks)
+#### Implementation Plan (phases and steps)
 {PLAN_TEXT}
 
 #### Technical Specification

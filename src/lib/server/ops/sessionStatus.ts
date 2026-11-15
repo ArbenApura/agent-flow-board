@@ -47,7 +47,6 @@ export type SessionStatus = {
 		percent: number;
 		phase: { key: string; title: string; position: number; of: number } | null;
 		steps: { done: number; open: number; waived: number; total: number };
-		manualChecksOpen: number;
 		resumeHere: string;
 		blockers: string;
 		updatedAt: string;
@@ -125,7 +124,6 @@ async function buildStatus(
 					waived: waived?.n ?? 0,
 					total: it.totalSteps
 				},
-				manualChecksOpen: it.openManual,
 				resumeHere: cut(notes.find((n) => n.slug === 'resume-here')?.body),
 				blockers: cut(notes.find((n) => n.slug === 'blockers')?.body),
 				updatedAt: it.updatedAt.toISOString(),

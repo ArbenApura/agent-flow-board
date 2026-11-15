@@ -596,8 +596,7 @@ describe('MCP server', () => {
 			project: w.projectKey,
 			title: 'Room types for events',
 			tabName: 'ROOM_TYPES',
-			phases: PLAN.phases,
-			manualChecks: PLAN.manualChecks
+			phases: PLAN.phases
 		});
 		expect(made.ref).toMatch(/^WRL/);
 		const other = await call(b, 'item_new', {
@@ -884,10 +883,12 @@ describe('MCP server', () => {
 			item: made.ref,
 			checks: [{ key: 'M1', text: 'Look at it by hand' }]
 		});
-		expect(checks.keys).toEqual(['M1']);
+		// Retired no-op: a notice, no keys, nothing written
+		expect(checks.keys).toEqual([]);
+		expect(checks.notice).toContain('Manual checks no longer exist');
 		let got = await call(client, 'item_get', { item: made.ref, fields: ['steps', 'checks'] });
 		expect(got.steps.map((x: any) => x.key)).toEqual(['1.1', '1.2', '2.1', '2.2', '2.3']);
-		expect(got.checks.map((x: any) => x.key)).toEqual(['M1']);
+		expect(got.checks).toEqual([]);
 		// A wording change keeps the key and can be undone through the history
 		const edit = await call(client, 'step_update', {
 			sessionId: sid,
@@ -1168,8 +1169,7 @@ describe('MCP server', () => {
 			title: 'Old id item',
 			tabName: 'OLD_ID',
 			aliases: ['FLOW-20261007-1441', 'FEAT-066'],
-			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }, { text: 'b' }] }],
-			manualChecks: [{ key: 'M1', text: 'By hand' }]
+			phases: [{ key: '1', title: 'One', steps: [{ text: 'a' }, { text: 'b' }] }]
 		});
 		const got = await call(client, 'flow_get', { id: 'FLOW-20261007-1441' });
 		expect(got.ref).toBe(made.ref);
@@ -1178,10 +1178,7 @@ describe('MCP server', () => {
 		expect(claimed.displayTitle).toBe(`OLD_ID: ${made.ref}`);
 		const rec = await call(client, 'flow_record', {
 			id: 'FEAT-066',
-			steps: [
-				{ key: '1.1', mark: 'done' },
-				{ key: 'M1', mark: 'waived', reason: 'Closed by Arben' }
-			],
+			steps: [{ key: '1.1', mark: 'done' }],
 			log: 'Did the first step'
 		});
 		expect(rec.statusChanges[0].to).toBe('IN PROGRESS');
@@ -1320,8 +1317,7 @@ describe('MCP server', () => {
 		const made = await createItem(w.ctx('member'), {
 			project: w.projectKey,
 			title: 'Check through MCP',
-			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Run it' }] }],
-			manualChecks: [{ key: 'M1', text: 'The page works' }]
+			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Run it' }] }]
 		});
 		const client = await connect(deps, token);
 		const { sessionId } = await call(client, 'session_start', { tool: 'claude-code' });
@@ -1332,7 +1328,7 @@ describe('MCP server', () => {
 			script: 'export default async ({ page }) => { await page.goto("/"); };',
 			target: 'preview'
 		});
-		expect(saved).toMatchObject({ created: true, auto: true });
+		expect(saved).toMatchObject({ created: true, key: 'M1' });
 		// Nothing connected: the status says what to do, and the run says why it cannot start, at once
 		const status = await call(client, 'runner_status', { project: w.projectKey });
 		expect(status.projects[0]).toMatchObject({ online: false, kind: null });

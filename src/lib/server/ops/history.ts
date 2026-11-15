@@ -168,6 +168,7 @@ async function undoMockupHold(
 	const closes =
 		after?.state === 'open' &&
 		typeof after.key === 'string' &&
+		// Old manual_check events carry an M key. They can no longer be undone, so they never hold on the mockup
 		!/^M[0-9]+$/.test(after.key) &&
 		['done', 'waived', 'superseded'].includes(before?.state ?? '');
 	// Undoing the creation of a phase or a step deletes it with its open steps, which closes what is left. On a plan that

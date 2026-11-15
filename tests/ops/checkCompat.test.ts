@@ -84,8 +84,7 @@ describe('a tool from before the heartbeat', () => {
 					title: 'Build',
 					steps: [{ text: 'Run it', requiredTarget: 'preview' as const }]
 				}
-			],
-			manualChecks: [{ key: 'M1', text: 'Works' }]
+			]
 		});
 		await saveCheck(as('member'), { item: made.ref, key: 'M1', script: 's' });
 		const asked = await requestRun(as('member'), {

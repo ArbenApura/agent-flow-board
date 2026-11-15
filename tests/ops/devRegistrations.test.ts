@@ -400,8 +400,7 @@ describe('dev registrations trust split and refusals', () => {
 		});
 		const it = await createItem(as('member'), {
 			project: w.projectKey,
-			title: 'Dev online gating',
-			manualChecks: [{ key: 'M1', text: 'Dev server check' }]
+			title: 'Dev online gating'
 		});
 		const chkOffline = await itemChecks(as('member'), it.ref);
 		expect(chkOffline.targets.find((t) => t.target === 'dev')?.available).toBe(false);

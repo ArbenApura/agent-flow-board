@@ -52,8 +52,7 @@ test('M17 status follows the work, over REST as a person and as an agent', async
 				phases: [
 					{ key: '1', title: 'Build', steps: [{ text: 'First' }, { text: 'Second' }] },
 					{ key: '2', title: 'Ship', steps: [{ text: 'Third' }] }
-				],
-				manualChecks: [{ key: 'M1', text: 'Checked by hand' }]
+				]
 			}
 		})
 	);
@@ -69,11 +68,6 @@ test('M17 status follows the work, over REST as a person and as an agent', async
 	// The first done step moves PLANNED to IN PROGRESS
 	const first = await record(agent, { marks: [{ key: '1.1', mark: 'done' }] });
 	expect(first.statusChanges).toEqual([{ from: 'PLANNED', to: 'IN PROGRESS', note: 'Automatic' }]);
-	// A manual check never moves a status
-	expect(
-		(await record(agent, { marks: [{ key: 'M1', mark: 'waived', reason: 'Closed by Arben' }] }))
-			.statusChanges
-	).toEqual([]);
 	// The last counted step moves it to IN REVIEW
 	await record(agent, { marks: [{ key: '1.2', mark: 'done' }] });
 	const last = await record(agent, { marks: [{ key: '2.1', mark: 'done' }] });

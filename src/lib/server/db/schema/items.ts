@@ -69,7 +69,6 @@ export const item = tenantTable(
 		percent: integer('percent').notNull().default(0),
 		doneSteps: integer('done_steps').notNull().default(0),
 		totalSteps: integer('total_steps').notNull().default(0),
-		openManual: integer('open_manual').notNull().default(0),
 		health: jsonb('health')
 			.$type<ItemHealth>()
 			.notNull()
@@ -121,7 +120,7 @@ export const itemAlias = tenantTable(
 	]
 );
 
-// -- PHASES, STEPS AND MANUAL CHECKS -- //
+// -- PHASES AND STEPS -- //
 
 export const phase = tenantTable(
 	'phase',
@@ -181,31 +180,6 @@ export const step = tenantTable(
 		index('step_item_idx').on(t.itemId, t.position),
 		index('step_phase_idx').on(t.phaseId),
 		oneOf('step_state_chk', t.state, STEP_STATES)
-	]
-);
-
-export const manualCheck = tenantTable(
-	'manual_check',
-	'project',
-	{
-		id: id(),
-		orgId: orgId(),
-		projectId: projectId(),
-		itemId: uuid('item_id')
-			.notNull()
-			.references(() => item.id, { onDelete: 'cascade' }),
-		key: text('key').notNull(),
-		text: text('text').notNull(),
-		auto: boolean('auto').notNull().default(false),
-		state: text('state', { enum: STEP_STATES }).notNull().default('open'),
-		reason: text('reason'),
-		position: integer('position').notNull(),
-		...stamps(),
-		version: version()
-	},
-	(t) => [
-		unique('manual_check_item_key_uq').on(t.itemId, t.key),
-		oneOf('manual_check_state_chk', t.state, STEP_STATES)
 	]
 );
 

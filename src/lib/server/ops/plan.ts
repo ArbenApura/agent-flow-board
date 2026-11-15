@@ -1,4 +1,4 @@
-// PLAN VERBS: ADD PHASES, STEPS AND MANUAL CHECKS TO AN ITEM THAT ALREADY EXISTS (A PLAN GROWS AS THE WORK IS UNDERSTOOD)
+// PLAN VERBS: ADD PHASES AND STEPS TO AN ITEM THAT ALREADY EXISTS (A PLAN GROWS AS THE WORK IS UNDERSTOOD)
 
 // IMPORTED TYPES
 import type { Ctx } from './context';
@@ -8,7 +8,7 @@ import { z } from 'zod';
 // IMPORTED MODULES
 import { recalcItem } from '../db/calc';
 import { appendEvent } from '../db/events';
-import { comment, manualCheck, phase, step } from '../db/schema';
+import { comment, phase, step } from '../db/schema';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields, checkVersion } from './items';
 import { mockupUnreadError, unreadForGate } from './mockupReads';
@@ -44,18 +44,10 @@ export const addStepsInput = z.object({
 	steps: z.array(stepIn).min(1).max(200),
 	expectVersion: z.number().int().optional()
 });
+// Read and ignored: see addManualChecks
 export const addChecksInput = z.object({
 	item: z.string().min(1),
-	checks: z
-		.array(
-			z.object({
-				key: z.string().regex(/^M[0-9]+$/),
-				text: z.string().min(1).max(2000),
-				auto: z.boolean().default(false)
-			})
-		)
-		.min(1)
-		.max(100),
+	checks: z.array(z.unknown()).max(100).optional(),
 	expectVersion: z.number().int().optional()
 });
 
@@ -208,50 +200,21 @@ export async function addSteps(ctx: Ctx, raw: z.input<typeof addStepsInput>) {
 	);
 }
 
-/** Adds manual checks (M1, M2 ...). They are never counted toward the percent. */
+/**
+ * Manual checks no longer exist. This verb stays for one skill bundle so an agent on an older skill gets a clear notice instead
+ * of an unknown-tool error. It writes nothing. Remove it in the bundle after this one.
+ */
 export async function addManualChecks(ctx: Ctx, raw: z.input<typeof addChecksInput>) {
 	const input = addChecksInput.parse(raw);
 	return run(ctx, (tx) =>
 		idempotent(ctx, tx, async () => {
-			const it = await findItem(tx, ctx, input.item, { lock: true });
+			const it = await findItem(tx, ctx, input.item);
 			await requireCap(tx, ctx, 'write', it.projectId);
-			await rateLimit(tx, ctx, 'write');
-			checkVersion(it, input.expectVersion);
-			await enforcePlanRules(tx, it.projectId, {
-				texts: input.checks.map((x) => x.text),
-				browser: input.checks.some((x) => x.auto)
-			});
-			const existing = await tx
-				.select({ key: manualCheck.key, position: manualCheck.position })
-				.from(manualCheck)
-				.where(eq(manualCheck.itemId, it.id));
-			let position = existing.reduce((m, c) => Math.max(m, c.position), 0);
-			for (const c of input.checks) {
-				if (existing.some((e) => e.key === c.key))
-					throw new OpError('CONFLICT', `${it.ref} already has a check ${c.key}.`);
-				await tx.insert(manualCheck).values({
-					orgId: ctx.orgId,
-					projectId: it.projectId,
-					itemId: it.id,
-					key: c.key,
-					text: c.text,
-					auto: c.auto,
-					position: ++position
-				});
-			}
-			const calc = await recalcItem(tx, it.id);
-			await appendEvent(tx, {
-				orgId: ctx.orgId,
-				projectId: it.projectId,
-				itemId: it.id,
-				...actorFields(ctx),
-				verb: 'manual_check.create',
-				targetType: 'item',
-				targetId: it.id,
-				after: { keys: input.checks.map((c) => c.key) } as never,
-				undoable: false
-			});
-			return { keys: input.checks.map((c) => c.key), openManual: calc.counts.openManual };
+			return {
+				keys: [] as string[],
+				notice:
+					'Manual checks no longer exist, so nothing was added. A browser check is saved with check_save.'
+			};
 		})
 	);
 }

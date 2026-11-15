@@ -19,7 +19,6 @@ export type ItemRow = {
 	percent: number;
 	doneSteps: number;
 	totalSteps: number;
-	openManual: number;
 	visibility: string;
 	stream: string;
 	scope: string;
@@ -38,7 +37,6 @@ export type ApiItem = {
 	legacyPercent?: number | null;
 	doneSteps: number;
 	totalSteps: number;
-	openManual: number;
 	visibility: string;
 	stream: string;
 	scope: string;
@@ -82,7 +80,6 @@ export const slimItem = (i: ApiItem): ItemRow => ({
 	percent: i.percent,
 	doneSteps: i.doneSteps,
 	totalSteps: i.totalSteps,
-	openManual: i.openManual,
 	visibility: i.visibility,
 	stream: i.stream,
 	scope: i.scope,

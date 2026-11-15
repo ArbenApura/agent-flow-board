@@ -4,7 +4,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // IMPORTED MODULES
 import { createItem } from '../../src/lib/server/ops/items';
-import { addManualChecks, addPhase, addSteps, updateStep } from '../../src/lib/server/ops/plan';
+import { addPhase, addSteps, updateStep } from '../../src/lib/server/ops/plan';
 import { parsePlanRules, planViolations } from '../../src/lib/server/ops/planRules';
 import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
@@ -71,8 +71,7 @@ describe('plan rules in the operations', () => {
 
 		const made = await createItem(person(), {
 			...base,
-			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Write the code' }] }],
-			manualChecks: [{ key: 'M1', text: 'Look at it by hand' }]
+			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Write the code' }] }]
 		});
 		await expect(
 			addSteps(person(), {
@@ -89,12 +88,6 @@ describe('plan rules in the operations', () => {
 				steps: [{ text: 'Merge to feat/demo' }]
 			})
 		).rejects.toThrow(/feat\/demo/);
-		await expect(
-			addManualChecks(person(), {
-				item: made.ref,
-				checks: [{ key: 'M2', text: 'Runs by itself', auto: true }]
-			})
-		).rejects.toThrow(/browser steps/);
 		await expect(
 			updateStep(person(), { item: made.ref, key: '1.1', text: 'Draw the mockup' })
 		).rejects.toThrow(/no mockups/);

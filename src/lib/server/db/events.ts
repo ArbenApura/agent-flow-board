@@ -12,17 +12,7 @@ import type { PgTable } from 'drizzle-orm/pg-core';
 // IMPORTED MODULES
 import { notifyChange } from '../realtime/notify';
 import { syncMockupsOfItem } from './mockupSync';
-import {
-	attachment,
-	decision,
-	event,
-	item,
-	manualCheck,
-	phase,
-	section,
-	step,
-	task
-} from './schema';
+import { attachment, decision, event, item, phase, section, step, task } from './schema';
 
 // -- TYPES -- //
 
@@ -64,7 +54,7 @@ const TABLES: Record<string, { table: PgTable; soft: boolean }> = {
 	attachment: { table: attachment, soft: true },
 	step: { table: step, soft: false },
 	phase: { table: phase, soft: false },
-	manual_check: { table: manualCheck, soft: false },
+	// There is no manual_check entry: the table is gone, so an undo of an old manual_check event answers unsupported
 	decision: { table: decision, soft: false },
 	section: { table: section, soft: false }
 };

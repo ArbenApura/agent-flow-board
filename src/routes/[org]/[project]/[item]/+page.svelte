@@ -472,9 +472,6 @@
 					<span class="text-lg font-semibold tabular-nums" data-testid="item-percent"
 						>{d.item.percent}%, {d.item.doneSteps} of {d.item.totalSteps} steps</span
 					>
-					{#if d.item.openManual > 0}
-						<span class="text-sm text-muted">{d.item.openManual} manual checks open</span>
-					{/if}
 				</div>
 				<!-- ON A PHONE THE STATUS IS A FULL WIDTH ROW UNDER THE PERCENT: THE LABEL ON THE LEFT, THE BADGE ON THE RIGHT -->
 				<div class="ml-auto flex flex-wrap items-center gap-2 max-sm:ml-0 max-sm:w-full">
