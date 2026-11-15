@@ -51,19 +51,29 @@
 
 	let imgEl = $state<HTMLImageElement>();
 	// The measured tone of the logo, remembered with the address it was measured for so a new logo is never judged by the old one
-	let measured = $state<{ src: string; tone: 'light' | 'dark' | null } | null>(null);
+	// The amount is how far the logo is inverted (0 to 1), worked out from its own brightness
+	let measured = $state<{ src: string; tone: 'light' | 'dark' | null; amount: number } | null>(
+		null
+	);
 
 	// -- REACTIVE STATES -- //
 
-	// A near white logo is inverted on the light page and a near black logo on the dark page, so it never vanishes into the background
+	// A near white logo is inverted on the light page and a near black logo on the dark page, so it never vanishes into the background.
+	// The inversion is partial and follows the logo's own brightness: white becomes a soft near black, light grey a comparable dark grey
 	const invertClass = $derived(
 		measured && measured.src === logo
 			? measured.tone === 'light'
-				? 'in-data-[mode=light]:invert'
+				? 'in-data-[mode=light]:[filter:invert(var(--logo-invert))]'
 				: measured.tone === 'dark'
-					? 'in-data-[mode=dark]:invert'
+					? 'in-data-[mode=dark]:[filter:invert(var(--logo-invert))]'
 					: ''
 			: ''
+	);
+	// RUNTIME VALUE MEASURED FROM THE UPLOADED PICTURE, SO IT CANNOT BE A FIXED CLASS
+	const invertStyle = $derived(
+		measured && measured.src === logo && measured.tone
+			? `--logo-invert:${measured.amount.toFixed(3)}`
+			: undefined
 	);
 
 	// -- REACTIVE STATEMENTS -- //
@@ -83,6 +93,7 @@
 	function measureLogo(img: HTMLImageElement) {
 		if (!logo) return;
 		let tone: 'light' | 'dark' | null = null;
+		let amount = 0;
 		try {
 			const SIDE = 32;
 			const canvas = document.createElement('canvas');
@@ -111,13 +122,21 @@
 					const mean = lum / solid;
 					if (mean > 205) tone = 'light';
 					else if (mean < 50) tone = 'dark';
+					if (tone) {
+						// Target brightness keeps the logo's place in its range: pure white lands at about 28 (soft black), 205 at about 68,
+						// and the dark side mirrors it. A partial invert reaches it: result = mean + amount * (255 - 2 * mean)
+						const SOFT = 28;
+						const KEEP = 0.8;
+						const target = tone === 'light' ? SOFT + KEEP * (255 - mean) : 255 - SOFT - KEEP * mean;
+						amount = Math.min(1, Math.max(0, (target - mean) / (255 - 2 * mean)));
+					}
 				}
 			}
 		} catch {
 			// A logo from another origin taints the canvas and cannot be read: leave it as uploaded
 			tone = null;
 		}
-		measured = { src: logo, tone };
+		measured = { src: logo, tone, amount };
 	}
 
 	/** Two capital letters: the first letters of the first two words, or the first two letters of a single word. */
@@ -135,6 +154,7 @@
 		src={logo}
 		alt=""
 		onload={() => imgEl && measureLogo(imgEl)}
+		style={invertStyle}
 		class={cn('shrink-0 object-contain', DIMS[size].box, DIMS[size].radius, invertClass)}
 	/>
 {:else}
