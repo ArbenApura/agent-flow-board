@@ -9,7 +9,6 @@ export type Item = {
 	percent: number;
 	phase: { key: string; title: string; position: number; of: number } | null;
 	steps: { done: number; open: number; waived: number; total: number };
-	manualChecksOpen: number;
 	resumeHere: string;
 	blockers: string;
 	url: string | null;

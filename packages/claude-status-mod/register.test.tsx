@@ -38,7 +38,6 @@ const GOOD = {
 		percent: 63,
 		phase: { key: '2', title: 'Release', position: 2, of: 4 },
 		steps: { done: 5, open: 3, waived: 0, total: 8 },
-		manualChecksOpen: 1,
 		resumeHere: 'Phase 1 is built.',
 		blockers: 'None.',
 		updatedAt: '2026-11-08T03:22:18.710Z',

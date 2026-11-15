@@ -85,7 +85,6 @@ export function readItem(raw: unknown): Item | null {
 			waived: num(steps?.waived),
 			total: num(steps?.total)
 		},
-		manualChecksOpen: num(o.manualChecksOpen),
 		resumeHere: plain(o.resumeHere, NOTE_SHOWN),
 		blockers: plain(o.blockers, NOTE_SHOWN),
 		url
