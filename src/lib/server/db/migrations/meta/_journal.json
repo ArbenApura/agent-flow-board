@@ -344,6 +344,13 @@
       "when": 1794705938933,
       "tag": "0048_superb_big_bertha",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1794739422462,
+      "tag": "0049_boring_kinsey_walden",
+      "breakpoints": true
     }
   ]
 }

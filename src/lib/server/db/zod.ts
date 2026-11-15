@@ -12,6 +12,7 @@ import {
 	attachment,
 	check,
 	comment,
+	connectSetupMark,
 	decision,
 	devRegistration,
 	environment,
@@ -35,6 +36,8 @@ import {
 	phase,
 	project,
 	projectPin,
+	SETUP_KEYS,
+	SETUP_STATES,
 	section,
 	session,
 	step,
@@ -84,6 +87,20 @@ export const noteLinkSelect = createSelectSchema(noteLink);
 export const noteFileSelect = createSelectSchema(noteFile);
 
 // -- INSERT AND UPDATE SCHEMAS (what a write accepts) -- //
+
+/** What a person says about one tile of the Connect setup checklist: done, skipped or open and closed for the panel. A null state clears it. */
+export const connectSetupMarkInput = createInsertSchema(connectSetupMark, {
+	key: z.enum(SETUP_KEYS),
+	state: z.enum(SETUP_STATES)
+})
+	.pick({ key: true, state: true })
+	.extend({ state: z.enum(SETUP_STATES).nullable() })
+	.refine(
+		(v) => v.state === null || (v.key === 'panel') === (v.state === 'open' || v.state === 'closed'),
+		{
+			message: 'A tile is done or skipped, and only the panel is open or closed.'
+		}
+	);
 
 export const itemInsert = createInsertSchema(item, {
 	tabName: tabName.nullable().optional(),

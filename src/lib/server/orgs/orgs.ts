@@ -10,6 +10,7 @@ import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import {
 	apiToken,
 	attachment,
+	connectSetupMark,
 	item,
 	member,
 	org,
@@ -292,6 +293,10 @@ export async function removeMember(
 		await tx
 			.delete(projectPin)
 			.where(and(eq(projectPin.orgId, orgId), eq(projectPin.userId, targetId)));
+		// And their setup checklist marks, which are personal in the same way
+		await tx
+			.delete(connectSetupMark)
+			.where(and(eq(connectSetupMark.orgId, orgId), eq(connectSetupMark.userId, targetId)));
 		await tx.execute(sql`select set_config('app.user_id', ${actorId}, true)`);
 		// Their tokens stop working at once (L8), on top of the live role check every call makes
 		await tx
