@@ -99,16 +99,17 @@ The `migrate` step runs first and the app starts only when it succeeded. Migrati
 
 A build runs the server out of memory. Build somewhere else and let the server only run the image: `deploy/vps/deploy.ps1` builds on a developer's PC (`yarn run build` and `yarn run build:cli`), sends `build/` and `cli/`, and the server builds a small image from them (`Dockerfile.prebuilt`, with `compose.prebuilt.yaml` added on top of `compose.yaml`). Before it changes anything it takes a database dump into `~/afb-predeploy` (the newest 3 are kept) and keeps the running image as `agent-flow-board:previous`. It says Live only when the new container is healthy and the board answers. `compose.yaml` also caps each container's memory (database 1 GB, app 1.5 GB with a 1 GB JavaScript heap, proxy 192 MB) and makes the kernel stop the app before the database if memory ever runs out. On a server of 8 GB or more the caps are plenty of room and nothing here is needed: build from the source as above.
 
-**Rollback.** If the new version does not work, on the server:
+**A deploy that does not cut anyone off.** `deploy.ps1` is a rolling deploy. The new app container starts beside the old one, and Caddy is switched to it only when it is healthy (the container's name is written to `deploy/vps/live/app-upstream.caddy` and Caddy is reloaded, which sends no new request to the old container). The old container then gets up to 40 seconds: open requests finish, running background jobs finish, and every live-update stream is told to refetch and reconnect to the new container. Then it is removed. A request that cannot reach any app container (a crash, a restart) waits up to 15 seconds in Caddy instead of failing. Three things stop it from rolling and fall back to `-StopStart`, the old way (stop, then start, a short outage): less than 700 MB of free memory, no app running, or a flag you pass.
 
-```
-cd ~/agent-flow-board/deploy/vps
-export COMPOSE_FILE=compose.yaml:compose.prebuilt.yaml
-docker tag agent-flow-board:previous agent-flow-board:local
-docker compose up -d --no-build
-```
+The old container runs for those seconds on the already migrated database, so a migration has to be one the old code survives. **Judge every migration as additive or breaking.** Adding a table, or a column with a default, is additive. These are breaking and are never shipped on a rolling deploy: dropping or renaming a column or table, a new `NOT NULL` column without a default, tightening a column, a new `CHECK` or `UNIQUE` on an existing table, a check whose list is narrowed, a data rewrite the old code cannot read, a changed row level security policy (`security.ts`) and a new `pg-boss` version. The deploy reads the migrations the server has not applied yet and stops, before it changes anything, when it finds one of the first kinds, and when `security.ts` or the `pg-boss` version changed since the last deploy. This is a guard and not a proof: the developer decides. After looking, run `yarn deploy:vps -StopStart`.
 
-That starts the previous code. A migration that already ran stays: if the schema has to go back too, restore the newest dump from `~/afb-predeploy` into an empty database with `pg_restore`.
+The deploy also waits (up to 10 minutes) while a backup is running, because the backup holds a long transaction and a table change would make every query queue behind it. Migrations and the security statements give up after 5 seconds waiting for a table lock and fail loudly, leaving the old app serving.
+
+**Rollback.** If the new version does not work, from the PC: `yarn deploy:vps -Rollback`. It starts the image tagged `agent-flow-board:previous` beside the bad container, switches Caddy and removes the bad container, the same way. Never run a bare `docker compose up -d` during or just after a rollout: it scales the app back to one and can remove the container Caddy is using.
+
+A migration that already ran stays. After an additive deploy that is fine: the previous code runs on it. After a breaking one, the previous code may not, and the schema has to go back too: restore the newest dump from `~/afb-predeploy` into an empty database with `pg_restore` (writes since the dump are lost, so decide that with the owner first).
+
+If a deploy dies halfway (a dropped connection) the next deploy finds two app containers, keeps the one Caddy sends to and drains the other before it does anything else.
 
 ## 6. Changing a key
 
