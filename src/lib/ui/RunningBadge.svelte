@@ -19,7 +19,8 @@
 		reviewIdle = false,
 		waiting = null,
 		age,
-		compact = false
+		compact = false,
+		block = false
 	}: {
 		/** The agent tool, for example Claude Code. */
 		tool: string;
@@ -39,6 +40,8 @@
 		age?: string;
 		/** Inside a phase heading the phase is already named, so the badge shows only the tool, working. */
 		compact?: boolean;
+		/** Board cards: the capsule and each flag fill the card width in a stack, so the right edge stays straight. */
+		block?: boolean;
 	} = $props();
 
 	// -- CONSTANTS -- //
@@ -49,7 +52,7 @@
 	const CAPSULE_IDLE = 'border-line bg-raised text-muted';
 	// A flag is a quiet outlined chip: ink text on the raised surface, with the warning colour only on its icon
 	const FLAG =
-		'inline-flex items-center gap-1.5 rounded-full border border-line bg-raised py-0.5 pr-2.5 pl-2 text-badge font-medium text-ink';
+		'items-center gap-1.5 border border-line bg-raised pr-2.5 pl-2 text-badge font-medium text-ink';
 
 	// -- REACTIVE STATES -- //
 
@@ -72,6 +75,15 @@
 					? `Phase ${phase}`
 					: 'Running'
 	);
+	// The flag chip: inline and round in a row, a full-width rounded strip in a card stack
+	const flag = $derived(
+		cn(
+			FLAG,
+			block
+				? 'flex w-full rounded-lg py-1'
+				: cn('inline-flex py-0.5', compact ? 'rounded-md' : 'rounded-full')
+		)
+	);
 	const staleTitle = $derived(
 		staleMinutes === null ? '' : `Work has been left unrecorded for ${staleMinutes} minutes`
 	);
@@ -79,19 +91,28 @@
 
 <!-- ONE BADGE FOR BOTH LEVELS, PHASE AND ITEM, LIVE THROUGH THE REALTIME CHANNEL. THE SESSION TITLE LIVES IN THE TOOLTIP -->
 <span
-	class="inline-flex max-w-full min-w-0 flex-wrap items-center gap-1.5"
+	class={cn(
+		'max-w-full min-w-0 gap-1.5',
+		block ? 'flex w-full flex-col' : 'inline-flex flex-wrap items-center'
+	)}
 	title={[title ? `${text}: ${title}` : text, age].filter(Boolean).join('. ')}
 >
 	<!-- THE CAPSULE: A LIVE DOT AND THE TOOL, THEN A HAIRLINE AND THE PHASE -->
 	<span
 		data-badge
 		class={cn(
-			'inline-flex max-w-full min-w-0 items-stretch overflow-hidden border text-badge font-semibold',
-			compact ? 'rounded-md' : 'rounded-full',
+			'max-w-full min-w-0 items-stretch overflow-hidden border text-badge font-semibold',
+			block ? 'flex w-full' : 'inline-flex',
+			block ? 'rounded-lg' : compact ? 'rounded-md' : 'rounded-full',
 			reviewIdle ? CAPSULE_IDLE : CAPSULE_LIVE
 		)}
 	>
-		<span class="inline-flex min-w-0 items-center gap-1.5 py-0.5 pr-2 pl-2.5">
+		<span
+			class={cn(
+				'min-w-0 items-center gap-1.5 pr-2 pl-2.5',
+				block ? 'flex flex-1 py-1' : 'inline-flex py-0.5'
+			)}
+		>
 			<!-- A SOFT RING PINGS AROUND THE DOT WHILE THE SESSION IS LIVE; AN IDLE SESSION IS A STILL DOT -->
 			<span class="relative flex size-2 shrink-0" aria-hidden="true">
 				{#if !reviewIdle}
@@ -104,13 +125,15 @@
 			<span class="truncate">{tool}</span>
 		</span>
 		<span
-			class="inline-flex shrink-0 items-center border-l border-[color-mix(in_oklab,currentColor_25%,transparent)] px-2 py-0.5 font-medium whitespace-nowrap tabular-nums"
-			>{segment}</span
+			class={cn(
+				'inline-flex shrink-0 items-center border-l border-[color-mix(in_oklab,currentColor_25%,transparent)] font-medium whitespace-nowrap tabular-nums',
+				block ? 'px-2.5 py-1' : 'px-2 py-0.5'
+			)}>{segment}</span
 		>
 	</span>
 	<!-- THE FLAGS ARE SEPARATE CHIPS, NEVER INSIDE THE CAPSULE AND NEVER THE ACCENT -->
 	{#if staleMinutes !== null}
-		<span title={staleTitle} data-badge class={cn(FLAG, compact && 'rounded-md')}>
+		<span title={staleTitle} data-badge class={flag}>
 			<PencilOff size={12} class="shrink-0 text-warning" aria-hidden="true" />Not recorded
 		</span>
 	{/if}
@@ -119,18 +142,14 @@
 		<span
 			title={`Waiting for a person (${waiting.kind}): ${waiting.detail}`}
 			data-badge
-			class={cn(FLAG, compact && 'rounded-md')}
+			class={flag}
 		>
 			<Hourglass size={12} class="shrink-0 text-warning" aria-hidden="true" />Waiting {waiting.kind}
 		</span>
 	{/if}
 	<!-- THE SAME CHIP WHEN THE PLAN'S MOCKUP IS UNREAD. AN IDLE ITEM IN REVIEW SHOWS NONE: NOTHING IS BEING BUILT -->
 	{#if mockupUnread && !reviewIdle}
-		<span
-			title="Nobody has read the plan's mockup to the end yet"
-			data-badge
-			class={cn(FLAG, compact && 'rounded-md')}
-		>
+		<span title="Nobody has read the plan's mockup to the end yet" data-badge class={flag}>
 			<EyeOff size={12} class="shrink-0 text-warning" aria-hidden="true" />Mockup not read
 		</span>
 	{/if}

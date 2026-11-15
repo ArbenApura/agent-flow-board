@@ -54,24 +54,24 @@
 				class={cn('absolute inset-y-0 left-0 w-[3px]', STATUS_STYLE[row.status].rail)}
 				aria-hidden="true"
 			></span>
-			<span
-				class={cn(
-					'flex min-h-6 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted',
-					onContinue && 'pr-10'
-				)}
-			>
-				<span class="font-mono [overflow-wrap:anywhere]">{row.ref}</span>
-				{#if row.visibility === 'private'}
-					<span
-						class="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2 text-badge font-semibold text-danger"
-						><Lock size={12} aria-hidden="true" />Private</span
-					>
+			<!-- THE REFERENCE ON THE LEFT, PRIVATE AND NEEDS ATTENTION TOGETHER ON THE RIGHT -->
+			<span class={cn('flex min-h-6 items-center gap-2 text-xs text-muted', onContinue && 'pr-10')}>
+				<span class="min-w-0 flex-1 font-mono [overflow-wrap:anywhere]">{row.ref}</span>
+				{#if row.visibility === 'private' || row.flags > 0}
+					<span class="flex shrink-0 items-center gap-2">
+						{#if row.visibility === 'private'}
+							<span
+								class="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2 text-badge font-semibold text-danger"
+								><Lock size={12} aria-hidden="true" />Private</span
+							>
+						{/if}
+						{#if row.flags > 0}<TriangleAlert
+								size={14}
+								class="shrink-0 text-warning"
+								aria-label="Needs attention"
+							/>{/if}
+					</span>
 				{/if}
-				{#if row.flags > 0}<TriangleAlert
-						size={14}
-						class="ml-auto text-warning"
-						aria-label="Needs attention"
-					/>{/if}
 			</span>
 			<span class="line-clamp-2 text-sm leading-6 font-semibold text-ink">{row.title}</span>
 			<span class="flex items-center gap-2.5">
@@ -91,25 +91,37 @@
 				</span>
 				<span class="whitespace-nowrap">{ago(row.lastActivityAt)}</span>
 			</span>
-			<span class="flex flex-wrap items-center gap-2 text-xs text-muted">
-				<!-- WHO MADE IT: THE SAME AVATAR AS THE TOP BAR, AND THE NAME -->
+			<!-- THE FOOTER IS ONE LINE: WHO MADE IT ON THE LEFT, THE AREA ON THE RIGHT, NEVER WRAPPING -->
+			<span class="flex items-center justify-between gap-2.5 text-xs text-muted">
+				<!-- THE SAME AVATAR AS THE TOP BAR, AND THE NAME -->
 				{#if creator}
-					<span class="inline-flex items-center gap-2" data-testid="item-creator">
+					<span class="inline-flex min-w-0 items-center gap-2" data-testid="item-creator">
 						<Avatar name={creator.name} userId={creator.userId} v={creator.v} size={24} />
-						<span class="font-medium text-ink">{creator.name}</span>
+						<span class="truncate font-medium text-ink">{creator.name}</span>
 					</span>
+				{:else}
+					<!-- KEEPS THE AREA CHIP ON THE RIGHT WHEN NO ONE IS SHOWN -->
+					<span aria-hidden="true"></span>
 				{/if}
-				<span class="rounded-md bg-raised px-1.5 font-medium">{row.stream}/{row.scope}</span>
-				{#each running as r (r.sessionId)}<RunningBadge
-						tool={r.tool}
-						title={r.title}
-						phase={r.phase ?? undefined}
-						staleMinutes={r.staleMinutes}
-						mockupUnread={r.mockupUnread}
-						reviewIdle={r.reviewIdle}
-						waiting={r.waiting}
-					/>{/each}
+				<span class="shrink-0 rounded-md bg-raised px-1.5 font-medium whitespace-nowrap"
+					>{row.stream}/{row.scope}</span
+				>
 			</span>
+			<!-- EACH RUNNING SESSION IS ONE FULL-WIDTH STRIP UNDER THE FOOTER, STACKED -->
+			{#if running.length > 0}
+				<span class="flex flex-col gap-1.5" data-testid="item-running">
+					{#each running as r (r.sessionId)}<RunningBadge
+							block
+							tool={r.tool}
+							title={r.title}
+							phase={r.phase ?? undefined}
+							staleMinutes={r.staleMinutes}
+							mockupUnread={r.mockupUnread}
+							reviewIdle={r.reviewIdle}
+							waiting={r.waiting}
+						/>{/each}
+				</span>
+			{/if}
 		</a>
 		{#if onContinue}
 			<!-- JUST THE ICON, SMALL, AND ONLY WHEN THE POINTER IS ON THE CARD OR THE BUTTON HAS FOCUS. A TOUCH SCREEN HAS NO HOVER, SO IT IS ALWAYS THERE. THE HIT AREA IS 44 PX ON A PHONE -->
