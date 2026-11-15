@@ -1,5 +1,6 @@
 // IMPORTED DEP-TYPES
 import type { Actions, PageServerLoad } from './$types';
+import type { ConnectTabKey } from '#lib/connect/hrefs.js';
 import type { Ctx } from '#lib/server/ops/context.js';
 // IMPORTED ENVS
 import { AFB_BASE_URL } from '$app/env/private';
@@ -7,6 +8,7 @@ import { AFB_BASE_URL } from '$app/env/private';
 import { fail, redirect } from '@sveltejs/kit';
 // IMPORTED MODULES
 import { agentSetupMarkdown } from '#lib/connect/agentSetup.js';
+import { checksSetupMarkdown } from '#lib/connect/checksSetup.js';
 import { editorSetupMarkdown } from '#lib/connect/editorSetup.js';
 import { skillsBriefMarkdown } from '#lib/connect/skillsBrief.js';
 import { snippets } from '#lib/connect/snippets.js';
@@ -14,6 +16,8 @@ import { orgMcpUrl, toolPrefix } from '#lib/shared/orgConnection.js';
 import { getDb } from '#lib/server/db/index.js';
 import { listConnections, revokeConnection } from '#lib/server/oauth/oauth.js';
 import { capsOf, OpError } from '#lib/server/ops/context.js';
+import { bridgeRunners } from '#lib/server/ops/bridgeRunners.js';
+import { listMySetupMarks, setMySetupMark, type SetupMarks } from '#lib/server/ops/connectSetup.js';
 import { bridgeSignIn } from '#lib/server/ops/editorStatus.js';
 import { createToken } from '#lib/server/ops/tokens.js';
 import { listMyOrgs } from '#lib/server/orgs/orgs.js';
@@ -33,7 +37,13 @@ function skillsTab() {
 				description: s.description,
 				files: s.files.length
 			})),
-			changelog: index.changelog.slice(0, 3),
+			// The newest releases, each with the skills it changed against the release before it
+			changelog: index.changelog.slice(0, 3).map((c, i) => ({
+				...c,
+				touched: Object.entries(c.skills)
+					.filter(([name, version]) => index.changelog[i + 1]?.skills[name] !== version)
+					.map(([name, version]) => `${name} ${version}`)
+			})),
 			brief: skillsBriefMarkdown(AFB_BASE_URL, index),
 			bundleUrl: '/api/v1/system-skills/bundle.zip'
 		};
@@ -70,13 +80,23 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!locals.user) redirect(303, `/sign-in?next=${encodeURIComponent('/connect')}`);
 	// The tab is in the address, so a link opens the Skills or the Editor status tab; anything else is the tools tab
 	const asked = url.searchParams.get('tab');
-	const tab = asked === 'skills' ? 'skills' : asked === 'editor' ? 'editor' : 'tools';
+	const tab: ConnectTabKey =
+		asked === 'skills'
+			? 'skills'
+			: asked === 'editor'
+				? 'editor'
+				: asked === 'bridge'
+					? 'bridge'
+					: 'tools';
 	const skills = skillsTab();
 	const got = await personCtx(locals, url.searchParams.get('org'));
 	if (!got || got.orgs.length === 0)
 		return {
 			tab,
 			editor: null,
+			runners: null,
+			setup: { marks: {}, panel: null } as SetupMarks,
+			checksBrief: '',
 			skills,
 			baseUrl: AFB_BASE_URL,
 			snippets: snippets(AFB_BASE_URL),
@@ -89,22 +109,38 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			caps: []
 		};
 	const org = got.orgs.find((o) => o.id === got.ctx.orgId)!;
-	const connections = await listConnections(got.ctx);
-	// The Editor status tab: who the bridge is signed in as for this organisation, and the prompt. A failed read is said on the tab, never a blank
-	const editor =
-		tab === 'editor'
-			? {
-					person: locals.user!.name,
-					signIn: await bridgeSignIn(got.ctx).catch((e) => {
-						console.error('The bridge sign in of the person could not be read.', e);
-						return null;
-					}),
-					brief: editorSetupMarkdown(AFB_BASE_URL, { slug: org.slug })
-				}
-			: null;
+	// Independent reads run together. The bridge sign in and the person's own check runners are read on every tab: the tab cards and the setup checklist say how they stand
+	const [connections, signIn, runners, setup] = await Promise.all([
+		listConnections(got.ctx),
+		// A failed read is said on the Editor status tab, never a blank
+		bridgeSignIn(got.ctx).catch((e) => {
+			console.error('The bridge sign in of the person could not be read.', e);
+			return null;
+		}),
+		// A failed read of the runners leaves the Bridge tab saying none is connected, with the cause in the log
+		bridgeRunners(got.ctx).catch((e) => {
+			console.error('The check runners of the person could not be read.', e);
+			return null;
+		}),
+		// The person's own marks of the setup checklist. A failed read shows the checklist with nothing marked, never a blank
+		listMySetupMarks(got.ctx).catch((e) => {
+			console.error('The setup marks of the person could not be read.', e);
+			return { marks: {}, panel: null } as SetupMarks;
+		})
+	]);
+	// The setup prompt is built only for the Editor status tab
+	const editor = {
+		person: locals.user!.name,
+		signIn,
+		brief: tab === 'editor' ? editorSetupMarkdown(AFB_BASE_URL, { slug: org.slug }) : ''
+	};
 	return {
 		tab,
 		editor,
+		runners,
+		setup,
+		// The prompt of the Bridge tab is built only for that tab
+		checksBrief: tab === 'bridge' ? checksSetupMarkdown(AFB_BASE_URL, { slug: org.slug }) : '',
 		skills,
 		baseUrl: AFB_BASE_URL,
 		// The snippets and the brief use the org that was resolved above, never the raw ?org= value
@@ -143,6 +179,23 @@ export const actions: Actions = {
 				message:
 					'Give the token a name of at least two letters, pick at most 90 days, and choose at least one permission.'
 			});
+		}
+	},
+	/** Marks one tile of the setup checklist done or skipped for the signed in person, or clears it. The state is empty to clear. */
+	mark: async ({ request, locals }) => {
+		const data = await request.formData();
+		const got = await personCtx(locals, String(data.get('org') ?? ''), true);
+		if (!got?.ctx) return fail(400, { message: 'Choose an organisation first.' });
+		const state = String(data.get('state') ?? '');
+		try {
+			const setup = await setMySetupMark(got.ctx, {
+				key: String(data.get('key') ?? '') as never,
+				state: (state === '' ? null : state) as never
+			});
+			return { setup };
+		} catch (e) {
+			if (e instanceof OpError) return fail(400, { message: e.message });
+			return fail(400, { message: 'That mark could not be saved.' });
 		}
 	},
 	revoke: async ({ request, locals }) => {

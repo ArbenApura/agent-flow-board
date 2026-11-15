@@ -415,6 +415,48 @@ body {
 	}
 }
 
+/* CONNECT A TOOL: A LINE THAT GROWS DOWN A TIMELINE AND A BAR THAT FILLS, EACH PLAYS ONCE WHEN IT APPEARS. OFF UNDER REDUCED MOTION */
+@keyframes afb-grow {
+	from {
+		transform: scaleY(0);
+	}
+	to {
+		transform: scaleY(1);
+	}
+}
+@keyframes afb-fill {
+	from {
+		transform: scaleX(0);
+	}
+	to {
+		transform: scaleX(1);
+	}
+}
+/* A SOFT RING THAT SETTLES ONCE AROUND A STATUS TILE WHEN IT APPEARS. IT NEVER LOOPS */
+@keyframes afb-settle {
+	from {
+		transform: scale(1);
+		opacity: 0.25;
+	}
+	to {
+		transform: scale(1.35);
+		opacity: 0;
+	}
+}
+@media (prefers-reduced-motion: no-preference) {
+	.settle-in {
+		animation: afb-settle 1.2s ease-out 1 both;
+	}
+	.grow-in {
+		transform-origin: top;
+		animation: afb-grow 600ms ease-out both;
+	}
+	.fill-in {
+		transform-origin: left;
+		animation: afb-fill 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 120ms both;
+	}
+}
+
 /* TEXTURE LAYERS (FLOW-20261016-0935 10.4 AND 14.2). EACH IS A FIXED LAYER BEHIND THE PAGE, DRAWN FROM TOKENS, SO IT NEVER REPAINTS ON SCROLL */
 .tex {
 	pointer-events: none;

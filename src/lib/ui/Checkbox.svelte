@@ -5,6 +5,8 @@
 	import { cn } from '#lib/ui/cn.js';
 	// IMPORTED DEP-COMPONENTS
 	import Check from '@lucide/svelte/icons/check';
+	// IMPORTED COMPONENTS
+	import Badge from '#lib/ui/Badge.svelte';
 
 	// -- REQUIRED PROPS -- //
 
@@ -12,12 +14,15 @@
 		label,
 		checked = $bindable(false),
 		hint,
+		badge,
 		class: extra,
 		...rest
 	}: {
 		label: string;
 		checked?: boolean;
 		hint?: string;
+		/** A short warning chip next to the label, for a choice that deserves a second look. */
+		badge?: string;
 		class?: string;
 	} & Omit<HTMLInputAttributes, 'class' | 'checked' | 'type'> = $props();
 </script>
@@ -38,7 +43,9 @@
 		/>
 	</span>
 	<span class="flex flex-col">
-		<span class="text-sm text-ink">{label}</span>
+		<span class="flex flex-wrap items-center gap-2 text-sm text-ink"
+			>{label}{#if badge}<Badge tone="warning">{badge}</Badge>{/if}</span
+		>
 		{#if hint}<span class="text-xs text-muted">{hint}</span>{/if}
 	</span>
 </label>

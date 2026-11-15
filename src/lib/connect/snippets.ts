@@ -10,6 +10,8 @@ import { connectionName, orgMcpUrl } from '../shared/orgConnection';
 export type Snippet = {
 	id: string;
 	label: string;
+	/** A few words for the tool tile: how this tool connects. */
+	short: string;
 	/** One plain sentence on how the tool signs in. */
 	signIn: string;
 	/** Where the configuration goes, when it is a file. */
@@ -33,6 +35,7 @@ export function snippets(baseUrl: string, orgSlug: string | null = null): Snippe
 		{
 			id: 'claude-code',
 			label: 'Claude Code',
+			short: 'Browser sign in',
 			signIn: 'Opens your browser to sign in the first time.',
 			code: `claude mcp add --transport http ${name} ${mcp}`,
 			language: 'bash'
@@ -40,6 +43,7 @@ export function snippets(baseUrl: string, orgSlug: string | null = null): Snippe
 		{
 			id: 'claude-ai',
 			label: 'Claude chat',
+			short: 'Custom connector',
 			signIn: `Add it as a custom connector in the Claude app or on claude.ai (Claude chat, not Claude Code), name it ${name}, then sign in when asked.`,
 			where: 'Settings, Connectors, Add custom connector',
 			code: mcp,
@@ -48,6 +52,7 @@ export function snippets(baseUrl: string, orgSlug: string | null = null): Snippe
 		{
 			id: 'vscode',
 			label: 'VS Code',
+			short: 'Browser sign in',
 			signIn: 'VS Code opens your browser to sign in.',
 			where: '.vscode/mcp.json',
 			code: json({ servers: { [name]: { type: 'http', url: mcp } } }),
@@ -56,6 +61,7 @@ export function snippets(baseUrl: string, orgSlug: string | null = null): Snippe
 		{
 			id: 'antigravity',
 			label: 'Antigravity',
+			short: 'Local bridge',
 			signIn: 'Use the local bridge, which signs in with a device code.',
 			where: 'mcp_config.json',
 			code: json({
@@ -78,6 +84,7 @@ export function snippets(baseUrl: string, orgSlug: string | null = null): Snippe
 		{
 			id: 'other',
 			label: 'Any other tool',
+			short: 'Token or bridge',
 			signIn:
 				'For tools such as Cursor, Windsurf, Codex and Gemini CLI: send a personal access token as a bearer header, or use the local bridge.',
 			code: `# Direct, with a personal access token from the section below\nAuthorization: Bearer afb_...\n${mcp}\n\n# Or the local bridge for tools that only speak stdio\nnpx -y @agent-flow-board/bridge mcp --server ${baseUrl}${orgSlug ? ` --org ${orgSlug}` : ''}`,

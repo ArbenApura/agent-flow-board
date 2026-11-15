@@ -40,6 +40,10 @@ describe('connect snippets', () => {
 			'claude mcp add --transport http agent-flow-board https://board.example.com/mcp'
 		);
 	});
+	it('gives every tool a short line for its tile', () => {
+		for (const s of all) expect(s.short.length, s.id).toBeGreaterThan(3);
+		expect(new Set(all.map((s) => s.short)).size).toBeGreaterThan(2);
+	});
 	it('never carries a secret', () => {
 		for (const s of all) expect(s.code).not.toMatch(/afb_[A-Za-z0-9]{10,}/);
 	});
