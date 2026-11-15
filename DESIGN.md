@@ -107,10 +107,10 @@ Free-form notes in folders, written in a rich editor that several people can typ
 `ContinueDialog` (`src/lib/board/`) hands an item to the person's coding tool: Claude Code by default, or Codex, Gemini CLI or a plain copy. The tool and the usual way are set per person in Your settings, "Continue with".
 
 - It shows as a small secondary button next to "Change status" on the item page, and as a small play button on a board card (on hover on a wide screen, always on a phone at 44 px). The card button is a sibling of the card link and never inside it, so a click cannot open the item or start a drag. It is never the primary action.
-- The dialog follows the other dialogs: a way picker, one primary button named for the way, and a normal secondary Cancel beside it, right aligned.
+- The dialog has one way out: a single primary **Copy prompt** button, with Ctrl+Enter as its shortcut. There is no tool picker, no Open in VS Code and no Copy command, and no "Continue with" setting. The prompt is always the slash command of the /flow skills.
+- New plan and New task show one text area: the fixed words (`/flow new AFB:`, `/flow-task AFB:`) are the first words inside it, mono and muted on a one line chip that cannot be edited, and what the person types follows on the same line and wraps under it. No separate preview line.
 - Only a person who can write sees it, and never on a COMPLETED or REMOVED item.
-- The web app cannot start a terminal on a PC, so there is no "run" button. The ways are Open in VS Code (Claude Code only), Copy command and Copy prompt. On a touch screen Copy prompt comes first.
-- **Free text never goes into a shell command.** The copied command carries only the item reference and fixed words. The title and the address appear in Copy prompt and the VS Code link only, with control characters removed and a length cap. See `src/lib/shared/continue.ts`.
+- The prompt is only ever copied, never put into a shell command. See `src/lib/shared/continue.ts`.
 
 ## Background mesh
 

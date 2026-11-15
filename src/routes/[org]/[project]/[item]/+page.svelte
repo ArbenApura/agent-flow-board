@@ -24,13 +24,7 @@
 		STATUS_TONE,
 		type Status
 	} from '#lib/board/status.js';
-	import {
-		ACTION_LABEL,
-		CONTINUE_ACTIONS,
-		parseMode,
-		parseTool,
-		type ContinueAction
-	} from '#lib/shared/continue.js';
+	import { ACTION_LABEL, CONTINUE_ACTIONS, type ContinueAction } from '#lib/shared/continue.js';
 	import ActionMenu from '#lib/ui/ActionMenu.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
@@ -81,8 +75,7 @@
 	// -- REACTIVE STATES -- //
 
 	const d = $derived(data.detail as ItemView | null);
-	// "Continue with" hands the item to the person's coding tool. Not for a closed item.
-	const continueTool = $derived(parseTool(data.continueTool));
+	// "Continue with" hands the item to the person's coding tool as a prompt to copy. Not for a closed item.
 	const ACTION_ICON = {
 		resume: Play,
 		ask: MessageCircle,
@@ -657,8 +650,6 @@
 		onclose={() => (continueOpen = false)}
 		item={continueItem}
 		action={continueAction}
-		tool={continueTool}
-		mode={parseMode(data.continueMode)}
 	/>
 
 	<ResponsiveModal

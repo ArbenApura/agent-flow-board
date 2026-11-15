@@ -16,7 +16,6 @@ import {
 	uuid
 } from 'drizzle-orm/pg-core';
 // IMPORTED MODULES
-import { CONTINUE_MODES, CONTINUE_TOOL_IDS } from '../../../shared/continue';
 import { MAX_STORED_LENGTH } from '../../../shared/pictures';
 import { ROLES, id, oneOf, stamps, tenantTable, version } from './helpers';
 
@@ -274,13 +273,20 @@ export const userPref = pgTable(
 		notifications: jsonb('notifications')
 			.notNull()
 			.default(sql`'{}'::jsonb`),
-		/** The tool the "Continue with" action starts with, and how it carries on (FLOW-20261017-0916). */
+		/** Retired: the Continue with setting is gone and nothing reads or writes these two columns. They stay so a rolling deploy never meets a missing column. */
 		continueTool: text('continue_tool').notNull().default('claude-code'),
 		continueMode: text('continue_mode').notNull().default('vscode'),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 	},
 	(t) => [
-		oneOf('user_pref_continue_tool_chk', t.continueTool, CONTINUE_TOOL_IDS),
-		oneOf('user_pref_continue_mode_chk', t.continueMode, CONTINUE_MODES)
+		oneOf('user_pref_continue_tool_chk', t.continueTool, [
+			'claude-code',
+			'claude-ai',
+			'antigravity',
+			'codex',
+			'gemini',
+			'other'
+		]),
+		oneOf('user_pref_continue_mode_chk', t.continueMode, ['vscode', 'command', 'prompt'])
 	]
 );

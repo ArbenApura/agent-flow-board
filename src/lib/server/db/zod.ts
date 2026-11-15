@@ -5,7 +5,6 @@
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-zod';
 import { z } from 'zod';
 // IMPORTED MODULES
-import { CONTINUE_MODES, CONTINUE_TOOL_IDS, validPair } from '../../shared/continue';
 import { NOTE_LIMITS, NOTE_PICTURE_TYPES } from '../../shared/notes';
 import { TAB_NAME } from '../../shared/tabName';
 import {
@@ -39,8 +38,7 @@ import {
 	section,
 	session,
 	step,
-	task,
-	userPref
+	task
 } from './schema';
 
 // -- CONSTANTS -- //
@@ -193,21 +191,6 @@ export const devRegistrationInput = devRegistrationInsert
 	});
 export const environmentInsert = createInsertSchema(environment, { url: (s) => s.url() });
 export const apiTokenInsert = createInsertSchema(apiToken);
-
-/**
- * The "Continue with" choice of a person: a tool and a way. Open in VS Code is only valid with a tool that has the link.
- * Built from the user_pref table, so the enums are the same list the database check uses.
- */
-export const continueChoice = createUpdateSchema(userPref, {
-	continueTool: z.enum(CONTINUE_TOOL_IDS),
-	continueMode: z.enum(CONTINUE_MODES)
-})
-	.pick({ continueTool: true, continueMode: true })
-	.required()
-	.refine((v) => validPair(v.continueTool, v.continueMode), {
-		message: 'Open in VS Code works with Claude Code only. Pick Copy command or Copy prompt.',
-		path: ['continueMode']
-	});
 
 /** Pin or unpin a project. Only the project comes from the caller; the org and the person always come from the request. */
 export const projectPinInput = createInsertSchema(projectPin).pick({

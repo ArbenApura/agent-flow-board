@@ -34,7 +34,6 @@
 		type Peer
 	} from '#lib/realtime/noteProvider.js';
 	import { httpTransport } from '#lib/realtime/noteTransport.js';
-	import { parseMode, parseTool } from '#lib/shared/continue.js';
 	import { cn } from '#lib/ui/cn.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
@@ -757,6 +756,4 @@
 	onclose={() => (turnOpen = false)}
 	item={null}
 	create={{ kind: turnKind, key, note: note?.ref }}
-	tool={parseTool(data.continueTool)}
-	mode={parseMode(data.continueMode)}
 />

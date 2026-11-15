@@ -11,7 +11,6 @@
 	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { createOptimistic } from '#lib/board/optimistic.svelte.js';
-	import { parseMode, parseTool } from '#lib/shared/continue.js';
 	import {
 		NO_PRIORITY,
 		TASK_STATES,
@@ -827,6 +826,4 @@
 	onclose={() => (adding = false)}
 	item={null}
 	create={{ kind: 'task', key }}
-	tool={parseTool(data.continueTool)}
-	mode={parseMode(data.continueMode)}
 />

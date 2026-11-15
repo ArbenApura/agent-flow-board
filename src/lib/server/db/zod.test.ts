@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { tabNameFromTitle } from '../../shared/tabName';
 import { NOTE_LIMITS, noteNumberOf, noteRef, sniffPicture } from '../../shared/notes';
 import {
-	continueChoice,
 	itemInsert,
 	noteCreateInput,
 	noteFileInsert,
@@ -51,35 +50,6 @@ describe('project rules', () => {
 		expect(projectInsert.safeParse({ orgId: ids.orgId, key: 'HAPR', name: 'x' }).success).toBe(
 			true
 		);
-	});
-});
-
-describe('continue choice', () => {
-	it('accepts a tool with a way it can do', () => {
-		for (const ok of [
-			{ continueTool: 'claude-code', continueMode: 'vscode' },
-			{ continueTool: 'claude-code', continueMode: 'command' },
-			{ continueTool: 'codex', continueMode: 'command' },
-			{ continueTool: 'other', continueMode: 'prompt' }
-		])
-			expect(continueChoice.safeParse(ok).success, JSON.stringify(ok)).toBe(true);
-	});
-	it('refuses Open in VS Code for a tool that has no link', () => {
-		expect(
-			continueChoice.safeParse({ continueTool: 'codex', continueMode: 'vscode' }).success
-		).toBe(false);
-		expect(
-			continueChoice.safeParse({ continueTool: 'gemini', continueMode: 'vscode' }).success
-		).toBe(false);
-	});
-	it('refuses an unknown tool or way and a missing field', () => {
-		expect(continueChoice.safeParse({ continueTool: 'x', continueMode: 'prompt' }).success).toBe(
-			false
-		);
-		expect(continueChoice.safeParse({ continueTool: 'codex', continueMode: 'run' }).success).toBe(
-			false
-		);
-		expect(continueChoice.safeParse({ continueTool: 'codex' }).success).toBe(false);
 	});
 });
 

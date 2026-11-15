@@ -11,7 +11,6 @@
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { activityText } from '#lib/board/projects.js';
 	import { slimItem } from '#lib/board/rows.js';
-	import { parseMode, parseTool } from '#lib/shared/continue.js';
 	import BoardColumn from '#lib/board/BoardColumn.svelte';
 	import ContinueDialog from '#lib/board/ContinueDialog.svelte';
 	import ItemLine from '#lib/board/ItemLine.svelte';
@@ -753,8 +752,6 @@
 	item={continueRow
 		? { ref: continueRow.ref, title: continueRow.title, href: itemHref(continueRow.ref) }
 		: null}
-	tool={parseTool(data.continueTool)}
-	mode={parseMode(data.continueMode)}
 />
 
 <!-- NEW PLAN: THE SAME HAND-OFF AS RESUME AND ASK, WITH AN IDEA BOX. THE TOOL MAKES THE PLAN THROUGH /flow -->
@@ -763,6 +760,4 @@
 	onclose={() => (newOpen = false)}
 	item={null}
 	create={{ kind: 'plan', key }}
-	tool={parseTool(data.continueTool)}
-	mode={parseMode(data.continueMode)}
 />

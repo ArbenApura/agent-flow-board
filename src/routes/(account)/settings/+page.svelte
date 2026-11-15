@@ -17,19 +17,6 @@
 	import ModePreview from '#lib/settings/ModePreview.svelte';
 	import Section from '#lib/settings/Section.svelte';
 	import SettingsRow from '#lib/settings/SettingsRow.svelte';
-	import {
-		CONTINUE_MODE_LABEL,
-		CONTINUE_MODES,
-		CONTINUE_TOOLS_SHOWN,
-		buildCommand,
-		commandPrompt,
-		effectiveMode,
-		parseMode,
-		parseTool,
-		toolOf,
-		type ContinueMode,
-		type ContinueToolId
-	} from '#lib/shared/continue.js';
 	import { live, setLiveMode } from '#lib/theme/live.svelte.js';
 	import type { ResolvedMode } from '#lib/theme/mode.js';
 	import Avatar from '#lib/ui/Avatar.svelte';
@@ -40,7 +27,6 @@
 	import GoogleLogo from '#lib/ui/GoogleLogo.svelte';
 	import PasswordStrength from '#lib/ui/PasswordStrength.svelte';
 	import PictureUpload from '#lib/ui/PictureUpload.svelte';
-	import SelectField from '#lib/ui/SelectField.svelte';
 	import Switch from '#lib/ui/Switch.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { cn } from '#lib/ui/cn.js';
@@ -58,7 +44,6 @@
 	import Check from '@lucide/svelte/icons/check';
 	import Monitor from '@lucide/svelte/icons/monitor';
 	import Smartphone from '@lucide/svelte/icons/smartphone';
-	import Terminal from '@lucide/svelte/icons/terminal';
 	import Tablet from '@lucide/svelte/icons/tablet';
 
 	// -- REQUIRED PROPS -- //
@@ -75,7 +60,6 @@
 		{ value: 'light', label: 'Light' },
 		{ value: 'dark', label: 'Dark' }
 	];
-	const CONTINUE_TOOL_OPTIONS = CONTINUE_TOOLS_SHOWN.map((t) => ({ value: t.id, label: t.label }));
 	const DEVICE_ICON = { desktop: Monitor, phone: Smartphone, tablet: Tablet } as const;
 
 	// -- STATES -- //
@@ -83,34 +67,16 @@
 	let name = $state('');
 	let current = $state('');
 	let next = $state('');
-	let continueTool = $state<ContinueToolId>('claude-code');
-	let continueMode = $state<ContinueMode>('vscode');
 	let backupAlerts = $state(true);
 	let status = $state<Record<string, { saving: boolean; saved: boolean; error: string }>>({});
 
 	// -- REACTIVE STATES -- //
 
 	const prefs = $derived(data.prefs);
-	/** The ways the chosen tool can do. Open in VS Code only shows for a tool that has the link. */
-	const continueWays = $derived(
-		CONTINUE_MODES.filter((m) => m !== 'vscode' || toolOf(continueTool).vscode)
-			.filter((m) => m !== 'command' || toolOf(continueTool).command)
-			.map((m) => ({ value: m, label: CONTINUE_MODE_LABEL[m] }))
-	);
-	/** What the chosen pair does, in plain words, with the real command for a command. */
-	const continueExample = $derived.by(() => {
-		const way = effectiveMode(continueTool, continueMode);
-		if (way === 'vscode')
-			return 'Opens a Claude chat in VS Code with the prompt typed in. You press Enter to run it.';
-		if (way === 'command')
-			return `Copies a line like: ${buildCommand(continueTool, commandPrompt('resume', continueTool, 'ABC-20261017-0950') ?? '') ?? ''}`;
-		return 'Copies the whole prompt, with the item name and address, to paste into your tool.';
-	});
 	const orgCount = $derived(data.orgs.length);
 	const dirty = $derived({
 		profile: name.trim() !== data.me.name,
 		password: current !== '' && next !== '',
-		continue: continueTool !== data.continueTool || continueMode !== data.continueMode,
 		notifications: backupAlerts !== prefs.notifications.backupAlerts
 	});
 
@@ -121,8 +87,6 @@
 	const follow = createFollower();
 	$effect(() => {
 		follow('name', data.me.name, (v) => (name = v));
-		follow('continueTool', parseTool(data.continueTool), (v) => (continueTool = v));
-		follow('continueMode', parseMode(data.continueMode), (v) => (continueMode = v));
 		follow('backupAlerts', prefs.notifications.backupAlerts, (v) => (backupAlerts = v));
 	});
 
@@ -538,40 +502,6 @@
 			<div class="text-xs text-muted">
 				The accent colour comes from the organisation. An admin sets it in Organisation settings.
 			</div>
-		</Section>
-
-		<Section
-			id="continue"
-			icon={Terminal}
-			group="Preferences"
-			title="Continue with"
-			text="The tool the Continue button on an item starts with."
-			dirty={dirty.continue}
-			saving={st('continue').saving}
-			saved={st('continue').saved}
-			error={st('continue').error}
-			onsave={() =>
-				run('continue', 'continue', { continueTool, continueMode }, 'Continue setting saved.')}
-		>
-			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-				<SelectField
-					label="Which tool do you usually work with?"
-					options={CONTINUE_TOOL_OPTIONS}
-					value={continueTool}
-					onchange={(v) => {
-						continueTool = parseTool(v);
-						// A way the new tool cannot do becomes the next best one
-						continueMode = effectiveMode(continueTool, continueMode);
-					}}
-				/>
-				<SelectField
-					label="How do you usually carry on?"
-					options={continueWays}
-					value={continueMode}
-					onchange={(v) => (continueMode = parseMode(v))}
-				/>
-			</div>
-			<div class="text-xs text-muted" data-testid="continue-example">{continueExample}</div>
 		</Section>
 
 		<Section
