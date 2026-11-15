@@ -73,7 +73,8 @@ describe('the bridge commands of the Connect page', () => {
 		expect(checks[0].rows.every((c) => c.kind === 'Checks')).toBe(true);
 		const doctor = filterCommands(ALL, 'All', 'DOCTOR');
 		expect(doctor.flatMap((g) => g.rows).map((c) => c.command)).toEqual([
-			'agent-flow-board check doctor --fix'
+			'agent-flow-board check doctor',
+			'agent-flow-board check doctor --fix --yes'
 		]);
 		expect(filterCommands(ALL, 'Mockups', 'doctor')).toEqual([]);
 		expect(filterCommands(ALL, 'All', 'no such word anywhere')).toEqual([]);

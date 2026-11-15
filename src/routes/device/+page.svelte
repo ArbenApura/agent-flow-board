@@ -65,7 +65,7 @@
 <AuthShell
 	title="Approve a tool"
 	note="Approving gives that tool your access until you revoke it in Your settings."
-	subtitle="Type the code your tool shows. Never approve a code you did not just start yourself."
+	subtitle="Type the code your tool printed. It works once, for a few minutes. You can open this page on any computer or phone. Never approve a code you did not just start yourself."
 >
 	{#if form && 'step' in form && form.step === 'done'}
 		<p
@@ -81,7 +81,7 @@
 		<div class="mb-3 rounded-lg border border-line bg-raised p-3 text-sm" data-testid="device-info">
 			<strong>{confirm.info.client}</strong> asked to sign in{confirm.info.origin
 				? ` from ${confirm.info.origin}`
-				: ''}. The code expires in {Math.ceil(confirm.info.expiresInSeconds / 60)} minutes.
+				: ''}. The code works for {Math.floor(confirm.info.expiresInSeconds / 60)} minutes, once.
 		</div>
 		<form
 			method="POST"

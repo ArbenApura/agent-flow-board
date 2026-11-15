@@ -8,14 +8,29 @@
 import type { TokenStore } from '../tokenStore.js';
 import type { Registration } from './types.js';
 // IMPORTED DEP-MODULES
-import { existsSync, lstatSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import {
+	existsSync,
+	lstatSync,
+	readFileSync,
+	readdirSync,
+	rmSync,
+	statSync,
+	statfsSync
+} from 'node:fs';
+import { createRequire } from 'node:module';
+import { basename, dirname, join } from 'node:path';
 // IMPORTED MODULES
 import { verifyAudit } from './audit.js';
 import { localFingerprint } from './signinKey.js';
 import { machineTotals } from './broker.js';
 import { listBrowserMarkers, sweepBrowserMarkers } from './browserpool.js';
-import { ensureBrowser, playwrightRuntimeDir } from './browser.js';
+import {
+	browserLaunches,
+	browserState,
+	downloadNote,
+	ensureBrowser,
+	resetOwnBrowserInstall
+} from './browser.js';
 import { loadRunnerToken, runnerAccount } from './connect.js';
 import { forgetConnection, listConnections } from './connections.js';
 import { listPools, sweepPool } from './dbpool.js';
@@ -121,12 +136,34 @@ export type RegistrationStatus = {
 	adoptEnv: boolean;
 	dev?: DevTargetStatus;
 };
+/** What `check doctor` says about the browser: every line is OK, Missing or Wrong, never more than a host name of a proxy. */
+export type BrowserReport = {
+	bridge: string;
+	runtime: string | null;
+	pinned: string;
+	executable: string | null;
+	executableExists: boolean;
+	/** Null when the browser was not started because it is missing. */
+	launches: { ok: boolean; detail: string } | null;
+	node: string;
+	diskFreeMb: number | null;
+	/** The host and port of the proxy in the environment, with no user name or password, or null. */
+	proxy: string | null;
+};
 export type HealthDeps = {
 	docker?: DockerRun;
 	now?: () => number;
 	pidAlive?: (pid: number) => boolean;
 	ensureBrowser?: (log: (line: string) => void) => Promise<void>;
 	browserInstalled?: () => boolean;
+	/** Replaces the real look at the browser, so a test needs no download. */
+	browserReport?: () => Promise<BrowserReport>;
+	/** One yes for the whole download (`--yes`). Without it nothing is downloaded and the command to run is printed (the bridge never reads a terminal). */
+	yes?: boolean;
+	/** `check status` sets this so it never starts a browser; only `check doctor` tests that it starts. */
+	skipLaunch?: boolean;
+	/** A stand-in for the yes, used by tests only. */
+	confirm?: (question: string) => Promise<boolean>;
 	hasPermissionModel?: () => boolean;
 	trustedBoard?: (server: string) => boolean;
 	token?: (server: string, org: string) => string | null;
@@ -347,6 +384,55 @@ function dropWorkerLock(name: string): boolean {
 
 // -- FUNCTIONS: DOCTOR -- //
 
+/** A proxy address for a person to read: the host and port only, never a user name or a password. */
+export function proxyHost(env: NodeJS.ProcessEnv = process.env): string | null {
+	const raw = env.HTTPS_PROXY || env.https_proxy || env.HTTP_PROXY || env.http_proxy;
+	if (!raw) return null;
+	try {
+		return new URL(raw.includes('://') ? raw : `http://${raw}`).host || 'set';
+	} catch {
+		return 'set (its address could not be read)';
+	}
+}
+
+/**
+ * Looks at the real browser. The launch is tried only when `launch` is true and the browser file is there, and ends by itself after 20 seconds (`check status` does not
+ * start a browser each time it is called, only `check doctor` does).
+ */
+async function realBrowserReport(launch = true): Promise<BrowserReport> {
+	const state = await browserState();
+	let bridge = 'unknown';
+	try {
+		bridge = String(
+			(createRequire(import.meta.url)('../../package.json') as { version?: string }).version ??
+				'unknown'
+		);
+	} catch {
+		/* The version is only a line of the report */
+	}
+	let diskFreeMb: number | null = null;
+	try {
+		// The state folder may not exist yet on a fresh machine: the first folder above it that does is on the same disk
+		let at = checksHome();
+		while (!existsSync(at) && dirname(at) !== at) at = dirname(at);
+		const s = statfsSync(at);
+		diskFreeMb = Math.floor((Number(s.bavail) * Number(s.bsize)) / (1024 * 1024));
+	} catch {
+		/* An older Node has no statfs: the line is left out */
+	}
+	return {
+		bridge,
+		runtime: state.runtimeVersion,
+		pinned: state.pinned,
+		executable: state.executable,
+		executableExists: state.executableExists,
+		launches: launch && state.executableExists ? await browserLaunches() : null,
+		node: process.versions.node,
+		diskFreeMb,
+		proxy: proxyHost()
+	};
+}
+
 /**
  * Runs every check. With `fix` it repairs what it may. Each problem has one plain sentence and the exact next step. `deps` lets a test stand in for docker, the browser
  * install, the board trust rule and the clock.
@@ -403,18 +489,87 @@ export async function runDoctor(
 
 	// -- THE BROWSER INSTALL -- //
 	await guard('The browser install', async () => {
-		if ((deps.browserInstalled ?? (() => Boolean(playwrightRuntimeDir())))()) return;
-		if (fix) {
-			try {
-				await (deps.ensureBrowser ?? ensureBrowser)(ctx.log);
-				did('The browser was installed.');
-			} catch (e) {
-				found(
-					`The browser could not be installed: ${cut(e instanceof Error ? e.message : String(e))}`,
-					'Check the network, then run: agent-flow-board check setup'
-				);
-			}
-		} else found('The browser is not installed.', 'Run: agent-flow-board check doctor --fix');
+		// A caller that only says whether it is installed keeps the short path
+		if (deps.browserInstalled) {
+			if (deps.browserInstalled()) return;
+			if (fix) {
+				try {
+					await (deps.ensureBrowser ?? ensureBrowser)(ctx.log);
+					did('The browser was installed.');
+				} catch (e) {
+					found(
+						`The browser could not be installed: ${cut(e instanceof Error ? e.message : String(e))}`,
+						'Check the network, then run: agent-flow-board check setup'
+					);
+				}
+			} else found('The browser is not installed.', 'Run: agent-flow-board check doctor --fix');
+			return;
+		}
+		const rep = await (deps.browserReport ?? (() => realBrowserReport(!deps.skipLaunch)))();
+		note(`Bridge ${rep.bridge}, Node ${rep.node}, Playwright pinned ${rep.pinned}.`);
+		if (rep.diskFreeMb !== null)
+			note(
+				rep.diskFreeMb >= 1024
+					? `Free disk space: OK (${Math.round(rep.diskFreeMb / 1024)} GB).`
+					: `Free disk space: low (${rep.diskFreeMb} MB; the browser takes about 720 MB on disk, so keep about 1 GB free).`
+			);
+		note(rep.proxy ? `Proxy: set (${rep.proxy}).` : 'Proxy: none set.');
+		const nodeMajor = Number(rep.node.split('.')[0]);
+		if (!Number.isFinite(nodeMajor) || nodeMajor < 20)
+			found(
+				`Node ${rep.node} is too old: the bridge needs Node 20 or newer.`,
+				'Install Node 20 or newer from https://nodejs.org, then run the command again.'
+			);
+		// Missing: no runtime, no browser file, or the browser is not the version this bridge wants
+		const missing = rep.runtime === null || !rep.executableExists;
+		const wrongVersion = rep.runtime !== null && rep.runtime !== rep.pinned;
+		if (!missing && !wrongVersion && rep.launches?.ok) {
+			note(`Browser: OK (Playwright ${rep.runtime}, ${rep.executable}, ${rep.launches.detail}).`);
+			return;
+		}
+		// `check status` does not start a browser: the file is there and the right version, and `check doctor` tests that it starts
+		if (!missing && !wrongVersion && rep.launches === null) {
+			note(
+				`Browser: present (Playwright ${rep.runtime}, ${rep.executable}); run "agent-flow-board check doctor" to test that it starts.`
+			);
+			return;
+		}
+		const why = wrongVersion
+			? `The browser tool is Playwright ${rep.runtime} but this bridge needs ${rep.pinned}.`
+			: missing
+				? 'The browser is missing.'
+				: `The browser is there but ${rep.launches?.detail ?? 'does not start'}.`;
+		if (!fix) {
+			found(why, 'Run: agent-flow-board check doctor --fix --yes');
+			return;
+		}
+		// Missing libraries are not cured by a new download: say so and stop
+		if (!missing && !wrongVersion && /system libraries/.test(rep.launches?.detail ?? '')) {
+			found(
+				why,
+				'Install the system libraries it names (administrator rights), then run: agent-flow-board check doctor'
+			);
+			return;
+		}
+		// Every repair of the browser is a download of the whole set, so it needs the one yes: the size and the source are said first
+		ctx.log(downloadNote());
+		// The bridge never reads a terminal: the yes is --yes (or a stand-in in a test)
+		const yes = deps.yes ?? (deps.confirm ? await deps.confirm('Download it now?') : false);
+		if (!yes) {
+			found(why, 'Run: agent-flow-board check doctor --fix --yes (it downloads about 320 MB)');
+			return;
+		}
+		try {
+			// A browser that is there but does not start is installed again: its own folder is cleared first, or the install would see a whole one and do nothing
+			if (!missing && !wrongVersion) resetOwnBrowserInstall();
+			await (deps.ensureBrowser ?? ensureBrowser)(ctx.log);
+			did(missing || wrongVersion ? 'The browser was installed.' : 'The browser was repaired.');
+		} catch (e) {
+			found(
+				`The browser could not be installed: ${cut(e instanceof Error ? e.message : String(e))}`,
+				'Fix what that line says, then run: agent-flow-board check doctor --fix --yes'
+			);
+		}
 	});
 
 	// -- WHAT DEAD RUNS LEFT: FOLDERS, COPIES, CONTAINERS, PREVIEWS -- //
@@ -820,7 +975,7 @@ async function registrationStatus(
 
 /** The state of this machine: registrations, the machine's slots, the service, the connections, the audit chain. Runs the read-only doctor checks too. */
 export async function runStatus(ctx: HealthContext, deps: HealthDeps = {}): Promise<StatusResult> {
-	const base = await runDoctor(ctx, { fix: false }, deps);
+	const base = await runDoctor(ctx, { fix: false }, { skipLaunch: true, ...deps });
 	const tokenOf =
 		deps.token ??
 		(ctx.store ? (s: string, o: string) => loadRunnerToken(ctx.store as TokenStore, s, o) : null);
@@ -848,7 +1003,13 @@ export async function runStatus(ctx: HealthContext, deps: HealthDeps = {}): Prom
 			connected: tokenOf ? Boolean(tokenOf(c.server, c.org)) : null
 		})),
 		audit: { ok: audit.ok, lines: audit.lines },
-		browser: (deps.browserInstalled ?? (() => Boolean(playwrightRuntimeDir())))()
+		// True only when the browser file of the pinned version is really there (the packages alone are not a browser)
+		browser: deps.browserInstalled
+			? deps.browserInstalled()
+			: await browserState().then(
+					(b) => b.executableExists && b.runtimeVersion === b.pinned,
+					() => false
+				)
 	};
 }
 
@@ -884,7 +1045,12 @@ export async function healthCommand(
 				return 1;
 			}
 			try {
-				const r = await runDoctor(ctx, { fix }, deps);
+				// --yes is the one yes for the browser download (an agent passes it itself); without it nothing is downloaded
+				const r = await runDoctor(
+					ctx,
+					{ fix },
+					args.includes('--yes') ? { yes: true, ...deps } : deps
+				);
 				emit(ctx, json, r, [
 					...r.fixed.map((f) => `Fixed: ${f}`),
 					...(r.notes ?? []).map((n) => `Note: ${n}`),

@@ -2,18 +2,32 @@
 // The installers are replaced, so nothing is downloaded.
 
 // IMPORTED DEP-MODULES
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readdirSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // IMPORTED MODULES
 import {
 	PLAYWRIGHT_VERSION,
+	activeBrowsersDir,
+	browsersDir,
 	choosePlaywrightDir,
+	confirmBrowserDownload,
+	describeInstallFailure,
+	downloadNote,
 	ensureBrowser,
+	removeOwnFolder,
 	type BrowserInstallIo
 } from './browser.js';
-import { locksDir } from './paths.js';
+import { checksHome, locksDir } from './paths.js';
 
 // -- FUNCTIONS -- //
 
@@ -128,5 +142,117 @@ describe('choosePlaywrightDir (C12)', () => {
 		expect(choosePlaywrightDir('/bridge/nm', '/runtime/old', versionOf)).toBe('/bridge/nm');
 		expect(choosePlaywrightDir(null, '/runtime/old', versionOf)).toBe('/runtime/old');
 		expect(choosePlaywrightDir(null, null, versionOf)).toBeNull();
+	});
+});
+
+// -- AFB-20261115-1229: THE BRIDGE'S OWN BROWSER FOLDER, THE ONE YES, AND WHAT A FAILED INSTALL SAYS -- //
+
+describe('the bridge keeps its own browser (AFB-20261115-1229)', () => {
+	let home = '';
+	let before: string | undefined;
+	beforeEach(() => {
+		before = process.env.AFB_BRIDGE_HOME;
+		home = mkdtempSync(join(tmpdir(), 'afb-browser-own-'));
+		process.env.AFB_BRIDGE_HOME = home;
+	});
+	afterEach(() => {
+		if (before === undefined) delete process.env.AFB_BRIDGE_HOME;
+		else process.env.AFB_BRIDGE_HOME = before;
+		rmSync(home, { recursive: true, force: true });
+	});
+
+	it('the browsers live inside the bridge home, so a project’s own Playwright cache is never the one used', () => {
+		expect(browsersDir()).toBe(join(checksHome(), 'browsers'));
+		expect(browsersDir().startsWith(home)).toBe(true);
+	});
+
+	it('the download note names the size, the source and the folder before anything is downloaded', () => {
+		const note = downloadNote();
+		expect(note).toMatch(/about 320 MB/);
+		expect(note).toMatch(/Chromium about 200 MB plus its headless shell about 120 MB/);
+		expect(note).toMatch(/Playwright's download servers/);
+		expect(note).toContain(activeBrowsersDir());
+	});
+
+	it('removing the old browser and runtime takes only those two folders: a foreign sibling survives', () => {
+		const foreign = join(checksHome(), 'ms-playwright');
+		const scripts = join(checksHome(), 'scripts');
+		for (const dir of [browsersDir(), join(checksHome(), 'runtime'), foreign, scripts]) {
+			mkdirSync(dir, { recursive: true });
+			writeFileSync(join(dir, 'keep.txt'), 'x');
+		}
+		expect(removeOwnFolder('browsers')).toBe(true);
+		expect(removeOwnFolder('runtime')).toBe(true);
+		expect(existsSync(browsersDir())).toBe(false);
+		expect(existsSync(join(checksHome(), 'runtime'))).toBe(false);
+		expect(existsSync(join(foreign, 'keep.txt'))).toBe(true);
+		expect(existsSync(join(scripts, 'keep.txt'))).toBe(true);
+		// Nothing there any more: nothing is removed and nothing throws
+		expect(removeOwnFolder('browsers')).toBe(false);
+	});
+
+	it('a browsers folder that is really a link to another place is left alone', () => {
+		const outside = mkdtempSync(join(tmpdir(), 'afb-outside-'));
+		try {
+			writeFileSync(join(outside, 'keep.txt'), 'x');
+			mkdirSync(checksHome(), { recursive: true });
+			try {
+				symlinkSync(outside, browsersDir(), 'junction');
+			} catch {
+				// Making a link needs a privilege on some systems: nothing to prove there
+				return;
+			}
+			expect(removeOwnFolder('browsers')).toBe(false);
+			expect(existsSync(join(outside, 'keep.txt'))).toBe(true);
+		} finally {
+			rmSync(browsersDir(), { recursive: true, force: true });
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
+	it('one yes covers the whole download: --yes, and nothing is downloaded without it (the bridge never reads a terminal)', () => {
+		const said: string[] = [];
+		expect(confirmBrowserDownload(true, (l) => said.push(l))).toBe(true);
+		// The size and the source are said first, whatever the answer
+		expect(said.join('\n')).toMatch(/about 320 MB/);
+		expect(confirmBrowserDownload(undefined, () => undefined)).toBe(false);
+	});
+
+	it('a failed install names the cause in one line: disk full, permissions, proxy, offline', () => {
+		expect(describeInstallFailure('npm ERR! code ENOSPC: no space left on device')).toMatch(
+			/disk is full/
+		);
+		expect(describeInstallFailure('EPERM: operation not permitted, rename')).toMatch(
+			/security program/
+		);
+		expect(describeInstallFailure('Error: 407 Proxy Authentication Required')).toMatch(/proxy/);
+		expect(describeInstallFailure('getaddrinfo ENOTFOUND cdn.playwright.dev')).toMatch(/offline/);
+		expect(describeInstallFailure('something odd')).toMatch(/last lines/);
+	});
+
+	it('a manifest only folder is not whole: the runtime is there, the browser is not, so only the browser is downloaded and the note comes after', async () => {
+		const calls: string[] = [];
+		let chromium = false;
+		const note = join(checksHome(), 'runtime', '.complete');
+		const io: BrowserInstallIo = {
+			pinnedDir: () => join(home, 'node_modules'),
+			chromiumPresent: async () => chromium,
+			installRuntime: async () => void calls.push('runtime'),
+			installChromium: async () => {
+				calls.push('chromium');
+				chromium = true;
+			},
+			notePath: () => note,
+			lockName: 'browser-install-own',
+			pause: async () => undefined
+		};
+		mkdirSync(join(checksHome(), 'runtime'), { recursive: true });
+		writeFileSync(join(checksHome(), 'runtime', 'package.json'), '{"private":true}');
+		await ensureBrowser(() => undefined, io);
+		expect(calls).toEqual(['chromium']);
+		expect(existsSync(note)).toBe(true);
+		// Ready now: the next check (or the next setup) downloads nothing
+		await ensureBrowser(() => undefined, io);
+		expect(calls).toEqual(['chromium']);
 	});
 });

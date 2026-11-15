@@ -82,9 +82,22 @@ const COMMANDS: { kind: CommandKind; args: string; text: string }[] = [
 		text: 'Take runs started from the Run button of the board.'
 	},
 	{ kind: 'Checks', args: 'check status', text: 'What is connected, and what needs fixing.' },
-	{ kind: 'Checks', args: 'check doctor --fix', text: 'Repair the state and clear old runs.' },
+	{
+		kind: 'Checks',
+		args: 'check doctor',
+		text: 'A full report: the bridge, Node, the browser (it is started once to prove it works), free disk space and the worker. Each line says OK, Missing or Wrong and the command that fixes it.'
+	},
+	{
+		kind: 'Checks',
+		args: 'check doctor --fix --yes',
+		text: 'Repair what it can and clear old runs. If the browser is missing it downloads it (about 320 MB, once); --yes is your yes to that download.'
+	},
 	{ kind: 'Checks', args: 'check clear', text: 'Remove old runs.' },
-	{ kind: 'Checks', args: 'check setup', text: 'Install the browser the checks use.' },
+	{
+		kind: 'Checks',
+		args: 'check setup --yes',
+		text: 'Install the browser the checks use (about 320 MB, once). Without --yes it only tells you the size and downloads nothing.'
+	},
 	{
 		kind: 'Checks',
 		args: 'check project <NAME> --org {org} --repo <folder>',

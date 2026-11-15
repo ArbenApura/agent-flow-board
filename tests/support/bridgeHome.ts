@@ -3,7 +3,7 @@
 
 // IMPORTED DEP-MODULES
 import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect } from 'vitest';
 
@@ -11,6 +11,7 @@ import { afterAll, beforeAll, expect } from 'vitest';
 
 let made: string | null = null;
 let before: string | undefined;
+let sharedSet = false;
 
 // -- LIFECYCLES -- //
 
@@ -29,4 +30,25 @@ afterAll(() => {
 	if (process.env.AFB_BRIDGE_HOME === made) delete process.env.AFB_BRIDGE_HOME;
 	rmSync(made, { recursive: true, force: true });
 	made = null;
+});
+
+// A bridge test that starts a real browser finds the browsers already on this machine (the shared Playwright cache) instead of downloading them into its throwaway home.
+// The bridge's own browsers folder is the default for a person; PLAYWRIGHT_BROWSERS_PATH, when set, is respected (AFB-20261115-1229).
+beforeAll(() => {
+	// Every test file, not only the ones under packages/bridge: the vertical-slice tests in tests/ops also start the bridge's real browser
+	if (process.env.PLAYWRIGHT_BROWSERS_PATH) return;
+	const shared =
+		process.platform === 'win32'
+			? join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), 'ms-playwright')
+			: process.platform === 'darwin'
+				? join(homedir(), 'Library', 'Caches', 'ms-playwright')
+				: join(homedir(), '.cache', 'ms-playwright');
+	process.env.PLAYWRIGHT_BROWSERS_PATH = shared;
+	sharedSet = true;
+});
+
+afterAll(() => {
+	if (!sharedSet) return;
+	delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+	sharedSet = false;
 });

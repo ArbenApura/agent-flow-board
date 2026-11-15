@@ -205,7 +205,7 @@
 					/>
 					{#if mine[0]}
 						<BridgeProjectsCard runner={mine[0]} />
-						<ChecksApprovalsCard settingsHref={`/${org.slug}`} />
+						<ChecksApprovalsCard />
 						<ChecksSetupCard
 							brief={data.checksBrief}
 							editorHref={connectHref(org.slug, 'editor')}
@@ -215,10 +215,12 @@
 							brief={data.checksBrief}
 							editorHref={connectHref(org.slug, 'editor')}
 						/>
-						<ChecksApprovalsCard settingsHref={`/${org.slug}`} />
+						<ChecksApprovalsCard />
 					{/if}
 				</div>
-				<div class="stagger flex min-w-0 flex-col gap-6"><BridgeHealthCard /></div>
+				<div class="stagger flex min-w-0 flex-col gap-6">
+					<BridgeHealthCard server={data.baseUrl} orgSlug={org.slug} />
+				</div>
 			</div>
 			<BridgeCommandsCard server={data.baseUrl} orgSlug={org.slug} orgName={org.name} />
 		</div>

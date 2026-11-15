@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 // IMPORTED MODULES
 import { bindFolder } from './bind.js';
-import { ensureBrowser } from './browser.js';
+import { browserLaunches, browserState, confirmBrowserDownload, ensureBrowser } from './browser.js';
 import { listFlag, strictList } from '../listFlags.js';
 import { connectChecks, loadRunnerToken, runnerAccount } from './connect.js';
 import { forgetConnection, listConnections, recordConnection } from './connections.js';
@@ -47,7 +47,7 @@ export const CHECK_USAGE = [
     '  secrets import|list|forget --org <slug> --project <NAME> [--from <file> --keys A,B --test-ref <ref> --test-inbox <email> --owner-said "<sentence>" --allow-service-role --approval <code>]',
     '  login <NAME> --org <slug> [--profile <profile>] [--seeded [url|cmd] | --approval <code>] [--timeout <minutes>]   (--profile saves sealed per-role state, e.g. patient, doctor, staff)',
     '  service install|uninstall|status [--no-start]  |  import-legacy --from <afb-checks folder> --org <slug> [--dry-run]',
-    '  status [--json]  |  doctor [--fix] [--json]  |  clear [runs|profiles|auth|dbs|previews|all] [--all] [--yes]  |  setup  |  disconnect --server <url> --org <slug>'
+    '  status [--json]  |  doctor [--fix] [--yes] [--json]  |  clear [runs|profiles|auth|dbs|previews|all] [--all] [--yes]  |  setup [--yes]  |  disconnect --server <url> --org <slug>'
 ].join('\n');
 // -- FUNCTIONS -- //
 /** The value of --parallel: undefined when the flag is absent (the machine decides), else a whole number from 1 up. */
@@ -552,7 +552,20 @@ export async function checkMain(ctx) {
             return 0;
         }
         if (sub === 'setup') {
+            // One yes covers the whole download: --yes (the agent that runs this passes it itself), nothing is downloaded without it
+            const state = await browserState();
+            const whole = state.executableExists && state.runtimeVersion === state.pinned && state.complete;
+            if (!whole && !confirmBrowserDownload(has('--yes') ? true : undefined, log)) {
+                log('Nothing was downloaded. Run it again with --yes to download it: agent-flow-board check setup --yes');
+                return 3;
+            }
             await ensureBrowser(log);
+            // "Ready" means it starts: a complete install is tested once before it is called ready
+            const started = await browserLaunches();
+            if (!started.ok) {
+                log(`The browser is installed but ${started.detail}. Run: agent-flow-board check doctor --fix --yes`);
+                return 1;
+            }
             log('The browser is ready.');
             return 0;
         }

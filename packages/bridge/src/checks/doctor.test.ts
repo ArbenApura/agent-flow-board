@@ -33,8 +33,15 @@ import {
 } from './paths.js';
 import { acquireLock } from './lock.js';
 import { saveProfile } from './profiles.js';
-import { clearCommand, healthCommand, runDoctor, runStatus, trustedBoard } from './doctor.js';
-import type { HealthContext, HealthDeps } from './doctor.js';
+import {
+	clearCommand,
+	healthCommand,
+	proxyHost,
+	runDoctor,
+	runStatus,
+	trustedBoard
+} from './doctor.js';
+import type { BrowserReport, HealthContext, HealthDeps } from './doctor.js';
 import { recordConnection } from './connections.js';
 import {
 	findRegistration,
@@ -364,6 +371,188 @@ describe('doctor', () => {
 			const fixed = await runDoctor(ctx(), { fix: true }, d);
 			expect(installs).toBe(1);
 			expect(fixed.fixed).toContain('The browser was installed.');
+		});
+
+		// -- THE HONEST BROWSER REPORT (AFB-20261115-1229): OK, MISSING OR WRONG, ONE YES FOR THE WHOLE DOWNLOAD -- //
+
+		const report = (over: Partial<BrowserReport> = {}): BrowserReport => ({
+			bridge: '0.8.0',
+			runtime: '1.64.0',
+			pinned: '1.64.0',
+			executable: '/home/x/.agent-flow-board/checks/browsers/chromium-1248/chrome',
+			executableExists: true,
+			launches: { ok: true, detail: 'it starts' },
+			node: '22.1.0',
+			diskFreeMb: 50_000,
+			proxy: null,
+			...over
+		});
+		const browserDeps = (r: BrowserReport, extra: HealthDeps = {}): HealthDeps => {
+			const d = deps({ browserReport: async () => r, ...extra });
+			delete d.browserInstalled;
+			return d;
+		};
+
+		it('a healthy browser is one OK line with its path, and no problem', async () => {
+			const r = await runDoctor(ctx(), { fix: false }, browserDeps(report()));
+			expect(r.problems.filter((p) => /rowser/.test(p.problem))).toEqual([]);
+			expect((r.notes ?? []).join('\n')).toMatch(
+				/Browser: OK \(Playwright 1\.64\.0, .*chromium-1248/
+			);
+			expect((r.notes ?? []).join('\n')).toMatch(
+				/Bridge 0\.8\.0, Node 22\.1\.0, Playwright pinned 1\.64\.0/
+			);
+		});
+
+		it('the packages alone are not a browser: a runtime with no browser file is Missing, with the command that fixes it', async () => {
+			const r = await runDoctor(
+				ctx(),
+				{ fix: false },
+				browserDeps(report({ executableExists: false, launches: null }))
+			);
+			expect(r.problems[0]).toMatchObject({ problem: 'The browser is missing.' });
+			expect(r.problems[0]?.next).toBe('Run: agent-flow-board check doctor --fix --yes');
+		});
+
+		it('another browser version in the runtime is Wrong', async () => {
+			const r = await runDoctor(ctx(), { fix: false }, browserDeps(report({ runtime: '1.66.0' })));
+			expect(r.problems[0]?.problem).toMatch(/Playwright 1\.66\.0 but this bridge needs 1\.64\.0/);
+		});
+
+		it('a browser that does not start is Wrong and says why', async () => {
+			const r = await runDoctor(
+				ctx(),
+				{ fix: false },
+				browserDeps(
+					report({ launches: { ok: false, detail: 'it did not start within 20 seconds' } })
+				)
+			);
+			expect(r.problems[0]?.problem).toMatch(
+				/browser is there but it did not start within 20 seconds/
+			);
+		});
+
+		it('--fix with no yes and no terminal downloads nothing and prints the one command', async () => {
+			let installs = 0;
+			const r = await runDoctor(
+				ctx(),
+				{ fix: true },
+				browserDeps(report({ runtime: null, executableExists: false, launches: null }), {
+					ensureBrowser: async () => void installs++
+				})
+			);
+			expect(installs).toBe(0);
+			expect(lines.join('\n')).toMatch(/about 320 MB/);
+			expect(r.problems[0]?.next).toMatch(/--fix --yes \(it downloads about 320 MB\)/);
+		});
+
+		it('--fix with the one yes installs the whole set once, and a stand-in yes counts the same', async () => {
+			let installs = 0;
+			const missing = report({ runtime: null, executableExists: false, launches: null });
+			const withYes = await runDoctor(
+				ctx(),
+				{ fix: true },
+				browserDeps(missing, { yes: true, ensureBrowser: async () => void installs++ })
+			);
+			expect(installs).toBe(1);
+			expect(withYes.fixed).toContain('The browser was installed.');
+			const asked: string[] = [];
+			const answered = await runDoctor(
+				ctx(),
+				{ fix: true },
+				browserDeps(missing, {
+					confirm: async (q) => (asked.push(q), true),
+					ensureBrowser: async () => void installs++
+				})
+			);
+			expect(asked).toHaveLength(1);
+			expect(installs).toBe(2);
+			expect(answered.fixed).toContain('The browser was installed.');
+		});
+
+		it('a failed install says what went wrong and the command to try again', async () => {
+			const r = await runDoctor(
+				ctx(),
+				{ fix: true },
+				browserDeps(report({ runtime: null, executableExists: false, launches: null }), {
+					yes: true,
+					ensureBrowser: async () => {
+						throw new Error('Could not install the Chromium browser: the disk is full');
+					}
+				})
+			);
+			expect(r.problems[0]?.problem).toMatch(/the disk is full/);
+			expect(r.problems[0]?.next).toMatch(/--fix --yes/);
+		});
+
+		it('a browser that is there but does not start is not called repaired until it is installed again (one yes), and missing libraries are not cured by a download', async () => {
+			let installs = 0;
+			const broken = report({ launches: { ok: false, detail: 'it does not start: crashed' } });
+			const noYes = await runDoctor(
+				ctx(),
+				{ fix: true },
+				browserDeps(broken, { ensureBrowser: async () => void installs++ })
+			);
+			expect(installs).toBe(0);
+			expect(noYes.problems[0]?.next).toMatch(/--fix --yes/);
+			const withYes = await runDoctor(
+				ctx(),
+				{ fix: true },
+				browserDeps(broken, { yes: true, ensureBrowser: async () => void installs++ })
+			);
+			expect(installs).toBe(1);
+			expect(withYes.fixed).toContain('The browser was repaired.');
+			const libs = await runDoctor(
+				ctx(),
+				{ fix: true },
+				browserDeps(
+					report({
+						launches: {
+							ok: false,
+							detail: 'it cannot start because this computer is missing system libraries'
+						}
+					}),
+					{ yes: true, ensureBrowser: async () => void installs++ }
+				)
+			);
+			expect(installs).toBe(1);
+			expect(libs.problems[0]?.next).toMatch(/system libraries/);
+		});
+
+		it('`check status` never starts a browser: the file is there and it says doctor tests the start', async () => {
+			const r = await runDoctor(
+				ctx(),
+				{ fix: false },
+				browserDeps(report({ launches: null }), { skipLaunch: true })
+			);
+			expect(r.problems.filter((p) => /rowser/.test(p.problem))).toEqual([]);
+			expect((r.notes ?? []).join('\n')).toMatch(/Browser: present .*check doctor/);
+		});
+
+		it('an old Node is Wrong with where to get a new one', async () => {
+			const r = await runDoctor(ctx(), { fix: false }, browserDeps(report({ node: '18.19.0' })));
+			expect(r.problems.some((p) => /Node 18\.19\.0 is too old/.test(p.problem))).toBe(true);
+		});
+
+		it('a proxy shows only its host and port, never a user name or a password', async () => {
+			expect(proxyHost({ HTTPS_PROXY: 'http://u:s3cret@proxy.corp:8080' })).toBe('proxy.corp:8080');
+			expect(proxyHost({ http_proxy: 'user:pw@proxy.corp:3128' })).toBe('proxy.corp:3128');
+			expect(proxyHost({})).toBeNull();
+			const r = await runDoctor(
+				ctx(),
+				{ fix: false },
+				browserDeps(
+					report({ proxy: proxyHost({ HTTPS_PROXY: 'http://u:s3cret@proxy.corp:8080' }) })
+				)
+			);
+			const out = JSON.stringify(r) + lines.join('\n');
+			expect(out).toMatch(/Proxy: set \(proxy\.corp:8080\)/);
+			expect(out).not.toMatch(/s3cret|u:s3/);
+		});
+
+		it('a low disk is said before the download', async () => {
+			const r = await runDoctor(ctx(), { fix: false }, browserDeps(report({ diskFreeMb: 300 })));
+			expect((r.notes ?? []).join('\n')).toMatch(/Free disk space: low \(300 MB/);
 		});
 
 		it('reports a stopped service with its message and does not change it', async () => {
