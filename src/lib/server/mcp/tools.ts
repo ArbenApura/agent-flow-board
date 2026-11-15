@@ -687,6 +687,17 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			status: z
 				.array(z.enum(['PLANNED', 'IN PROGRESS', 'IN REVIEW', 'ON HOLD', 'COMPLETED', 'REMOVED']))
 				.optional(),
+			by: z
+				.string()
+				.max(1000)
+				.optional()
+				.describe('Who made the item: me, others, or user ids separated by commas'),
+			assignee: z.string().max(100).optional().describe('me or a user id'),
+			reviewer: z
+				.string()
+				.max(100)
+				.optional()
+				.describe('me or a user id: items in review that wait for them'),
 			cursor: z.number().int().optional(),
 			limit: z.number().int().min(1).max(100).optional()
 		},
@@ -695,6 +706,9 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			const page = await listItems(ctx, {
 				project: a.project,
 				status: a.status,
+				by: a.by,
+				assignee: a.assignee,
+				reviewer: a.reviewer,
 				cursor: a.cursor,
 				limit: a.limit ?? 25,
 				order: 'desc',

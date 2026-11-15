@@ -23,7 +23,9 @@ import {
 	projectMember,
 	session,
 	step,
-	task
+	task,
+	user,
+	userPictureV
 } from '../db/schema';
 import { canonicalTool } from '../../shared/tool';
 import { searchAll } from '../db/search';
@@ -227,12 +229,59 @@ export async function projectSummary(ctx: Ctx, projectKey: string) {
 			.where(base)
 			.groupBy(item.stream, item.scope)
 			.orderBy(item.stream, item.scope);
+		// Who made the visible items, and how many of each person's wait on the caller, in one pass (the Who filter)
+		const me = ctx.actor.userId;
+		const whoRows = await tx
+			.select({
+				createdBy: item.createdBy,
+				n: sql<number>`count(*)::int`,
+				assigned: sql<number>`(count(*) filter (where ${item.assigneeId} = ${me}))::int`,
+				review: sql<number>`(count(*) filter (where ${item.reviewerId} = ${me} and ${item.status} = 'IN REVIEW'))::int`
+			})
+			.from(item)
+			.where(base)
+			.groupBy(item.createdBy);
+		// Names come from the org's members, so a person who left is counted in Others but not listed
+		const names = new Map(
+			(
+				await tx
+					.select({ id: user.id, name: user.name, v: userPictureV })
+					.from(member)
+					.innerJoin(user, eq(user.id, member.userId))
+					.where(eq(member.orgId, ctx.orgId))
+			).map((m) => [m.id, { name: m.name, v: m.v }])
+		);
 		const byStatus: Record<string, number> = {};
 		let total = 0;
 		for (const r of byStatusRows) {
 			byStatus[r.status] = r.n;
 			total += r.n;
 		}
+		const mine = whoRows.filter((r) => r.createdBy === me).reduce((s, r) => s + r.n, 0);
+		const who = {
+			/** The caller, so a page can tell their plans from the others without a second lookup. */
+			me,
+			meV: names.get(me)?.v ?? null,
+			all: total,
+			mine,
+			others: total - mine,
+			assigned: whoRows.reduce((s, r) => s + r.assigned, 0),
+			review: whoRows.reduce((s, r) => s + r.review, 0),
+			people: whoRows
+				.flatMap((r) =>
+					r.createdBy && r.createdBy !== me && names.has(r.createdBy)
+						? [
+								{
+									userId: r.createdBy,
+									name: names.get(r.createdBy)?.name ?? '',
+									v: names.get(r.createdBy)?.v ?? null,
+									n: r.n
+								}
+							]
+						: []
+				)
+				.sort((a, b) => a.name.localeCompare(b.name))
+		};
 		return {
 			project: proj,
 			role,
@@ -240,6 +289,7 @@ export async function projectSummary(ctx: Ctx, projectKey: string) {
 			total,
 			byStatus,
 			areas: areaRows,
+			who,
 			running: await runningIn(tx, proj.id, ctx.actor.userId)
 		};
 	});

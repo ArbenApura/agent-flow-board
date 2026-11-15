@@ -10,6 +10,8 @@
 	type Option = {
 		value: string;
 		label: string;
+		/** A small count after the label, in tabular figures. */
+		count?: number;
 		icon?: Component<{ size?: number; class?: string; 'aria-hidden'?: 'true' }>;
 	};
 
@@ -88,6 +90,9 @@
 				<Icon size={16} class="shrink-0" aria-hidden="true" />
 			{/if}
 			<span class={compactOnPhone && opt.icon ? 'max-sm:sr-only' : ''}>{opt.label}</span>
+			{#if opt.count !== undefined}
+				<span data-count class="text-xs tabular-nums">{opt.count.toLocaleString('en')}</span>
+			{/if}
 		</button>
 	{/each}
 </div>

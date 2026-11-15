@@ -152,7 +152,7 @@ Chosen direction is Graphite (ADR-033). Components read these tokens only. No co
 
 Fixed semantic colours, the same for every org palette.
 
-The running badge uses `--accent-soft`. A session that left finished work unrecorded shows a second badge beside it in the warning tone (`Not recorded`), the same size, never inside the running badge and never in the accent.
+The running badge is one outlined capsule (`--accent-soft` fill, accent at about 35% as the border): a live dot with a soft ping ring and the tool name, then a hairline and the phase in tabular figures. An idle item in review is the same capsule in the neutral tone with a still dot. A flag beside it (`Not recorded`, `Waiting ...`, `Mockup not read`) is a separate quiet chip of the same height: ink text on `--raised` with a 1px `--line` border and a small icon in `--warning`. A flag is never a filled warning pill, never inside the capsule and never in the accent.
 
 | Token       | Light     | Dark      |
 | ----------- | --------- | --------- |

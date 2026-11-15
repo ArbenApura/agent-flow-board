@@ -7,6 +7,7 @@
 	import { cn } from '#lib/ui/cn.js';
 	import Progress from '#lib/ui/Progress.svelte';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
+	import Avatar from '#lib/ui/Avatar.svelte';
 	// IMPORTED DEP-COMPONENTS
 	import Lock from '@lucide/svelte/icons/lock';
 	import Play from '@lucide/svelte/icons/play';
@@ -20,6 +21,7 @@
 		running = [],
 		compact = false,
 		dragEnabled = false,
+		creator = null,
 		onContinue
 	}: {
 		row: ItemRow;
@@ -29,6 +31,8 @@
 		compact?: boolean;
 		/** A board card can be dragged to another status column. */
 		dragEnabled?: boolean;
+		/** Who made the plan, with "You" for the signed-in person. Nothing is shown for an imported plan or someone who left. */
+		creator?: { userId: string; name: string; v: number | null } | null;
 		/** Given, a small button on a board card opens the Continue with dialog for this item. */
 		onContinue?: (row: ItemRow) => void;
 	} = $props();
@@ -88,6 +92,13 @@
 				<span class="whitespace-nowrap">{ago(row.lastActivityAt)}</span>
 			</span>
 			<span class="flex flex-wrap items-center gap-2 text-xs text-muted">
+				<!-- WHO MADE IT: THE SAME AVATAR AS THE TOP BAR, AND THE NAME -->
+				{#if creator}
+					<span class="inline-flex items-center gap-2" data-testid="item-creator">
+						<Avatar name={creator.name} userId={creator.userId} v={creator.v} size={24} />
+						<span class="font-medium text-ink">{creator.name}</span>
+					</span>
+				{/if}
 				<span class="rounded-md bg-raised px-1.5 font-medium">{row.stream}/{row.scope}</span>
 				{#each running as r (r.sessionId)}<RunningBadge
 						tool={r.tool}
@@ -144,6 +155,13 @@
 				<span class="tabular-nums">
 					{row.doneSteps} of {row.totalSteps} steps
 				</span>
+				<!-- ON A PHONE THE MADE BY COLUMN IS HIDDEN, SO THE NAME SITS IN THIS LINE -->
+				{#if creator}
+					<span class="inline-flex items-center gap-1.5 md:hidden">
+						<Avatar name={creator.name} userId={creator.userId} v={creator.v} size={24} />
+						<span class="font-medium text-ink">{creator.name}</span>
+					</span>
+				{/if}
 				{#each running as r (r.sessionId)}<RunningBadge
 						tool={r.tool}
 						title={r.title}
@@ -172,6 +190,13 @@
 			>
 		</span>
 		<span class={cn('truncate text-xs text-muted', LIST_COLS.area)}>{row.stream}/{row.scope}</span>
+		<!-- MADE BY COLUMN -->
+		<span class={cn('flex items-center gap-2 text-xs font-medium text-ink', LIST_COLS.by)}>
+			{#if creator}
+				<Avatar name={creator.name} userId={creator.userId} v={creator.v} size={24} />
+				<span class="truncate">{creator.name}</span>
+			{/if}
+		</span>
 		<span class={cn('text-xs whitespace-nowrap text-muted', LIST_COLS.updated)}
 			>{ago(row.lastActivityAt)}</span
 		>

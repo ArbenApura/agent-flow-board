@@ -23,6 +23,8 @@ export type ItemRow = {
 	stream: string;
 	scope: string;
 	flags: number;
+	/** The person who made the plan, or null for an imported one. Names come from the project summary. */
+	createdBy: string | null;
 	lastActivityAt: string;
 };
 
@@ -44,6 +46,7 @@ export type ApiItem = {
 		flags?: string[];
 		drift?: string[];
 	} | null;
+	createdBy?: string | null;
 	lastActivityAt: string | Date;
 };
 
@@ -84,5 +87,6 @@ export const slimItem = (i: ApiItem): ItemRow => ({
 	stream: i.stream,
 	scope: i.scope,
 	flags: (i.health?.flags?.length ?? 0) + (i.health?.drift?.length ?? 0),
+	createdBy: i.createdBy ?? null,
 	lastActivityAt: new Date(i.lastActivityAt).toISOString()
 });

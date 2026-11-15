@@ -23,6 +23,7 @@
 		type Status,
 		type View
 	} from '#lib/board/status.js';
+	import Avatar from '#lib/ui/Avatar.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import Popover from '#lib/ui/Popover.svelte';
@@ -145,16 +146,91 @@
 			}, {})
 		)
 	);
+	// -- WHO MADE IT -- //
+
+	const who = $derived(summary?.who);
+	/** The one-click switch: all plans, the ones the person made, or the ones other people made. Named people leave it on All plans. */
+	const scope = $derived(
+		data.filters.by === 'me' || data.filters.by === 'others' ? data.filters.by : 'all'
+	);
+	/** The people picked in the Filters list, by user id. */
+	const pickedPeople = $derived(
+		scope === 'all' ? (data.filters.by ?? '').split(',').filter(Boolean) : []
+	);
+	/** Every person a plan can be shown with, from the summary: the signed-in person is "You". */
+	const creators = $derived(
+		new Map(
+			[...(who ? [{ userId: who.me, name: 'You', v: who.meV }] : []), ...(who?.people ?? [])].map(
+				(p) => [p.userId, { userId: p.userId, name: p.name, v: p.v }]
+			)
+		)
+	);
+	const creatorOf = (row: ItemRow) =>
+		row.createdBy ? (creators.get(row.createdBy) ?? null) : null;
 	const filtering = $derived(
-		!!data.filters.q || data.filters.status.length > 0 || !!data.filters.stream
+		!!data.filters.q ||
+			data.filters.status.length > 0 ||
+			!!data.filters.stream ||
+			pickedPeople.length > 0 ||
+			!!data.filters.assignee ||
+			!!data.filters.reviewer
 	);
 
-	/** Statuses picked, plus one when a stream is picked. Shown on the button. */
-	const activeFilters = $derived(data.filters.status.length + (data.filters.stream ? 1 : 0));
+	/** Choices made in the Filters list: statuses, a stream, people, and the two "involving me" rows. The scope switch shows its own state. */
+	const activeFilters = $derived(
+		data.filters.status.length +
+			(data.filters.stream ? 1 : 0) +
+			pickedPeople.length +
+			(data.filters.assignee ? 1 : 0) +
+			(data.filters.reviewer ? 1 : 0)
+	);
 	const toggleStream = (s: string) => go({ stream: data.filters.stream === s ? null : s });
+	const setScope = (v: string) => go({ by: v === 'all' ? null : v });
+	const togglePerson = (id: string) =>
+		go({
+			by:
+				(pickedPeople.includes(id)
+					? pickedPeople.filter((p) => p !== id)
+					: [...pickedPeople, id]
+				).join(',') || null
+		});
+	const toggleAssignee = () => go({ assignee: data.filters.assignee ? null : 'me' });
+	const toggleReviewer = () => go({ reviewer: data.filters.reviewer ? null : 'me' });
+	/** The person filters as a query string, for links that open another view of the same plans. */
+	const personQuery = $derived(
+		['by', 'assignee', 'reviewer']
+			.flatMap((k) => {
+				const v = data.filters[k as 'by' | 'assignee' | 'reviewer'];
+				return v ? [`${k}=${encodeURIComponent(v)}`] : [];
+			})
+			.join('&')
+	);
+	/** What the person filters mean in words, for the line above the plans. */
+	const whyText = $derived.by(() => {
+		const parts: string[] = [];
+		if (scope === 'me') parts.push('made by you');
+		else if (scope === 'others') parts.push('made by other people');
+		else if (pickedPeople.length)
+			parts.push(
+				`made by ${pickedPeople.map((id) => creators.get(id)?.name ?? 'someone').join(' or ')}`
+			);
+		if (data.filters.assignee) parts.push('assigned to you');
+		if (data.filters.reviewer) parts.push('waiting for your review');
+		return parts.join(' and ');
+	});
+	const boardTotal = $derived(data.columns.reduce((sum, c) => sum + c.total, 0));
 	const clearFilters = () => {
 		q = '';
-		go({ q: null, status: null, stream: null, scope: null });
+		// The scope switch stays where it is: it has its own control
+		go({
+			q: null,
+			status: null,
+			stream: null,
+			scope: null,
+			by: scope === 'all' ? null : scope,
+			assignee: null,
+			reviewer: null
+		});
 	};
 
 	/** A card dropped on another column asks the server to change the status. The server decides if the move is allowed. */
@@ -202,6 +278,9 @@
 				if (data.filters.q) params.set('q', data.filters.q);
 				if (data.filters.stream) params.set('stream', data.filters.stream);
 				if (data.filters.scope) params.set('scope', data.filters.scope);
+				if (data.filters.by) params.set('by', data.filters.by);
+				if (data.filters.assignee) params.set('assignee', data.filters.assignee);
+				if (data.filters.reviewer) params.set('reviewer', data.filters.reviewer);
 				const more: { items: ApiItem[]; nextCursor: number | null } = await api(
 					org,
 					`/projects/${key}/items?${params}`
@@ -351,15 +430,71 @@
 					{/if}
 				</Button>
 			{/snippet}
-			<div class="w-64 p-2">
-				<p class="px-2.5 pt-1 pb-1 text-xs font-medium text-muted">Show these statuses</p>
+			<!-- THE LIST SCROLLS INSIDE ITSELF, SO IT NEVER RUNS OFF A PHONE -->
+			<div
+				class="max-h-[min(34rem,calc(100dvh-160px))] w-64 overflow-y-auto overscroll-contain p-2"
+				data-testid="filters-panel"
+			>
+				{#if who && who.people.length}
+					<p class="px-2.5 pt-1 pb-1 text-xs font-medium text-muted">Made by one of these people</p>
+					{#each who.people as p (p.userId)}
+						<button
+							type="button"
+							role="checkbox"
+							aria-checked={pickedPeople.includes(p.userId)}
+							onclick={() => togglePerson(p.userId)}
+							class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised max-sm:min-h-11"
+						>
+							<span
+								class="inline-flex size-4 items-center justify-center rounded border border-line"
+								aria-hidden="true"
+							>
+								{#if pickedPeople.includes(p.userId)}<Check
+										size={12}
+										strokeWidth={3}
+										class="text-accent"
+									/>{/if}
+							</span>
+							<Avatar name={p.name} userId={p.userId} v={p.v} size={24} />
+							<span class="min-w-0 flex-1 truncate text-left">{p.name}</span>
+							<span class="text-xs text-muted tabular-nums">{p.n}</span>
+						</button>
+					{/each}
+				{/if}
+				<p
+					class={'px-2.5 pb-1 text-xs font-medium text-muted ' +
+						(who && who.people.length ? 'mt-1 border-t border-line pt-2' : 'pt-1')}
+				>
+					Involving me
+				</p>
+				{#each [{ label: 'Assigned to me', on: !!data.filters.assignee, toggle: toggleAssignee, n: who?.assigned ?? 0 }, { label: 'Waiting for my review', on: !!data.filters.reviewer, toggle: toggleReviewer, n: who?.review ?? 0 }] as r (r.label)}
+					<button
+						type="button"
+						role="checkbox"
+						aria-checked={r.on}
+						onclick={r.toggle}
+						class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised max-sm:min-h-11"
+					>
+						<span
+							class="inline-flex size-4 items-center justify-center rounded border border-line"
+							aria-hidden="true"
+						>
+							{#if r.on}<Check size={12} strokeWidth={3} class="text-accent" />{/if}
+						</span>
+						<span class="flex-1 text-left">{r.label}</span>
+						<span class="text-xs text-muted tabular-nums">{r.n}</span>
+					</button>
+				{/each}
+				<p class="mt-1 border-t border-line px-2.5 pt-2 pb-1 text-xs font-medium text-muted">
+					Show these statuses
+				</p>
 				{#each BOARD_COLUMNS as s (s)}
 					<button
 						type="button"
 						role="checkbox"
 						aria-checked={data.filters.status.includes(s)}
 						onclick={() => toggleStatus(s)}
-						class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
+						class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised max-sm:min-h-11"
 					>
 						<span
 							class="inline-flex size-4 items-center justify-center rounded border border-line"
@@ -386,7 +521,7 @@
 							role="checkbox"
 							aria-checked={data.filters.stream === name}
 							onclick={() => toggleStream(name)}
-							class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised"
+							class="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-sm text-ink hover:bg-raised max-sm:min-h-11"
 						>
 							<span
 								class="inline-flex size-4 items-center justify-center rounded border border-line"
@@ -407,12 +542,24 @@
 					<button
 						type="button"
 						onclick={clearFilters}
-						class="mt-1 min-h-10 w-full cursor-pointer rounded-md border-t border-line px-2.5 pt-1 text-left text-sm text-accent-text hover:underline"
+						class="mt-1 min-h-10 w-full cursor-pointer rounded-md border-t border-line px-2.5 pt-1 text-left text-sm text-accent-text hover:underline max-sm:min-h-11"
 						>Clear filters</button
 					>
 				{/if}
 			</div>
 		</Popover>
+		<!-- ONE CLICK FOR THE MOST COMMON QUESTION: ALL PLANS, MINE OR OTHERS. ON A PHONE IT TAKES ITS OWN ROW -->
+		<SegmentedControl
+			label="Whose plans"
+			value={scope}
+			options={[
+				{ value: 'all', label: 'All plans', count: who?.all ?? 0 },
+				{ value: 'me', label: 'Mine', count: who?.mine ?? 0 },
+				{ value: 'others', label: 'Others', count: who?.others ?? 0 }
+			]}
+			onchange={setScope}
+			class="max-sm:order-last max-sm:w-full max-sm:[&>button]:flex-1"
+		/>
 		<span class="ml-auto flex flex-wrap items-center gap-3">
 			<SegmentedControl
 				label="View"
@@ -438,6 +585,12 @@
 		<!-- STATUS COLUMNS. DRAGGING A CARD TO ANOTHER COLUMN CHANGES ITS STATUS -->
 		<div class="mb-3 flex items-center justify-between gap-3">
 			<p class="text-xs text-muted">
+				{#if whyText}
+					<span class="font-medium text-ink tabular-nums" data-testid="result-line"
+						>{boardTotal.toLocaleString('en')} {boardTotal === 1 ? 'plan' : 'plans'}</span
+					>
+					{whyText}.
+				{/if}
 				{canWrite ? 'Drag a card to another column to change its status.' : ''}
 			</p>
 			<!-- CAROUSEL ARROWS. ONLY WHEN THE COLUMNS DO NOT ALL FIT -->
@@ -480,6 +633,7 @@
 							href={itemHref(row.ref)}
 							running={runningOf(row.id)}
 							compact
+							creator={creatorOf(row)}
 							onContinue={continueFor(row)}
 							dragEnabled={canWrite}
 						/>
@@ -487,7 +641,7 @@
 					{#if col.total > col.items.length}
 						<a
 							class="min-h-9 px-1 text-sm text-accent-text hover:underline"
-							href={`${base}?view=list&status=${encodeURIComponent(col.status)}`}
+							href={`${base}?view=list&status=${encodeURIComponent(col.status)}${personQuery ? '&' + personQuery : ''}`}
 							>Show all {col.total}</a
 						>
 					{/if}
@@ -502,7 +656,7 @@
 						<span>{a.stream} <span class="text-muted">/</span> {a.scope}</span>
 						<a
 							class="text-sm font-normal text-accent-text hover:underline"
-							href={`${base}?view=list&stream=${encodeURIComponent(a.stream)}&scope=${encodeURIComponent(a.scope)}`}
+							href={`${base}?view=list&stream=${encodeURIComponent(a.stream)}&scope=${encodeURIComponent(a.scope)}${personQuery ? '&' + personQuery : ''}`}
 							>{a.total} items</a
 						>
 					</h2>
@@ -512,6 +666,7 @@
 							href={itemHref(row.ref)}
 							running={runningOf(row.id)}
 							compact
+							creator={creatorOf(row)}
 							onContinue={continueFor(row)}
 						/>
 					{/each}
@@ -520,7 +675,7 @@
 				<EmptyState
 					kind="search"
 					title="No items match this filter"
-					text="Try a different word or clear the status filter."
+					text="Try a different word or clear the filters."
 				/>
 			{/each}
 		</div>
@@ -529,12 +684,15 @@
 			<EmptyState
 				kind="search"
 				title="No items match"
-				text="Try a different word or clear the status filter."
+				text="Try a different word or clear the filters."
 			/>
 		{:else}
 			<div class="mb-2 text-sm text-muted" data-testid="list-count">
-				{data.list.total.toLocaleString('en')}
-				{data.list.total === 1 ? 'item' : 'items'}
+				<span class={whyText ? 'font-medium text-ink' : ''}
+					>{data.list.total.toLocaleString('en')}
+					{data.list.total === 1 ? 'item' : 'items'}</span
+				>
+				{whyText}
 			</div>
 			<div class="overflow-hidden rounded-xl border border-line bg-surface">
 				<!-- COLUMN HEADINGS, ON THE SAME WIDTHS AS THE ROWS -->
@@ -547,21 +705,27 @@
 					<span class={LIST_COLS.status}>Status</span>
 					<span class={LIST_COLS.progress}>Progress</span>
 					<span class={LIST_COLS.area}>Area</span>
+					<span class={LIST_COLS.by}>Made by</span>
 					<span class={LIST_COLS.updated}>Updated</span>
 				</div>
 				<!-- THE LIST IS AS TALL AS ITS ROWS UP TO 70% OF THE SCREEN, A RUNTIME HEIGHT -->
-				<div style="height:min({data.list.total * (narrow ? 80 : 72)}px, 70dvh);">
+				<div style="height:min({data.list.total * (narrow ? 96 : 72)}px, 70dvh);">
 					<VirtualList
 						items={listItems}
 						total={data.list.total}
-						rowHeight={narrow ? 80 : 72}
+						rowHeight={narrow ? 96 : 72}
 						keyOf={(r) => r.id}
 						label={`${data.list.total.toLocaleString('en')} items`}
 						class="h-full"
 						onreach={reach}
 					>
 						{#snippet row(r)}
-							<ItemLine row={r} href={itemHref(r.ref)} running={runningOf(r.id)} />
+							<ItemLine
+								row={r}
+								href={itemHref(r.ref)}
+								running={runningOf(r.id)}
+								creator={creatorOf(r)}
+							/>
 						{/snippet}
 						{#snippet placeholder()}
 							<div class="px-4"><Skeleton variant="row" lines={1} /></div>

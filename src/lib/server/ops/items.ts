@@ -1,5 +1,7 @@
 // ITEM VERBS: CREATE, READ, LIST, UPDATE, TRASH AND RESTORE (SPEC 5)
 
+// IMPORTED DEP-TYPES
+import type { SQL } from 'drizzle-orm';
 // IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
@@ -437,6 +439,18 @@ export const listItemsInput = z.object({
 	scope: z.string().max(40).optional(),
 	/** Matches a reference prefix or words of the title, for the registry filter box. */
 	q: z.string().max(100).optional(),
+	/** Who made the item: `me`, `others` (everyone but the caller, imported items included) or user ids separated by commas. */
+	by: z
+		.string()
+		.trim()
+		.max(1000)
+		// More names than the filter holds is refused, never cut short, so a list never looks complete when it is not
+		.refine((v) => v.split(',').length <= MAX_BY_PEOPLE, 'Name at most 20 people in by')
+		.optional(),
+	/** `me` or a user id: items assigned to that person. */
+	assignee: z.string().trim().max(100).optional(),
+	/** `me` or a user id: items in review that wait for that person. */
+	reviewer: z.string().trim().max(100).optional(),
 	/** The item number to continue from (keyset paging, so page 200 costs the same as page 1). */
 	cursor: z.number().int().optional(),
 	order: z.enum(['asc', 'desc']).default('desc'),
@@ -447,6 +461,50 @@ export const listItemsInput = z.object({
 });
 
 const escapeLike = (v: string) => v.replace(/[\\%_]/g, '\\$&');
+
+/** The most people one `by` filter may name. */
+const MAX_BY_PEOPLE = 20;
+
+/**
+ * The filters that name a person, as SQL. `me` is the live caller and never a value the client sends. A person filter only
+ * narrows the list: it is combined with visibleItemSql by the caller, so a private item never appears through it.
+ */
+export function personFilters(
+	input: { by?: string; assignee?: string; reviewer?: string },
+	userId: string
+) {
+	const by = input.by?.trim();
+	let made: SQL | undefined;
+	if (by === 'me') made = eq(item.createdBy, userId);
+	// Items with no creator (imported ones) belong to other people, so "Others" and "Mine" never overlap or leave a gap
+	else if (by === 'others') made = sql`${item.createdBy} is distinct from ${userId}`;
+	else if (by) {
+		const ids = [
+			...new Set(
+				by
+					.split(',')
+					.map((v) => v.trim())
+					.filter(Boolean)
+					.map((v) => (v === 'me' ? userId : v))
+			)
+		].slice(0, MAX_BY_PEOPLE);
+		// A filter that names nobody matches nothing, so a caller who built an empty list never gets everything back
+		made = ids.length ? inArray(item.createdBy, ids) : sql`false`;
+	}
+	const assignee = input.assignee?.trim();
+	const reviewer = input.reviewer?.trim();
+	return [
+		made,
+		assignee ? eq(item.assigneeId, assignee === 'me' ? userId : assignee) : undefined,
+		// An item waits for a reviewer only while it is in review
+		reviewer
+			? and(
+					eq(item.reviewerId, reviewer === 'me' ? userId : reviewer),
+					eq(item.status, 'IN REVIEW')
+				)
+			: undefined
+	];
+}
 
 /** A page of items, newest first by default, by keyset. Items the caller may not see are left out. */
 export async function listItems(ctx: Ctx, raw: z.input<typeof listItemsInput>) {
@@ -463,6 +521,7 @@ export async function listItems(ctx: Ctx, raw: z.input<typeof listItemsInput>) {
 			input.q?.trim()
 				? sql`(${item.ref} ilike ${escapeLike(input.q.trim()) + '%'} or ${item.title} ilike ${'%' + escapeLike(input.q.trim()) + '%'} or exists (select 1 from item_alias a where a.item_id = ${item.id} and a.alias ilike ${escapeLike(input.q.trim()) + '%'}))`
 				: undefined,
+			...personFilters(input, ctx.actor.userId),
 			visibleItemSql(ctx.actor.userId)
 		);
 		const where = and(

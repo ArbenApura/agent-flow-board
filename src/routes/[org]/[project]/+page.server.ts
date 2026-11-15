@@ -28,10 +28,14 @@ export const load: PageServerLoad = async ({ params, parent, locals, url, depend
 	const wanted = (url.searchParams.get('status') ?? '')
 		.split(',')
 		.filter((s): s is Status => (STATUSES as string[]).includes(s));
-	const filters = { q, stream, scope, status: wanted };
+	// Who made the plan (me, others or user ids), who it is assigned to, and whose review it waits for
+	const by = url.searchParams.get('by')?.trim().slice(0, 1000) || undefined;
+	const assignee = url.searchParams.get('assignee')?.trim().slice(0, 100) || undefined;
+	const reviewer = url.searchParams.get('reviewer')?.trim().slice(0, 100) || undefined;
+	const filters = { q, stream, scope, by, assignee, reviewer, status: wanted };
 	if (!summary) return { view, filters, columns: [], areas: [], list: null };
 	const ctx = await childContext(locals, org.id);
-	const common = { project: params.project, q, stream, scope };
+	const common = { project: params.project, q, stream, scope, by, assignee, reviewer };
 
 	if (view === 'board') {
 		const columns = await Promise.all(
@@ -55,6 +59,9 @@ export const load: PageServerLoad = async ({ params, parent, locals, url, depend
 					q,
 					stream: a.stream,
 					scope: a.scope,
+					by,
+					assignee,
+					reviewer,
 					status: wanted.length ? wanted : undefined,
 					limit: AREA_LIMIT
 				});

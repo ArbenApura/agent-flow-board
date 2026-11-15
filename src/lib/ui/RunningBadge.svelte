@@ -2,7 +2,11 @@
 	// IMPORTED TYPES
 	import type { WaitingBlocker } from '#lib/board/rows.js';
 	// IMPORTED MODULES
-	import Badge from '#lib/ui/Badge.svelte';
+	import { cn } from '#lib/ui/cn.js';
+	// IMPORTED DEP-COMPONENTS
+	import EyeOff from '@lucide/svelte/icons/eye-off';
+	import Hourglass from '@lucide/svelte/icons/hourglass';
+	import PencilOff from '@lucide/svelte/icons/pencil-off';
 
 	// -- REQUIRED PROPS -- //
 
@@ -37,6 +41,16 @@
 		compact?: boolean;
 	} = $props();
 
+	// -- CONSTANTS -- //
+
+	// The outlined accent tile of DESIGN.md: accent at about 12 percent fill and 35 percent border, so it never shouts
+	const CAPSULE_LIVE =
+		'border-[color-mix(in_oklab,var(--accent)_35%,transparent)] bg-accent-soft text-accent-text';
+	const CAPSULE_IDLE = 'border-line bg-raised text-muted';
+	// A flag is a quiet outlined chip: ink text on the raised surface, with the warning colour only on its icon
+	const FLAG =
+		'inline-flex items-center gap-1.5 rounded-full border border-line bg-raised py-0.5 pr-2.5 pl-2 text-badge font-medium text-ink';
+
 	// -- REACTIVE STATES -- //
 
 	const text = $derived(
@@ -46,7 +60,18 @@
 				? `${tool} · Phase ${phase}`
 				: `${tool} · Running`
 	);
-	const shown = $derived(compact ? (reviewIdle ? `${tool} idle` : `${tool} working`) : text);
+	// The second segment of the capsule: the phase, or what the session is doing when the phase is already named
+	const segment = $derived(
+		reviewIdle
+			? compact
+				? 'idle'
+				: 'In review, idle'
+			: compact
+				? 'working'
+				: phase
+					? `Phase ${phase}`
+					: 'Running'
+	);
 	const staleTitle = $derived(
 		staleMinutes === null ? '' : `Work has been left unrecorded for ${staleMinutes} minutes`
 	);
@@ -54,31 +79,59 @@
 
 <!-- ONE BADGE FOR BOTH LEVELS, PHASE AND ITEM, LIVE THROUGH THE REALTIME CHANNEL. THE SESSION TITLE LIVES IN THE TOOLTIP -->
 <span
-	class="inline-flex max-w-full min-w-0 items-center gap-1"
+	class="inline-flex max-w-full min-w-0 flex-wrap items-center gap-1.5"
 	title={[title ? `${text}: ${title}` : text, age].filter(Boolean).join('. ')}
 >
-	<Badge
-		tone={reviewIdle ? 'neutral' : 'running'}
-		class={compact ? 'max-w-full min-w-0 rounded-md' : 'max-w-full min-w-0'}
+	<!-- THE CAPSULE: A LIVE DOT AND THE TOOL, THEN A HAIRLINE AND THE PHASE -->
+	<span
+		data-badge
+		class={cn(
+			'inline-flex max-w-full min-w-0 items-stretch overflow-hidden border text-badge font-semibold',
+			compact ? 'rounded-md' : 'rounded-full',
+			reviewIdle ? CAPSULE_IDLE : CAPSULE_LIVE
+		)}
 	>
-		<span class="truncate">{shown}</span>
-	</Badge>
-	<!-- A SECOND BADGE IN THE WARNING TONE, NEVER INSIDE THE RUNNING ONE AND NEVER THE ACCENT -->
+		<span class="inline-flex min-w-0 items-center gap-1.5 py-0.5 pr-2 pl-2.5">
+			<!-- A SOFT RING PINGS AROUND THE DOT WHILE THE SESSION IS LIVE; AN IDLE SESSION IS A STILL DOT -->
+			<span class="relative flex size-2 shrink-0" aria-hidden="true">
+				{#if !reviewIdle}
+					<span class="absolute inset-0 rounded-full bg-current opacity-40 motion-safe:animate-ping"
+					></span>
+				{/if}
+				<span class={cn('relative size-2 rounded-full bg-current', reviewIdle && 'opacity-60')}
+				></span>
+			</span>
+			<span class="truncate">{tool}</span>
+		</span>
+		<span
+			class="inline-flex shrink-0 items-center border-l border-[color-mix(in_oklab,currentColor_25%,transparent)] px-2 py-0.5 font-medium whitespace-nowrap tabular-nums"
+			>{segment}</span
+		>
+	</span>
+	<!-- THE FLAGS ARE SEPARATE CHIPS, NEVER INSIDE THE CAPSULE AND NEVER THE ACCENT -->
 	{#if staleMinutes !== null}
-		<span title={staleTitle}>
-			<Badge tone="warning" class={compact ? 'rounded-md' : ''}>Not recorded</Badge>
+		<span title={staleTitle} data-badge class={cn(FLAG, compact && 'rounded-md')}>
+			<PencilOff size={12} class="shrink-0 text-warning" aria-hidden="true" />Not recorded
 		</span>
 	{/if}
-	<!-- FIRST-CLASS WAITING-FOR-A-PERSON BLOCKER IN WARNING TONE (D.5) -->
+	<!-- FIRST-CLASS WAITING-FOR-A-PERSON BLOCKER (D.5) -->
 	{#if waiting}
-		<span title={`Waiting for a person (${waiting.kind}): ${waiting.detail}`}>
-			<Badge tone="warning" class={compact ? 'rounded-md' : ''}>Waiting {waiting.kind}</Badge>
+		<span
+			title={`Waiting for a person (${waiting.kind}): ${waiting.detail}`}
+			data-badge
+			class={cn(FLAG, compact && 'rounded-md')}
+		>
+			<Hourglass size={12} class="shrink-0 text-warning" aria-hidden="true" />Waiting {waiting.kind}
 		</span>
 	{/if}
-	<!-- THE SAME WARNING BADGE WHEN THE PLAN'S MOCKUP IS UNREAD. AN IDLE ITEM IN REVIEW SHOWS NONE: NOTHING IS BEING BUILT -->
+	<!-- THE SAME CHIP WHEN THE PLAN'S MOCKUP IS UNREAD. AN IDLE ITEM IN REVIEW SHOWS NONE: NOTHING IS BEING BUILT -->
 	{#if mockupUnread && !reviewIdle}
-		<span title="Nobody has read the plan's mockup to the end yet">
-			<Badge tone="warning" class={compact ? 'rounded-md' : ''}>Mockup not read</Badge>
+		<span
+			title="Nobody has read the plan's mockup to the end yet"
+			data-badge
+			class={cn(FLAG, compact && 'rounded-md')}
+		>
+			<EyeOff size={12} class="shrink-0 text-warning" aria-hidden="true" />Mockup not read
 		</span>
 	{/if}
 </span>

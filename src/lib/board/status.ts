@@ -53,6 +53,7 @@ export const LIST_COLS = {
 	status: 'w-32 shrink-0',
 	progress: 'w-44 shrink-0 max-lg:hidden',
 	area: 'w-40 shrink-0 max-md:hidden',
+	by: 'w-36 shrink-0 max-md:hidden',
 	updated: 'w-28 shrink-0 text-right max-sm:hidden'
 };
 
