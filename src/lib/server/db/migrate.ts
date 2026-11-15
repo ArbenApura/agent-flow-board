@@ -27,6 +27,10 @@ export async function migrate(db: SqlExecutor, dir = MIGRATIONS_DIR): Promise<st
 	await db.exec(
 		`CREATE TABLE IF NOT EXISTS "__afb_migrations" (tag text PRIMARY KEY, hash text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`
 	);
+	// The hash of the security statements last applied, so a start with nothing new does not take table locks again
+	await db.exec(
+		`CREATE TABLE IF NOT EXISTS "__afb_security" (id int PRIMARY KEY DEFAULT 1 CHECK (id = 1), hash text NOT NULL)`
+	);
 	const journal = JSON.parse(readFileSync(join(dir, 'meta', '_journal.json'), 'utf8')) as Journal;
 	const done = new Map(
 		(await db.query<{ tag: string; hash: string }>(`SELECT tag, hash FROM "__afb_migrations"`)).map(
@@ -64,8 +68,20 @@ export async function migrate(db: SqlExecutor, dir = MIGRATIONS_DIR): Promise<st
 		}
 		applied.push(tag);
 	}
+	// The security statements take an exclusive lock on every table until they commit, so they run only when something could have changed:
+	// a migration ran (a new table or sequence needs its policy and grants) or the statements themselves changed. Every other start skips
+	// them, which also keeps a restarting app from queueing queries behind those locks while the old app serves.
+	if (applied.length === 0) {
+		const [row] = await db.query<{ hash: string }>(`SELECT hash FROM "__afb_security"`);
+		if (row?.hash === securityHash()) return applied;
+	}
 	await secure(db);
 	return applied;
+}
+
+/** A fingerprint of the security statements, stored after they are applied. */
+function securityHash(): string {
+	return createHash('sha256').update(securityStatements().join(';\n')).digest('hex');
 }
 
 /** Roles, grants and forced row level security. Safe to run again, and run after every migration. */
@@ -77,6 +93,11 @@ export async function secure(db: SqlExecutor): Promise<void> {
 	try {
 		await db.exec(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`);
 		for (const s of securityStatements()) await db.exec(s);
+		// Remembered in the same transaction, so the hash is stored only if every statement was applied
+		await db.query(
+			`INSERT INTO "__afb_security" (id, hash) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET hash = EXCLUDED.hash`,
+			[securityHash()]
+		);
 		await db.exec('COMMIT');
 	} catch (e) {
 		await db.exec('ROLLBACK');

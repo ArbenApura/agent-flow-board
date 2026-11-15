@@ -4,7 +4,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // IMPORTED MODULES
 import { project } from '../../src/lib/server/db/schema';
-import { secure } from '../../src/lib/server/db/migrate';
+import { migrate, secure } from '../../src/lib/server/db/migrate';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { makePostgres, seedTwoOrgs, type Seed, type TestDb } from '../support/db';
 
@@ -48,6 +48,31 @@ describe('secure()', () => {
 		}
 		expect(reads).toBeGreaterThan(0);
 		expect(empty).toEqual([]);
+	}, 60_000);
+
+	it('is skipped when nothing is new, so a start does not queue queries behind table locks', async () => {
+		const client = await db.ownerPool.connect();
+		const executor = {
+			exec: async (s: string) => void (await client.query(s)),
+			query: async <T extends Record<string, unknown>>(s: string, p?: unknown[]) =>
+				(await client.query(s, p)).rows as T[]
+		};
+		// A second connection holds a read lock on a table, as a long backup transaction does
+		const reader = await db.ownerPool.connect();
+		try {
+			// The first run applies and remembers the statements
+			await migrate(executor);
+			await reader.query('BEGIN');
+			await reader.query('LOCK TABLE "project" IN ACCESS SHARE MODE');
+			// Nothing is new, so this takes no exclusive lock and returns at once. Without the skip it waits 5 s and fails
+			const started = Date.now();
+			expect(await migrate(executor)).toEqual([]);
+			expect(Date.now() - started).toBeLessThan(3000);
+		} finally {
+			await reader.query('ROLLBACK').catch(() => undefined);
+			reader.release();
+			client.release();
+		}
 	}, 60_000);
 
 	it('rolls back and fails loudly when a statement fails, leaving the old policies in place', async () => {
