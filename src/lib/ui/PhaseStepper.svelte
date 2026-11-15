@@ -13,7 +13,8 @@
 </script>
 
 <!-- THE PHASES OF AN ITEM AS A ROW OF SEGMENTS. EACH ONE FILLS AS ITS STEPS ARE DONE, WITH ITS NAME AND COUNT AS TEXT (ADR-005). A ROW THAT IS CUT SHOWS A FADE OF THE SURFACE AT THE EDGE WHERE IT CONTINUES, AND SNAPS TO A PHASE -->
-<div class={cn(extra)}>
+<!-- MIN-W-0 AND MAX-W-FULL KEEP THE WRAPPER INSIDE ITS CARD WHEN IT IS A FLEX ITEM, SO THE ROW SCROLLS INSTEAD OF PUSHING PAST THE EDGE -->
+<div class={cn('max-w-full min-w-0', extra)}>
 	<div class="group/fade relative">
 		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 		<div
