@@ -2,7 +2,7 @@
 // The hook answer carries the status when the bridge asks for it. The bridge writes it to <config dir>/status/<conversation id>.json
 // so the editor mod reads a local file and needs no token. The file holds the status fields only, never a token or a verifier.
 // A hook must never fail or slow down because of this file, so every function here swallows its errors.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 // -- CONSTANTS -- //

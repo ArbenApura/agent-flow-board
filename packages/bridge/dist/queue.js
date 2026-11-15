@@ -1,6 +1,6 @@
 // THE OFFLINE WRITE QUEUE (SPEC 6.3). A WRITE WHILE THE BOARD IS UNREACHABLE IS QUEUED AND SAID TO BE QUEUED, NEVER ANSWERED WITH A MADE UP RESULT.
 // Replay keeps the original order. A write that fails on replay holds the later writes for the same item; other items continue.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname } from 'node:path';
 // -- CONSTANTS -- //

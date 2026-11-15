@@ -4,10 +4,10 @@
 // Each project is registered again through registry.ts with adoption OFF and no pin; a repo registration is made only when its folder is inside an owner-approved
 // root (otherwise it is listed with the exact command the owner needs). Each script is checked with lintCheck and copied unchanged (headers kept) into the scripts
 // folder; a script that fails the lint is not copied, and one that differs from an existing script is a conflict and is left as it is.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { Refusal, UsageError } from './approve.js';
 import { appendAudit } from './audit.js';
 import { checkRepoFolder } from './guardrails.js';

@@ -1,10 +1,10 @@
 // THE FOLDER BINDING OF `check watch`: WHICH REAL FOLDER BUILDS THE PROJECT <org>/<KEY>, AND THE PIN OF THE FILES THAT DECIDED WHAT RUNS.
 // When the pin changes (a new script, a changed recipe, a new lockfile) the watcher stops and tells the person to run `check run` in that
 // folder, which looks at the new setup and pins it again. Nothing in the repo can re-pin by itself.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { bindingsFile, ensureDir, ORG_SLUG } from './paths.js';
 import { renameRetry } from './fsretry.js';
 import { checkRepoFolder } from './guardrails.js';

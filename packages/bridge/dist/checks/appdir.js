@@ -1,10 +1,10 @@
 // THE APP FOLDER OF A PROJECT. Some repos keep the app in a subfolder (the git root has no package.json, the app and its lockfile live in web/).
 // A registration may name that folder with `appDir`; the private copy is still made from the git root, but install, build and start run in the
 // app folder, and the files that decide what runs (package.json, lockfile, recipe) are read from there. Without appDir the app folder is the repo root.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, lstatSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { isInside } from './paths.js';
 // -- CONSTANTS -- //
 const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,60}$/;

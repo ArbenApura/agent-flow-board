@@ -1,11 +1,11 @@
 // CHECK COMPARE: RUNS MOCKUP AND APP AT MATCHING SCREENS, STATES AND WIDTHS IN TWO ISOLATED CONTEXTS (STEP B.6, AFB-20261113-1008)
 // Captures picture pairs per (screen, state, width), dumps DOM measurements for both, applies structured Free rules (from design-brief)
 // and per-plan overrides (with reason), evaluates tight pixel/colour/font tolerances via pairing.ts, and returns a ranked diff + saved evidence.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { BoardError, RunnerBoard } from './board.js';
 import { slotsHeader } from './broker.js';
 import { ensureBrowser } from './browser.js';

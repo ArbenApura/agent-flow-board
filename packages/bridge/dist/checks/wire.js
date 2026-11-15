@@ -1,10 +1,10 @@
 // WHAT THE BOARD IS TOLD ABOUT THE REGISTRATIONS. Every call carries the header x-afb-tool-registrations: a base64url JSON list of {p: board project, n: NAME, r: folder name, b: branch}, at most 16,
 // only this organisation's, refreshed every 20 seconds. The board reads the text of whoever holds the token, so each field is checked against the board's own plain pattern first. A bad
 // r or b is dropped from its entry (the board would call the whole header damaged); the entry stays. Never a path, a command or a secret.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { PROJECT_KEY, REGISTRATION_NAME } from './registry.js';
 // -- CONSTANTS -- //
 export const REGISTRATIONS_HEADER = 'x-afb-tool-registrations';

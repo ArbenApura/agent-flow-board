@@ -2,7 +2,7 @@
 // The profile is chosen in order: --profile, a "// afb-profile: NAME" line in the script, the default. A repo registration's sign-in is bound to the loopback and to the
 // sealed test project host it was made on, so a run on any preview port finds it and a run on another project does not. A named profile (a role proof) is never replaced
 // by another sign-in: when it is missing, damaged, expired or made on another project the run does not start. The default profile only says why it was not used.
-// -- MODULES -- //
+// IMPORTED MODULES
 import { bindBaseFor, DEFAULT_PROFILE, expiryNote, loadProfileChecked, profileKey, retargetOrigins } from './profiles.js';
 // -- FUNCTIONS -- //
 /** The sealed test project a preview talks to, as one plain key (its hosts, sorted), or null when it has none. */

@@ -1,5 +1,5 @@
 // RESOLVES AND VALIDATES `--mockup ID[@VERSION]` TARGETS FOR ISOLATED MOCKUP CHECKS AND INSPECTIONS.
-// -- MODULES -- //
+// IMPORTED MODULES
 import { mintMockupUrlCli } from '../mockup.js';
 import { RunnerBoard } from './board.js';
 // -- CONSTANTS -- //

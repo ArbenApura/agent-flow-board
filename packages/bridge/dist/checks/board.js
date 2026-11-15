@@ -1,6 +1,6 @@
 // THE BOARD, SEEN FROM THE CHECK COMMANDS: THE RUNNER API WITH THE TOOL'S OWN RUNNER TOKEN
 // A runner token is not a personal token. It can take a queued run, beat for it, upload evidence and report a result, and nothing else.
-// -- MODULES -- //
+// IMPORTED MODULES
 import { TOOL_PROTOCOL } from './paths.js';
 // -- CONSTANTS -- //
 /** One call to the board may take this long, uploads included. A half open connection must not hang the run for ever. */

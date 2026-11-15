@@ -1,7 +1,7 @@
 // HMR-AWARE READINESS FOR DEV-SERVER CHECKS (STEP A.3, AFB-20261113-1008)
 // Waits until Vite HMR is connected and idle with no pending updates or in-flight network requests,
 // and falls back to load + settle window on non-Vite dev servers. Fails loudly with redacted overlay detail + fixed fix line on dev error overlay.
-// -- MODULES -- //
+// IMPORTED MODULES
 import { redact } from './redact.js';
 export class DevReadinessError extends Error {
     code;

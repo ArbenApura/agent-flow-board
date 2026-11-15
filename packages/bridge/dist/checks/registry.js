@@ -1,11 +1,11 @@
 // THE REGISTRATIONS OF THIS MACHINE. A registration is a bare NAME per organisation that says which board project it serves, which repo folder (and app folder) builds it, or which live
 // site it checks. One JSON file each in registrations/<org>/<NAME>.json, sealed with an HMAC so a hand edit (an adoptEnv switched on, a repo moved outside the roots) is refused.
 // Sign-ins, sealed secrets and kept builds live in stateDirFor(org, NAME) and belong to that one registration.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendAudit } from './audit.js';
 import { appDirText, normalizeAppDir, walkAppDir } from './appdir.js';
 import { Refusal, consumeApproval, peekApproval, sameMac, seal } from './approve.js';

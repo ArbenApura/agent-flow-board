@@ -1,7 +1,7 @@
 // DOM INSPECTION FOR HOSTED MOCKUPS AND APP TARGETS (STEP B.5, AFB-20261113-1008)
 // Opens the target in a Chromium context (strictly zero storageState / zero writes for mockups), triggers the requested screen/state/width,
 // waits until layout and fonts settle, and dumps { box, computed style whitelist, text } for every data-ref or paired app selector plus unlisted data-refs.
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ensureBrowser, loadPlaywright } from './browser.js';
 import { acquireBrowser } from './browserpool.js';
 import { DEV_READINESS_INIT_SCRIPT, waitForDevReady } from './devReadiness.js';

@@ -1,12 +1,12 @@
 // THE SEALED STORE: AES-256-GCM WITH A KEY THAT LIVES IN THE BRIDGE HOME, NEVER INSIDE THE CHECKS FOLDER, A RUN, A COPY OR A PATH A PREVIEW ENV NAMES.
 // seal() binds a text (`aad`, for example the registration org/NAME) into the seal without storing it, so a sealed file opens only for the same text and a copy made for
 // another registration fails. The blob is iv (12 bytes) | tag (16 bytes) | ciphertext. Nothing here ever prints or returns a key.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFileSync } from 'node:child_process';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { configDir } from '../tokenStore.js';
 // -- CONSTANTS -- //
 const IV_BYTES = 12;

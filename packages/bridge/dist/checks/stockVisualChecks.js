@@ -2,7 +2,7 @@
 // Parameterised visual quality checks runnable on any page in a browser check or compare harness.
 // Covers CLS per screen/state, tap targets < 44px, sideways scroll, default browser button chrome,
 // contrast pairs (WCAG), skeleton vs loaded height, focus visible, reduced motion, and console errors.
-// -- MODULES -- //
+// IMPORTED MODULES
 import { DEFAULT_MAX_CLS, DEFAULT_MIN_TAP_PX, EARLY_CLS_INIT_SCRIPT, measureEarlyStockChecks, resetEarlyCls } from './earlyStockChecks.js';
 // -- CONSTANTS -- //
 export const STOCK_VISUAL_CHECKS_VERSION = 1;

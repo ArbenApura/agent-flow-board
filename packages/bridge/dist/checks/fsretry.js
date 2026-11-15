@@ -1,6 +1,6 @@
 // RETRIES FOR A FILE ANOTHER PROCESS HOLDS FOR A MOMENT (WINDOWS ANTIVIRUS, INDEXERS, A RENAME IN PROGRESS): EPERM, EBUSY AND EACCES ARE TRIED AGAIN.
 // Every atomic rename of this folder goes through here, so no module keeps a copy of the loop.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { renameSync } from 'node:fs';
 // -- CONSTANTS -- //
 /** Errors that mean "another process has the file right now". */

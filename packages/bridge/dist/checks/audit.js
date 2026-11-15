@@ -1,11 +1,11 @@
 // A HASH-CHAINED AUDIT LOG OF WHAT THE CHECK COMMANDS DID. Each line carries the MAC of the line before it (HMAC-SHA256 with a key that only this machine has),
 // so an edited line or a cut shows. It is evidence, not prevention. Only short action words and plain numbers are logged: never a token, a password, a secret's
 // path or a command text.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { appendFileSync, existsSync, linkSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { withLockSync } from './lock.js';
 import { auditFile, checksHome, ensureDir } from './paths.js';
 import { renameRetry } from './fsretry.js';

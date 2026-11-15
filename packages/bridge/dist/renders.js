@@ -2,9 +2,9 @@
 // After a push the page is opened (the signed address on the isolated mockup host, a fresh context with no sign in) at each width,
 // one screen after the other, and the picture and the rendered element tree of each are uploaded. The tree comes from the page as
 // it is drawn, so markup built by script is in it, which the server's outline cannot see. A render that fails is said, never fatal.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { inspectUrl, redactSignedAddress } from './checks/inspect.js';
 import { rankQualityChecks, summarizeQualityChecks } from './checks/qualityChecks.js';
 import { resolveMockupTarget } from './checks/mockupTarget.js';

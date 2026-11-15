@@ -3,12 +3,12 @@
 // is a local clone of the git root at HEAD plus the working-tree changes (copy.ts); env files are not copied, they are read from the source repo.
 // With an app folder the copy is still made from the git root, but install, build and start run in the app folder of the copy. A live site (cfg.url)
 // builds and starts nothing: the run is unverified. A dependency cache is not made here: a fresh install per run cannot serve a stale module.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, lstatSync, openSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appDirProblem, sandboxAppRoot } from './appdir.js';
 import { git, listFiles, makePrivateCopy } from './copy.js';
 import { buildAdoptedEnv, buildPreviewEnv } from './envPolicy.js';

@@ -1,11 +1,11 @@
 // A THROWAWAY DATABASE FOR ONE RUN: A NEW POSTGRES CONTAINER WITH ITS OWN NAME, ITS OWN VOLUME AND ITS OWN PORT. Docker is opt in (`--database tool`).
 // Nothing here can reach the container or the volume that holds a person's own database on port 5433: the port is refused, and every docker command
 // is checked before it runs so that it can only name a container that starts with `afb-checks-`.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { FORBIDDEN_PORTS } from './guardrails.js';
 // -- CONSTANTS -- //
 /** The ports a check never binds or publishes: the dev server, the build preview and the local PostgreSQL. */

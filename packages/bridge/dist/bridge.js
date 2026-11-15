@@ -1,7 +1,7 @@
 // THE BRIDGE CORE (ADR-030): READS JSON-RPC LINES FROM A TOOL'S STDIN, FORWARDS EACH TO THE SERVER'S /mcp, WRITES THE REPLIES TO STDOUT.
 // It holds no tool code, schemas or workflow text, so a server update never needs a reconnect. It only adds three things:
 // sign in by device code, an offline queue for writes, and a protocol version check on start.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createInterface } from 'node:readline';
 // -- CONSTANTS -- //
 export const BRIDGE_PROTOCOL_MAX = 2;

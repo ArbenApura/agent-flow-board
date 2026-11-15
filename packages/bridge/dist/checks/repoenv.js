@@ -3,10 +3,10 @@
 // run's own settings (PORT, HOST, NODE_ENV). The files are read from the registered repo folder, never from the run's copy (a copy has no .env), and never printed: every
 // message here names variables and files, never values. The caller keeps what is returned in `startEnv` OUT of install and build (adopted values reach the START step only),
 // runs databaseProblems() (envrules.ts) over it, and puts `redactions` into the redaction needles.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { closeSync, fstatSync, lstatSync, openSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { expandRefs } from './envrules.js';
 // -- CONSTANTS -- //
 /** Read in this order, a later file overriding an earlier one (the order a production build of Vite and SvelteKit uses). .env.test is read only when none of these exist in that folder. */

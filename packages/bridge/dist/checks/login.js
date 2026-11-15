@@ -5,12 +5,12 @@
 // and the bridge does not return what is typed into it to the agent. The wait ends when a new session cookie of the site appears (or, for an app that keeps its session in the browser, a new localStorage key or IndexedDB database, or a changed session-like key), the window is closed, or the time runs out.
 // Nothing here starts a preview itself: the caller injects `target`, and the sign in function is injected too, so tests launch no browser.
 // A cookie, a password or a token is never printed.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFile } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { consumeApproval, peekApproval } from './approve.js';
 import { appendAudit } from './audit.js';
 import { loadPlaywright } from './browser.js';

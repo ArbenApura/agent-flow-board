@@ -1,11 +1,11 @@
 // WARM-BROWSER DEV SWEEP: SCREENS x WIDTHS x STATES IN ONE RUN (STEPS A.6 & A.10, AFB-20261113-1008)
 // Reuses one warm Chromium browser (browserpool) and shared contexts per state across a whole matrix of screens, widths, and auth states,
 // waits for HMR readiness (Vite or fallback), runs early stock checks (CLS + <44px tap targets) on every cell, and measures cold vs warm separately.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { playwrightRuntimeDir } from './browser.js';
 import { acquireBrowser } from './browserpool.js';
 import { DEV_READINESS_INIT_SCRIPT, waitForDevReady } from './devReadiness.js';

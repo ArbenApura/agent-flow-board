@@ -1,7 +1,7 @@
 // LIVE-SITE REGISTRATIONS: A REGISTRATION WITH A URL AND NO REPO. NOTHING IS BUILT OR STARTED; THE RUN IS UNVERIFIED AND NEVER WRITES.
 // This file only judges the settings (url and extraHosts) and hands the guard its options. Writes are never allowed on a live site: a check
 // there drives pages and reads, and the guard stops every POST, PUT, PATCH and DELETE.
-// -- MODULES -- //
+// IMPORTED MODULES
 import { FORBIDDEN_PORTS } from './guardrails.js';
 // -- CONSTANTS -- //
 const MAX_EXTRA_HOSTS = 16;

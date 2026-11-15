@@ -6,11 +6,11 @@
 // them. The protection is against accidents: an import is limited to Supabase-style and mail keys from a test env file, the project ref has to match the URL and the
 // keys, a service key needs a flag, a registration cannot open another's store (it is bound into the seal), nothing prints a value, and the audit chain records what was
 // imported and that it was approved with a code.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { closeSync, fstatSync, lstatSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { boardSentence, consumeApprovalNote, peekApproval } from './approve.js';
 import { appendAudit } from './audit.js';
 import { withLockSync } from './lock.js';

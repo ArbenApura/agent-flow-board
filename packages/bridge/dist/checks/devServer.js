@@ -1,9 +1,9 @@
 // DEV SERVER LIFECYCLE (STEP A.2, AFB-20261113-1008)
 // Reuses an already-answering dev server (never stopping or restarting it), or starts an approved sealed --start command
 // with filtered env (envPolicy) and shell:false, owns it in RunScope, and stops its whole process tree on exit.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { spawn } from 'node:child_process';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { Refusal } from './approve.js';
 import { cleanDevUrl, probeDevUrl } from './devPolicy.js';
 import { buildDevEnv } from './envPolicy.js';

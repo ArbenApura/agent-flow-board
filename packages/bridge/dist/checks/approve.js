@@ -2,11 +2,11 @@
 // signed-in run, import secrets). The owner runs `check approve --action <x> --target <name>` on an interactive terminal and gets a single-use code that is valid for
 // 10 minutes for that one action and target. The code is stored hashed (HMAC with a key in the bridge home), so the file never holds a usable code. An agent cannot
 // make a code: minting needs a terminal. This is tamper-evident, not tamper-proof: a process that runs as the same user can read the key.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { existsSync, linkSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendAudit } from './audit.js';
 import { withLockSync } from './lock.js';
 import { approvalsFile, checksHome, ensureDir } from './paths.js';

@@ -2,9 +2,9 @@
 // One device sign in under the client name afb-checks (an agent approves it with tool_connection_approve and the verifier, or a person types the
 // code on the /device page), one call that makes this machine a runner of the organisation, then only the runner token is kept. The personal
 // token is forgotten at once. The runner token has its own entry in the token store, apart from the sign in of the hooks and MCP.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { hostname } from 'node:os';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { deviceLogin } from '../device.js';
 import { accountKey } from '../tokenStore.js';
 // -- CONSTANTS -- //

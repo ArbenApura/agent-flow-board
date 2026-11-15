@@ -5,11 +5,11 @@
 // the lock go away reads what happened: a success is handed to every waiter, a deterministic failure is handed to every waiter as the same error, and an
 // infrastructure failure (the work threw an error marked `infra: true`) makes one waiter the next builder. A builder that died leaves no result: the lock
 // goes stale and one waiter takes it over. The work should be async (spawned processes), because a blocked event loop cannot beat.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import { linkSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { assertName, ensureDir, locksDir } from './paths.js';
 /** Marks a failure of the machine (a full disk, a killed process, a network error) rather than of the code being built: one waiter tries again. */
 export class InfraError extends Error {

@@ -1,7 +1,7 @@
 // APP DOM INSPECTION TARGET RESOLUTION (STEP B.5, AFB-20261113-1008)
 // Opens a registered app target (dev registration or site URL, with optional saved --profile sign-in),
 // drives screen/state/width, waits until settled, and returns the exact same InspectDump format as mockup inspect.
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ensureDevServer } from './devServer.js';
 import { inspectUrl } from './inspect.js';
 import { liveSiteGuardOptions } from './live.js';

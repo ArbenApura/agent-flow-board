@@ -1,10 +1,10 @@
 // `check rerun-on-change <PATH> --check <KEY>`: LOCAL FILE-WATCH RE-RUNNER FOR DEV CHECKS (STEP A.6, AFB-20261113-1008)
 // Kept completely distinct from `check watch` (which polls queued runs from boards). Watches local source files under <PATH>,
 // ignores noise (.git, node_modules, build artifacts), debounces bursts, and never overlaps two runs at once.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, watch } from 'node:fs';
 import { resolve } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { Refusal, UsageError } from './approve.js';
 // -- CONSTANTS -- //
 const IGNORE_PARTS = new Set(['.git', 'node_modules', '.svelte-kit', 'dist', 'build', '.yarn']);

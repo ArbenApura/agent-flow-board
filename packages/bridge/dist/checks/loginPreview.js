@@ -2,7 +2,7 @@
 // A repo registration has no address of its own: its app is built and started from the repo, on a free port, with the registration's sealed test project and mail fence,
 // exactly as a run does it. The owner signs in on that preview once; the sign-in is bound to the loopback and the sealed project, not to the port, so every later run finds it.
 // The preview is stopped by the login's own scope when the login ends, whatever ends it.
-// -- MODULES -- //
+// IMPORTED MODULES
 import { ensureBrowser } from './browser.js';
 import { startPreview } from './preview.js';
 import { configFor, pinState } from './registry.js';

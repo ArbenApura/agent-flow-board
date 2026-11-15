@@ -2,7 +2,7 @@
 // Nothing here reads a terminal. A code is made only from a decision the board returned to the claim call (approve.ts keeps the list), never from an argument.
 // The board is injected, so the tests use a fake one. A board that does not know the path gives a plain message with the terminal fallback, the only way left there.
 // Every other refusal names what the agent does next and never sends the owner to a terminal (AFB-20261110-1448): the owner's switch, a reconnect, a retry.
-// -- MODULES -- //
+// IMPORTED MODULES
 import { APPROVAL_ACTIONS, Refusal, UsageError, claimBoardDecisions, isApprovalAction, mintFromDecision, normaliseTarget } from './approve.js';
 import { BoardError } from './board.js';
 // -- CONSTANTS -- //

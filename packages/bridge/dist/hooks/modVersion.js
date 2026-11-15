@@ -1,7 +1,7 @@
 // THE VERSION OF THE EDITOR STATUS MOD THIS PERSON HAS INSTALLED (AFB-20261108-0856)
 // The setup prompt writes the mod to ~/.claude/skills/afb-flow-status. The hook sends the version on a start so the board can say
 // when a newer one is served. A hook must never fail or slow down because of this file, so every problem means "no version".
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';

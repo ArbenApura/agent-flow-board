@@ -2,7 +2,7 @@
 // The recipe may name a preview-only account (a user the app seeds in the throwaway database). The tool types its email and password into the
 // app's own sign in form in a browser that records nothing, keeps only the cookies and storage it ends with, and forgets the password. The
 // password is only ever typed into the app under test: the sign in page must be on its own address, and nothing else is reachable.
-// -- MODULES -- //
+// IMPORTED MODULES
 import { loadPlaywright } from './browser.js';
 import { redact } from './redact.js';
 // -- CONSTANTS -- //

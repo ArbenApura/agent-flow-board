@@ -1,7 +1,7 @@
 // agent-flow-board mockup push <file.html>: UPLOADS ONE MOCKUP FILE TO THE BOARD OVER /api/v1 WITH THE BRIDGE'S OWN SIGN IN
 // It reads the file by path from the agent's own folder, so the HTML never passes through a model's output. It is never queued, never
 // goes through the MCP forwarder and changes nothing in the bridge protocol: a failed push says so and the agent runs it again.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';

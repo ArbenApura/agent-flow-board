@@ -3,12 +3,12 @@
 // start time and what the run made that a crash would leave behind: the preview process, the database container and the private copy). Resources are closed newest first and closing never throws.
 // A later run sweeps what a dead process left: only the exact run folders and copies named by a dead marker (or by no marker and old enough), never a
 // folder that was not made by a run.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, readdirSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { pidAlive } from './lock.js';
 import { NAME, copiesDir, endedPath, ensureDir, logDirFor, logsDir, markerPath, markersDir, runsDir, under } from './paths.js';
 import { dropPooledDatabase, pooledNames } from './dbpool.js';

@@ -1,12 +1,12 @@
 // THE BROWSER OF A CHECK: ONE CHROMIUM SERVER STARTED BY THE PARENT, WHICH THE SANDBOXED CHILD ONLY CONNECTS TO.
 // Playwright is not a dependency of the bridge (it is large and most people never run a check). It is found next to the bridge when it is there,
 // and otherwise installed once into ~/.agent-flow-board/checks/runtime. Nothing in this file imports Playwright at load time.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFile, spawn } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { acquireLock } from './lock.js';
 import { checksHome, ensureDir } from './paths.js';
 // -- CONSTANTS -- //

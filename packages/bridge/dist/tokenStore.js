@@ -1,7 +1,7 @@
 // WHERE THE BRIDGE KEEPS ITS TOKEN. THE OS KEYCHAIN WHERE ONE EXISTS, AN ENCRYPTED FILE WHERE NONE DOES (SSH SESSIONS, CONTAINERS)
 // Backends: macOS Keychain (security), Linux Secret Service (secret-tool), Windows DPAPI (bound to the signed in user),
 // and an AES-256-GCM file with its key in a separate file readable only by its owner.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { execFileSync } from 'node:child_process';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

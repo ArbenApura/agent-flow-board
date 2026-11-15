@@ -3,7 +3,7 @@
 // pushed, so the output is exactly the utilities the page uses, styled the way the app styles them. It runs the Tailwind that is
 // installed in the project (never one fetched from the network), writes only to a temporary folder outside the repo, and the result
 // is stored as a generated style that nobody has to read.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';

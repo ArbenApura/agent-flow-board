@@ -6,11 +6,11 @@
 // Nothing here follows a link: a link is recreated as a link, a path with `..` is skipped, and a write never goes through a link in the destination.
 // The heavy walks (snapshot, publish, verify, restore) are generators that yield every few hundred files: the `...Async` forms let the event loop run between
 // batches (the single-flight heartbeat and the board beat must never starve while a big tree is copied); the plain forms run the same code to the end.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { chmodSync, copyFileSync, existsSync, linkSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { pidAlive } from './lock.js';
 /** A kept entry whose content no longer matches its manifest. It has been moved aside; the caller builds or installs instead. */
 export class CacheCorruptError extends Error {

@@ -2,11 +2,11 @@
 // WHAT THIS DOES AND DOES NOT PROTECT. The preview runs the code of the repo under test, and the agent writes that code. So no rule here can
 // stop an agent that means harm: it could put anything in the app. The rules stop mistakes and keep real things safe: the database that holds
 // real data, the ports of the servers a person runs, the programs a build is allowed to start, and folders that were never meant to be built.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, parse, resolve, sep } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { configDir } from '../tokenStore.js';
 // -- CONSTANTS -- //
 /** Never used by a check: the dev server, the build preview that is served, and the local Docker PostgreSQL that holds real data. */

@@ -2,7 +2,7 @@
 // An earlier rule said the bridge never edits a tool's settings by itself (settings.ts). This command is the one place that does, and
 // only when the person or an agent runs it on purpose: it merges, it keeps every hook that is not the bridge's, it backs the file up
 // outside the repo first, and it refuses a file it cannot read as plain JSON instead of guessing.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';

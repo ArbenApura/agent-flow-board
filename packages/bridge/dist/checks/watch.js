@@ -3,10 +3,10 @@
 // fails, registrations taking turns, a heartbeat to the board from the moment of the claim, a 40 minute limit, and only its own held runs given back when it stops.
 // A queued run for a project with a registration is routed by the registration rules (run.ts); a project with none runs in the folder where `check run` was used
 // before, and with neither the run ends "could not run" and the current directory is never a fallback.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { appendAudit } from './audit.js';
 import { boundFolder, pinStatus } from './bind.js';
 import { BoardError, RunnerBoard } from './board.js';

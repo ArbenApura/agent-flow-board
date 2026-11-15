@@ -1,5 +1,5 @@
 // CALLING THE SERVER FROM A HOOK. A HOOK MUST BE QUICK AND MUST NEVER BREAK THE TOOL, SO EVERY FAILURE BECOMES AN EMPTY ANSWER.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

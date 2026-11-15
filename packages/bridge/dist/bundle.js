@@ -2,11 +2,11 @@
 // A bundle is a folder with mockup.json and the files it lists: screens, sheets, styles, motion, behaviour, fixtures and a contract. The
 // server composes the page and keeps the parts; a pull writes the same folder back. Paths are read from the agent's own disk, so no page
 // passes through a model's output, and nothing is ever written inside a git repository.
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve, sep } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { call, failure, MAX_MOCKUP_BYTES } from './mockup.js';
 import { compileTailwind } from './tailwind.js';
 // -- CONSTANTS -- //

@@ -1,10 +1,10 @@
 // WHERE THE CHECK COMMANDS KEEP THEIR STATE: ONE FOLDER UNDER THE BRIDGE HOME, NEVER INSIDE A REPO
 // The bridge home also holds the token store (key and token files). Nothing here ever names those, and the sandboxed child of a check is
 // given read access to the scripts folder, its own run folder and the Playwright runtime only (see sandbox.ts).
-// -- DEP-MODULES -- //
+// IMPORTED DEP-MODULES
 import { mkdirSync, realpathSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
-// -- MODULES -- //
+// IMPORTED MODULES
 import { configDir } from '../tokenStore.js';
 // -- CONSTANTS -- //
 /** The version of the conversation between the board and the check tool. The board refuses a tool older than its minimum. */
