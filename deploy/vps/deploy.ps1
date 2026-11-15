@@ -19,8 +19,8 @@ $remote = @'
 set -e
 rm -rf ~/afb-incoming && mkdir ~/afb-incoming && tar -xzf /tmp/afb.tgz -C ~/afb-incoming && rm /tmp/afb.tgz
 cd ~/agent-flow-board/deploy/vps
-echo "Backing up before the update"
-docker compose exec -T app node cli/server.mjs backup run </dev/null || echo "backup skipped"
+# No backup before the update: backups are off (BACKUP_KEY is empty in the server's .env). The nightly backup of the mangoman org
+# built the whole org in memory (about 3 GB) and kept killing the app on this 3.8 GB server.
 rsync -a --delete --exclude 'deploy/vps/.env' ~/afb-incoming/ ~/agent-flow-board/
 rm -rf ~/afb-incoming
 docker compose up -d --build

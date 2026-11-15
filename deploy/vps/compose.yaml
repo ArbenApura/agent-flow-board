@@ -57,7 +57,8 @@ services:
       DATABASE_URL: postgres://app_runtime:${AFB_RUNTIME_PASSWORD}@postgres:5432/afb
       DATABASE_OWNER_URL: postgres://afb_owner:${AFB_OWNER_PASSWORD}@postgres:5432/afb
       DATABASE_BACKUP_URL: postgres://afb_backup:${AFB_BACKUP_DB_PASSWORD}@postgres:5432/afb
-      BACKUP_KEY: ${BACKUP_KEY:?Set BACKUP_KEY in .env}
+      # Backups are off while BACKUP_KEY is empty or missing in .env. A key turns the nightly backup on
+      BACKUP_KEY: ${BACKUP_KEY:-}
       BACKUP_DIR: /data/backups
       AFB_MASTER_KEY: ${AFB_MASTER_KEY:?Set AFB_MASTER_KEY in .env}
       AFB_STORAGE_DIR: /data/files
