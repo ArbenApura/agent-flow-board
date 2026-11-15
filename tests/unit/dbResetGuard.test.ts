@@ -2,6 +2,7 @@
 
 // IMPORTED DEP-MODULES
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 // -- CONSTANTS -- //
@@ -17,7 +18,8 @@ function runHook(command: string) {
 	});
 }
 
-describe('block-db-reset hook', () => {
+// The hook lives in .claude/, which is gitignored, so a clean checkout (CI) does not have it and these cases only run on a machine that does
+describe.skipIf(!existsSync(SCRIPT))('block-db-reset hook', () => {
 	it.each([
 		'yarn db:local:reset',
 		'docker compose down -v',
