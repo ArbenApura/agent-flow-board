@@ -1,11 +1,11 @@
-// THE AGENT HANDLES BRIDGE APPROVALS ON ITS OWN: THE PERSON'S SWITCH, INSTANT APPROVAL, CLAIM ONCE, AND EVERY WAY A PROMPT-INJECTED AGENT COULD TRY TO TURN IT ON FOR ITSELF. Each negative control is a named test.
+// THE AGENT HANDLES BRIDGE APPROVALS ON ITS OWN, ALWAYS ON (AFB-20261115-1229): INSTANT APPROVAL, CLAIM ONCE, THE OWNER'S LIVE ROLE AT REQUEST AND AT CLAIM, AND THE WAYS A PROMPT-INJECTED AGENT COULD TRY TO WIDEN IT. Each negative control is a named test.
 
 // IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleRunnerApi } from '../../src/lib/server/api/runner';
-import { approvalList, setAutoApprove } from '../../src/lib/server/ops/approvals';
+import { approvalList } from '../../src/lib/server/ops/approvals';
 import { registerToolRunner } from '../../src/lib/server/ops/environments';
 import { getOrgSettings, updateOrgSettings } from '../../src/lib/server/ops/settings';
 import { makePostgres, type TestDb } from '../support/db';
@@ -16,7 +16,7 @@ import { makeWorld, type World } from '../support/ops';
 type Body = {
 	requests: { id: string; status: string; target: string }[];
 	batchId: string | null;
-	link: string | null;
+	link?: string | null;
 	claimed: { action: string; target: string; decidedVia: string; decidedBy: string }[];
 	cancelled: number;
 };
@@ -56,6 +56,10 @@ describe('the agent handles approvals on its own', () => {
 	const rid = () => `req-${Date.now().toString(36)}-${++n}-abcdef`;
 	const ask = (token: string, entries: { action: string; target: string }[], extra = {}) =>
 		call(token, '/approvals', { requestId: rid(), entries, ...extra });
+	const setRole = (who: 'admin' | 'owner', role: string) =>
+		db.admin.exec(
+			`update member set role = '${role}' where org_id = '${w.orgId}' and user_id = '${w.people[who]}'`
+		);
 	let laptop: string; // owned by the admin
 	let desk: string; // owned by the admin too
 	let ownerBox: string; // owned by the owner
@@ -71,21 +75,14 @@ describe('the agent handles approvals on its own', () => {
 		await db?.stop();
 	});
 
-	it('with the switch off a request is refused with a plain sentence that names the switch', async () => {
-		const r = await ask(laptop, [{ action: 'secrets', target: 'mangoman/HAPRM' }]);
-		expect(r.status).toBe(403);
-		expect(JSON.stringify(r.body)).toMatch(/Agent access/);
-		expect(JSON.stringify(r.body)).not.toMatch(/terminal/);
-	});
-
-	it('with the switch on a request is approved at once, claimed once, and the history says auto', async () => {
-		await setAutoApprove(as('admin'), true);
+	it('a request is approved at once with no switch, claimed once, and the history says auto', async () => {
 		const asked = await ask(laptop, [{ action: 'secrets', target: 'MangoMan/HAPRM' }], {
 			why: 'Import the test keys'
 		});
 		expect(asked.status).toBe(200);
 		expect(asked.body.requests[0]).toMatchObject({ target: 'mangoman/haprm', status: 'approved' });
-		expect(asked.body.link).toContain('/settings?tab=agent-access');
+		// There is no settings page to point at any more
+		expect(asked.body.link ?? null).toBeNull();
 		const id = asked.body.requests[0]!.id;
 		const poll = await call(laptop, '/approvals/poll', { ids: [id] });
 		expect(poll.body.requests[0]!.status).toBe('approved');
@@ -96,7 +93,11 @@ describe('the agent handles approvals on its own', () => {
 		const events = await db.admin.query<{ verb: string }>(
 			`select verb from event where verb = 'approval.auto'`
 		);
-		expect(events.length).toBeGreaterThanOrEqual(2);
+		expect(events.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it('the owner machine is approved at once too, and nobody turned anything on', async () => {
+		expect((await ask(ownerBox, [{ action: 'roots', target: '/o/1' }])).status).toBe(200);
 	});
 
 	it('claims once when two claims run in parallel', async () => {
@@ -165,35 +166,56 @@ describe('the agent handles approvals on its own', () => {
 		expect((await call(laptop, '/approvals/claim', { ids: [id] })).body.claimed).toHaveLength(0);
 	});
 
-	it('the switch is per person: the owner turning theirs on does not cover the admin machines, and the admin machines still work', async () => {
-		expect((await ask(ownerBox, [{ action: 'roots', target: '/o/1' }])).status).toBe(403);
-		await setAutoApprove(as('owner'), true);
-		expect((await ask(ownerBox, [{ action: 'roots', target: '/o/1' }])).status).toBe(200);
-		await setAutoApprove(as('owner'), false);
-		expect((await ask(ownerBox, [{ action: 'roots', target: '/o/2' }])).status).toBe(403);
-		// The admin switch was not touched by the owner's changes
-		expect((await ask(laptop, [{ action: 'pictures', target: 'still-on' }])).status).toBe(200);
-	});
-
-	it('turning the switch off withdraws unclaimed approvals, and a claim after that finds nothing', async () => {
-		await setAutoApprove(as('admin'), false);
-		expect((await ask(laptop, [{ action: 'secrets', target: 'after/off' }])).status).toBe(403);
-		await setAutoApprove(as('admin'), true);
-		const fresh = await ask(laptop, [{ action: 'secrets', target: 'withdraw/me' }]);
-		const id = fresh.body.requests[0]!.id;
-		await setAutoApprove(as('admin'), false);
-		expect((await call(laptop, '/approvals/claim', { ids: [id] })).body.claimed).toHaveLength(0);
-		await setAutoApprove(as('admin'), true);
-	});
-
-	it('a claim re-checks the switch: an auto row whose switch vanished is not claimable', async () => {
-		const asked = await ask(laptop, [{ action: 'secrets', target: 'recheck/me' }]);
+	it('an owner demoted between the request and the claim claims nothing, and the row is claimable again once the role is back', async () => {
+		const asked = await ask(laptop, [{ action: 'secrets', target: 'demoted/after-ask' }]);
 		const id = asked.body.requests[0]!.id;
-		await db.admin.exec(
-			`update org set settings = settings - 'autoApproveBy' where id = '${w.orgId}'`
+		// The tool's token stops working the moment its owner cannot manage (runner auth), and the claim re-checks the same role itself
+		await setRole('admin', 'member');
+		const during = await call(laptop, '/approvals/claim', { ids: [id] });
+		expect(during.status).toBe(401);
+		expect(during.body.claimed ?? []).toHaveLength(0);
+		await setRole('admin', 'admin');
+		expect((await call(laptop, '/approvals/claim', { ids: [id] })).body.claimed).toHaveLength(1);
+	});
+
+	it('a request from an owner who lost manage is refused, and nothing in the answer sends anybody to a switch', async () => {
+		await setRole('admin', 'member');
+		const r = await ask(laptop, [{ action: 'roots', target: '/demoted' }]);
+		await setRole('admin', 'admin');
+		expect(r.status).toBe(401);
+		expect(JSON.stringify(r.body)).not.toMatch(/switch|Agent access/);
+		// Nothing was made for it
+		expect(
+			await db.admin.query(`select 1 from bridge_approval where target = '/demoted'`)
+		).toHaveLength(0);
+	});
+
+	it('a machine with no owner cannot be approved', async () => {
+		const lone = (await registerToolRunner(as('admin'), { name: 'Lone' })).token;
+		await db.admin.exec(`update runner set owner_id = null where name = 'Lone'`);
+		expect(
+			(await ask(lone, [{ action: 'roots', target: '/ownerless' }])).status
+		).toBeGreaterThanOrEqual(400);
+	});
+
+	it('a request approves the machine’s old waiting rows and leaves an org event for them', async () => {
+		const [{ id: runnerId }] = await db.admin.query<{ id: string }>(
+			`select id from runner where name = 'Laptop'`
 		);
-		expect((await call(laptop, '/approvals/claim', { ids: [id] })).body.claimed).toHaveLength(0);
-		await setAutoApprove(as('admin'), true);
+		await db.admin.exec(
+			`insert into bridge_approval (org_id, runner_id, request_id, action, target, content_hash, status, expires_at)
+			 values ('${w.orgId}', '${runnerId}', 'old-waiting-1', 'roots', '/old-waiting', 'x', 'pending', now() + interval '10 minutes')`
+		);
+		const before = await db.admin.query(`select 1 from event where verb = 'approval.auto'`);
+		const r = await ask(laptop, [{ action: 'pictures', target: 'sweep-trigger' }]);
+		expect(r.status).toBe(200);
+		const [old] = await db.admin.query<{ status: string; decided_via: string }>(
+			`select status, decided_via from bridge_approval where request_id = 'old-waiting-1'`
+		);
+		expect(old).toMatchObject({ status: 'approved', decided_via: 'auto' });
+		const after = await db.admin.query(`select 1 from event where verb = 'approval.auto'`);
+		// One event for the swept rows and one for the new batch
+		expect(after.length - before.length).toBeGreaterThanOrEqual(2);
 	});
 
 	// -- NEGATIVE CONTROLS FOR A PROMPT-INJECTED AGENT -- //
@@ -211,51 +233,20 @@ describe('the agent handles approvals on its own', () => {
 		}
 	});
 
-	it('NEG turning the switch on is refused for a token, an MCP session, a tool actor, an agent, a member and a viewer', async () => {
-		await setAutoApprove(as('admin'), false);
-		for (const extra of [
-			{ tokenId: 't1' },
-			{ sessionId: 's1' },
-			{ tokenCaps: ['manage' as const] },
-			{ tool: 'claude-code' }
-		])
-			await expect(
-				setAutoApprove({ ...as('admin'), actor: { ...as('admin').actor, ...extra } }, true)
-			).rejects.toThrow(/signed in/);
-		await expect(
-			setAutoApprove({ ...as('admin'), actor: { ...as('admin').actor, kind: 'agent' } }, true)
-		).rejects.toThrow();
-		await expect(setAutoApprove(as('member'), true)).rejects.toThrow();
-		await expect(setAutoApprove(as('viewer'), true)).rejects.toThrow();
-		expect((await ask(laptop, [{ action: 'roots', target: '/neg' }])).status).toBe(403);
-		await setAutoApprove(as('admin'), true);
-	});
-
-	it('NEG the settings route cannot set the switch, and a limits save does not undo it', async () => {
-		await updateOrgSettings(as('admin'), {
-			autoApproveBy: { [w.people.member]: { at: 'x' } }
-		} as never);
+	it('NEG an old autoApproveBy key stays in the record but never reaches a settings read, and a limits save keeps it', async () => {
+		await db.admin.exec(
+			`update org set settings = coalesce(settings, '{}'::jsonb) || jsonb_build_object('autoApproveBy', jsonb_build_object('${w.people.admin}', jsonb_build_object('at', 'old'))) where id = '${w.orgId}'`
+		);
 		await updateOrgSettings(as('admin'), { tokenMaxDays: 21 });
 		const row = await db.admin.query<{ s: Record<string, unknown> }>(
 			`select settings as s from org where id = '${w.orgId}'`
 		);
-		const keys = Object.keys((row[0]!.s.autoApproveBy ?? {}) as object);
-		expect(keys).toContain(w.people.admin);
-		expect(keys).not.toContain(w.people.member);
+		expect(Object.keys((row[0]!.s.autoApproveBy ?? {}) as object)).toContain(w.people.admin);
 		expect(row[0]!.s.tokenMaxDays).toBe(21);
-		// Switching off and then saving limits keeps it off
-		await setAutoApprove(as('admin'), false);
-		await updateOrgSettings(as('admin'), { tokenMaxDays: 30 });
-		expect((await getOrgSettings(as('admin'))).autoApprove).toBe(false);
-		await setAutoApprove(as('admin'), true);
-	});
-
-	it('NEG nobody sees who else turned theirs on', async () => {
 		const mine = await getOrgSettings(as('admin'));
-		expect(mine.autoApprove).toBe(true);
 		expect(JSON.stringify(mine)).not.toContain('autoApproveBy');
+		expect(mine).not.toHaveProperty('autoApprove');
 		expect(JSON.stringify(await getOrgSettings(as('member')))).not.toContain(w.people.admin);
-		expect((await getOrgSettings(as('member'))).autoApprove).toBe(false);
 	});
 
 	it('NEG a run key and a bogus token are refused', async () => {
@@ -267,52 +258,16 @@ describe('the agent handles approvals on its own', () => {
 		expect((await ask('afx_nope', [{ action: 'roots', target: '/x' }])).status).toBe(401);
 	});
 
-	it('NEG an owner who lost manage or whose machine has no owner cannot auto-approve', async () => {
-		await db.admin.exec(
-			`update member set role = 'viewer' where org_id = '${w.orgId}' and user_id = '${w.people.admin}'`
-		);
-		expect(
-			(await ask(laptop, [{ action: 'roots', target: '/demoted' }])).status
-		).toBeGreaterThanOrEqual(400);
-		await db.admin.exec(
-			`update member set role = 'admin' where org_id = '${w.orgId}' and user_id = '${w.people.admin}'`
-		);
-		const lone = (await registerToolRunner(as('admin'), { name: 'Lone' })).token;
-		await db.admin.exec(`update runner set owner_id = null where name = 'Lone'`);
-		expect(
-			(await ask(lone, [{ action: 'roots', target: '/ownerless' }])).status
-		).toBeGreaterThanOrEqual(400);
-	});
-
-	it('NEG another org sees nothing and its person cannot change our switch', async () => {
+	it('approval_list is only a stub for older skill texts: always on, no link, no history, in any org', async () => {
+		const mine = await approvalList(as('admin'));
+		expect(mine).toEqual({ enabled: true, link: null, history: [] });
 		const other = {
 			handle: db,
 			orgId: w.other.orgId,
 			services,
 			actor: { userId: w.other.userId, kind: 'person' as const }
 		};
-		const theirs = await approvalList(other);
-		expect(theirs.history).toHaveLength(0);
-		expect(theirs.enabled).toBe(false);
-		await setAutoApprove(other, true);
-		const ours = await getOrgSettings(as('admin'));
-		expect(ours.autoApprove).toBe(true);
-		const rows = await db.admin.query<{ s: Record<string, unknown> }>(
-			`select settings as s from org where id = '${w.orgId}'`
-		);
-		expect(Object.keys((rows[0]!.s.autoApproveBy ?? {}) as object)).not.toContain(w.other.userId);
-	});
-
-	it("the list shows only the person's own machines, and a member without manage sees none", async () => {
-		const mine = await approvalList(as('admin'));
-		expect(mine.canManage).toBe(true);
-		expect(mine.history.length).toBeGreaterThan(0);
-		expect(mine.history.every((h) => ['Laptop', 'Desk', 'Lone'].includes(h.machine))).toBe(true);
-		const owner = await approvalList(as('owner'));
-		expect(owner.history.every((h) => h.machine === 'Owner box')).toBe(true);
-		const member = await approvalList(as('member'));
-		expect(member.canManage).toBe(false);
-		expect(member.history).toHaveLength(0);
+		expect(await approvalList(other)).toEqual({ enabled: true, link: null, history: [] });
 		expect(JSON.stringify(mine)).not.toMatch(/ciphertext|password|token_hash/i);
 	});
 

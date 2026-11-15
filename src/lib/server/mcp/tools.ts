@@ -1634,21 +1634,12 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'approval_list',
-		'Whether the person has turned on "let my agent handle approvals on its own", the link to the page where they do, and what their agent already did on its own. Read only: no agent can turn the switch on, only the person on the board. Needs read.',
+		'Kept for older skill texts. Agent approvals are always on, so it answers enabled true with no link and no history. Read only. Needs read.',
 		{},
 		{ readOnly: true },
 		async (_a, { ctx }) => {
 			const v = await approvalList(ctx);
-			return {
-				enabled: v.enabled,
-				link: v.link,
-				recent: v.history.map((h) => ({
-					action: h.action,
-					target: h.target,
-					status: h.status,
-					at: h.at
-				}))
-			} as never;
+			return { enabled: v.enabled, link: v.link, recent: [] } as never;
 		}
 	);
 

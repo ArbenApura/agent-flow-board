@@ -32,8 +32,7 @@ export type OrgSettings = {
 	tokenMaxDays?: number;
 	/** Whether people may be invited as guests. */
 	allowGuestInvites?: boolean;
-	/** Who has turned on "let my agent handle approvals on its own" (a user id and when). Never shown to other members, never changed by a token. */
-	autoApproveBy?: Record<string, { at: string }>;
+	// The old per-person agent approvals switch (AFB-20261115-1229) left an autoApproveBy key in stored records; nothing reads it and settingsOf hides it.
 };
 export type StreamConfig = { stream: string; scopes: string[] }[];
 export type ProjectThemes = { key: string; label: string }[];

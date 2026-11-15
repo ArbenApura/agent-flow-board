@@ -124,7 +124,7 @@ export async function handleRunnerApi(req: ApiRequest, deps: ApiDeps): Promise<A
 		// OWNER APPROVALS: the tool's own runner token only (a run key is refused above, a local or hosted runner inside each verb)
 		if (kind === 'approvals' && req.method === 'POST' && !action) {
 			if (id === undefined)
-				return ok(await requestApprovals(deps.handle, auth, deps.baseUrl, json(req) as never));
+				return ok(await requestApprovals(deps.handle, auth, json(req) as never));
 			if (id === 'poll') return ok(await pollApprovals(deps.handle, auth, json(req) as never));
 			if (id === 'cancel') return ok(await cancelApprovals(deps.handle, auth, json(req) as never));
 			if (id === 'claim') return ok(await claimApprovals(deps.handle, auth, json(req) as never));

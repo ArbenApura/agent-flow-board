@@ -122,7 +122,9 @@ describe('asking the owner on the board', () => {
 		});
 		expect(r.state).toBe('approved');
 		if (r.state !== 'approved') return;
-		expect(say[0]).toContain('http://board.test/o/P/settings#checks-waiting');
+		// An older board may leave a row waiting: the agent says so in one plain line and polls, with no page to send anybody to
+		expect(say[0]).toMatch(/Waiting for the board to approve this/);
+		expect(say[0]).not.toMatch(/switch|Agent access/);
 		expect(r.codes).toHaveLength(1);
 		const note = consumeApprovalNote('secrets', 'mangoman/haprm', r.codes[0]!.code);
 		expect(note.ok).toBe(true);
@@ -301,10 +303,17 @@ describe('asking the owner on the board', () => {
 				() => '',
 				(err: unknown) => (err instanceof Error ? err.message : String(err))
 			);
+		// A refusal of the owner's role is passed on exactly as the board wrote it
 		const off = await said(
-			new BoardError(403, 'FORBIDDEN', 'Turn the switch on under Settings, Agent access.')
+			new BoardError(
+				403,
+				'FORBIDDEN',
+				'This computer cannot be approved: the person it belongs to is no longer a member of the organisation with the manage role.'
+			)
 		);
-		expect(off).toMatch(/Agent access\. Tell the owner this once/);
+		expect(off).toBe(
+			'This computer cannot be approved: the person it belongs to is no longer a member of the organisation with the manage role.'
+		);
 		const unreachable = await said(new TypeError('fetch failed'));
 		expect(unreachable).toMatch(/could not be reached.*not a step for the owner/s);
 		const refused = await said(new BoardError(401, 'UNAUTHORIZED', 'Bad token.'));

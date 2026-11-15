@@ -53,7 +53,8 @@ export type ApprovalState = {
 export type ApprovalRequested = {
 	batchId: string | null;
 	requests: ApprovalState[];
-	link: string | null;
+	/** Sent only by an older board; a current board approves at once and sends none. */
+	link?: string | null;
 };
 export type ClaimedFromBoard = {
 	id: string;

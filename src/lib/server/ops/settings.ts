@@ -47,7 +47,7 @@ export const settingsOf = (
 	const own: Record<string, unknown> = { ...(s ?? {}) };
 	// The day's trash clean up leaves its mark in the same record, and no page or token needs to see it
 	delete own.trashPurgedAt;
-	// Who turned on the agent switch is private to each person; the map never leaves the server
+	// The per-person agent switch was removed (AFB-20261115-1229); old keys of it stay in the stored record and must never reach a page or a token
 	delete own.autoApproveBy;
 	delete own.boardApprovals;
 	return { ...DEFAULT_SETTINGS, ...own } as Required<
@@ -71,8 +71,6 @@ export async function getOrgSettings(ctx: Ctx) {
 			paletteChecks: palette ? checkPalette(palette) : [],
 			paletteAdjusted: palette?.adjusted ?? false,
 			settings: settingsOf(o.settings),
-			// Only the caller's own switch, never the map of who else turned theirs on
-			autoApprove: Boolean(o.settings?.autoApproveBy?.[ctx.actor.userId]),
 			canManage: caps.includes('manage'),
 			version: o.version
 		};
@@ -119,7 +117,7 @@ export async function updateOrgSettings(ctx: Ctx, raw: z.input<typeof orgSetting
 			after.allowGuestInvites = input.allowGuestInvites;
 			limits.allowGuestInvites = input.allowGuestInvites;
 		}
-		// Only the changed limits are merged into the stored object in the same statement, so a concurrent switch change (autoApproveBy) is never overwritten
+		// Only the changed limits are merged into the stored object in the same statement, so keys stored beside them (an old autoApproveBy, the trash purge mark) are never overwritten
 		if ('tokenMaxDays' in after || 'allowGuestInvites' in after)
 			set.settings = sql`coalesce(${org.settings}, '{}'::jsonb) || ${JSON.stringify(limits)}::jsonb`;
 		if (!Object.keys(set).length) return { changed: false };

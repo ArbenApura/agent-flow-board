@@ -1,7 +1,7 @@
 // ASKING THE OWNER ON THE BOARD: THE AGENT FILES A REQUEST, THE OWNER CLICKS ONCE, THE BRIDGE CLAIMS THE ANSWER ONCE AND MAKES THE SAME LOCAL SINGLE-USE CODE A TERMINAL MAKES
 // Nothing here reads a terminal. A code is made only from a decision the board returned to the claim call (approve.ts keeps the list), never from an argument.
 // The board is injected, so the tests use a fake one. A board that does not know the path gives a plain message with the terminal fallback, the only way left there.
-// Every other refusal names what the agent does next and never sends the owner to a terminal (AFB-20261110-1448): the owner's switch, a reconnect, a retry.
+// Every other refusal names what the agent does next and never sends the owner to a terminal (AFB-20261110-1448): a reconnect, a retry. Agent approvals are always on (AFB-20261115-1229), so there is no switch to point at.
 
 // IMPORTED TYPES
 import type { ApprovalRequested, ApprovalState, ClaimedFromBoard } from './board.js';
@@ -108,13 +108,8 @@ function explain(e: unknown): never {
 			throw new Refusal(
 				"The board refused this machine's connection. Connect again yourself: agent-flow-board check connect --server <board address> --org <slug> --json (approve its code with the tool_connection_approve tool), then ask again."
 			);
-		// Only the owner's switch is something to tell the owner; another refusal (a role, a limit) is passed on as it is
-		if (e.status === 403)
-			throw new Refusal(
-				e.message.includes('Agent access')
-					? `${e.message} Tell the owner this once, in one line, and carry on with what needs no approval.`
-					: e.message
-			);
+		// A refusal (the owner's role, a limit) is passed on as the board wrote it
+		if (e.status === 403) throw new Refusal(e.message);
 		if (e.status === 429) throw new Refusal(e.message);
 	}
 	if (
@@ -175,14 +170,11 @@ export async function askOwner(board: AskBoard, o: AskOptions): Promise<AskResul
 			return explain(e);
 		}
 		ids = asked.requests.map((r) => r.id);
-		link = asked.link;
-		// With the person's switch on the board approves at once and there is nothing to say; a row that is still open is waiting for the switch
+		// An older board may still send a link; a current board does not and approves at once, so there is normally nothing to say
+		link = asked.link ?? null;
+		// A row that is still open belongs to a board that has not approved it yet: it is polled below
 		if (asked.requests.some((r) => r.status === 'pending'))
-			o.say(
-				link
-					? `Waiting for the owner. Ask them to turn on "Let my agent handle approvals on its own" at ${link}.`
-					: 'Waiting for the owner. Ask them to turn on "Let my agent handle approvals on its own" under Settings, Agent access.'
-			);
+			o.say('Waiting for the board to approve this. It is checked again in a moment.');
 	}
 	const deadline = now() + Math.max(0, o.waitMinutes) * 60_000;
 	let states: ApprovalState[];

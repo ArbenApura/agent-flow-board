@@ -11,7 +11,6 @@
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
 	import { ApiError, api, deletePicture, newKey, putPicture } from '#lib/board/api.js';
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
-	import AgentAccess from '#lib/settings/AgentAccess.svelte';
 	import { canon, createFollower } from '#lib/settings/follow.js';
 	import {
 		savedStreams,
@@ -30,7 +29,6 @@
 	// IMPORTED DEP-COMPONENTS
 	import Settings from '@lucide/svelte/icons/settings';
 	import Layers from '@lucide/svelte/icons/layers';
-	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import Bot from '@lucide/svelte/icons/bot';
 	import Download from '@lucide/svelte/icons/download';
 	import Trash from '@lucide/svelte/icons/trash';
@@ -232,23 +230,6 @@
 					disabled={!can}
 				/>
 			</Section>
-
-			<!-- AGENT ACCESS: THE PERSON'S OWN SWITCH, APPLIES AT ONCE, NO SAVE BAR -->
-			{#if data.agentAccess}
-				<Section
-					id="agent-access"
-					icon={ShieldCheck}
-					title="Agent access"
-					text="Choose whether your agent asks you before it adds folders, sites or test keys."
-				>
-					<AgentAccess
-						enabled={data.agentAccess.enabled}
-						since={data.agentAccess.since}
-						canManage={data.agentAccess.canManage}
-						history={data.agentAccess.history}
-					/>
-				</Section>
-			{/if}
 
 			<Section
 				id="trash"

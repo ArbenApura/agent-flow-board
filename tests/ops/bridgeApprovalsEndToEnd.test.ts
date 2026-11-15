@@ -1,4 +1,4 @@
-// THE WHOLE FLOW ONCE: THE BRIDGE'S OWN CODE (askOwner, RunnerBoard, the local code store) TALKING TO THE REAL RUNNER API ON THE EMBEDDED SERVER, WITH THE PERSON'S SWITCH TURNED ON BY THE REAL VERB.
+// THE WHOLE FLOW ONCE: THE BRIDGE'S OWN CODE (askOwner, RunnerBoard, the local code store) TALKING TO THE REAL RUNNER API ON THE EMBEDDED SERVER. AGENT APPROVALS ARE ALWAYS ON, NO SWITCH.
 // Unit tests of each half missed real defects before (AFB-20261108-0925), so this one joins them: request, instant approval, claim, mint, and a use of the code.
 
 // IMPORTED DEP-MODULES
@@ -12,7 +12,6 @@ import { consumeApprovalNote, peekApproval } from '../../packages/bridge/src/che
 import { RunnerBoard } from '../../packages/bridge/src/checks/board';
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { handleRunnerApi } from '../../src/lib/server/api/runner';
-import { approvalList, setAutoApprove } from '../../src/lib/server/ops/approvals';
 import { registerToolRunner } from '../../src/lib/server/ops/environments';
 import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
@@ -68,9 +67,12 @@ describe('agent approvals, end to end', () => {
 		return new Response(JSON.stringify(res.body), { status: res.status });
 	};
 
-	it('with the switch off the agent gets one plain sentence to pass on, and no terminal command for the owner', async () => {
+	it('an owner who lost manage: the agent gets one plain sentence and no switch to point at', async () => {
 		const tool = await registerToolRunner(as('admin'), { name: 'E2E off' });
 		const board = new RunnerBoard('http://board.test', tool.token, wire() as never);
+		await db.admin.exec(
+			`update member set role = 'member' where org_id = '${w.orgId}' and user_id = '${w.people.admin}'`
+		);
 		const refusal = await askOwner(board, {
 			entries: [{ action: 'roots', target: home }],
 			waitMinutes: 0,
@@ -80,13 +82,16 @@ describe('agent approvals, end to end', () => {
 			() => '',
 			(e: unknown) => (e instanceof Error ? e.message : String(e))
 		);
-		expect(refusal).toMatch(/Agent access.*Tell the owner this once/s);
+		await db.admin.exec(
+			`update member set role = 'admin' where org_id = '${w.orgId}' and user_id = '${w.people.admin}'`
+		);
+		// The tool's token stops working with its owner's manage role, so the agent is told to connect again, in one plain sentence
+		expect(refusal).toMatch(/refused this machine's connection/);
 		// The owner is never sent to a terminal while the board can approve (AFB-20261110-1448)
-		expect(refusal).not.toMatch(/terminal/);
+		expect(refusal).not.toMatch(/terminal|switch|Agent access/);
 	});
 
 	it('request, instant approval, claim, mint and use: a batch yields exactly its codes, each once, and the owner is never asked', async () => {
-		await setAutoApprove(as('admin'), true);
 		const tool = await registerToolRunner(as('admin'), { name: 'E2E laptop' });
 		const board = new RunnerBoard('http://board.test', tool.token, wire() as never);
 		const lines: string[] = [];
@@ -118,25 +123,10 @@ describe('agent approvals, end to end', () => {
 		expect(used.ok).toBe(true);
 		expect(consumeApprovalNote('secrets', 'acme/E2E', secrets.code).ok).toBe(false);
 		expect(peekApproval('register', 'e2e.example.com', register.code)).toBe(true);
-		// The board lists what this person's agent did on its own, for this machine only
-		const list = await approvalList(as('admin'));
-		const mine = list.history.filter((h) => h.machine === 'E2E laptop');
-		expect(mine.map((h) => h.status)).toEqual(['claimed', 'claimed']);
-		// A teammate with no switch sees nothing of it
-		expect((await approvalList(as('owner'))).history).toHaveLength(0);
-	});
-
-	it('turning the switch off stops the next ask at once', async () => {
-		await setAutoApprove(as('admin'), false);
-		const tool = await registerToolRunner(as('admin'), { name: 'E2E after off' });
-		const board = new RunnerBoard('http://board.test', tool.token, wire() as never);
-		await expect(
-			askOwner(board, {
-				entries: [{ action: 'pictures', target: 'E2E' }],
-				waitMinutes: 0,
-				pollMs: 1,
-				say: () => undefined
-			})
-		).rejects.toThrow(/Agent access/);
+		// Both rows were claimed once: a second claim by the same machine yields nothing
+		const rows = await db.admin.query<{ status: string }>(
+			`select b.status from bridge_approval b join runner r on r.id = b.runner_id where r.name = 'E2E laptop'`
+		);
+		expect(rows.map((r) => r.status)).toEqual(['claimed', 'claimed']);
 	});
 });
