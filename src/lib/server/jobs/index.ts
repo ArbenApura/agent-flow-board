@@ -55,3 +55,13 @@ export function getJobs(): Promise<JobRunner> {
 	runner ??= open();
 	return runner;
 }
+
+/**
+ * Stops taking jobs and waits for the running ones (a backup, a purge) to finish, up to `timeoutMs`. Does nothing when the
+ * runner never started, so a shutdown never starts workers just to stop them.
+ */
+export async function stopJobs(timeoutMs: number): Promise<void> {
+	if (!runner) return;
+	const jobs = await runner.catch(() => null);
+	await jobs?.stop(timeoutMs);
+}

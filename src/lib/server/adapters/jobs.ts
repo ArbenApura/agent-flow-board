@@ -31,7 +31,8 @@ export interface JobRunner {
 	 */
 	schedule(name: string, cron: string, payload: JobPayload): Promise<void>;
 	start(): Promise<void>;
-	stop(): Promise<void>;
+	/** Stops taking jobs and waits up to `timeoutMs` (default 5 seconds) for the running ones to finish. */
+	stop(timeoutMs?: number): Promise<void>;
 }
 
 // -- CONSTANTS -- //
@@ -205,8 +206,8 @@ export async function pgBossJobs(handle: DbHandle, connectionString: string): Pr
 				});
 			}
 		},
-		async stop() {
-			await boss.stop({ graceful: true, timeout: 5000 });
+		async stop(timeoutMs = 5000) {
+			await boss.stop({ graceful: true, timeout: timeoutMs });
 		}
 	};
 }

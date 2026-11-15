@@ -12,6 +12,8 @@ import { securityStatements } from './security';
 // -- CONSTANTS -- //
 
 export const MIGRATIONS_DIR = join(process.cwd(), 'src', 'lib', 'server', 'db', 'migrations');
+/** How long a migration or the security statements may wait for a table lock. */
+const LOCK_TIMEOUT = '5s';
 
 // -- FUNCTIONS -- //
 
@@ -49,6 +51,8 @@ export async function migrate(db: SqlExecutor, dir = MIGRATIONS_DIR): Promise<st
 			.filter(Boolean);
 		await db.exec('BEGIN');
 		try {
+			// A table lock that cannot be had in time (a backup holds a long transaction) fails the migration instead of queueing every query behind it
+			await db.exec(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`);
 			for (const s of statements) await db.exec(s);
 			await db.query(`INSERT INTO "__afb_migrations" (tag, hash) VALUES ($1, $2)`, [tag, hash]);
 			await db.exec('COMMIT');
@@ -66,5 +70,21 @@ export async function migrate(db: SqlExecutor, dir = MIGRATIONS_DIR): Promise<st
 
 /** Roles, grants and forced row level security. Safe to run again, and run after every migration. */
 export async function secure(db: SqlExecutor): Promise<void> {
-	for (const s of securityStatements()) await db.exec(s);
+	// ONE TRANSACTION, so a policy is never missing: a statement by statement run dropped each policy before creating it again, and for
+	// that moment forced row level security let the runtime role read no rows and write none. Queries now wait for the commit instead.
+	// A lock that cannot be had in 5 seconds (a long backup transaction) fails loudly and rolls back with the old policies intact.
+	await db.exec('BEGIN');
+	try {
+		await db.exec(`SET LOCAL lock_timeout = '${LOCK_TIMEOUT}'`);
+		for (const s of securityStatements()) await db.exec(s);
+		await db.exec('COMMIT');
+	} catch (e) {
+		await db.exec('ROLLBACK');
+		throw new Error(
+			`The security statements failed: ${e instanceof Error ? e.message : String(e)}`,
+			{
+				cause: e
+			}
+		);
+	}
 }

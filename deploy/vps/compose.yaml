@@ -51,6 +51,9 @@ services:
       context: ../..
     image: agent-flow-board:local
     restart: unless-stopped
+    # A DEPLOY STOPS THE OLD APP WITH SIGTERM: IT HAS 50 S TO FINISH. THE APP ITSELF GIVES UP ON OPEN REQUESTS AT SHUTDOWN_TIMEOUT (40 S),
+    # AND ITS JOB WORKERS GET 35 S (src/lib/server/shutdown.ts). Docker's default of 10 s cut running agents off
+    stop_grace_period: 50s
     mem_limit: 1536m
     memswap_limit: 1536m
     depends_on:
@@ -59,6 +62,8 @@ services:
     environment:
       # The JavaScript heap stops growing at 1 GB, so a leak is collected hard before it can reach the container limit
       NODE_OPTIONS: --max-old-space-size=1024
+      # How long the server waits for open requests after SIGTERM before it closes them (adapter-node defaults to 30)
+      SHUTDOWN_TIMEOUT: '40'
       AFB_BASE_URL: ${AFB_BASE_URL:?Set AFB_BASE_URL in .env, for example https://board.example.com}
       # The app works out its own address from these headers, which the proxy sets. Without PROTOCOL_HEADER it assumes https
       # Optional second hostname that serves mockups, so the board's cookies never reach mockup pages (empty = same host, local development only)
@@ -105,6 +110,8 @@ services:
       MOCKUP_DOMAIN: ${MOCKUP_DOMAIN:-mockups.localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # A folder, not a file: the deploy rewrites the file inside it for every rollout, and a single-file mount would keep the old file
+      - ./live:/etc/caddy/live:ro
       - caddy_data:/data
       - caddy_config:/config
 

@@ -14,16 +14,24 @@
 	}
 }
 
+# THE OPTIONS OF EVERY PROXY TO THE APP, USED BY live/app-upstream.caddy (WHICH NAMES THE CONTAINER)
+(afb_proxy) {
+	# A request that cannot reach the app (a restart) waits and tries again for up to 15 s instead of answering 502. Caddy retries
+	# only when no connection could be made, so a request the app already received is never sent twice
+	lb_try_duration 15s
+	lb_try_interval 250ms
+	# The live updates of a project page are one long lived Server-Sent Events response, so nothing may hold it back
+	flush_interval -1
+	health_uri /healthz
+	health_interval 15s
+}
+
 # THE REVERSE PROXY: HTTPS FROM LET'S ENCRYPT, COMPRESSION, AND LIVE UPDATES THAT ARE NEVER BUFFERED
 {$AFB_DOMAIN} {
 	encode zstd gzip
 
-	reverse_proxy app:3000 {
-		# The live updates of a project page are one long lived Server-Sent Events response, so nothing may hold it back
-		flush_interval -1
-		health_uri /healthz
-		health_interval 15s
-	}
+	# The app container Caddy sends to is named in a small file that deploy.ps1 rewrites for each rollout, then reloads Caddy
+	import /etc/caddy/live/app-upstream.caddy
 
 	# Files are served through short lived signed links, so no response is cached by the proxy
 	header {
@@ -38,11 +46,7 @@
 {$MOCKUP_DOMAIN} {
 	encode zstd gzip
 
-	reverse_proxy app:3000 {
-		flush_interval -1
-		health_uri /healthz
-		health_interval 15s
-	}
+	import /etc/caddy/live/app-upstream.caddy
 
 	header {
 		-Server

@@ -1,0 +1,5 @@
+# THE APP CONTAINER CADDY SENDS TO. deploy.ps1 REWRITES THIS FILE ON THE SERVER FOR EVERY ROLLOUT (THE NEW CONTAINER'S NAME), THEN RELOADS CADDY.
+# This copy is the default for a plain `docker compose up -d` (one app container, reachable as `app`). It is not sent by the deploy.
+reverse_proxy app:3000 {
+	import afb_proxy
+}

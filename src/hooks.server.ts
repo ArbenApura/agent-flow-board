@@ -16,6 +16,7 @@ import {
 	isMockupServingPath
 } from '#lib/server/mockups/origin.js';
 import { mockupResponse, readsNoSession } from '#lib/server/mockups/serve.js';
+import { installShutdown } from '#lib/server/shutdown.js';
 import { seedForPreview } from '#lib/server/db/seedAuth.js';
 import { MODE_COOKIE, SYSTEM_MODE_SCRIPT, parseMode, serverMode } from '#lib/theme/mode.js';
 
@@ -180,6 +181,8 @@ export const handle: Handle = sequence(
 
 /** Fills an empty preview database with the demo data once, when the server starts. */
 export const init: ServerInit = async () => {
+	// A clean shutdown on SIGTERM (a deploy): streams told to reconnect, running jobs finished, then the process leaves
+	if (!building) installShutdown();
 	if (AFB_SEED_DEMO) await seedForPreview(await getDb());
 	// Background jobs (backups, organisation purges) start with the server, not on the first request that needs them
 	await getJobs();

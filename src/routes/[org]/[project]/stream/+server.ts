@@ -11,6 +11,7 @@ import { OpError } from '#lib/server/ops/context.js';
 import { listEvents } from '#lib/server/ops/history.js';
 import { getProject } from '#lib/server/ops/projects.js';
 import { getHub } from '#lib/server/realtime/hub.js';
+import { registerStream } from '#lib/server/shutdown.js';
 import { orgContext } from '#lib/server/web/ctx.js';
 
 // -- CONSTANTS -- //
@@ -53,9 +54,11 @@ export const GET: RequestHandler = async ({ params, locals, request, url }) => {
 					)
 				);
 			};
+			let forget = () => {};
 			const close = () => {
 				if (closed) return;
 				closed = true;
+				forget();
 				cleanup();
 				try {
 					controller.close();
@@ -122,6 +125,11 @@ export const GET: RequestHandler = async ({ params, locals, request, url }) => {
 				unsubscribe();
 			};
 			request.signal.addEventListener('abort', close);
+			// The server is shutting down (a deploy): tell the page to refetch, then close, and it reconnects to the new server
+			forget = registerStream(() => {
+				send('refetch', {});
+				close();
+			});
 
 			try {
 				const latest = await latestEventId(ctx, project.id);
