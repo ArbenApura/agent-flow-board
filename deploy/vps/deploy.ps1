@@ -132,6 +132,16 @@ ensure_caddy_current() {
     sleep 3
   fi
 }
+# A CADDYFILE THAT DOES NOT VALIDATE MUST NEVER REACH A RUNNING OR RECREATED CADDY: IT WOULD TAKE DOWN EVERY SITE BEHIND IT. THE CHECK RUNS
+# IN A ONE OFF CONTAINER OF THE SAME IMAGE, WITH THE SAME DOMAINS FROM .env AND THE live/ FOLDER, AND CHANGES NOTHING
+validate_caddyfile() {
+  local file=$1 d m
+  d=$(grep '^AFB_DOMAIN=' .env | cut -d= -f2- | tr -d '\r"'"'")
+  m=$(grep '^MOCKUP_DOMAIN=' .env | cut -d= -f2- | tr -d '\r"'"'")
+  docker run --rm -e AFB_DOMAIN="$d" -e MOCKUP_DOMAIN="${m:-mockups.localhost}" \
+    -v "$PWD/$file:/etc/caddy/Caddyfile:ro" -v "$PWD/live:/etc/caddy/live:ro" caddy:2 \
+    caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1
+}
 # THE OLD WAY: STOP, START (A SHORT OUTAGE)
 stop_start() {
   echo "$1"
@@ -148,7 +158,7 @@ migration_breaks() {
   local f=$1 why="" t line tbl con backfill=0
   grep -Eiq '^[[:space:]]*UPDATE[[:space:]]' "$f" && backfill=1
   grep -Eiq 'DROP[[:space:]]+(COLUMN|TABLE|TYPE)|RENAME' "$f" && why="drops or renames something"
-  if [ -z "$why" ]; then grep -Eiq 'SET[[:space:]]+NOT[[:space:]]+NULL|ALTER[[:space:]]+COLUMN[^;]*TYPE' "$f" && why="tightens or changes a column"; fi
+  if [ -z "$why" ]; then grep -Eiq 'SET[[:space:]]+NOT[[:space:]]+NULL|ALTER[[:space:]]+COLUMN[^;]*(TYPE|DROP[[:space:]]+DEFAULT)' "$f" && why="tightens or changes a column"; fi
   # A check dropped and added back under the same name is widened or rewritten, which the old app survives, unless the same file
   # also rewrites rows (a narrowed list). A constraint on a table created in the same file is harmless. Anything else counts
   while IFS= read -r line; do
@@ -210,6 +220,9 @@ if [ "${#ids[@]}" -gt 1 ]; then
   keep=""
   for id in "${ids[@]}"; do [ "$(cname "$id")" = "$current" ] && keep=$id; done
   [ -n "$keep" ] || { echo "There are ${#ids[@]} app containers and none is the one Caddy sends to ($current). Fix this by hand first."; exit 1; }
+  # Caddy is pointed at the kept one before the other drains, because a run that died between writing the file and reloading Caddy
+  # leaves Caddy still sending to the one that is about to go
+  point_caddy "$(cname "$keep")" || { echo 'Caddy could not be pointed at the kept app container.'; exit 1; }
   for id in "${ids[@]}"; do [ "$id" = "$keep" ] || drain_and_remove "$id"; done
   ids=("$keep")
 fi
@@ -233,7 +246,16 @@ if [ "$ROLLBACK" != 1 ]; then
   # THE NEW FILES. Nothing outside these folders is deleted, and the server's .env stays. The Caddyfile is written in place so the
   # container's single file mount keeps seeing it; live/ is written by this script
   rsync -a --exclude 'deploy/vps/.env' --exclude 'deploy/vps/Caddyfile' --exclude 'deploy/vps/live' ~/afb-incoming/ ~/agent-flow-board/
-  rsync -a --inplace ~/afb-incoming/deploy/vps/Caddyfile ~/agent-flow-board/deploy/vps/Caddyfile
+  # The new Caddyfile waits next to the old one until just before Caddy is recreated. It imports live/app-upstream.caddy, which a Caddy
+  # started with the old mounts cannot find, so it must not sit in place while a failed deploy leaves that Caddy running
+  cp ~/afb-incoming/deploy/vps/Caddyfile ~/agent-flow-board/deploy/vps/Caddyfile.next
+  mkdir -p live
+  [ -f live/app-upstream.caddy ] || printf '%s\n' 'reverse_proxy app:3000 {' '	import afb_proxy' '}' > live/app-upstream.caddy
+  if ! validate_caddyfile Caddyfile.next; then
+    rm -f Caddyfile.next
+    echo 'The new Caddyfile does not validate, so nothing was changed. The old app and the old Caddy keep serving.'
+    exit 1
+  fi
   for d in build cli src/lib/server/db/migrations; do rsync -a --delete ~/afb-incoming/$d/ ~/agent-flow-board/$d/; done
   rm -rf ~/afb-incoming
 
@@ -249,6 +271,11 @@ if [ "$ROLLBACK" != 1 ]; then
     sleep 10
   done
 
+  # A MIGRATION THAT IS FLAGGED AS BREAKING MUST NOT RUN WHILE THE OLD APP STILL SERVES: UNDER -StopStart THE APP STOPS FIRST
+  if [ "$STOP_START" = 1 ] && [ -n "$old" ]; then
+    echo 'Stopping the app before the migration (-StopStart).'
+    docker stop -t 50 "$old" >/dev/null
+  fi
   # THE MIGRATION RUNS ALONE. If it fails the old app keeps serving and no new container exists
   docker compose run --rm -T migrate
 else
@@ -262,7 +289,11 @@ mkdir -p live
 if [ -n "$old" ]; then name=$(cname "$old"); else name=app; fi
 printf '%s\n' "reverse_proxy $name:3000 {" "	import afb_proxy" "}" > live/app-upstream.caddy.new
 mv -f live/app-upstream.caddy.new live/app-upstream.caddy
+# The new Caddyfile goes in place now, written in place (the container's single file mount keeps the same file), and Caddy follows it
+if [ -f Caddyfile.next ]; then cat Caddyfile.next > Caddyfile; rm -f Caddyfile.next; fi
 ensure_caddy_current
+# Whatever an earlier run left behind, the running Caddy now sends to the container that is running
+point_caddy "$name" || { echo 'Caddy could not be pointed at the running app, so nothing was changed.'; exit 1; }
 
 # -- ROLLOUT -- #
 avail=$(free -m | awk '/^Mem:/ {print $7}')
