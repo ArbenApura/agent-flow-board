@@ -18,6 +18,17 @@ export interface Admin {
 
 // -- FUNCTIONS -- //
 
+/** True when two connection URLs name the same server and database, whatever their user, password or options. */
+export function sameDatabase(a: string, b: string): boolean {
+	const x = new URL(a);
+	const y = new URL(b);
+	return (
+		x.hostname === y.hostname &&
+		(x.port || '5432') === (y.port || '5432') &&
+		x.pathname === y.pathname
+	);
+}
+
 /** An executor as an Admin. Without a dedicated connection a transaction is only the steps run in order. */
 export function adminFromExecutor(executor: SqlExecutor): Admin {
 	const admin: Admin = {

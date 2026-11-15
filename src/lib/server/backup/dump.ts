@@ -108,13 +108,39 @@ async function userReferences(db: Admin, registry: Map<string, string>): Promise
 	return out;
 }
 
-/** Every frame of one org: its tables, then its attachment files. Read through a consistent view where the server gives one. */
-export async function exportOrg(
+/** The sha256 of a stored file, read as a stream, or null when the file is not there. */
+async function checksumOf(storage: Storage, key: string): Promise<string | null> {
+	const stream = await storage.getStream(key);
+	if (!stream) return null;
+	const hash = createHash('sha256');
+	for await (const chunk of stream) hash.update(chunk);
+	return hash.digest('hex');
+}
+
+/** Another export of the same org is already running, so this one steps aside. */
+export class BackupBusyError extends Error {
+	constructor(orgId: string) {
+		super(`A backup of ${orgId} is already running.`);
+		this.name = 'BackupBusyError';
+	}
+}
+
+type FileEntry = { key: string; mime: string; checksum: string | null; deletedAt: string | null };
+
+/**
+ * Exports one org as a stream of frames and hands them to `consume`, all inside ONE repeatable read transaction that is closed
+ * whatever `consume` does, so the connection is always released. Memory stays flat: pass 1 counts the rows and checks every file
+ * once (one file at a time) to build the header and to fail before anything is written, and pass 2 yields one frame at a time.
+ * Read through a consistent view where the server gives one. `lock` makes a second export of the same org step aside.
+ */
+export async function exportOrgTo<T>(
 	db: Admin,
 	storage: Storage | null,
 	orgId: string,
-	now = new Date()
-): Promise<{ frames: Frame[]; meta: BackupMeta }> {
+	now: Date,
+	consume: (meta: BackupMeta, frames: AsyncGenerator<Frame>) => Promise<T>,
+	options: { lock?: boolean } = {}
+): Promise<T> {
 	const [org] = await db.query<{ slug: string }>(`select "slug" from "org" where "id" = $1`, [
 		orgId
 	]);
@@ -132,28 +158,34 @@ export async function exportOrg(
 	).map((r) => r.tag);
 	return db.tx(async (q) => {
 		await q.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ').catch(() => undefined);
-		const tables: Record<string, TableMeta> = {};
-		const tableFrames: Frame[] = [];
+		// The transaction sits idle while a big file is written, so no idle timeout may cut it short
+		await q.exec('SET LOCAL idle_in_transaction_session_timeout = 0').catch(() => undefined);
+		if (options.lock) {
+			const [got] = await q
+				.query<{ ok: boolean }>(
+					`select pg_try_advisory_xact_lock(hashtext('afb-backup'), hashtext($1)) as ok`,
+					[orgId]
+				)
+				.catch(() => [{ ok: true }]);
+			if (!got?.ok) throw new BackupBusyError(orgId);
+		}
 		const userRefs = await userReferences(q, registry);
+		// -- PASS 1: THE HEADER -- //
+		const tables: Record<string, TableMeta> = {};
+		const scopes = new Map<string, { list: string; scope: string }>();
 		for (const name of order) {
 			const columns = await writableColumns(q, name);
 			if (!columns.length) continue;
 			const list = columns.map((c) => `"${c}"`).join(', ');
 			const scope = scopeOf(name, registry.get(name)!, userRefs);
-			let count = 0;
-			for (let offset = 0; ; offset += PAGE) {
-				const rows = await q.query<{ j: unknown }>(
-					`select to_jsonb(r) as j from (select ${list} from "${name}" where ${scope} order by 1 limit ${PAGE} offset ${offset}) r`,
-					[orgId]
-				);
-				if (!rows.length) break;
-				count += rows.length;
-				tableFrames.push({ type: 'table', json: { table: name, rows: rows.map((r) => r.j) } });
-				if (rows.length < PAGE) break;
-			}
-			tables[name] = { count, columns };
+			const [counted] = await q.query<{ n: number | string }>(
+				`select count(*) as n from "${name}" where ${scope}`,
+				[orgId]
+			);
+			tables[name] = { count: Number(counted?.n ?? 0), columns };
+			scopes.set(name, { list, scope });
 		}
-		const fileFrames: Frame[] = [];
+		const entries: FileEntry[] = [];
 		const missing: string[] = [];
 		if (storage) {
 			const files = await q.query<{
@@ -186,22 +218,23 @@ export async function exportOrg(
 				[orgId]
 			);
 			for (const f of [...files, ...mockupFiles]) {
-				const bytes = await storage.get(f.storage_key);
-				if (!bytes) {
+				// The file is read as a stream and hashed, so checking even a large file holds none of it
+				const sum = await checksumOf(storage, f.storage_key);
+				if (sum === null) {
 					// A file in the trash may already be gone, a live one missing is data loss and is reported
 					if (!f.deleted_at) missing.push(f.storage_key);
 					continue;
 				}
 				// Stored bytes that no longer match what was saved are damage, and a backup of damage is not a backup
-				const sum = createHash('sha256').update(bytes).digest('hex');
 				if (f.checksum && sum !== f.checksum) {
 					if (!f.deleted_at) missing.push(`${f.storage_key} (damaged)`);
 					continue;
 				}
-				fileFrames.push({
-					type: 'file',
-					json: { key: f.storage_key, mime: f.mime, size: bytes.length, checksum: sum },
-					bytes
+				entries.push({
+					key: f.storage_key,
+					mime: f.mime,
+					checksum: f.checksum,
+					deletedAt: f.deleted_at
 				});
 			}
 		}
@@ -213,9 +246,58 @@ export async function exportOrg(
 			createdAt: now.toISOString(),
 			migrations,
 			tables,
-			files: fileFrames.length,
+			files: entries.length,
 			missingFiles: missing
 		};
-		return { frames: [{ type: 'meta', json: meta }, ...tableFrames, ...fileFrames], meta };
+		// -- PASS 2: THE FRAMES, ONE AT A TIME -- //
+		async function* frames(): AsyncGenerator<Frame> {
+			yield { type: 'meta', json: meta };
+			for (const [name, { list, scope }] of scopes) {
+				for (let offset = 0; ; offset += PAGE) {
+					const rows = await q.query<{ j: unknown }>(
+						`select to_jsonb(r) as j from (select ${list} from "${name}" where ${scope} order by 1 limit ${PAGE} offset ${offset}) r`,
+						[orgId]
+					);
+					if (!rows.length) break;
+					yield { type: 'table', json: { table: name, rows: rows.map((r) => r.j) } };
+					if (rows.length < PAGE) break;
+				}
+			}
+			for (const f of entries) {
+				const bytes = await storage!.get(f.key);
+				if (!bytes)
+					throw new Error(`The file ${f.key} disappeared while the backup was being written.`);
+				const sum = createHash('sha256').update(bytes).digest('hex');
+				// A file with a saved checksum must still match it. One without (screenshots, kits) takes what is read now as the truth
+				if (f.checksum && sum !== f.checksum)
+					throw new Error(`The file ${f.key} changed while the backup was being written.`);
+				yield {
+					type: 'file',
+					json: { key: f.key, mime: f.mime, size: bytes.length, checksum: sum },
+					bytes
+				};
+			}
+		}
+		const stream = frames();
+		try {
+			return await consume(meta, stream);
+		} finally {
+			// A consumer that stopped early must not leave the generator suspended
+			await stream.return(undefined);
+		}
+	});
+}
+
+/** Every frame of one org held in memory: its tables, then its attachment files. For small orgs and tests; a backup streams instead. */
+export async function exportOrg(
+	db: Admin,
+	storage: Storage | null,
+	orgId: string,
+	now = new Date()
+): Promise<{ frames: Frame[]; meta: BackupMeta }> {
+	return exportOrgTo(db, storage, orgId, now, async (meta, stream) => {
+		const frames: Frame[] = [];
+		for await (const f of stream) frames.push(f);
+		return { frames, meta };
 	});
 }

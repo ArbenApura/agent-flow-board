@@ -1,0 +1,12 @@
+# THE BUILD CONTEXT OF Dockerfile.prebuilt: ONLY WHAT IT COPIES (BuildKit reads this file for a Dockerfile of this name)
+*
+!package.json
+!yarn.lock
+!.yarnrc.yml
+!.yarn/releases
+!packages/bridge/package.json
+!packages/cli/package.json
+!packages/runner/package.json
+!build
+!cli
+!src/lib/server/db/migrations

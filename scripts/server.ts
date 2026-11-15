@@ -11,11 +11,15 @@
 // A restore prints what it would do and stops unless --yes is given with --confirm naming the database it will change.
 // Settings come from the environment, the same names the app uses: DATABASE_URL (and DATABASE_OWNER_URL), DATABASE_BACKUP_URL
 // (a role that bypasses row level security, required on PostgreSQL), BACKUP_KEY, BACKUP_DIR, AFB_STORAGE_DIR.
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { createReadStream, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { diskStorage, s3Storage } from '../src/lib/server/adapters/storage';
-import { pgAdmin, type Admin } from '../src/lib/server/backup/admin';
-import { inspectArchive, restoreAll, restoreOrg } from '../src/lib/server/backup/restore';
+import { pgAdmin, sameDatabase, type Admin } from '../src/lib/server/backup/admin';
+import {
+	inspectArchiveStream,
+	restoreAllStream,
+	restoreOrgStream
+} from '../src/lib/server/backup/restore';
 import { runBackup } from '../src/lib/server/backup/run';
 import { createPostgres, type DbHandle } from '../src/lib/server/db/client';
 
@@ -120,7 +124,7 @@ function confirmed(plan: string[]) {
 try {
 	if (group === 'backup' && command === 'verify') {
 		const file = positional[0] ?? fail('Give the archive file.');
-		const { meta } = inspectArchive(readFileSync(file), key);
+		const { meta } = await inspectArchiveStream(createReadStream(file), key);
 		console.log(
 			`OK. Organisation ${meta.orgSlug} (${meta.orgId}), made ${meta.createdAt}, migration ${meta.migrations.at(-1)}, ${meta.files} files.`
 		);
@@ -153,8 +157,18 @@ try {
 	} else if (group === 'restore' && command === 'org') {
 		const file = positional[0] ?? fail('Give the archive file.');
 		await open();
-		const { meta } = inspectArchive(readFileSync(file), key);
+		const { meta } = await inspectArchiveStream(createReadStream(file), key);
 		const scratchUrl = option('--scratch-url');
+		// A scratch trial removes the org from the scratch database first, so it must never be the live one
+		if (
+			scratchUrl &&
+			[env.DATABASE_BACKUP_URL, env.DATABASE_URL, env.DATABASE_OWNER_URL].some(
+				(live) => live && sameDatabase(live, scratchUrl)
+			)
+		)
+			fail(
+				'The scratch database is the live database. Give a separate, migrated database for --scratch-url.'
+			);
 		confirmed([
 			`Restore organisation ${meta.orgSlug} (${meta.orgId}) from ${file}, made ${meta.createdAt}.`,
 			flag('--replace')
@@ -165,7 +179,7 @@ try {
 				: 'No scratch check (add --scratch-url to check first).'
 		]);
 		const scratch = scratchUrl ? pgAdmin(scratchUrl) : undefined;
-		const result = await restoreOrg(readFileSync(file), key, admin!, {
+		const result = await restoreOrgStream(() => createReadStream(file), key, admin!, {
 			scratch,
 			storage: files,
 			replace: flag('--replace')
@@ -183,8 +197,8 @@ try {
 			`Restore ${list.length} organisation(s) into an EMPTY database:`,
 			...list.map((f) => `  ${f}`)
 		]);
-		const results = await restoreAll(
-			list.map((f) => readFileSync(f)),
+		const results = await restoreAllStream(
+			list.map((f) => () => createReadStream(f)),
 			key,
 			admin!,
 			{ storage: files }

@@ -84,6 +84,8 @@ docker compose exec app node cli/server.mjs restore full /data/backups --confirm
 
 Try a restore on a spare machine now and then. A backup you have never restored is a guess.
 
+A backup and a restore read and write a piece at a time, so their memory use stays small whatever the size of the organisation (one attachment, at most 100 MB, is held at a time). The archive is written under a `.partial` name and renamed when it is complete, so a crash never leaves a half archive that looks like a backup. A restore reads the archive completely once, with nothing written, before it touches the database.
+
 ## 5. Updating
 
 ```
@@ -92,6 +94,21 @@ docker compose up -d --build
 ```
 
 The `migrate` step runs first and the app starts only when it succeeded. Migrations only go forward. To go back to an older version, restore a backup taken before the update.
+
+### A small server (4 GB or less)
+
+A build runs the server out of memory. Build somewhere else and let the server only run the image: `deploy/vps/deploy.ps1` builds on a developer's PC (`yarn run build` and `yarn run build:cli`), sends `build/` and `cli/`, and the server builds a small image from them (`Dockerfile.prebuilt`, with `compose.prebuilt.yaml` added on top of `compose.yaml`). Before it changes anything it takes a database dump into `~/afb-predeploy` (the newest 3 are kept) and keeps the running image as `agent-flow-board:previous`. It says Live only when the new container is healthy and the board answers. `compose.yaml` also caps each container's memory (database 1 GB, app 1.5 GB with a 1 GB JavaScript heap, proxy 192 MB) and makes the kernel stop the app before the database if memory ever runs out. On a server of 8 GB or more the caps are plenty of room and nothing here is needed: build from the source as above.
+
+**Rollback.** If the new version does not work, on the server:
+
+```
+cd ~/agent-flow-board/deploy/vps
+export COMPOSE_FILE=compose.yaml:compose.prebuilt.yaml
+docker tag agent-flow-board:previous agent-flow-board:local
+docker compose up -d --no-build
+```
+
+That starts the previous code. A migration that already ran stays: if the schema has to go back too, restore the newest dump from `~/afb-predeploy` into an empty database with `pg_restore`.
 
 ## 6. Changing a key
 

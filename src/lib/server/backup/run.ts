@@ -12,9 +12,9 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 // IMPORTED MODULES
 import { backupRun } from '../db/schema';
 import { withTenant } from '../db/tenant';
-import { writeArchive } from './archive';
-import { exportOrg } from './dump';
-import { inspectArchive } from './restore';
+import { writeArchiveStream } from './archive';
+import { BackupBusyError, exportOrgTo } from './dump';
+import { inspectArchiveStream } from './restore';
 
 // -- TYPES -- //
 
@@ -36,6 +36,8 @@ export const DEFAULT_RETENTION: Retention = { daily: 14, weekly: 8, monthly: 12 
 export const LATE_AFTER_HOURS = 30;
 /** An instance wide job has no org of its own, but every job payload names one. */
 export const NIL_ORG = '00000000-0000-0000-0000-000000000000';
+/** A run that says it is running for longer than this was killed (the server stopped or ran out of memory). */
+export const STALE_RUN_HOURS = 6;
 
 // -- FUNCTIONS -- //
 
@@ -185,33 +187,76 @@ export async function runBackup(
 				continue;
 			}
 		}
+		// A run that was killed leaves its row saying running. It is marked failed once it is clearly not running any more
+		await withTenant(deps.handle, { orgId }, (tx) =>
+			tx
+				.update(backupRun)
+				.set({
+					state: 'failed',
+					error: 'The run was interrupted (the server stopped or ran out of memory).'
+				})
+				.where(
+					and(
+						eq(backupRun.state, 'running'),
+						sql`${backupRun.createdAt} < ${new Date(now.getTime() - STALE_RUN_HOURS * 3_600_000)}`
+					)
+				)
+		);
 		const [started] = await withTenant(deps.handle, { orgId }, (tx) =>
 			tx.insert(backupRun).values({ orgId, state: 'running', createdAt: now }).returning()
 		);
+		const location = archiveKey(orgId, now);
+		// Set once this run has put its archive, so a failure before that never deletes another run's file at the same key
+		let stored = false;
 		try {
-			const { frames, meta } = await exportOrg(deps.admin, deps.storage, orgId, now);
-			if (meta.missingFiles.length)
-				throw new Error(
-					`${meta.missingFiles.length} attachment file${meta.missingFiles.length === 1 ? ' is' : 's are'} missing from storage, such as ${meta.missingFiles[0]}.`
-				);
-			const bytes = writeArchive(frames, deps.key);
-			const location = archiveKey(orgId, now);
-			await deps.backups.put(location, bytes, 'application/octet-stream');
+			// The archive is written as the org is read, a piece at a time, so memory stays flat whatever its size. The export
+			// holds a lock per org: a second run (the command beside the nightly job) steps aside instead of running in parallel
+			const written = await exportOrgTo(
+				deps.admin,
+				deps.storage,
+				orgId,
+				now,
+				async (meta, frames) => {
+					if (meta.missingFiles.length)
+						throw new Error(
+							`${meta.missingFiles.length} attachment file${meta.missingFiles.length === 1 ? ' is' : 's are'} missing from storage, such as ${meta.missingFiles[0]}.`
+						);
+					return deps.backups.putStream(
+						location,
+						writeArchiveStream(frames, deps.key),
+						'application/octet-stream'
+					);
+				},
+				{ lock: true }
+			);
+			stored = true;
 			// Read it back and compare the size, so a backup that never reached its storage is not called done
-			const back = await deps.backups.get(location);
-			if (!back || back.length !== bytes.length)
-				throw new Error('The backup could not be read back from its storage.');
-			// And opened with the key: an archive that cannot be decrypted and counted is not a backup
-			inspectArchive(back, deps.key);
+			const size = await deps.backups.size(location);
+			const back = size === written ? await deps.backups.getStream(location) : null;
+			if (!back) throw new Error('The backup could not be read back from its storage.');
+			// And opened with the key, block by block: an archive that cannot be decrypted and counted is not a backup
+			await inspectArchiveStream(back, deps.key);
 			await withTenant(deps.handle, { orgId }, (tx) =>
 				tx
 					.update(backupRun)
-					.set({ state: 'done', size: bytes.length, location })
+					.set({ state: 'done', size: written, location })
 					.where(eq(backupRun.id, started.id))
 			);
 			out.push({ orgId, state: 'done', location });
-			await prune(deps, orgId, options.retention ?? DEFAULT_RETENTION);
+			// A cleanup that fails must not take the verified backup with it
+			await prune(deps, orgId, options.retention ?? DEFAULT_RETENTION).catch((e) =>
+				console.error(`Pruning old backups of ${orgId} failed`, e)
+			);
 		} catch (e) {
+			// What this run wrote is not a backup: it never stays at its place (a failed put already removed its own partial file)
+			if (stored) await deps.backups.delete(location).catch(() => undefined);
+			if (e instanceof BackupBusyError) {
+				await withTenant(deps.handle, { orgId }, (tx) =>
+					tx.delete(backupRun).where(eq(backupRun.id, started.id))
+				);
+				out.push({ orgId, state: 'skipped' });
+				continue;
+			}
 			const message = e instanceof Error ? e.message : String(e);
 			await withTenant(deps.handle, { orgId }, (tx) =>
 				tx

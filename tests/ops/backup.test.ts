@@ -4,20 +4,24 @@
 
 // IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 // IMPORTED MODULES
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
-import { adminFromExecutor } from '../../src/lib/server/backup/admin';
+import { adminFromExecutor, sameDatabase } from '../../src/lib/server/backup/admin';
 import {
 	BackupError,
 	readArchive,
+	readArchiveStream,
 	writeArchive,
+	writeArchiveStream,
 	type Frame
 } from '../../src/lib/server/backup/archive';
 import { exportOrg, tableOrder } from '../../src/lib/server/backup/dump';
 import {
 	inspectArchive,
+	inspectArchiveStream,
 	loadOrg,
 	restoreAll,
 	restoreOrg
@@ -102,6 +106,151 @@ describe('the encrypted archive', () => {
 			readArchive(Buffer.concat([head, blocks[1], blocks[0], ...blocks.slice(2)]), KEY)
 		).toThrow(BackupError);
 		expect(readArchive(multi, KEY)[0].type).toBe('file');
+	});
+});
+
+describe('the streamed archive', () => {
+	const frames: Frame[] = [
+		{ type: 'meta', json: { hello: 'world' } },
+		{ type: 'table', json: { table: 't', rows: [{ a: 1 }, { a: 2 }] } },
+		{ type: 'file', json: { key: 'k.png', mime: 'image/png' }, bytes: PNG }
+	];
+	const norm = (list: Frame[]) =>
+		list.map((f) => (f.type === 'file' ? { ...f, bytes: Array.from(f.bytes) } : f));
+	async function* asStream(list: Frame[]): AsyncGenerator<Frame> {
+		for (const f of list) yield f;
+	}
+	const bytesOf = async (it: AsyncIterable<Uint8Array>) => {
+		const parts: Buffer[] = [];
+		for await (const c of it) parts.push(Buffer.from(c));
+		return Buffer.concat(parts);
+	};
+	const framesOf = async (it: AsyncIterable<Frame>) => {
+		const out: Frame[] = [];
+		for await (const f of it) out.push(f);
+		return out;
+	};
+	const written = (list: Frame[], block?: number) =>
+		bytesOf(writeArchiveStream(asStream(list), KEY, block));
+	const readStream = (archive: Uint8Array, key = KEY) =>
+		framesOf(readArchiveStream(Readable.from([archive]), key));
+
+	it('has the same format both ways: the buffered reader reads a streamed archive and the stream reader reads a buffered one', async () => {
+		const streamed = await written(frames);
+		expect(streamed.includes(Buffer.from('hello'))).toBe(false);
+		expect(norm(readArchive(streamed, KEY))).toEqual(norm(frames));
+		expect(norm(await readStream(writeArchive(frames, KEY)))).toEqual(norm(frames));
+		expect(norm(await readStream(streamed))).toEqual(norm(frames));
+		// An empty list of frames is still an archive
+		expect(readArchive(await written([]), KEY)).toEqual([]);
+		expect(await readStream(await written([]))).toEqual([]);
+	});
+
+	it('never writes an empty last block, also when the compressed bytes end exactly on a block boundary', async () => {
+		let boundary = false;
+		for (let n = 1; n <= 700; n++) {
+			const payload = new Uint8Array(Array.from({ length: n }, (_, j) => (j * 7919 + n) % 251));
+			const list: Frame[] = [{ type: 'file', json: { key: `f${n}` }, bytes: payload }];
+			const archive = await written(list, 64);
+			let at = 8 + 1 + 16;
+			let plain = 0;
+			while (at < archive.length) {
+				const len = archive.readUInt32BE(at);
+				expect(len).toBeGreaterThan(16);
+				plain += len - 16;
+				at += 16 + len;
+			}
+			if (plain % 64 === 0) boundary = true;
+			expect(norm(readArchive(archive, KEY))).toEqual(norm(list));
+			expect(norm(await readStream(archive))).toEqual(norm(list));
+		}
+		expect(boundary).toBe(true);
+	});
+
+	it('refuses what the buffered reader refuses: a wrong key, a changed byte, a cut file, a dropped or swapped block, extra bytes, a damaged length', async () => {
+		const archive = await written(frames);
+		await expect(readStream(archive, 'another-key-of-more-than-32-characters!!')).rejects.toThrow(
+			BackupError
+		);
+		const flipped = Buffer.from(archive);
+		flipped[flipped.length - 20] ^= 1;
+		await expect(readStream(flipped)).rejects.toThrow(/decrypted/);
+		await expect(readStream(archive.subarray(0, archive.length - 5))).rejects.toThrow(BackupError);
+		await expect(
+			readStream(Buffer.from('not a backup at all, just some text bytes'))
+		).rejects.toThrow(/not an Agent Flow Board backup/);
+		// Several blocks: dropping the last one, swapping two, or adding bytes at the end is caught
+		const multi = await written(
+			[{ type: 'file', json: { key: 'big' }, bytes: randomBytes(200_000) }],
+			4096
+		);
+		const blocks: Buffer[] = [];
+		let at = 8 + 1 + 16;
+		while (at < multi.length) {
+			const len = multi.readUInt32BE(at);
+			blocks.push(multi.subarray(at, at + 16 + len));
+			at += 16 + len;
+		}
+		expect(blocks.length).toBeGreaterThan(2);
+		const head = multi.subarray(0, 8 + 1 + 16);
+		await expect(readStream(Buffer.concat([head, ...blocks.slice(0, -1)]))).rejects.toThrow(
+			BackupError
+		);
+		await expect(
+			readStream(Buffer.concat([head, blocks[1], blocks[0], ...blocks.slice(2)]))
+		).rejects.toThrow(BackupError);
+		await expect(readStream(Buffer.concat([multi, randomBytes(40)]))).rejects.toThrow(BackupError);
+		// A damaged length cannot make the reader ask for gigabytes
+		const huge = Buffer.concat([head, Buffer.from([0x7f, 0xff, 0xff, 0xff]), randomBytes(64)]);
+		await expect(readStream(huge)).rejects.toThrow(/damaged/);
+		expect((await readStream(multi))[0].type).toBe('file');
+	});
+
+	it('is read completely, counts and checksums, by inspectArchiveStream before anything is restored', async () => {
+		const sum = createHash('sha256').update(PNG).digest('hex');
+		const meta = {
+			format: 'afb-backup',
+			version: 1,
+			orgId: 'o',
+			orgSlug: 'o',
+			createdAt: 'now',
+			migrations: [],
+			tables: { t: { count: 2, columns: ['a'] } },
+			files: 1,
+			missingFiles: []
+		};
+		const good: Frame[] = [
+			{ type: 'meta', json: meta },
+			{ type: 'table', json: { table: 't', rows: [{ a: 1 }, { a: 2 }] } },
+			{ type: 'file', json: { key: 'k', mime: 'image/png', checksum: sum }, bytes: PNG }
+		];
+		const inspect = async (list: Frame[]) =>
+			inspectArchiveStream(Readable.from([await written(list)]), KEY);
+		expect((await inspect(good)).meta.orgId).toBe('o');
+		// Cut after its table frames: the header counts a file that is not there
+		await expect(inspect(good.slice(0, 2))).rejects.toThrow(/incomplete: it has 0 of 1 files/);
+		// A table cut short, and a file that does not match its checksum
+		await expect(inspect([good[0], good[2]])).rejects.toThrow(/incomplete: t has 0 of 2 rows/);
+		const damaged: Frame = {
+			type: 'file',
+			json: { key: 'k', mime: 'image/png', checksum: 'x'.repeat(64) },
+			bytes: PNG
+		};
+		await expect(inspect([good[0], good[1], damaged])).rejects.toThrow(
+			/does not match its checksum/
+		);
+		await expect(inspect([good[1]])).rejects.toThrow(/no header/);
+	});
+
+	it('tells whether two connection URLs name the same database', () => {
+		expect(sameDatabase('postgres://a:b@db:5432/afb', 'postgres://c:d@db/afb?sslmode=x')).toBe(
+			true
+		);
+		expect(sameDatabase('postgres://a:b@db:5432/afb', 'postgres://a:b@db:5432/afb_scratch')).toBe(
+			false
+		);
+		expect(sameDatabase('postgres://a:b@db:5432/afb', 'postgres://a:b@other:5432/afb')).toBe(false);
+		expect(sameDatabase('postgres://a:b@db:5432/afb', 'postgres://a:b@db:5433/afb')).toBe(false);
 	});
 });
 

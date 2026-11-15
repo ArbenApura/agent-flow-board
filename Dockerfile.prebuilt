@@ -1,0 +1,38 @@
+# THE SERVER IMAGE FROM A BUILD MADE ELSEWHERE: THE ALREADY BUILT APP AND ITS PRODUCTION DEPENDENCIES, WITH NO BUILD ON THE SERVER
+# The VPS has 3.7 GB of memory, and `vite build` there ran it out of memory. deploy/vps/deploy.ps1 builds on the developer's PC
+# (yarn run build, yarn run build:cli) and ships build/ and cli/, and this file only installs the dependencies and copies them in.
+# It is the same image as Dockerfile makes: the same files, user, port and healthcheck. Dockerfile stays as it is for everyone
+# who builds from the source (docker build -t agent-flow-board .). This file has its own Dockerfile.prebuilt.dockerignore,
+# because the root .dockerignore leaves build/ and cli/ out of the context.
+
+FROM node:24-slim AS deps
+ENV CI=1
+RUN corepack enable
+WORKDIR /app
+# The manifests first, so the install is cached until a dependency changes
+COPY package.json yarn.lock .yarnrc.yml ./
+COPY .yarn/releases .yarn/releases
+COPY packages/bridge/package.json packages/bridge/package.json
+COPY packages/cli/package.json packages/cli/package.json
+COPY packages/runner/package.json packages/runner/package.json
+# Only this app's production dependencies: no browser, no test tools
+RUN yarn workspaces focus --production
+
+FROM node:24-slim
+ENV NODE_ENV=production PORT=3000 HOST=0.0.0.0
+# adapter-node refuses bodies over 512K by default. The API caps a body at 101 MB itself (MAX_BODY_BYTES, a file is at most 100 MB), so the server limit sits just above it and the person gets the API's own message
+ENV BODY_SIZE_LIMIT=102M
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/package.json ./package.json
+COPY build ./build
+COPY cli ./cli
+COPY src/lib/server/db/migrations ./src/lib/server/db/migrations
+# The data volume starts with the owner of this folder, so the app (not root) can write attachments and backups there
+RUN mkdir -p /data/files /data/backups && chown -R node:node /data
+VOLUME /data
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=15s --timeout=4s --start-period=20s --retries=4 \
+  CMD node -e "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+CMD ["node", "build/index.js"]

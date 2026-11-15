@@ -18,7 +18,7 @@ import {
 	DATABASE_BACKUP_URL
 } from '$app/env/private';
 // IMPORTED MODULES
-import { diskStorage, s3Storage } from '../adapters/storage';
+import { diskStorage, s3Storage, sweepPartialFiles } from '../adapters/storage';
 import { getStorage } from '../adapters/index';
 import { getMailer } from '../auth/index';
 import { getDb } from '../db/index';
@@ -52,7 +52,9 @@ export function backupStorage(): Storage {
 			endpoint: BACKUP_S3_ENDPOINT,
 			bucket: BACKUP_S3_BUCKET,
 			accessKeyId: BACKUP_S3_ACCESS_KEY_ID,
-			secretAccessKey: BACKUP_S3_SECRET_ACCESS_KEY
+			secretAccessKey: BACKUP_S3_SECRET_ACCESS_KEY,
+			// An upload is staged (already encrypted) in a private folder inside the data volume, not in the container's own layer
+			stagingDir: BACKUP_DIR ?? undefined
 		});
 	}
 	return diskStorage(BACKUP_DIR ?? '.afb/backups', BETTER_AUTH_SECRET);
@@ -75,6 +77,8 @@ export async function registerBackups(jobs: JobRunner): Promise<(() => Promise<v
 	const handle = await getDb();
 	const admin = await backupAdmin();
 	const backups = backupStorage();
+	// A backup the server killed leaves a .partial file behind. It is never a backup, so it is cleaned up at start
+	if (backups.kind === 'disk' || BACKUP_DIR) await sweepPartialFiles(BACKUP_DIR ?? '.afb/backups');
 	const payload = { orgId: NIL_ORG };
 	jobs.register(BACKUP_JOB, async () => {
 		// A backup the same night already finished is not made twice, whichever process the schedule woke
