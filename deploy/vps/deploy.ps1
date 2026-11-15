@@ -118,7 +118,8 @@ point_caddy() {
   docker compose exec -T caddy caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1 || { echo 'Caddy refused the new configuration.'; return 1; }
   docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || { echo 'Caddy could not reload.'; return 1; }
   for i in 1 2 3 4 5; do
-    docker compose exec -T caddy wget -qO- http://localhost:2019/config/ 2>/dev/null | grep -q "$name:3000" && return 0
+    # 127.0.0.1, not localhost: the admin API listens on IPv4 only and BusyBox wget tries IPv6 first for localhost and is refused
+    docker compose exec -T caddy wget -qO- http://127.0.0.1:2019/config/ 2>/dev/null | grep -q "$name:3000" && return 0
     sleep 1
   done
   echo "Caddy is not sending to $name."; return 1
