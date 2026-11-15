@@ -127,9 +127,14 @@ export const GET: RequestHandler = async ({ params, locals, request, url }) => {
 			request.signal.addEventListener('abort', close);
 			// The server is shutting down (a deploy): tell the page to refetch, then close, and it reconnects to the new server
 			forget = registerStream(() => {
-				send('refetch', {});
-				close();
+				try {
+					send('refetch', {});
+				} finally {
+					close();
+				}
 			});
+			// The page may already have gone while the project was loading, and then no abort event will come
+			if (request.signal.aborted) close();
 
 			try {
 				const latest = await latestEventId(ctx, project.id);

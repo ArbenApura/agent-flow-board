@@ -15,6 +15,8 @@ import { ORG_PURGE_JOB, ORG_PURGE_SWEEP_JOB, dueOrgPurges, purgeOrg } from '../o
 // -- STATES -- //
 
 let runner: Promise<JobRunner> | null = null;
+/** Set when a shutdown began, so the workers are never started after it. */
+let stopping = false;
 
 // -- FUNCTIONS -- //
 
@@ -52,6 +54,8 @@ async function open(): Promise<JobRunner> {
 
 /** The runner, started on first use. */
 export function getJobs(): Promise<JobRunner> {
+	// A shutdown that began before the workers ever started must not be followed by workers that pick up jobs just before the exit
+	if (!runner && stopping) return Promise.reject(new Error('The server is shutting down'));
 	runner ??= open();
 	return runner;
 }
@@ -61,6 +65,7 @@ export function getJobs(): Promise<JobRunner> {
  * runner never started, so a shutdown never starts workers just to stop them.
  */
 export async function stopJobs(timeoutMs: number): Promise<void> {
+	stopping = true;
 	if (!runner) return;
 	const jobs = await runner.catch(() => null);
 	await jobs?.stop(timeoutMs);

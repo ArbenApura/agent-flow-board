@@ -26,7 +26,21 @@ let draining: Promise<void> | null = null;
 /** Registers an open stream. Returns the function that forgets it again. */
 export function registerStream(goodbye: () => void): () => void {
 	streams.add(goodbye);
+	// A stream opened on a connection that was already open after the drain began is told to leave at once, or it would hold the
+	// server open until the adapter closes every connection
+	if (draining) leaveSoon(goodbye);
 	return () => streams.delete(goodbye);
+}
+
+/** Runs one goodbye at a random moment inside the window. A failing goodbye is logged: an uncaught error in a timer would end the process and cut the job drain short. */
+function leaveSoon(goodbye: () => void): void {
+	setTimeout(() => {
+		try {
+			goodbye();
+		} catch (e) {
+			console.error('A stream could not be closed', e);
+		}
+	}, Math.random() * SPREAD_MS);
 }
 
 /** How many streams are open (for tests and logs). */
@@ -37,10 +51,7 @@ export function openStreams(): number {
 /** Starts the drain once: streams out, jobs finished. Safe to call again. */
 export function drain(): Promise<void> {
 	draining ??= (async () => {
-		for (const goodbye of [...streams]) {
-			// The goodbye runs at once for the first stream and spreads the rest over the window
-			setTimeout(goodbye, Math.random() * SPREAD_MS);
-		}
+		for (const goodbye of [...streams]) leaveSoon(goodbye);
 		try {
 			await stopJobs(JOB_DRAIN_MS);
 		} catch (e) {
