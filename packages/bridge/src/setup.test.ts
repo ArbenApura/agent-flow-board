@@ -4,11 +4,13 @@
 // IMPORTED DEP-MODULES
 import {
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
 	readdirSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -190,5 +192,163 @@ describe('the setup command on a repo folder', () => {
 		expect(result.ok).toBe(false);
 		if (!result.ok) expect(result.error).toMatch(/not plain JSON/);
 		expect(readFileSync(local, 'utf8')).toBe('{ // not json\n}');
+	});
+});
+
+describe('the Codex hooks', () => {
+	let root: string;
+	let home: string;
+	let person: string;
+	beforeAll(() => {
+		root = mkdtempSync(join(tmpdir(), 'afb-codex-'));
+		home = join(root, 'bridge-home');
+		person = join(root, 'person-home');
+	});
+	afterAll(() => rmSync(root, { recursive: true, force: true }));
+	const repo = (name: string) => {
+		const dir = join(root, name);
+		mkdirSync(dir, { recursive: true });
+		return dir;
+	};
+	const codex = (dir: string, extra: Record<string, unknown> = {}) =>
+		runSetup({
+			repo: dir,
+			server: SERVER,
+			org: 'arbenger',
+			tool: 'codex',
+			home: person,
+			onPath: true,
+			configDir: home,
+			...extra
+		});
+	const written = (dir: string) => readFileSync(join(dir, '.codex', 'hooks.json'), 'utf8');
+
+	it('builds the six Codex hooks, each with a timeout, and SessionEnd inside the three seconds Codex gives it', () => {
+		const plan = planSetup(null, SERVER, 'arbenger', 'codex');
+		if (!plan.ok) throw new Error(plan.error);
+		const parsed = JSON.parse(plan.text) as {
+			hooks: Record<string, { matcher?: string; hooks: { command: string; timeout?: number }[] }[]>;
+		};
+		expect(Object.keys(parsed.hooks).sort()).toEqual(
+			['PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit'].sort()
+		);
+		for (const entries of Object.values(parsed.hooks))
+			for (const e of entries)
+				for (const h of e.hooks) {
+					expect(h.command).toBe(`agent-flow-board hook codex --server ${SERVER} --org arbenger`);
+					expect(typeof h.timeout).toBe('number');
+				}
+		expect(parsed.hooks.SessionEnd[0].hooks[0].timeout).toBeLessThanOrEqual(3);
+		// The matchers are valid regular expressions and name the tools the adapter reads
+		const post = new RegExp(parsed.hooks.PostToolUse[0].matcher!);
+		for (const name of ['apply_patch', 'Bash', 'exec_command', 'mcp__afb-arbenger__step_done'])
+			expect(post.test(name), name).toBe(true);
+		expect(post.test('mcp__filesystem__read_file')).toBe(false);
+		expect(JSON.stringify(parsed)).not.toContain('command_windows');
+	});
+
+	it('writes the repo file by default, keeps other hooks, backs up outside the repo and runs twice to the same file', () => {
+		const dir = repo('one');
+		mkdirSync(join(dir, '.codex'));
+		writeFileSync(
+			join(dir, '.codex', 'hooks.json'),
+			JSON.stringify({ hooks: { PostToolUse: [{ hooks: [OTHER_HOOK] }] } })
+		);
+		const first = codex(dir);
+		expect(first).toMatchObject({ ok: true, changed: true, warnings: [] });
+		if (!first.ok) return;
+		expect(first.file).toBe(join(dir, '.codex', 'hooks.json'));
+		expect(first.backup!.startsWith(dir)).toBe(false);
+		expect(written(dir)).toContain('lint-on-edit');
+		expect(written(dir)).toContain('hook codex');
+		const text = written(dir);
+		expect(codex(dir)).toMatchObject({ ok: true, changed: false, backup: null });
+		expect(written(dir)).toBe(text);
+	});
+
+	it('a Codex run keeps the Claude bridge hooks of a shared file, and a Claude run keeps the Codex ones', () => {
+		const withClaude = planSetup(null, SERVER, 'arbenger', 'claude');
+		if (!withClaude.ok) throw new Error(withClaude.error);
+		const both = planSetup(withClaude.text, SERVER, 'arbenger', 'codex');
+		if (!both.ok) throw new Error(both.error);
+		expect(both.text).toContain('hook claude');
+		expect(both.text).toContain('hook codex');
+		expect(both).toMatchObject({ added: 6, kept: 6 });
+		const back = planSetup(both.text, SERVER, 'arbenger', 'claude');
+		if (!back.ok) throw new Error(back.error);
+		expect(back.text).toContain('hook codex');
+		expect(back.changed).toBe(false);
+	});
+
+	it('--global writes the person file, says it fixes one organisation, and warns when both files hold the hooks', () => {
+		const dir = repo('two');
+		const global = codex(dir, { global: true });
+		expect(global).toMatchObject({ ok: true, file: join(person, '.codex', 'hooks.json') });
+		if (!global.ok) return;
+		expect(global.warnings.join(' ')).toMatch(/every Codex project/);
+		// The repo file now makes the same hooks run twice, and the run says so
+		const repoRun = codex(dir);
+		if (!repoRun.ok) throw new Error(repoRun.error);
+		expect(repoRun.warnings.join(' ')).toMatch(/sent twice/);
+	});
+
+	it('warns when the program is not on the PATH', () => {
+		const result = codex(repo('three'), { onPath: false });
+		if (!result.ok) throw new Error(result.error);
+		expect(result.warnings.join(' ')).toMatch(/not found on the PATH/);
+	});
+
+	it('refuses an address that could carry a second command, and writes nothing', () => {
+		for (const bad of [
+			'https://afb.example.com; rm -rf x',
+			'https://afb.example.com" & calc',
+			'https://user:pass@afb.example.com',
+			'ftp://afb.example.com',
+			'https://afb example.com'
+		]) {
+			const dir = repo('bad');
+			const result = runSetup({
+				repo: dir,
+				server: bad,
+				org: 'arbenger',
+				tool: 'codex',
+				home: person,
+				configDir: home
+			});
+			expect(result.ok, bad).toBe(false);
+			expect(existsSync(join(dir, '.codex')), bad).toBe(false);
+		}
+		expect(planSetup(null, 'http://localhost:5190', 'arbenger', 'codex').ok).toBe(true);
+	});
+
+	it('reads a file that starts with a byte order mark, and refuses one that is not JSON, leaving it as it was', () => {
+		const dir = repo('bom');
+		mkdirSync(join(dir, '.codex'));
+		writeFileSync(join(dir, '.codex', 'hooks.json'), '\uFEFF{"hooks":{}}');
+		expect(codex(dir)).toMatchObject({ ok: true, changed: true });
+		const broken = repo('broken-codex');
+		mkdirSync(join(broken, '.codex'));
+		writeFileSync(join(broken, '.codex', 'hooks.json'), '{ // not json\n}');
+		const result = codex(broken);
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error).toMatch(/hooks print codex/);
+		expect(written(broken)).toBe('{ // not json\n}');
+	});
+
+	it('writes through a linked file, so the link stays', () => {
+		const dir = repo('linked');
+		const real = join(root, 'dotfiles-hooks.json');
+		writeFileSync(real, '{"hooks":{}}');
+		mkdirSync(join(dir, '.codex'));
+		const link = join(dir, '.codex', 'hooks.json');
+		try {
+			symlinkSync(real, link);
+		} catch {
+			// Creating a link needs a permission some Windows accounts do not have: nothing to prove there
+			return;
+		}
+		expect(codex(dir)).toMatchObject({ ok: true, changed: true });
+		expect(lstatSync(link).isSymbolicLink()).toBe(true);
+		expect(readFileSync(real, 'utf8')).toContain('hook codex');
 	});
 });

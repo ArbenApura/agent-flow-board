@@ -78,6 +78,8 @@ Hooks make a tool tell the board when work starts, remind it to record, and ask 
 agent-flow-board hooks print claude --server https://<your domain> --org <slug>
 agent-flow-board hooks print antigravity --server https://<your domain> --org <slug>
 agent-flow-board hooks print gemini --server https://<your domain> --org <slug>
+agent-flow-board hooks print codex --server https://<your domain> --org <slug>
+agent-flow-board hooks setup codex --server https://<your domain> --org <slug>
 ```
 
 | Tool        | Paste into                                                     |
@@ -92,11 +94,11 @@ The bridge edits a tool's settings only when you or your agent run `agent-flow-b
 agent-flow-board git-hook install
 ```
 
-Claude Code and Antigravity follow the payloads captured on real runs. The Gemini CLI mapping follows its documentation and has not been captured on a real install yet, so check it once with a throwaway item. The hooks recognise the board's tools under the name `afb-<slug>` as well as the older `agent-flow-board`.
+Claude Code and Antigravity follow the payloads captured on real runs. The Gemini CLI and Codex mappings follow their documentation and have not been captured on a real install yet (Codex: run `agent-flow-board hooks setup codex`, review the hooks once in Codex with `/hooks`, and compare the first real session), so check it once with a throwaway item. The hooks recognise the board's tools under the name `afb-<slug>` as well as the older `agent-flow-board`.
 
 ### Waiting on the person (`Stop` hook)
 
-When an active session is marked `waiting` on the board (`work_waiting`), the `Stop` hook for `claude`, `antigravity`, and `gemini` reads that blocker, emits a `{ systemMessage }` waiting notice, and lets the turn stop instead of reminding the agent to carry on. **Known adapter gap** - harnesses without a hook adapter (such as Codex or standalone CLI clients) do not send `Stop` hook events; their sessions stay running until `work_stop`, `work_waiting` updates, or session timeout.
+When an active session is marked `waiting` on the board (`work_waiting`), the `Stop` hook for `claude`, `antigravity`, `gemini` and `codex` reads that blocker, emits a `{ systemMessage }` waiting notice, and lets the turn stop instead of reminding the agent to carry on. **Known adapter gap** - harnesses without a hook adapter (such as standalone CLI clients) do not send `Stop` hook events; their sessions stay running until `work_stop`, `work_waiting` updates, or session timeout.
 
 ## Show status in your editor
 

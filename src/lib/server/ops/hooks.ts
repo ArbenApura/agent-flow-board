@@ -26,7 +26,7 @@ import { formatWaitingBlocker } from './waiting';
 // -- TYPES -- //
 
 export const hookInput = z.object({
-	tool: z.enum(['claude-code', 'antigravity', 'gemini']),
+	tool: z.enum(['claude-code', 'antigravity', 'gemini', 'codex']),
 	event: z.enum(['start', 'prompt', 'tool', 'closing', 'stop', 'end']),
 	/** The tool's own id for the conversation. */
 	externalId: z.string().min(8).max(100),

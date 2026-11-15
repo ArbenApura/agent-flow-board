@@ -18,7 +18,7 @@ import { mayView } from './resolve';
 // -- CONSTANTS -- //
 
 /** The tools whose hooks name their own conversation id (the same list as the hook endpoint). */
-export const SESSION_TOOLS = ['claude-code', 'antigravity', 'gemini'] as const;
+export const SESSION_TOOLS = ['claude-code', 'antigravity', 'gemini', 'codex'] as const;
 /** Notes written by other people are cut, so one long section cannot make every poll heavy. */
 export const NOTE_LIMIT = 1200;
 const CUT_MARK = ' [cut]';

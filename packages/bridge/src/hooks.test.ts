@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 // IMPORTED MODULES
-import { ADAPTERS, antigravity, claude, gemini, runHook } from './hooks/adapters.js';
+import { ADAPTERS, antigravity, claude, codex, gemini, runHook } from './hooks/adapters.js';
 import { callHook, type HookEvent } from './hooks/call.js';
 import { installedModVersion } from './hooks/modVersion.js';
 import {
@@ -285,6 +285,128 @@ describe('the Gemini CLI adapter', () => {
 	});
 });
 
+describe('the Codex adapter', () => {
+	// Built from the Codex hooks documentation: no payload has been captured on a real install yet
+	const sid = 'codex-session-0001';
+	const post = (tool_name: string, tool_input: unknown, extra: Record<string, unknown> = {}) =>
+		codex.toEvent('', {
+			hook_event_name: 'PostToolUse',
+			session_id: sid,
+			tool_name,
+			tool_input,
+			...extra
+		});
+
+	it('maps the lifecycle events and ignores a payload with no session', () => {
+		expect(codex.toEvent('', { hook_event_name: 'SessionStart', session_id: sid })).toMatchObject({
+			tool: 'codex',
+			event: 'start',
+			externalId: sid
+		});
+		expect(
+			codex.toEvent('', { hook_event_name: 'UserPromptSubmit', session_id: sid })
+		).toMatchObject({
+			event: 'prompt'
+		});
+		expect(
+			codex.toEvent('', { hook_event_name: 'Stop', session_id: sid, stop_hook_active: true })
+		).toMatchObject({ event: 'stop', stopActive: true });
+		expect(
+			codex.toEvent('', { hook_event_name: 'SessionEnd', session_id: sid, reason: 'other' })
+		).toMatchObject({ event: 'end' });
+		expect(codex.toEvent('', { hook_event_name: 'SessionStart' })).toBeNull();
+		expect(codex.toEvent('', { hook_event_name: 'PreCompact', session_id: sid })).toBeNull();
+	});
+
+	it('reads the file of an apply_patch edit: the first code file, a Move to, and a patch run through the shell', () => {
+		const mixed =
+			'*** Begin Patch\n*** Update File: README.md\n@@\n-a\n+b\n*** Update File: src/x.ts\n@@\n-a\n+b\n*** End Patch';
+		expect(post('apply_patch', { command: mixed })).toMatchObject({
+			event: 'tool',
+			action: { kind: 'edit', file: 'src/x.ts' }
+		});
+		// A patch given as a plain string, and a Windows path
+		expect(post('apply_patch', '*** Add File: src\\lib\\a.svelte\n+x')).toMatchObject({
+			action: { kind: 'edit', file: 'src\\lib\\a.svelte' }
+		});
+		expect(
+			post('apply_patch', { command: '*** Update File: old.ts\n*** Move to: src/new.ts\n' })
+		).toMatchObject({ action: { kind: 'edit', file: 'old.ts' } });
+		// Only docs in the patch: the first file is kept (the server decides it is not code)
+		expect(post('apply_patch', { command: '*** Update File: docs/a.md\n' })).toMatchObject({
+			action: { kind: 'edit', file: 'docs/a.md' }
+		});
+		expect(post('apply_patch', {})).toMatchObject({ action: { kind: 'edit', file: '' } });
+		expect(
+			post('exec_command', { cmd: 'apply_patch <<EOF\n*** Update File: src/y.ts\nEOF' })
+		).toMatchObject({ action: { kind: 'edit', file: 'src/y.ts' } });
+	});
+
+	it('maps shell, board calls and reads, and sends nothing for another server', () => {
+		expect(post('Bash', { command: 'git commit -m x' })).toMatchObject({
+			action: { kind: 'shell', command: 'git commit -m x' }
+		});
+		// A patch after a cd, with a CRLF patch text, is still an edit; apply_patch named with no patch is only a command
+		expect(
+			post('Bash', { command: 'cd repo && apply_patch <<EOF\r\n*** Update File: src/z.ts\r\nEOF' })
+		).toMatchObject({ action: { kind: 'edit', file: 'src/z.ts' } });
+		expect(post('Bash', { command: 'which apply_patch' })).toMatchObject({
+			action: { kind: 'shell' }
+		});
+		expect(post('exec_command', { cmd: 'yarn test' })).toMatchObject({
+			action: { kind: 'shell', command: 'yarn test' }
+		});
+		expect(post('mcp__afb-acme__step_done', {})).toMatchObject({
+			action: { kind: 'board', name: 'step_done' }
+		});
+		expect(post('mcp__agent-flow-board__work_start', {})).toMatchObject({
+			action: { kind: 'board', name: 'work_start' }
+		});
+		expect(post('mcp__filesystem__read_file', {})).toBeNull();
+		expect(post('update_plan', {})).toMatchObject({ action: { kind: 'read' } });
+		expect(post('apply_patch', {}, { agent_id: 'agent-1' })).toMatchObject({ subagent: true });
+		expect(post('apply_patch', {})).toMatchObject({ subagent: false });
+	});
+
+	it('asks about a close before the call, only for the board close calls', () => {
+		const pre = (tool_name: string, tool_input: unknown) =>
+			codex.toEvent('', { hook_event_name: 'PreToolUse', session_id: sid, tool_name, tool_input });
+		expect(pre('mcp__afb-acme__item_status', { item: 'ACM-1', status: 'COMPLETED' })).toMatchObject(
+			{ event: 'closing', closing: [{ item: 'ACM-1', status: 'COMPLETED' }] }
+		);
+		expect(pre('mcp__afb-acme__item_status', { item: 'ACM-1', status: 'IN REVIEW' })).toBeNull();
+		expect(pre('apply_patch', {})).toBeNull();
+	});
+
+	it('answers in the shape Codex reads: context, a continuing stop block, never a deny, no title, no plain text', () => {
+		expect(codex.toOutput('start', { context: 'brief', title: 'T: X' })).toEqual({
+			hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: 'brief' }
+		});
+		expect(codex.toOutput('prompt', { nudge: 'record' })).toEqual({
+			hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: 'record' }
+		});
+		expect(codex.toOutput('prompt', { title: 'T: X' })).toEqual({});
+		expect(codex.toOutput('tool', { nudge: 'record' })).toEqual({
+			hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: 'record' }
+		});
+		const ask = codex.toOutput('closing', { ask: 'close ACM-1?' });
+		expect(ask).toEqual({
+			hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: 'close ACM-1?' }
+		});
+		expect(JSON.stringify(ask)).not.toMatch(/permissionDecision|deny|"ask"/);
+		expect(codex.toOutput('stop', { block: 'record steps' })).toEqual({
+			decision: 'block',
+			reason: 'record steps'
+		});
+		expect(codex.toOutput('stop', { waiting: 'waiting for you', block: 'x' })).toEqual({
+			systemMessage: 'waiting for you'
+		});
+		expect(codex.toOutput('end', { block: 'x' })).toEqual({});
+		expect(codex.toOutput('stop', null)).toEqual({});
+		expect(ADAPTERS.codex).toBe(codex);
+	});
+});
+
 describe('the end of a conversation', () => {
 	it('Claude Code maps SessionEnd to the end event and answers nothing', () => {
 		expect(
@@ -360,6 +482,7 @@ describe('running a hook', () => {
 			'antigravity',
 			'claude',
 			'claude-code',
+			'codex',
 			'gemini'
 		]);
 	});
@@ -532,9 +655,52 @@ describe('a hook that cannot reach the board', () => {
 	});
 });
 
+describe('the end of a conversation has one short deadline (Codex gives SessionEnd 1 to 3 seconds)', () => {
+	let home: string;
+	beforeAll(() => {
+		home = mkdtempSync(join(tmpdir(), 'afb-end-'));
+		process.env.AFB_BRIDGE_HOME = home;
+	});
+	afterAll(() => {
+		delete process.env.AFB_BRIDGE_HOME;
+		rmSync(home, { recursive: true, force: true });
+	});
+	const end: HookEvent = { tool: 'codex', event: 'end', externalId: 'codex-session-0001' };
+	// A server that never answers, until the request is aborted
+	const hang = (_url: string, init?: RequestInit) =>
+		new Promise<Response>((_resolve, reject) => {
+			init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+		});
+
+	it('gives up inside 2.5 seconds when the post hangs', async () => {
+		const o = {
+			server: 'https://board.example.com',
+			token: 'afb_tok',
+			fetch: (async (url: string, init?: RequestInit) =>
+				url.endsWith('/api/v1/me')
+					? new Response(JSON.stringify({ orgs: [{ slug: 'acme' }] }))
+					: hang(url, init)) as never
+		};
+		const started = Date.now();
+		expect(await callHook(o, end)).toBeNull();
+		expect(Date.now() - started).toBeLessThan(2500);
+	}, 6000);
+
+	it('gives up inside 2.5 seconds when the organisation lookup hangs on a cold cache', async () => {
+		const o = {
+			server: 'https://cold.example.com',
+			token: 'afb_cold',
+			fetch: hang as never
+		};
+		const started = Date.now();
+		expect(await callHook(o, end)).toBeNull();
+		expect(Date.now() - started).toBeLessThan(2500);
+	}, 6000);
+});
+
 describe('the printed settings', () => {
 	it('are valid JSON for each tool, point at the bridge with the server, and unknown tools give nothing', () => {
-		for (const tool of ['claude', 'antigravity', 'agy', 'gemini']) {
+		for (const tool of ['claude', 'antigravity', 'agy', 'gemini', 'codex']) {
 			const text = hookSettings(tool, 'https://board.example.com')!;
 			expect(text, tool).toBeTruthy();
 			expect(() => JSON.parse(text)).not.toThrow();
@@ -557,7 +723,7 @@ describe('the printed settings', () => {
 		expect(hookSettings('nothing', 'https://b.example.com')).toBeNull();
 	});
 	it('carries the organisation into every hook command when one is given, and nothing extra otherwise', () => {
-		for (const tool of ['claude', 'antigravity', 'gemini']) {
+		for (const tool of ['claude', 'antigravity', 'gemini', 'codex']) {
 			expect(hookSettings(tool, 'https://b.example.com', 'arbenger')!, tool).toContain(
 				'--server https://b.example.com --org arbenger'
 			);

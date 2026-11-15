@@ -5,12 +5,26 @@
 
 // IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	lstatSync,
+	mkdirSync,
+	readFileSync,
+	readlinkSync,
+	realpathSync,
+	renameSync,
+	rmSync,
+	statSync,
+	writeFileSync
+} from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { hookSettings } from './settings.js';
+import { hookSettings, validServer } from './settings.js';
 
 // -- TYPES -- //
 
+/** The tools whose hooks this command can write into a settings file. */
+export type SetupTool = 'claude' | 'codex';
 type Command = { type?: string; command?: string; timeout?: number };
 type Entry = { matcher?: string; hooks?: Command[] };
 type Settings = { hooks?: Record<string, Entry[]> } & Record<string, unknown>;
@@ -33,37 +47,54 @@ export type SetupPlan =
 
 // -- CONSTANTS -- //
 
-/** A command of the bridge's Claude hook, whatever its server, organisation or timeout. */
-const BRIDGE_HOOK = /(^|[\\/\s"'])agent-flow-board(\.cmd|\.exe)?["']?\s+hook\s+claude\b/;
+/** A command of the bridge's hook for one tool, whatever its server, organisation or timeout. Each tool only recognises its own. */
+const BRIDGE_HOOK: Record<SetupTool, RegExp> = {
+	claude: /(^|[\\/\s"'])agent-flow-board(\.cmd|\.exe)?["']?\s+hook\s+claude\b/,
+	codex: /(^|[\\/\s"'])agent-flow-board(\.cmd|\.exe)?["']?\s+hook\s+codex\b/
+};
 
 // -- FUNCTIONS -- //
 
-const isBridge = (entry: Entry) =>
+const isBridge = (entry: Entry, tool: SetupTool) =>
 	Array.isArray(entry.hooks) &&
 	entry.hooks.length > 0 &&
-	entry.hooks.every((h) => typeof h.command === 'string' && BRIDGE_HOOK.test(h.command));
+	entry.hooks.every((h) => typeof h.command === 'string' && BRIDGE_HOOK[tool].test(h.command));
 
 /**
  * What the settings file should hold after setup. `existing` is the file's text, or null when there is none. Hooks of the bridge are
  * replaced (so a run with another organisation changes them, and a second run changes nothing); every other hook, key and entry stays.
  */
-export function planSetup(existing: string | null, server: string, org: string): SetupPlan {
-	const generated = hookSettings('claude', server, org);
-	if (!generated) return { ok: false, error: 'No hook settings for Claude Code.' };
+export function planSetup(
+	existing: string | null,
+	server: string,
+	org: string,
+	tool: SetupTool = 'claude'
+): SetupPlan {
+	const name = tool === 'codex' ? 'Codex' : 'Claude Code';
+	// The address goes into a command that runs on every event, so it must be a plain http(s) address
+	const checked = validServer(server);
+	if (!checked)
+		return {
+			ok: false,
+			error:
+				'The server address must be a plain http or https address, with no spaces, quotes or sign in details.'
+		};
+	const generated = hookSettings(tool, checked, org);
+	if (!generated) return { ok: false, error: `No hook settings for ${name}.` };
 	const wanted = (JSON.parse(generated) as Settings).hooks ?? {};
 
 	let settings: Settings = {};
 	if (existing !== null && existing.trim() !== '') {
 		try {
-			const parsed: unknown = JSON.parse(existing);
+			// A byte order mark (some Windows editors write one) is not part of the JSON
+			const parsed: unknown = JSON.parse(existing.replace(/^\uFEFF/, ''));
 			if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
 				return { ok: false, error: 'The settings file is not a JSON object.' };
 			settings = parsed as Settings;
 		} catch {
 			return {
 				ok: false,
-				error:
-					'The settings file is not plain JSON (a comment or a trailing comma?), so it was not changed. Add the hooks by hand: agent-flow-board hooks print claude --server <address> --org <slug>'
+				error: `The settings file is not plain JSON (a comment or a trailing comma?), so it was not changed. Add the hooks by hand: agent-flow-board hooks print ${tool} --server <address> --org <slug>`
 			};
 		}
 	}
@@ -79,11 +110,22 @@ export function planSetup(existing: string | null, server: string, org: string):
 	let kept = 0;
 	for (const [event, entries] of Object.entries(wanted)) {
 		const current = Array.isArray(hooks[event]) ? hooks[event] : [];
-		const others = current.filter((e) => !isBridge(e));
-		const ours = current.filter(isBridge);
+		const others = current.filter((e) => !isBridge(e, tool));
+		const ours = current.filter((e) => isBridge(e, tool));
 		kept += others.length;
-		// The bridge's entries go last and in a fixed order, so running it again gives the same file
-		hooks[event] = [...others, ...entries];
+		// The bridge's entries replace its own where they are, and go last when there are none yet, so running it again (for this tool or
+		// another) gives the same file
+		const merged: Entry[] = [];
+		let placed = false;
+		for (const e of current) {
+			if (!isBridge(e, tool)) merged.push(e);
+			else if (!placed) {
+				merged.push(...entries);
+				placed = true;
+			}
+		}
+		if (!placed) merged.push(...entries);
+		hooks[event] = merged;
 		const same = JSON.stringify(ours) === JSON.stringify(entries);
 		if (ours.length === 0) added += entries.length;
 		else if (!same) replaced += entries.length;
@@ -121,27 +163,73 @@ export type SetupResult =
 			replaced: number;
 			kept: number;
 			backup: string | null;
+			/** Things the person should know: hooks that would run twice, a program that is not on the PATH, a global file. */
+			warnings: string[];
 	  }
 	| { ok: false; error: string };
+
+/** The hook file Codex reads: the repo's, or the person's own (which fixes one organisation for every repo). */
+const codexFile = (root: string) => join(root, '.codex', 'hooks.json');
 
 /** Runs the setup for one repo folder. Writes the file atomically; backs the old one up first. Never throws. */
 export function runSetup(options: {
 	repo: string;
 	server: string;
 	org: string;
-	/** Write the shared settings.json instead of settings.local.json. */
+	/** Which tool's hooks to write. Claude Code unless said. */
+	tool?: SetupTool;
+	/** Claude Code: write the shared settings.json instead of settings.local.json. */
 	shared?: boolean;
+	/** Codex: write ~/.codex/hooks.json instead of <repo>/.codex/hooks.json. */
+	global?: boolean;
+	/** The person's home folder (the global Codex file). Defaults to the operating system's. */
+	home?: string;
+	/** False when the agent-flow-board command was not found on the PATH, which the hook command needs. */
+	onPath?: boolean;
 	configDir: string;
 	now?: number;
 }): SetupResult {
 	try {
-		const file = join(
-			options.repo,
-			'.claude',
-			options.shared ? 'settings.json' : 'settings.local.json'
-		);
-		const existing = existsSync(file) ? readFileSync(file, 'utf8') : null;
-		const plan = planSetup(existing, options.server, options.org);
+		const tool = options.tool ?? 'claude';
+		const home = options.home ?? homedir();
+		const warnings: string[] = [];
+		const file =
+			tool === 'codex'
+				? codexFile(options.global ? home : options.repo)
+				: join(options.repo, '.claude', options.shared ? 'settings.json' : 'settings.local.json');
+		if (tool === 'codex') {
+			if (options.global)
+				warnings.push(
+					`${file} is read by every Codex project, so every one of them now reports to the organisation ${options.org}. Use the repo file (leave out --global) when you work for more than one organisation.`
+				);
+			// Codex reads every hook file it finds, so the bridge hooks in both would run twice
+			const other = codexFile(options.global ? options.repo : home);
+			try {
+				// The repo can be the home folder itself: then the other file is this one
+				if (
+					resolve(other) !== resolve(file) &&
+					existsSync(other) &&
+					BRIDGE_HOOK.codex.test(readFileSync(other, 'utf8'))
+				)
+					warnings.push(
+						`${other} already holds the bridge hooks, so every event would be sent twice. Keep one of the two files.`
+					);
+			} catch {
+				/* An unreadable other file is not a reason to stop */
+			}
+		}
+		if (options.onPath === false)
+			warnings.push(
+				'agent-flow-board was not found on the PATH, and the hook command needs it. Install it once with: npm install -g @agent-flow-board/bridge'
+			);
+		// A linked settings file (a dotfiles repo) is written through the link, with its own permissions, so the link stays
+		// A link whose target does not exist yet is followed too, so a dotfiles link is never replaced by a plain file
+		let target = file;
+		if (existsSync(file)) target = realpathSync(file);
+		else if (lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink())
+			target = resolve(dirname(file), readlinkSync(file));
+		const existing = existsSync(target) ? readFileSync(target, 'utf8') : null;
+		const plan = planSetup(existing, options.server, options.org, tool);
 		if (!plan.ok) return { ok: false, error: `${file}: ${plan.error}` };
 		if (!plan.changed)
 			return {
@@ -151,18 +239,29 @@ export function runSetup(options: {
 				added: 0,
 				replaced: 0,
 				kept: plan.kept,
-				backup: null
+				backup: null,
+				warnings
 			};
 		let backup: string | null = null;
 		if (existing !== null) {
-			backup = backupPath(options.configDir, file, options.now);
+			backup = backupPath(options.configDir, target, options.now);
 			mkdirSync(dirname(backup), { recursive: true, mode: 0o700 });
 			writeFileSync(backup, existing, { mode: 0o600 });
 		}
-		mkdirSync(dirname(file), { recursive: true });
-		const temp = `${file}.${process.pid}.tmp`;
-		writeFileSync(temp, plan.text);
-		renameSync(temp, file);
+		mkdirSync(dirname(target), { recursive: true });
+		const temp = `${target}.${process.pid}.tmp`;
+		try {
+			writeFileSync(
+				temp,
+				plan.text,
+				existing !== null ? { mode: statSync(target).mode & 0o777 } : {}
+			);
+			renameSync(temp, target);
+		} catch (error) {
+			// No stray temp file is left in the repo to be committed by accident
+			rmSync(temp, { force: true });
+			throw error;
+		}
 		return {
 			ok: true,
 			file,
@@ -170,7 +269,8 @@ export function runSetup(options: {
 			added: plan.added,
 			replaced: plan.replaced,
 			kept: plan.kept,
-			backup
+			backup,
+			warnings
 		};
 	} catch (error) {
 		return { ok: false, error: error instanceof Error ? error.message : String(error) };

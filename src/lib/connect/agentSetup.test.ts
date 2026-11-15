@@ -10,6 +10,9 @@ describe('the agent setup brief', () => {
 		expect(md).toContain(`${BASE}/mcp/arbenger`);
 		expect(md).toContain('`mcp__afb-arbenger__`');
 		expect(md).toContain('hooks print');
+		expect(md).toContain(`hooks setup codex --org arbenger --server ${BASE}`);
+		expect(md).toContain('/hooks');
+		expect(md).toContain('0.9.0');
 		expect(md).toContain('--org arbenger');
 	});
 	it('has a block for every tool and the steps the agent follows', () => {

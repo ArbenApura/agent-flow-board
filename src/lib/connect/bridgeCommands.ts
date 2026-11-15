@@ -46,8 +46,13 @@ const COMMANDS: { kind: CommandKind; args: string; text: string }[] = [
 	},
 	{
 		kind: 'Hooks',
+		args: 'hooks setup codex --org {org} --server {server}',
+		text: 'Write the Codex hooks into this repository, in .codex/hooks.json (bridge 0.9.0 or newer). Codex asks you once to review them, in /hooks, and runs none until you do. Add --global for ~/.codex/hooks.json, which fixes one organisation for every project.'
+	},
+	{
+		kind: 'Hooks',
 		args: 'hooks print claude --server {server} --org {org}',
-		text: 'Print the hook settings to paste by hand. Also antigravity and gemini.'
+		text: 'Print the hook settings to paste by hand. Also antigravity, gemini and codex.'
 	},
 	{
 		kind: 'Stdio',

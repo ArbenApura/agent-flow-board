@@ -44,6 +44,7 @@ describe('the bridge commands of the Connect page', () => {
 			'mockup push',
 			'queue list',
 			'hooks print',
+			'hooks setup codex',
 			' mcp --server'
 		])
 			expect(joined, expected).toContain(expected);

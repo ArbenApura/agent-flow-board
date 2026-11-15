@@ -1,6 +1,6 @@
-// THE THREE HOOK ADAPTERS: EACH TOOL'S OWN PAYLOAD TO ONE SMALL EVENT, AND THE SERVER'S ANSWER BACK IN THE TOOL'S OWN SHAPE (SPEC 9.3)
-// Claude Code and Antigravity payloads follow what was captured on real runs. The Gemini CLI mapping follows its documented hook
-// protocol and has not been captured on a real install. Every adapter prints one JSON object, `{}` when there is nothing to say.
+// THE HOOK ADAPTERS: EACH TOOL'S OWN PAYLOAD TO ONE SMALL EVENT, AND THE SERVER'S ANSWER BACK IN THE TOOL'S OWN SHAPE (SPEC 9.3)
+// Claude Code and Antigravity payloads follow what was captured on real runs. The Gemini CLI and Codex mappings follow their documented
+// hook protocols and have not been captured on a real install. Every adapter prints one JSON object, `{}` when there is nothing to say.
 
 // IMPORTED DEP-MODULES
 import type { HookAnswer, HookEvent } from './call.js';
@@ -217,12 +217,107 @@ export const gemini: Adapter = {
 	}
 };
 
+// -- CODEX -- //
+
+// Source of the next four constants: the Codex hooks documentation. NOT CAPTURED on a real install yet (the first real session after
+// the person has reviewed the hooks is compared with this adapter, AFB-20261115-1503).
+const PATCH_PATH = /^\*\*\* (?:Update File|Add File|Delete File|Move to): (.+?)\s*$/gm;
+const CODEX_CODE_EXT =
+	/\.(?:ts|tsx|js|jsx|mjs|cjs|svelte|vue|astro|py|rb|go|rs|java|kt|cs|php|swift|c|h|cc|cpp|hpp|css|scss|less|html|sql|sh|ps1|bat|lua|dart|ex|exs)$/i;
+const CODEX_NOT_CODE_DIR =
+	/(?:^|\/)(?:\.git|\.board|\.claude|\.agents|\.gemini|\.vscode|\.idea|node_modules|dist|build|\.svelte-kit|coverage|docs?|\.afb)(?:\/|$)/i;
+const CODEX_SHELL = /^(Bash|exec_command|shell|local_shell)$/;
+
+/** The patch text of an apply_patch call: the tool input as a string, or the first of its likely keys. */
+function patchText(input: unknown): string {
+	if (typeof input === 'string') return input;
+	const o = obj(input);
+	return text(o.command) || text(o.patch) || text(o.input) || text(o.cmd);
+}
+
+/**
+ * The file an apply_patch edit is for. A patch can name several files; the server counts an edit only when the file is code, so the
+ * first code file wins, else the first file, else empty.
+ */
+function patchFile(patch: string): string {
+	const files = [...patch.matchAll(PATCH_PATH)].map((m) => m[1]);
+	const code = files.find((f) => {
+		const p = f.replace(/\\/g, '/');
+		return CODEX_CODE_EXT.test(p) && !CODEX_NOT_CODE_DIR.test(p);
+	});
+	return code ?? files[0] ?? '';
+}
+
+export const codex: Adapter = {
+	tool: 'codex',
+	toEvent(_name, p) {
+		const sessionId = text(p.session_id);
+		if (!sessionId) return null;
+		const base = { tool: 'codex' as const, externalId: sessionId, cwd: text(p.cwd) || undefined };
+		const hook = text(p.hook_event_name);
+		if (hook === 'SessionStart') return { ...base, event: 'start' };
+		if (hook === 'UserPromptSubmit') return { ...base, event: 'prompt' };
+		// The conversation ended: the server lets go of this session's claim (Codex gives this hook 1 to 3 seconds)
+		if (hook === 'SessionEnd') return { ...base, event: 'end' };
+		if (hook === 'Stop') return { ...base, event: 'stop', stopActive: p.stop_hook_active === true };
+		const tool = text(p.tool_name);
+		const input = obj(p.tool_input);
+		if (hook === 'PreToolUse') {
+			if (/^mcp__.*__(item_status|flow_set_status)$/.test(tool) && BOARD_SERVER.test(tool)) {
+				const closing = closingFrom(input);
+				return closing.length ? { ...base, event: 'closing', closing } : null;
+			}
+			return null;
+		}
+		if (hook !== 'PostToolUse') return null;
+		let action: HookEvent['action'] = { kind: 'read' };
+		if (tool === 'apply_patch' || /^(Edit|Write)$/.test(tool))
+			action = { kind: 'edit', file: patchFile(patchText(p.tool_input)) };
+		else if (CODEX_SHELL.test(tool)) {
+			const command = text(input.command) || text(input.cmd);
+			// A patch applied through the shell is an edit too, also after a `cd repo &&`
+			action =
+				/(?:^|[;&|]\s*|\s)apply_patch\b/.test(command) &&
+				/^\*\*\* (?:Update|Add|Delete) File: /m.test(command)
+					? { kind: 'edit', file: patchFile(command) }
+					: { kind: 'shell', command: command.slice(0, 4000) };
+		} else if (tool.startsWith('mcp__')) {
+			// Another server's tool says nothing about the plan record, so it costs no round trip
+			if (!BOARD_SERVER.test(tool)) return null;
+			action = { kind: 'board', name: tool.split('__').pop() ?? '' };
+		}
+		return { ...base, event: 'tool', subagent: Boolean(p.agent_id), action };
+	},
+	toOutput(event, a) {
+		if (!a) return {};
+		// Only JSON ever reaches Codex: plain stdout text becomes context on a start or a prompt and is invalid on a stop
+		if (event === 'start')
+			return {
+				hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: a.context ?? '' }
+			};
+		if (event === 'prompt' && a.nudge)
+			return {
+				hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: a.nudge }
+			};
+		if (event === 'tool' && a.nudge)
+			return { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: a.nudge } };
+		// Codex cannot ask before a tool call (ask is unsupported), so the close question reaches the agent as context and never denies
+		if (event === 'closing' && a.ask)
+			return { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: a.ask } };
+		if (event === 'stop' && a.waiting) return { systemMessage: a.waiting };
+		// A Stop block continues the turn; the reason becomes the next prompt. The server sends at most one per distinct code change.
+		if (event === 'stop' && a.block) return { decision: 'block', reason: a.block };
+		return {};
+	}
+};
+
 export const ADAPTERS: Record<string, Adapter> = {
 	claude,
 	'claude-code': claude,
 	antigravity,
 	agy: antigravity,
-	gemini
+	gemini,
+	codex
 };
 
 /** Runs one hook: payload in, one JSON object out. Never throws, never blocks. */

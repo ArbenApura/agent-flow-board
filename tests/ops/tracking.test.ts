@@ -548,6 +548,35 @@ describe('tracking', () => {
 		await expect(handleHook(ctx(), { ...input('start'), externalId: 'x' })).rejects.toThrow();
 	});
 
+	it('a Codex conversation gets its own session, a code change, one stop reminder and a release on end', async () => {
+		const it = await newItem('Codex hooked');
+		const ctx = () => w.ctx('member', { kind: 'agent', tool: 'codex' });
+		const input = (event: string, extra: Record<string, unknown> = {}) => ({
+			tool: 'codex' as const,
+			externalId: 'codex-conversation-0001',
+			event: event as never,
+			...extra
+		});
+		const start = await handleHook(ctx(), input('start'));
+		expect(start.context).toContain(it.ref);
+		const rows = await withTenant(db, { orgId: w.orgId }, (tx) =>
+			tx.select().from(session).where(eq(session.externalId, 'codex-conversation-0001'))
+		);
+		expect(rows).toHaveLength(1);
+		expect(rows[0].tool).toBe('codex');
+		await claim(agent('member', rows[0].id), rows[0].id, it.ref, '1');
+		await handleHook(ctx(), input('tool', { action: { kind: 'edit', file: 'src/a.ts' } }));
+		expect((await sessionRow(rows[0].id)).codeEditsSinceRecord).toBe(1);
+		// A Stop that Codex says is already continuing says nothing; the first one asks to record, the second is quiet
+		expect(await handleHook(ctx(), input('stop', { stopActive: true }))).toEqual({});
+		const block = await handleHook(ctx(), input('stop'));
+		expect(block.block).toContain(`Code changed after the last record on ${it.ref}`);
+		expect(await handleHook(ctx(), input('stop'))).toEqual({});
+		// The end of the conversation lets go of its claim
+		await handleHook(ctx(), input('end'));
+		expect((await sessionRow(rows[0].id)).claimedItemId).toBeNull();
+	});
+
 	it('stop guard: a release answers the item question, and open steps get one reminder per record', async () => {
 		const hookCtx = () => w.ctx('member', { kind: 'agent', tool: 'claude-code' });
 		const stopOf = (externalId: string) =>
