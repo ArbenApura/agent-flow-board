@@ -5,8 +5,9 @@
 // agent-flow-board setup --org <slug> --server <url> [--dir <repo>] [--shared]   write the Claude hooks into the repo's .claude/settings.local.json
 // agent-flow-board logout --server <url> [--org <slug>]
 // agent-flow-board queue list | retry <id> | drop <id>
-// agent-flow-board hook claude|antigravity|gemini [event]   one hook event from stdin, one JSON object to stdout
-// agent-flow-board hooks print claude|antigravity|gemini [--org <slug>]   the settings to paste into the tool
+// agent-flow-board hook claude|antigravity|gemini|codex [event]   one hook event from stdin, one JSON object to stdout
+// agent-flow-board hooks print claude|antigravity|gemini|codex [--org <slug>]   the settings to paste into the tool
+// agent-flow-board hooks setup codex|claude --org <slug> --server <url> [--dir <repo>] [--global]   write the hooks into the repo's .codex/hooks.json (--global: ~/.codex/hooks.json)
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
 // agent-flow-board check connect|run|pull|bind|watch|status|doctor|clear|setup|disconnect   browser checks on this machine (see check usage)
 // agent-flow-board mockup push <file.html> --server <url> --org <slug> --item <ref>   upload one mockup file (never queued)
@@ -17,13 +18,14 @@
 // agent-flow-board mockup renders <mockup id> --server <url> --org <slug> [--version <n>] [--widths 408,820,1280,1600] [--render-states a,b]   re-render an existing version, no file written
 // IMPORTED DEP-MODULES
 import { randomBytes } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runBridge } from './bridge.js';
 import { ADAPTERS, runHook } from './hooks/adapters.js';
 import { callHook } from './hooks/call.js';
 import { checkCommit, installGitHook, lastCommitMessage, uninstallGitHook } from './hooks/gitHook.js';
-import { hookSettings } from './hooks/settings.js';
+import { hookSettings, validServer } from './hooks/settings.js';
 import { runSetup } from './hooks/setup.js';
 import { applyStatusFile } from './hooks/statusFile.js';
 import { deviceLogin } from './device.js';
@@ -54,6 +56,19 @@ function serverUrl() {
         process.exit(2);
     }
     return s.replace(/\/$/, '');
+}
+/**
+ * Whether the plain `agent-flow-board` command, which a hook command is, can be found by a later shell. undefined when that cannot be
+ * told (no `which`, a slow lookup). Run through npx, the npx cache is on this process's PATH only, so that counts as not found.
+ */
+function onGlobalPath() {
+    if (process.env.npm_command === 'exec' || /_npx/.test(process.env.PATH ?? ''))
+        return false;
+    const r = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['agent-flow-board'], {
+        stdio: 'ignore',
+        timeout: 3000
+    });
+    return r.error ? undefined : r.status === 0;
 }
 /** An organisation slug as the app writes it. Anything else is ignored by a hook and refused by the other commands. */
 const ORG_SLUG = /^[a-z0-9][a-z0-9-]{1,38}$/;
@@ -153,9 +168,14 @@ async function main() {
         return;
     }
     if (cmd === 'hooks' && args[1] === 'print') {
-        const text = hookSettings(args[2] ?? '', serverUrl());
+        const server = validServer(serverUrl());
+        if (!server) {
+            log('--server takes a plain http or https address, with no spaces, quotes or sign in details.');
+            process.exit(2);
+        }
+        const text = hookSettings(args[2] ?? '', server, orgFlag());
         if (!text) {
-            log('Say which tool: claude, antigravity or gemini.');
+            log('Say which tool: claude, antigravity, gemini or codex.');
             process.exit(2);
         }
         process.stdout.write(text + '\n');
@@ -532,8 +552,18 @@ async function main() {
         log('Signed out.');
         return;
     }
-    if (cmd === 'setup') {
+    if (cmd === 'setup' || (cmd === 'hooks' && args[1] === 'setup')) {
+        // `setup` is the older Claude Code command; `hooks setup <tool>` names the tool (claude or codex)
+        const tool = (cmd === 'setup' ? 'claude' : args[2]);
+        if (tool !== 'claude' && tool !== 'codex') {
+            log('Say which tool: hooks setup claude|codex --org <slug> --server <url>.');
+            process.exit(2);
+        }
         const server = serverUrl();
+        if (!validServer(server)) {
+            log('--server takes a plain http or https address, with no spaces, quotes or sign in details.');
+            process.exit(2);
+        }
         const org = orgFlag();
         if (!org) {
             log('setup needs --org <slug>: the organisation the hooks send to.');
@@ -552,7 +582,11 @@ async function main() {
             repo: flag('--dir') ?? process.cwd(),
             server,
             org,
+            tool,
             shared: args.includes('--shared'),
+            global: args.includes('--global'),
+            // The hook command is the bare program name, so it has to be found on the PATH
+            onPath: onGlobalPath(),
             configDir: configDir()
         });
         process.stdout.write(JSON.stringify(result) + '\n');
@@ -560,6 +594,8 @@ async function main() {
             log(`Setup failed: ${result.error}`);
             process.exit(1);
         }
+        for (const warning of result.warnings)
+            log(`Warning: ${warning}`);
         log(result.changed
             ? `Wrote ${result.file}: ${result.added} hook(s) added, ${result.replaced} replaced, ${result.kept} other hook(s) kept.${result.backup ? ` The old file is backed up at ${result.backup}.` : ''}`
             : `${result.file} already has these hooks. Nothing was changed.`);

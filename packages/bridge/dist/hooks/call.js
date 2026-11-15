@@ -7,9 +7,11 @@ import { configDir } from '../tokenStore.js';
 import { installedModVersion } from './modVersion.js';
 // -- CONSTANTS -- //
 const TIMEOUT_MS = 4000;
+/** The whole budget of an end event (the organisation lookup and the post), inside the 3 seconds Codex allows a SessionEnd hook. */
+const END_TIMEOUT_MS = 2000;
 // -- FUNCTIONS -- //
 /** The slug of the org the token belongs to, remembered in the bridge's folder so each hook costs one request. */
-async function orgOf(server, token, fetchImpl) {
+async function orgOf(server, token, fetchImpl, deadline) {
     // Named by the token too, so signing in again as another organisation does not keep sending to the old one
     const who = createHash('sha256').update(token).digest('hex').slice(0, 12);
     const file = join(configDir(), `org-${new URL(server).host.replace(/[^A-Za-z0-9.-]/g, '_')}-${who}.txt`);
@@ -23,7 +25,7 @@ async function orgOf(server, token, fetchImpl) {
     }
     const res = await fetchImpl(`${server}/api/v1/me`, {
         headers: { authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(TIMEOUT_MS)
+        signal: deadline ?? AbortSignal.timeout(TIMEOUT_MS)
     });
     if (!res.ok)
         return null;
@@ -53,7 +55,10 @@ export async function callHook(o, event) {
         return null;
     }
     try {
-        const org = await orgOf(o.server, o.token, o.fetch);
+        // The end of a conversation has one short deadline for the organisation lookup and the post together: Codex gives that hook
+        // 1 to 3 seconds in all, and kills it after that
+        const deadline = event.event === 'end' ? AbortSignal.timeout(END_TIMEOUT_MS) : null;
+        const org = await orgOf(o.server, o.token, o.fetch, deadline);
         if (!org) {
             warnOnce(`the server ${o.server} did not give an organisation for this sign-in.`);
             return null;
@@ -66,7 +71,7 @@ export async function callHook(o, event) {
             method: 'POST',
             headers: { authorization: `Bearer ${o.token}`, 'content-type': 'application/json' },
             body: JSON.stringify(modVersion ? { ...event, modVersion } : event),
-            signal: AbortSignal.timeout(TIMEOUT_MS)
+            signal: deadline ?? AbortSignal.timeout(TIMEOUT_MS)
         });
         if (!res.ok)
             warnOnce(`the server answered ${res.status} to a hook event.`);
