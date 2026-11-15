@@ -147,6 +147,29 @@ export async function clearMyAvatar(handle: DbHandle, actor: Actor) {
 	return { cleared: true };
 }
 
+/**
+ * Keeps the bytes of a sign in provider's picture in place of the address the provider gave. Not a person's own action, so it takes
+ * no actor: auth code calls it after a successful sign in. The write only happens while user.image still holds exactly that
+ * address, so a picture uploaded or removed in the meantime always wins. Returns whether the picture was stored.
+ */
+export async function adoptProviderAvatar(
+	handle: DbHandle,
+	userId: string,
+	fromAddress: string,
+	bytes: Uint8Array,
+	mime: string
+): Promise<boolean> {
+	const image = pictureDataAddress(bytes, mime, 'picture');
+	const rows = await withTenant(handle, { userId }, (tx) =>
+		tx
+			.update(user)
+			.set({ image, updatedAt: sql`now()` })
+			.where(and(eq(user.id, userId), eq(user.image, fromAddress)))
+			.returning({ id: user.id })
+	);
+	return rows.length > 0;
+}
+
 // -- READING A PICTURE -- //
 
 export type Picture = { mime: string; bytes: Uint8Array; version: number };

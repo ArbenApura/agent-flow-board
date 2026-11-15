@@ -13,6 +13,7 @@ import { authAccount, authRateLimit, authSession, authVerification, user } from 
 import { resetPasswordMail, verifyEmailMail } from '../email/templates';
 import { noteSignIn } from './devices';
 import { lockedMinutes, recordFailure, recordSuccess } from './lockout';
+import { adoptGooglePicture } from './profilePicture';
 import { googleProfileGuard } from './unverified';
 
 // -- TYPES -- //
@@ -163,6 +164,8 @@ export function createAuth(deps: { handle: DbHandle; mailer: Mailer; config: Aut
 							userAgent: session.userAgent,
 							ipAddress: session.ipAddress
 						});
+						// The Google picture is fetched in the background, so a slow answer never delays the sign in
+						void adoptGooglePicture(handle, session.userId);
 					}
 				}
 			}
