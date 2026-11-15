@@ -859,9 +859,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		'flow_skills',
 		'Install or update the Agent Flow Board skills in this tool. Returns per skill install, update, unchanged or ask, the folder, files, the board urls and the steps to follow. Pass what you found installed.',
 		{
-			harness: z
-				.enum(HARNESSES)
-				.describe('The tool you run in; codex and other have no known folder'),
+			harness: z.enum(HARNESSES).describe('The tool you run in; other has no known folder'),
 			scope: z.enum(['user', 'project']).default('user'),
 			checked: z
 				.boolean()

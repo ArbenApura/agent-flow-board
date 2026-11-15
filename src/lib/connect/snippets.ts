@@ -41,22 +41,13 @@ export function snippets(baseUrl: string, orgSlug: string | null = null): Snippe
 			language: 'bash'
 		},
 		{
-			id: 'claude-ai',
-			label: 'Claude chat',
-			short: 'Custom connector',
-			signIn: `Add it as a custom connector in the Claude app or on claude.ai (Claude chat, not Claude Code), name it ${name}, then sign in when asked.`,
-			where: 'Settings, Connectors, Add custom connector',
-			code: mcp,
-			language: 'bash'
-		},
-		{
-			id: 'vscode',
-			label: 'VS Code',
+			id: 'codex',
+			label: 'Codex',
 			short: 'Browser sign in',
-			signIn: 'VS Code opens your browser to sign in.',
-			where: '.vscode/mcp.json',
-			code: json({ servers: { [name]: { type: 'http', url: mcp } } }),
-			language: 'json'
+			signIn:
+				'The second command opens your browser to sign in. Add --no-browser on a machine without one.',
+			code: `codex mcp add ${name} --url ${mcp}\ncodex mcp login ${name}`,
+			language: 'bash'
 		},
 		{
 			id: 'antigravity',
@@ -86,7 +77,7 @@ export function snippets(baseUrl: string, orgSlug: string | null = null): Snippe
 			label: 'Any other tool',
 			short: 'Token or bridge',
 			signIn:
-				'For tools such as Cursor, Windsurf, Codex and Gemini CLI: send a personal access token as a bearer header, or use the local bridge.',
+				'For tools such as Cursor, Windsurf and Gemini CLI: send a personal access token as a bearer header, or use the local bridge.',
 			code: `# Direct, with a personal access token from the section below\nAuthorization: Bearer afb_...\n${mcp}\n\n# Or the local bridge for tools that only speak stdio\nnpx -y @agent-flow-board/bridge mcp --server ${baseUrl}${orgSlug ? ` --org ${orgSlug}` : ''}`,
 			language: 'bash'
 		}

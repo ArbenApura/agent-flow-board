@@ -54,12 +54,13 @@ const action = (installed: InstalledSkill[], name: string) => plan(installed, na
 // -- TESTS -- //
 
 describe('the folder of each harness', () => {
-	it('knows the three tools with a skills folder and none for Codex or an unknown tool', () => {
+	it('knows the four tools with a skills folder and none for an unknown tool', () => {
 		expect(skillsFolder('claude-code', 'user')).toBe('~/.claude/skills');
 		expect(skillsFolder('claude-code', 'project')).toBe('.claude/skills');
 		expect(skillsFolder('gemini-cli', 'user')).toBe('~/.gemini/skills');
 		expect(skillsFolder('antigravity', 'project')).toBe('.agents/skills');
-		expect(skillsFolder('codex', 'user')).toBeNull();
+		expect(skillsFolder('codex', 'user')).toBe('~/.agents/skills');
+		expect(skillsFolder('codex', 'project')).toBe('.agents/skills');
 		expect(skillsFolder('other', 'project')).toBeNull();
 		for (const h of HARNESSES)
 			expect(['string', 'object']).toContain(typeof skillsFolder(h, 'user'));
@@ -67,7 +68,8 @@ describe('the folder of each harness', () => {
 
 	it('puts the folder, or null, on the plan', () => {
 		expect(planSkills(served, 'gemini-cli', 'project').folder).toBe('.gemini/skills');
-		expect(planSkills(served, 'codex', 'user').folder).toBeNull();
+		expect(planSkills(served, 'codex', 'user').folder).toBe('~/.agents/skills');
+		expect(planSkills(served, 'other', 'user').folder).toBeNull();
 	});
 });
 

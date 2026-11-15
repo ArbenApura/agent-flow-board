@@ -255,7 +255,7 @@ describe('MCP server', () => {
 		});
 		expect(fresh.rules.join(' ')).toContain('never guess another host');
 		// An unknown tool has no folder, and a name that is not a skill name is refused before anything runs
-		expect((await call(client, 'flow_skills', { harness: 'codex' })).folder).toBeNull();
+		expect((await call(client, 'flow_skills', { harness: 'other' })).folder).toBeNull();
 		// A hash printed in upper case by a Windows tool is accepted
 		const upper = await call(client, 'flow_skills', {
 			harness: 'claude-code',

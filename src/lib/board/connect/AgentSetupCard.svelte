@@ -21,7 +21,7 @@
 		{
 			who: 'You',
 			title: 'Paste it into your agent',
-			text: 'Claude Code, Claude chat, VS Code or any tool that runs tools.'
+			text: 'Claude Code, Codex, Antigravity or any tool that runs tools.'
 		},
 		{
 			who: 'Agent',

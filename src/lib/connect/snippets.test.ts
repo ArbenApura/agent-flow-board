@@ -4,13 +4,7 @@ import { snippets } from './snippets';
 describe('connect snippets', () => {
 	const all = snippets('https://board.example.com', 'arbenger');
 	it('covers every supported tool, plus a generic option', () => {
-		expect(all.map((s) => s.id)).toEqual([
-			'claude-code',
-			'claude-ai',
-			'vscode',
-			'antigravity',
-			'other'
-		]);
+		expect(all.map((s) => s.id)).toEqual(['claude-code', 'codex', 'antigravity', 'other']);
 	});
 	it('names every connection after the organisation and points at its own address', () => {
 		for (const s of all) {
@@ -21,6 +15,11 @@ describe('connect snippets', () => {
 		for (const s of all.filter((x) => x.id !== 'antigravity' && x.id !== 'other'))
 			expect(s.code, s.id).toContain('https://board.example.com/mcp/arbenger');
 		expect(all.find((s) => s.id === 'antigravity')!.code).toContain('"--org"');
+	});
+	it('the Codex snippet adds the server by address and then signs in', () => {
+		expect(all.find((s) => s.id === 'codex')!.code).toBe(
+			'codex mcp add afb-arbenger --url https://board.example.com/mcp/arbenger\ncodex mcp login afb-arbenger'
+		);
 	});
 	it('two organisations never share a connection name or address', () => {
 		const a = snippets('https://board.example.com', 'arbenger').find(

@@ -45,7 +45,7 @@ One connection belongs to one organisation, so the name carries the organisation
 
 ## What to do, in this order
 
-1. Find out which tool you are running in (Claude Code, Claude chat, VS Code or Antigravity) and use only that tool's block below. For any other tool, use the address above as a streamable HTTP MCP server named \`${name}\`.
+1. Find out which tool you are running in (Claude Code, Codex or Antigravity) and use only that tool's block below. For any other tool, use the address above as a streamable HTTP MCP server named \`${name}\`.
 2. Read the tool's existing MCP configuration first. If a server named \`${name}\` already exists, or one points at ${baseUrl}/mcp, tell the person what you found and ask before changing it.
 3. Add the connection with the block for your tool. Use the tool's user level configuration unless the person asks for project level. Tell the person which file you changed.
 4. Stop and tell the person to approve the sign in in their browser. You cannot do that part.

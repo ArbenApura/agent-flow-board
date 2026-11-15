@@ -66,12 +66,12 @@ export const INSTALL_STEPS = [
 
 export const HARNESSES = ['claude-code', 'gemini-cli', 'antigravity', 'codex', 'other'] as const;
 
-// The same table as the install brief (src/lib/connect/skillsBrief.ts). Codex and an unknown tool have no folder here.
+// The same table as the install brief (src/lib/connect/skillsBrief.ts). Codex reads the same .agents/skills folders as Antigravity (Codex skills documentation); an unknown tool has no folder here.
 const FOLDERS: Record<Harness, Record<Scope, string> | null> = {
 	'claude-code': { user: '~/.claude/skills', project: '.claude/skills' },
 	'gemini-cli': { user: '~/.gemini/skills', project: '.gemini/skills' },
 	antigravity: { user: '~/.agents/skills', project: '.agents/skills' },
-	codex: null,
+	codex: { user: '~/.agents/skills', project: '.agents/skills' },
 	other: null
 };
 

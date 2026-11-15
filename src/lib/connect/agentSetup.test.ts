@@ -13,9 +13,10 @@ describe('the agent setup brief', () => {
 		expect(md).toContain('--org arbenger');
 	});
 	it('has a block for every tool and the steps the agent follows', () => {
-		for (const tool of ['Claude Code', 'Claude chat', 'VS Code', 'Antigravity'])
+		for (const tool of ['Claude Code', 'Codex', 'Antigravity'])
 			expect(md, tool).toContain(`### ${tool}`);
 		expect(md).toContain('claude mcp add --transport http afb-arbenger');
+		expect(md).toContain('codex mcp add afb-arbenger --url');
 		expect(md).toContain('board_brief');
 		expect(md).toContain('flow_skills');
 		expect(md).toContain('skillsBundle');

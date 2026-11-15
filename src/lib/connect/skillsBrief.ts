@@ -54,7 +54,7 @@ Use its tools first. \`flow_skills\` takes your tool name, the scope and what yo
 | Claude Code | \`~/.claude/skills/<name>/\` | \`.claude/skills/<name>/\` |
 | Gemini CLI | \`~/.gemini/skills/<name>/\` | \`.gemini/skills/<name>/\` |
 | Antigravity | \`~/.agents/skills/<name>/\` | \`.agents/skills/<name>/\` |
-| Codex | the skills folder named in the Codex documentation for your version | the project skills folder named there, if it has one |
+| Codex | \`~/.agents/skills/<name>/\` | \`.agents/skills/<name>/\` |
 
 Folder names can change between tool versions. If the folder in this table does not exist and the tool's documentation names another, follow the documentation and tell the person.
 

@@ -7,8 +7,6 @@
 	import { cn } from '#lib/ui/cn.js';
 	// IMPORTED DEP-COMPONENTS
 	import Check from '@lucide/svelte/icons/check';
-	import CodeXml from '@lucide/svelte/icons/code-xml';
-	import MessagesSquare from '@lucide/svelte/icons/messages-square';
 	import Plug from '@lucide/svelte/icons/plug';
 	import Rocket from '@lucide/svelte/icons/rocket';
 	import SquareTerminal from '@lucide/svelte/icons/square-terminal';
@@ -39,12 +37,11 @@
 
 	const ICONS: Record<string, Component<{ size?: number }>> = {
 		'claude-code': SquareTerminal,
-		'claude-ai': MessagesSquare,
-		vscode: CodeXml,
+		codex: SquareTerminal,
 		antigravity: Rocket,
 		other: Plug
 	};
-	const COMMANDS = /^(claude|npx|npm)\b/;
+	const COMMANDS = /^(claude|codex|npx|npm)\b/;
 
 	// -- STATES -- //
 
@@ -130,13 +127,13 @@
 
 	<!-- WHICH TOOL: A SMALL PICTURE OF EACH, ONE CHOSEN AT A TIME -->
 	<div
-		class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5"
+		class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"
 		role="tablist"
 		aria-label="Tools"
 		tabindex="-1"
 		onkeydown={onKey}
 	>
-		{#each snippets as s, i (s.id)}
+		{#each snippets as s (s.id)}
 			{@const Icon = ICONS[s.id] ?? Plug}
 			<button
 				type="button"
@@ -146,10 +143,7 @@
 				aria-controls="tool-panel"
 				tabindex={active === s.id ? 0 : -1}
 				onclick={() => (active = s.id)}
-				class={cn(
-					'group relative flex min-h-11 cursor-pointer flex-col items-start gap-2 rounded-lg border border-line bg-surface p-3 text-left transition-[border-color,box-shadow] duration-150 hover:border-muted aria-selected:border-accent aria-selected:ring-4 aria-selected:ring-accent-soft',
-					i === snippets.length - 1 && 'max-sm:col-span-2'
-				)}
+				class="group relative flex min-h-11 cursor-pointer flex-col items-start gap-2 rounded-lg border border-line bg-surface p-3 text-left transition-[border-color,box-shadow] duration-150 hover:border-muted aria-selected:border-accent aria-selected:ring-4 aria-selected:ring-accent-soft"
 			>
 				<span
 					class="inline-flex size-8 items-center justify-center rounded-md bg-raised text-muted transition-colors group-aria-selected:bg-accent-soft group-aria-selected:text-accent-text"

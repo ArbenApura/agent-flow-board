@@ -14,17 +14,15 @@ On **Connect a tool**, **Let your agent do it** gives you a Markdown brief for t
 
 Replace `<slug>` with the organisation's slug (shown on Connect a tool).
 
-| Tool          | How to add it                                                                                                                         |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code   | `claude mcp add --transport http afb-<slug> https://<your domain>/mcp/<slug>`, then sign in when it asks                              |
-| claude.ai     | Settings, Connectors, Add custom connector, name it `afb-<slug>`, paste `https://<your domain>/mcp/<slug>`                            |
-| Cursor        | `~/.cursor/mcp.json`: `{ "mcpServers": { "afb-<slug>": { "url": "https://<your domain>/mcp/<slug>" } } }`                             |
-| VS Code       | `.vscode/mcp.json`: `{ "servers": { "afb-<slug>": { "type": "http", "url": "https://<your domain>/mcp/<slug>" } } }`                  |
-| Windsurf      | `~/.codeium/windsurf/mcp_config.json`: `{ "mcpServers": { "afb-<slug>": { "serverUrl": "https://<your domain>/mcp/<slug>" } } }`      |
-| Codex         | `~/.codex/config.toml`: `[mcp_servers.afb-<slug>]` with `url = "https://<your domain>/mcp/<slug>"`, then `codex mcp login afb-<slug>` |
-| Gemini CLI    | `~/.gemini/settings.json`: `{ "mcpServers": { "afb-<slug>": { "httpUrl": "https://<your domain>/mcp/<slug>" } } }`                    |
-| Antigravity   | The local bridge (below). Put the block in `mcp_config.json`                                                                          |
-| Anything else | A personal access token as `Authorization: Bearer afb_...`, or the bridge                                                             |
+| Tool          | How to add it                                                                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code   | `claude mcp add --transport http afb-<slug> https://<your domain>/mcp/<slug>`, then sign in when it asks                                                                  |
+| Cursor        | `~/.cursor/mcp.json`: `{ "mcpServers": { "afb-<slug>": { "url": "https://<your domain>/mcp/<slug>" } } }`                                                                 |
+| Windsurf      | `~/.codeium/windsurf/mcp_config.json`: `{ "mcpServers": { "afb-<slug>": { "serverUrl": "https://<your domain>/mcp/<slug>" } } }`                                          |
+| Codex         | `codex mcp add afb-<slug> --url https://<your domain>/mcp/<slug>`, then `codex mcp login afb-<slug>` (or `[mcp_servers.afb-<slug>]` with `url` in `~/.codex/config.toml`) |
+| Gemini CLI    | `~/.gemini/settings.json`: `{ "mcpServers": { "afb-<slug>": { "httpUrl": "https://<your domain>/mcp/<slug>" } } }`                                                        |
+| Antigravity   | The local bridge (below). Put the block in `mcp_config.json`                                                                                                              |
+| Anything else | A personal access token as `Authorization: Bearer afb_...`, or the bridge                                                                                                 |
 
 ### Several organisations
 
