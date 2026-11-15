@@ -394,10 +394,10 @@
 			view = clampView({ ...view, tx: view.tx + dx, ty: view.ty + dy }, source!, frame);
 		};
 		const keys: Record<string, () => void> = {
-			ArrowLeft: () => move(-step, 0),
-			ArrowRight: () => move(step, 0),
-			ArrowUp: () => move(0, -step),
-			ArrowDown: () => move(0, step),
+			ArrowLeft: () => move(step, 0),
+			ArrowRight: () => move(-step, 0),
+			ArrowUp: () => move(0, step),
+			ArrowDown: () => move(0, -step),
 			'+': () => zoomTo(view.k * 1.1),
 			'=': () => zoomTo(view.k * 1.1),
 			'-': () => zoomTo(view.k / 1.1),
@@ -540,7 +540,7 @@
 					data-mode="dark"
 					role="group"
 					aria-roledescription="Crop area"
-					aria-label="Crop area. Arrow keys move the picture, plus and minus zoom, left and right brackets turn it."
+					aria-label="Crop area. Arrow keys move the crop window, plus and minus zoom, left and right brackets turn it."
 					tabindex="0"
 					onpointerdown={down}
 					onpointermove={move}
