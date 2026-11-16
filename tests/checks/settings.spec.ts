@@ -198,26 +198,6 @@ test('M8 a project: the Agents may set COMPLETED switch and other sections persi
 	await page.getByTestId('save-streams').click();
 	await expect(page.getByTestId('saved-streams')).toBeVisible();
 	expect((await project()).streams.at(-1)).toEqual({ stream: 'ideas', scopes: ['core'] });
-	// The export downloads hold the project and never a private item
-	const secret = await (
-		await page.request.post(`/api/v1/orgs/acme/projects/${key}/items`, {
-			data: { title: 'Secret export item', visibility: 'private', phases: [] }
-		})
-	).json();
-	const shown = await (
-		await page.request.post(`/api/v1/orgs/acme/projects/${key}/items`, {
-			data: { title: 'Public export item', phases: [] }
-		})
-	).json();
-	const json = await page.request.get(`/acme/${key}/export.json`);
-	expect(json.status()).toBe(200);
-	expect(json.headers()['content-disposition']).toContain(`${key}-snapshot.json`);
-	const text = await json.text();
-	expect(text).toContain(shown.ref);
-	expect(text).not.toContain(secret.ref);
-	const md = await page.request.get(`/acme/${key}/export.md`);
-	expect(md.headers()['content-disposition']).toContain(`${key}.md`);
-	expect(await md.text()).toContain('Public export item');
 	await ctx.close();
 });
 

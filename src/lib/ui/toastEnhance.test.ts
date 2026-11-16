@@ -43,7 +43,8 @@ describe('toastEnhance', () => {
 		expect(toast.loading).toHaveBeenCalledWith('Working', { id: undefined, duration: LOADING_MS });
 		expect(toast.settle).toHaveBeenCalledWith(expect.any(String), 'success', 'Done.');
 		expect((out as unknown as { update: ReturnType<typeof vi.fn> }).update).toHaveBeenCalledWith({
-			reset: false
+			reset: false,
+			navigate: false
 		});
 	});
 
@@ -163,7 +164,8 @@ describe('toastEnhance', () => {
 			{ type: 'redirect' }
 		);
 		expect((out as unknown as { update: ReturnType<typeof vi.fn> }).update).toHaveBeenCalledWith({
-			reset: true
+			reset: true,
+			navigate: false
 		});
 		expect(onDone).toHaveBeenCalled();
 	});

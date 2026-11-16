@@ -147,10 +147,10 @@
 		<div class="mt-4 flex flex-wrap items-center gap-2">
 			<Badge>Neutral</Badge>
 			<Badge tone="accent">Accent</Badge>
-			<Badge tone="success" dot>Completed</Badge>
-			<Badge tone="warning" dot>In review</Badge>
-			<Badge tone="danger" dot>On hold</Badge>
-			<Badge tone="info" dot>In progress</Badge>
+			<Badge tone="success" icon>Completed</Badge>
+			<Badge tone="warning" icon>In review</Badge>
+			<Badge tone="danger" icon>On hold</Badge>
+			<Badge tone="info" icon>In progress</Badge>
 			<RunningBadge tool="Claude Code" title="SAVED_CARDS: ACME-142" phase="2" />
 			<RunningBadge tool="Cursor" />
 		</div>

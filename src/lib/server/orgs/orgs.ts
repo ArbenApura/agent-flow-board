@@ -46,7 +46,10 @@ export type MemberRow = {
 	role: Role;
 	/** Version of the avatar, or null. The picture itself is at /pictures/user/{userId}?v=. */
 	imageV?: number | null;
+	/** When they joined the organisation, for the members list. */
+	joinedAt?: Date;
 };
+export type ProjectRoleRow = { projectId: string; userId: string; role: Role };
 
 // -- CONSTANTS -- //
 
@@ -201,12 +204,27 @@ export async function listMembers(handle: DbHandle, orgId: string): Promise<Memb
 				name: user.name,
 				email: user.email,
 				role: member.role,
-				imageV: userPictureV
+				imageV: userPictureV,
+				joinedAt: member.createdAt
 			})
 			.from(member)
 			.innerJoin(user, eq(user.id, member.userId))
 			.where(eq(member.orgId, orgId))
 			.orderBy(asc(user.name))
+	);
+}
+
+/** Every per project role override of the organisation, for the project access sheet of the members list. */
+export async function listProjectRoles(handle: DbHandle, orgId: string): Promise<ProjectRoleRow[]> {
+	return withTenant(handle, { orgId }, (tx) =>
+		tx
+			.select({
+				projectId: projectMember.projectId,
+				userId: projectMember.userId,
+				role: projectMember.role
+			})
+			.from(projectMember)
+			.where(eq(projectMember.orgId, orgId))
 	);
 }
 

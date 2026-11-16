@@ -10,15 +10,13 @@ import { z } from 'zod';
 // IMPORTED MODULES
 import { storedPalette } from '../../theme/css';
 import { checkPalette, generatePalette } from '../../theme/palette';
-import { backupHealth } from '../backup/run';
+import { DEFAULT_RETENTION, backupHealth } from '../backup/run';
 import { appendEvent } from '../db/events';
 import { backupRun, event, org, project } from '../db/schema';
 import type { OrgSettings } from '../db/schema/core';
 import { OpError, requireCap, run } from './context';
-import { loadPublishable, renderExport } from './export';
 import { actorFields } from './items';
 import { pictureDataAddress } from './pictures';
-import { findProject } from './resolve';
 
 // -- CONSTANTS -- //
 
@@ -253,21 +251,144 @@ export async function orgAuditLog(ctx: Ctx, raw: z.input<typeof auditInput>) {
 export async function orgBackups(ctx: Ctx) {
 	await run(ctx, (tx) => requireCap(tx, ctx, 'manage'));
 	const health = await backupHealth(ctx.handle, ctx.orgId);
-	const runs = await run(ctx, (tx) =>
-		tx
+	const { runs, stored } = await run(ctx, async (tx) => {
+		const rows = await tx
 			.select({
 				id: backupRun.id,
 				state: backupRun.state,
 				size: backupRun.size,
 				error: backupRun.error,
+				location: backupRun.location,
 				createdAt: backupRun.createdAt
 			})
 			.from(backupRun)
 			.where(inArray(backupRun.state, ['done', 'failed']))
 			.orderBy(desc(backupRun.createdAt))
-			.limit(10)
-	);
-	return { enabled: Boolean(ctx.services?.backups), health, runs };
+			.limit(10);
+		// What is kept in total, over every good copy and not only the ten shown
+		const [total] = await tx
+			.select({
+				bytes: sql<string>`coalesce(sum(${backupRun.size}), 0)::text`,
+				copies: sql<number>`count(*)::int`
+			})
+			.from(backupRun)
+			.where(eq(backupRun.state, 'done'));
+		return {
+			// The stored location is a server path and is never sent to a page, only whether a file is there to download
+			runs: rows.map(({ location, ...r }) => ({ ...r, hasFile: Boolean(location) })),
+			stored: { bytes: Number(total?.bytes ?? 0), copies: total?.copies ?? 0 }
+		};
+	});
+	return {
+		enabled: Boolean(ctx.services?.backups),
+		/** True when this server can hand the stored files out, so the page shows the download buttons. */
+		canDownload: Boolean(ctx.services?.backupStorage),
+		health,
+		runs,
+		stored,
+		retention: DEFAULT_RETENTION
+	};
+}
+
+export const backupDeleteInput = z.object({
+	ids: z.array(z.string().uuid()).min(1).max(50)
+});
+
+/**
+ * Opens one finished backup for download, as the encrypted file it is stored as. The file is never decrypted here: the key stays
+ * with the operator. Admins and owners only, and only a backup of this organisation.
+ */
+export async function backupDownload(ctx: Ctx, id: string) {
+	const storage = ctx.services?.backupStorage;
+	return run(ctx, async (tx) => {
+		await requireCap(tx, ctx, 'manage');
+		if (!storage) throw new OpError('INVALID', 'Backups are not set up on this server.');
+		const [r] = await tx
+			.select({
+				id: backupRun.id,
+				state: backupRun.state,
+				location: backupRun.location,
+				createdAt: backupRun.createdAt
+			})
+			.from(backupRun)
+			.where(and(eq(backupRun.id, id), eq(backupRun.orgId, ctx.orgId)));
+		if (!r) throw new OpError('NOT_FOUND', 'No such backup.');
+		if (r.state !== 'done' || !r.location)
+			throw new OpError('INVALID', 'Only a finished backup can be downloaded.');
+		const size = await storage.size(r.location);
+		const stream = size === null ? null : await storage.getStream(r.location);
+		if (size === null || !stream) throw new OpError('NOT_FOUND', 'The stored file is gone.');
+		const [o] = await tx.select({ slug: org.slug }).from(org).where(eq(org.id, ctx.orgId));
+		await appendOrgEvent(tx, ctx, 'backup.download', {}, { backup: r.id, bytes: size });
+		return {
+			stream,
+			size,
+			filename: `afb-${o?.slug ?? 'org'}-${r.createdAt.toISOString().slice(0, 10)}.afbbak`
+		};
+	});
+}
+
+/**
+ * Deletes backups of this organisation: the stored file first, then the record, so a record never points at a file that is gone.
+ * A backup that is still running is refused. A file that cannot be removed keeps its record and is counted in `failed`.
+ */
+export async function backupDelete(ctx: Ctx, raw: z.input<typeof backupDeleteInput>) {
+	const { ids } = backupDeleteInput.parse(raw);
+	const unique = [...new Set(ids)];
+	const storage = ctx.services?.backupStorage;
+	return run(ctx, async (tx) => {
+		await requireCap(tx, ctx, 'manage');
+		const rows = await tx
+			.select({
+				id: backupRun.id,
+				state: backupRun.state,
+				size: backupRun.size,
+				location: backupRun.location,
+				createdAt: backupRun.createdAt
+			})
+			.from(backupRun)
+			.where(and(eq(backupRun.orgId, ctx.orgId), inArray(backupRun.id, unique)));
+		if (rows.length !== unique.length) throw new OpError('NOT_FOUND', 'No such backup.');
+		if (rows.some((r) => r.state === 'running'))
+			throw new OpError('CONFLICT', 'A backup that is still running cannot be deleted.');
+		if (rows.some((r) => r.location) && !storage)
+			throw new OpError('INVALID', 'Backups are not set up on this server.');
+		const gone: string[] = [];
+		let failed = 0;
+		for (const r of rows) {
+			if (r.location) {
+				try {
+					await storage!.delete(r.location);
+				} catch {
+					failed += 1;
+					continue;
+				}
+			}
+			gone.push(r.id);
+		}
+		if (gone.length) {
+			await tx
+				.delete(backupRun)
+				.where(and(eq(backupRun.orgId, ctx.orgId), inArray(backupRun.id, gone)));
+			await appendOrgEvent(
+				tx,
+				ctx,
+				'backup.delete',
+				{
+					backups: rows
+						.filter((r) => gone.includes(r.id))
+						.map((r) => ({
+							id: r.id,
+							state: r.state,
+							bytes: r.size,
+							at: r.createdAt.toISOString()
+						}))
+				},
+				{ deleted: gone.length, failed }
+			);
+		}
+		return { deleted: gone.length, failed };
+	});
 }
 
 /** How mail leaves this server, and a test mail to the person asking. A refused send says why. */
@@ -289,21 +410,3 @@ export const emailStatus = (ctx: Ctx) => ({
 	configured: Boolean(ctx.services?.mailer),
 	provider: ctx.services?.mailer?.kind ?? null
 });
-
-/** The public items of a project as files, for a download. Private items are never in it. */
-export async function exportProject(ctx: Ctx, projectKey: string) {
-	return run(ctx, async (tx) => {
-		const proj = await findProject(tx, ctx, projectKey);
-		await requireCap(tx, ctx, 'read', proj.id);
-		const exported = renderExport(await loadPublishable(tx, proj.id));
-		return { key: proj.key, files: exported.files, itemCount: exported.itemCount };
-	});
-}
-
-/** One Markdown file from the files of an export: the registry first, then each file under its own path. */
-export function exportAsMarkdown(files: Record<string, string>): string {
-	const order = Object.keys(files)
-		.filter((p) => p !== 'snapshot.json' && p !== 'README.md')
-		.sort((a, b) => (a === 'registry.md' ? -1 : b === 'registry.md' ? 1 : a < b ? -1 : 1));
-	return order.map((p) => `<!-- ${p} -->\n\n${files[p].trimEnd()}\n`).join('\n---\n\n');
-}

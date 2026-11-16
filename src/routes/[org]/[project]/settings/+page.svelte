@@ -35,7 +35,6 @@
 	import Settings from '@lucide/svelte/icons/settings';
 	import Layers from '@lucide/svelte/icons/layers';
 	import Activity from '@lucide/svelte/icons/activity';
-	import Download from '@lucide/svelte/icons/download';
 	import Trash from '@lucide/svelte/icons/trash';
 	import ListFilter from '@lucide/svelte/icons/list-filter';
 
@@ -314,22 +313,6 @@
 				{#if tab === 'trash' && data.trash}
 					<TrashPanel {org} projectKey={key} trash={data.trash.list} denied={data.trash.denied} />
 				{/if}
-			</Section>
-
-			<Section
-				id="export"
-				icon={Download}
-				title="Export"
-				text="Download this project's public items. Private items are never included."
-			>
-				<div class="flex flex-wrap gap-2">
-					<Button href={`/${org}/${key}/export.json`} data-testid="export-json"
-						>Download the snapshot (JSON)</Button
-					>
-					<Button href={`/${org}/${key}/export.md`} data-testid="export-md"
-						>Download as Markdown</Button
-					>
-				</div>
 			</Section>
 		{/if}
 	</SettingsShell>

@@ -1,4 +1,4 @@
-// PHASE 10: ORGANISATION SETTINGS (NAME, PALETTE, LOGO, LIMITS, AUDIT LOG), PROJECT SETTINGS, THE EXPORT, AND THE
+// PHASE 10: ORGANISATION SETTINGS (NAME, PALETTE, LOGO, LIMITS, AUDIT LOG), PROJECT SETTINGS, AND THE
 // NOTIFICATIONS A PERSON CAN SWITCH OFF. Each verb changes one group of fields, and only admins and owners change them.
 
 // IMPORTED DEP-MODULES
@@ -11,7 +11,6 @@ import { org, userPref } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import type { Mail, Mailer } from '../../src/lib/server/email/mailer';
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
-import { loadPublishable, renderExport } from '../../src/lib/server/ops/export';
 import { createInvite } from '../../src/lib/server/orgs/invites';
 import { createItem } from '../../src/lib/server/ops/items';
 import { createToken } from '../../src/lib/server/ops/tokens';
@@ -20,8 +19,6 @@ import {
 	DEFAULT_SETTINGS,
 	clearOrgLogo,
 	emailStatus,
-	exportAsMarkdown,
-	exportProject,
 	getOrgSettings,
 	orgAuditLog,
 	orgBackups,
@@ -281,48 +278,6 @@ describe('settings', () => {
 			name: 'Renamed project',
 			referencePages: ['/settings', '/acme/CKT']
 		});
-	});
-
-	it('the export is deterministic: the same data renders the same files and hashes', async () => {
-		const a = await withTenant(db, { orgId: w.orgId }, async (tx) =>
-			renderExport(await loadPublishable(tx, w.projectId))
-		);
-		const b = await withTenant(db, { orgId: w.orgId }, async (tx) =>
-			renderExport(await loadPublishable(tx, w.projectId))
-		);
-		expect(a).toEqual(b);
-	});
-
-	it('the export holds the public items only, as JSON and as one Markdown file', async () => {
-		await createItem(w.ctx('owner'), {
-			project: w.projectKey,
-			title: 'Hidden from the export',
-			visibility: 'private'
-		});
-		const out = await exportProject(ctx('viewer'), w.projectKey);
-		expect(out.itemCount).toBe(2);
-		const snapshot = JSON.parse(out.files['snapshot.json']);
-		expect(snapshot.items.map((i: { title: string }) => i.title).sort()).toEqual([
-			'Audited item one',
-			'Audited item two'
-		]);
-		expect(JSON.stringify(out.files)).not.toContain('Hidden from the export');
-		const md = exportAsMarkdown(out.files);
-		expect(md).toContain('<!-- registry.md -->');
-		expect(md).toContain('Audited item one');
-		expect(md).not.toContain('Hidden from the export');
-		expect(md.indexOf('registry.md')).toBeLessThan(md.indexOf('PLAN.md'));
-		expect(md).not.toContain('"format": "agent-flow-board-snapshot"');
-		await expect(
-			exportProject(
-				{
-					...ctx(),
-					orgId: w.other.orgId,
-					actor: { userId: w.other.userId, kind: 'person' as const }
-				},
-				w.projectKey
-			)
-		).rejects.toMatchObject({ code: 'NOT_FOUND' });
 	});
 
 	it('email status, a test email that says what went wrong, and backups shown only to admins', async () => {

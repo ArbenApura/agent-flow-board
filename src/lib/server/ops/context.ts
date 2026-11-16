@@ -59,6 +59,8 @@ export type Ctx = {
 		jobs?: JobRunner;
 		/** True when nightly backups are set up on this server, so a missing backup is a problem worth showing. */
 		backups?: boolean;
+		/** The storage the encrypted backups are kept in, so an admin can download or delete one. Missing while backups are off. */
+		backupStorage?: Storage;
 		/** Wraps the org data keys that seal project secrets (ADR-024). Missing means secrets are off. */
 		masterKey?: string;
 		/** Minutes a run waits for a runner before it is reported stuck. */

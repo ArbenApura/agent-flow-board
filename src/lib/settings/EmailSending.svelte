@@ -87,7 +87,7 @@
 			<div class="min-w-0 flex-1 basis-56">
 				<p class="text-xs text-muted">Sending through</p>
 				<p class="mt-0.5 flex flex-wrap items-center gap-2 text-sm">
-					<Badge tone={isLog ? 'warning' : 'success'} dot>{email.provider}</Badge>
+					<Badge tone={isLog ? 'warning' : 'success'} icon>{email.provider}</Badge>
 				</p>
 				{#if isLog}
 					<p class="mt-1.5 text-sm text-muted" data-testid="log-note">

@@ -76,7 +76,8 @@ export function toastEnhance(options: ToastEnhanceOptions): SubmitFunction {
 					else toast.settle(id, 'error', refusal(result.data));
 				} else toast.settle(id, 'error', GENERIC_ERROR);
 				if (own) await own(outcome);
-				else await outcome.update({ reset: options.reset ?? false });
+				// The result lands on the page the person is on. Without navigate: false SvelteKit goes to the bare action address (`?/name`), which drops the query (?org=, ?tab=) and reloads the page
+				else await outcome.update({ reset: options.reset ?? false, navigate: false });
 			} finally {
 				if (live.get(input.formElement) === id) live.delete(input.formElement);
 				options.onDone?.();

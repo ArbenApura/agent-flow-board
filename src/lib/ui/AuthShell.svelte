@@ -106,7 +106,7 @@
 								<p class="font-mono text-xs text-muted">CKT-12</p>
 								<p class="truncate text-sm font-semibold text-ink">Saved cards at checkout</p>
 							</div>
-							<Badge tone="running" dot>in progress</Badge>
+							<Badge tone="running">in progress</Badge>
 						</div>
 						<ul class="flex flex-col gap-2">
 							{#each STEPS as s, i (s.text)}

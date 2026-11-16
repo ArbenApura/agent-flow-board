@@ -17,6 +17,7 @@
 		tone = 'default',
 		padded = true,
 		headerClass,
+		bodyClass,
 		class: extra,
 		...rest
 	}: {
@@ -32,6 +33,8 @@
 		padded?: boolean;
 		/** Extra classes for the header row of a custom header, for example a row that wraps on a phone. */
 		headerClass?: string;
+		/** Extra classes for the body, for example a card that fills a given height and scrolls inside. */
+		bodyClass?: string;
 		class?: string;
 	} & Omit<HTMLAttributes<HTMLDivElement>, 'class'> = $props();
 </script>
@@ -73,7 +76,7 @@
 			</div>
 		</div>
 	{/if}
-	<div class={cn(padded && 'p-4 max-sm:p-3.5')}>
+	<div class={cn(padded && 'p-4 max-sm:p-3.5', bodyClass)}>
 		{@render children()}
 	</div>
 	{#if footer}

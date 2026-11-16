@@ -491,7 +491,7 @@
 										<span class="text-sm text-muted sm:hidden">Status</span>
 										<Badge
 											tone={STATUS_TONE[d.item.status as Status]}
-											dot
+											icon
 											class="rounded-md py-1 pr-2 text-sm group-hover:brightness-95"
 										>
 											{statusLabel(d.item.status)}
@@ -533,8 +533,10 @@
 								{/snippet}
 							</Popover>
 						{:else}
-							<Badge tone={STATUS_TONE[d.item.status as Status]} dot class="rounded-md py-1 text-sm"
-								>{statusLabel(d.item.status)}</Badge
+							<Badge
+								tone={STATUS_TONE[d.item.status as Status]}
+								icon
+								class="rounded-md py-1 text-sm">{statusLabel(d.item.status)}</Badge
 							>
 						{/if}
 					</span>

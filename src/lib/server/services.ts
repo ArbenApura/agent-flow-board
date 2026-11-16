@@ -14,6 +14,7 @@ import {
 // IMPORTED MODULES
 import { getStorage } from './adapters/index';
 import { getMailer } from './auth/index';
+import { backupStorage } from './backup/index';
 import { getJobs } from './jobs/index';
 
 // -- FUNCTIONS -- //
@@ -26,6 +27,7 @@ export async function appServices(): Promise<NonNullable<Ctx['services']>> {
 		mailer: getMailer(),
 		jobs: await getJobs(),
 		backups: Boolean(BACKUP_KEY),
+		backupStorage: BACKUP_KEY ? backupStorage() : undefined,
 		masterKey: AFB_MASTER_KEY,
 		runnerQueueMinutes: AFB_RUNNER_QUEUE_MINUTES,
 		mockupSecret: BETTER_AUTH_SECRET,

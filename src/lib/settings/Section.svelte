@@ -24,7 +24,8 @@
 		onsave,
 		saveLabel = 'Save',
 		readonly = false,
-		blocked = false
+		blocked = false,
+		actions
 	}: {
 		title: string;
 		/** One plain sentence saying what this section controls. */
@@ -49,6 +50,8 @@
 		readonly?: boolean;
 		/** True while what is typed cannot be saved yet (the error says why). Keeps the button off even though there is a change. */
 		blocked?: boolean;
+		/** Buttons at the right of the heading (one primary at most). On a phone they wrap under the text. */
+		actions?: Snippet;
 	} = $props();
 
 	// -- CONSTANTS -- //
@@ -84,7 +87,7 @@
 	aria-labelledby={`${id}-title`}
 >
 	<!-- THE HEADER: THE SAME OUTLINED ACCENT TILE ON EVERY SECTION, SO THE CARDS READ AS ONE FAMILY -->
-	<div class="flex items-start gap-3">
+	<div class={actions ? 'flex flex-wrap items-start gap-3' : 'flex items-start gap-3'}>
 		{#if Icon}
 			<span
 				aria-hidden="true"
@@ -92,26 +95,38 @@
 				><Icon size={20} /></span
 			>
 		{/if}
-		<div class="min-w-0 flex-1">
+		<div class={actions ? 'min-w-48 flex-1' : 'min-w-0 flex-1'}>
 			<h2 id={`${id}-title`} class="text-lg font-semibold">{title}</h2>
 			{#if text}<p class="text-sm text-muted">{text}</p>{/if}
 		</div>
-		{#if pill}
-			<Badge tone={pill.tone} class="shrink-0">
-				{#if pill.label === 'Saved'}
-					<svg
-						viewBox="0 0 12 12"
-						class="afb-check size-3"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						aria-hidden="true"><path d="M2 6.5 4.5 9 10 3.5" pathLength="1" /></svg
-					>
-				{/if}
-				{pill.label}
-			</Badge>
+		<!-- THE PILL SAYS WHERE THE SECTION STANDS -->
+		{#snippet pillBadge()}
+			{#if pill}
+				<Badge tone={pill.tone} class="shrink-0">
+					{#if pill.label === 'Saved'}
+						<svg
+							viewBox="0 0 12 12"
+							class="afb-check size-3"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							aria-hidden="true"><path d="M2 6.5 4.5 9 10 3.5" pathLength="1" /></svg
+						>
+					{/if}
+					{pill.label}
+				</Badge>
+			{/if}
+		{/snippet}
+		<!-- ACTIONS OF THE SECTION, WITH THE PILL IN FRONT OF THEM -->
+		{#if actions}
+			<div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
+				{@render pillBadge()}
+				{@render actions()}
+			</div>
+		{:else}
+			{@render pillBadge()}
 		{/if}
 	</div>
 	<div class="flex flex-col gap-3">

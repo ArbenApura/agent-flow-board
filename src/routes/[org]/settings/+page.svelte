@@ -10,7 +10,6 @@
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
 	import { ApiError, api, deletePicture, newKey, putPicture } from '#lib/board/api.js';
-	import { ago } from '#lib/board/status.js';
 	import { addDays, formatUtcDate } from '#lib/board/when.js';
 	import { ORG_DELETE_GRACE_DAYS, sameOrgName } from '#lib/shared/orgDeletion.js';
 	import { ROLE_LABEL, type Role } from '#lib/shared/roles.js';
@@ -19,11 +18,10 @@
 	import EmailSending from '#lib/settings/EmailSending.svelte';
 	import IdentityHeader from '#lib/settings/IdentityHeader.svelte';
 	import PalettePicker from '#lib/settings/PalettePicker.svelte';
-	import Runners from '#lib/settings/Runners.svelte';
 	import Section from '#lib/settings/Section.svelte';
-	import SettingsRow from '#lib/settings/SettingsRow.svelte';
+	import MembersSection from '#lib/settings/members/MembersSection.svelte';
 	import OrgTile from '#lib/board/OrgTile.svelte';
-	import Avatar from '#lib/ui/Avatar.svelte';
+	import OrgBackups from '#lib/board/settings/OrgBackups.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte';
@@ -32,13 +30,9 @@
 	import Switch from '#lib/ui/Switch.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	// IMPORTED DEP-COMPONENTS
 	import Settings from '@lucide/svelte/icons/settings';
 	import Palette from '@lucide/svelte/icons/palette';
-	import Users from '@lucide/svelte/icons/users';
-	import Mail from '@lucide/svelte/icons/mail';
-	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import Gauge from '@lucide/svelte/icons/gauge';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 
@@ -52,8 +46,6 @@
 
 	// -- CONSTANTS -- //
 
-	const ROLES: Role[] = ['owner', 'admin', 'member', 'viewer', 'guest'];
-	const roleOptions = ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] }));
 	const TOKEN_DAYS = [7, 14, 30, 60, 90];
 
 	// -- STATES -- //
@@ -63,11 +55,7 @@
 	let tokenMaxDays = $state(90);
 	let allowGuests = $state(true);
 	let status = $state<Record<string, { saving: boolean; saved: boolean; error: string }>>({});
-	let inviteEmail = $state('');
-	let inviteRole = $state<Role>('member');
 	let extraAudit = $state<AuditEvents>([]);
-	/** Bumped after a failed change, so a dropdown that moved on screen is drawn again from what is saved. */
-	let rev = $state(0);
 	let nextAudit = $state<number | null>(null);
 	let auditProject = $state('');
 	/** True while the audit log loads a project or the next page. */
@@ -88,9 +76,6 @@
 	const events = $derived([...(data.audit?.events ?? []), ...extraAudit]);
 	// The worked example under the token limit: a token made today lives this many days. UTC on both sides, so the page hydrates without a jump
 	const tokenExpiry = $derived(formatUtcDate(addDays(Date.now(), tokenMaxDays)));
-	const biggestBackup = $derived(
-		Math.max(1, ...(data.backups?.runs ?? []).map((r) => r.size ?? 0))
-	);
 	const dirty = $derived({
 		general: name.trim() !== s.name,
 		palette: (accent ?? null) !== (s.accent ?? null),
@@ -148,40 +133,9 @@
 			});
 			await invalidateAll();
 		} catch {
-			// The promise toast already shows the failure. A control that was changed on screen shows what is saved again
-			rev++;
+			// The promise toast already shows the failure and nothing was changed
 		}
 	}
-
-	const changeRole = (userId: string, role: string) =>
-		act(() => api(org, `/members/${userId}`, { method: 'PATCH', body: { role } }), 'Role changed.');
-	const removeMember = async (userId: string) => {
-		if (
-			!(await askConfirm({
-				title: 'Remove this person?',
-				body: 'They lose access to the organisation at once, and so do the tokens they made.',
-				confirmLabel: 'Remove'
-			}))
-		)
-			return;
-		await act(() => api(org, `/members/${userId}`, { method: 'DELETE' }), 'Removed.');
-	};
-	const invite = () =>
-		act(
-			() => api(org, '/invites', { body: { email: inviteEmail.trim(), role: inviteRole } }),
-			'Invitation sent.'
-		).then(() => (inviteEmail = ''));
-	const withdraw = async (id: string) => {
-		if (
-			!(await askConfirm({
-				title: 'Withdraw this invitation?',
-				body: 'The link in the email stops working.',
-				confirmLabel: 'Withdraw'
-			}))
-		)
-			return;
-		await act(() => api(org, `/invites/${id}`, { method: 'DELETE' }), 'Invitation withdrawn.');
-	};
 
 	async function openDelete() {
 		typedName = '';
@@ -324,152 +278,26 @@
 			</PictureUpload>
 		</Section>
 
-		<Section
-			id="members"
-			icon={Users}
-			group="People"
-			title="Members and roles"
-			text="Who is in this organisation and what they may do. Changes apply at once."
-		>
-			<ul class="overflow-hidden rounded-lg border border-line" data-testid="member-list">
-				{#each data.members as m (`${m.userId}-${rev}`)}
-					<SettingsRow data-testid="member">
-						{#snippet lead()}<Avatar name={m.name} userId={m.userId} v={m.imageV} />{/snippet}
-						<span class="block truncate font-medium text-ink">{m.name}</span>
-						<span class="block truncate text-xs text-muted">{m.email}</span>
-						{#snippet trail()}
-							{#if can}
-								<Select
-									label={`Role of ${m.name}`}
-									value={m.role}
-									options={roleOptions}
-									onchange={(v) => changeRole(m.userId, v)}
-									class="w-36"
-								/>
-								<Button
-									variant="secondary"
-									class="text-danger"
-									onclick={() => removeMember(m.userId)}>Remove</Button
-								>
-							{:else}
-								<Badge>{ROLE_LABEL[m.role]}</Badge>
-							{/if}
-						{/snippet}
-					</SettingsRow>
-				{/each}
-			</ul>
-			{#if can}
-				<form
-					class="flex flex-wrap items-end gap-2"
-					onsubmit={(e) => {
-						e.preventDefault();
-						void invite();
-					}}
-				>
-					<TextField
-						label="Invite by email"
-						type="email"
-						bind:value={inviteEmail}
-						class="min-w-56 flex-1"
-						data-testid="invite-email"
-						required
-					/>
-					<Select
-						label="Role of the invited person"
-						bind:value={inviteRole}
-						options={roleOptions}
-						class="w-36"
-					/>
-					<Button type="submit" variant="primary" data-testid="invite-submit"
-						>Send invitation</Button
-					>
-				</form>
-				{#if data.invites.length}
-					<div class="text-xs font-medium text-muted">Waiting for a reply</div>
-					<ul class="overflow-hidden rounded-lg border border-line" data-testid="invite-list">
-						{#each data.invites as i (i.id)}
-							<SettingsRow>
-								{#snippet lead()}
-									<span
-										class="inline-flex size-8 items-center justify-center rounded-full border border-dashed border-line text-muted"
-										aria-hidden="true"><Mail size={16} /></span
-									>
-								{/snippet}
-								<span class="block truncate font-medium text-ink">{i.email}</span>
-								<span class="block truncate text-xs text-muted">Sent {ago(i.createdAt)}</span>
-								{#snippet trail()}
-									<Badge>{ROLE_LABEL[i.role as Role]}</Badge>
-									<Button variant="secondary" class="text-danger" onclick={() => withdraw(i.id)}
-										>Withdraw</Button
-									>
-								{/snippet}
-							</SettingsRow>
-						{/each}
-					</ul>
-				{/if}
-			{/if}
-		</Section>
+		<!-- MEMBERS AND ROLES: ITS OWN SECTION COMPONENT, THE PAGE ONLY HANDS IT WHAT IT LOADED -->
+		<MembersSection
+			{org}
+			viewerRole={data.org.role as Role}
+			viewerId={data.me.id}
+			canManage={can}
+			allowGuests={s.settings.allowGuestInvites}
+			members={data.members}
+			invites={data.invites}
+			projects={data.projects}
+			projectRoles={data.projectRoles}
+			onchange={() => invalidateAll()}
+		/>
 
 		<!-- EMAIL SENDING: THE PROVIDER, WHAT GOES THROUGH IT AND THE TEST MESSAGE -->
 		<EmailSending email={data.email} {can} {form} group="Delivery" />
 
-		<Runners {org} projects={data.projects} {can} group="Delivery" />
-
 		{#if can}
-			<Section
-				id="backups"
-				icon={DatabaseBackup}
-				group="Delivery"
-				title="Backups"
-				text="A nightly encrypted copy of this organisation, kept apart from the app."
-			>
-				{#if !data.backups?.enabled}
-					<div class="text-sm text-muted" data-testid="backups-off">
-						Backups are not set up on this server. An operator turns them on with a backup key.
-					</div>
-				{:else}
-					<div
-						class="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-raised/50 p-3 text-sm"
-						data-testid="backups-status"
-					>
-						<Badge tone={data.backups.health.ok ? 'success' : 'danger'} dot
-							>{data.backups.health.ok ? 'healthy' : 'needs attention'}</Badge
-						>
-						{#if data.backups.health.message}<span class="text-danger"
-								>{data.backups.health.message}</span
-							>{/if}
-						{#if data.backups.health.lastOkAt}<span class="text-muted"
-								>Last good backup {ago(data.backups.health.lastOkAt)}.</span
-							>{/if}
-					</div>
-					{#if data.backups.runs.length}
-						<ul class="overflow-hidden rounded-lg border border-line">
-							{#each data.backups.runs as r (r.id)}
-								<SettingsRow>
-									{#snippet lead()}
-										<Badge tone={r.state === 'done' ? 'success' : 'danger'}>{r.state}</Badge>
-									{/snippet}
-									{#if r.state === 'failed'}
-										<span class="block truncate text-danger">{r.error}</span>
-									{:else}
-										<span class="block">{Math.round((r.size ?? 0) / 1024)} KB</span>
-										<!-- THE BAR IS THE SIZE OF THIS COPY AGAINST THE BIGGEST ONE, A RUNTIME PERCENT -->
-										<span
-											class="mt-1 block h-1 w-full max-w-48 overflow-hidden rounded-full bg-raised"
-											><span
-												class="block h-full rounded-full bg-accent"
-												style="width: {Math.round(((r.size ?? 0) / biggestBackup) * 100)}%"
-											></span></span
-										>
-									{/if}
-									{#snippet trail()}<span class="text-xs text-muted">{ago(r.createdAt)}</span
-										>{/snippet}
-								</SettingsRow>
-							{/each}
-						</ul>
-					{/if}
-				{/if}
-			</Section>
+			<!-- BACKUPS: THE SUMMARY, THE HISTORY AND ITS DOWNLOAD AND DELETE LIVE IN THEIR OWN COMPONENT -->
+			<OrgBackups backups={data.backups} {org} group="Delivery" />
 
 			<Section
 				id="limits"
@@ -552,7 +380,7 @@
 	<div class="flex flex-col gap-3 text-[15px] leading-6" data-testid="delete-dialog">
 		<p>
 			{data.org.name} is hidden for everyone at once, and erased for good after {ORG_DELETE_GRACE_DAYS}
-			days. Its tokens, runners and connected tools stop working now.
+			days. Its tokens and connected apps stop working now.
 		</p>
 		{#if deleteCounts}
 			<p class="text-muted" data-testid="delete-counts">
