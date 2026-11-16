@@ -17,9 +17,9 @@ export default defineConfig({
 			csrf: { trustedOrigins: ['*'] }
 		})
 	],
-	// TWO FIXED PORTS: 7173 IS THE DEV SERVER, 5190 IS THE LOCAL BUILD PREVIEW FOR CHECKS (THE LIVE BOARD IS THE VPS). strictPort FAILS INSTEAD OF MOVING TO ANOTHER PORT
+	// TWO FIXED PORTS: 7173 IS THE DEV SERVER, 7174 IS THE LOCAL BUILD PREVIEW FOR CHECKS (THE LIVE BOARD IS THE VPS). strictPort FAILS INSTEAD OF MOVING TO ANOTHER PORT
 	server: { port: 7173, strictPort: true },
-	preview: { port: 5190, strictPort: true, allowedHosts: ['afb.arbenger.com'] },
+	preview: { port: 7174, strictPort: true, allowedHosts: ['afb.arbenger.com'] },
 	test: {
 		include: [
 			'src/**/*.test.ts',

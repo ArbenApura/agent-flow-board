@@ -17,7 +17,7 @@ for (const mode of ['light', 'dark'] as const) {
 			// The mode is a cookie the server reads, so the first HTML is already in the chosen mode
 			await page
 				.context()
-				.addCookies([{ name: 'afb-mode', value: mode, url: 'http://localhost:5180' }]);
+				.addCookies([{ name: 'afb-mode', value: mode, url: 'http://localhost:7174' }]);
 			for (const path of PAGES) {
 				const res = await page.goto(path);
 				// /device sends a signed out visitor to sign in, which is still an auth page with the same shell

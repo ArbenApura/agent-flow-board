@@ -27,9 +27,9 @@ yarn install
 node tests/runner/preview.mjs
 ```
 
-That builds the app, starts a throwaway PostgreSQL of its own for the run (the same embedded server the tests use) and serves the app at http://localhost:5180 with demo organisations and people (read from `.env.test`; the shared sign in password is `seed-password-for-previews` and must never reach a deployment). Sign in as `owner@acme.example`.
+That builds the app, starts a throwaway PostgreSQL of its own for the run (the same embedded server the tests use) and serves the app at http://localhost:7174 with demo organisations and people (read from `.env.test`; the shared sign in password is `seed-password-for-previews` and must never reach a deployment). Sign in as `owner@acme.example`.
 
-Localhost uses two fixed ports: **7173** is the dev server and **5190** is the local build preview (`yarn build && yarn preview`). `vite.config.ts` sets `strictPort`, so a second server fails instead of moving to another port. The live board is the server at https://afb.arbenger.com, deployed with `yarn deploy:vps`.
+Localhost uses two fixed ports: **7173** is the dev server and **7174** is the local build preview (`yarn build && yarn preview`). `vite.config.ts` sets `strictPort`, so a second server fails instead of moving to another port. The live board is the server at https://afb.arbenger.com, deployed with `yarn deploy:vps`.
 
 ### Local development (Docker PostgreSQL)
 
@@ -43,7 +43,7 @@ yarn dev:local          # http://localhost:7173 with demo data (owner@acme.examp
 
 `yarn dev:local` sets its database and `AFB_BASE_URL` in the process, which takes priority over `.env`, so a `DATABASE_URL` in your `.env` stays untouched and cannot be seeded by accident. `yarn db:down` stops the container and keeps the data. `yarn db:local:reset` deletes the volume and rebuilds it empty: **it erases every plan in the local database, so never run it on a database you want to keep.** The passwords in `deploy/local/compose.yaml` and `package.json` are throwaways for this machine. The local owner is the `postgres` superuser, because the demo seed needs to write across organisations, which forced row level security blocks for a normal owner.
 
-To run `yarn dev` against another PostgreSQL, put `AFB_BASE_URL=http://localhost:5180`, a `BETTER_AUTH_SECRET` of 32 or more characters and `DATABASE_URL` in `.env`. `DATABASE_URL` is the PostgreSQL connection of the app as the `app_runtime` role, and the app refuses to start without it. `AFB_AUTO_MIGRATE=1` and `AFB_SEED_DEMO=1` act on whichever database is in use, so leave them out of any `.env` that points at data you want to keep. Every variable is described in `src/env.ts`, and a missing required one stops the app at start with a plain message.
+To run `yarn dev` against another PostgreSQL, put `AFB_BASE_URL=http://localhost:7173`, a `BETTER_AUTH_SECRET` of 32 or more characters and `DATABASE_URL` in `.env`. `DATABASE_URL` is the PostgreSQL connection of the app as the `app_runtime` role, and the app refuses to start without it. `AFB_AUTO_MIGRATE=1` and `AFB_SEED_DEMO=1` act on whichever database is in use, so leave them out of any `.env` that points at data you want to keep. Every variable is described in `src/env.ts`, and a missing required one stops the app at start with a plain message.
 
 ### Item references
 

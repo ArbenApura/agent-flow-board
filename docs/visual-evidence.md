@@ -35,4 +35,4 @@ This note records the architecture decisions and acceptance baseline for picture
 - Operations and MCP layers enforce `DEV_APPROVAL_REQUIRED`, project critic `lensPack` parsing, and MCP protocol version `2`.
 - Bridge CLI exposes `mockup pull`, `mockup url`, `mockup inspect`, `check inspect`, `check compare`, early stock visual checks, `stockVisualChecks`, and Windows doctor diagnostics.
 - System skills (`flow`, `flow-check`, `flow-audit`, `flow-critic`, `flow-interview`, `flow-verify`, `flow-align`) align on optional compare and inspect tools and Windows command hygiene.
-- Manual interactive verification (`F.3`) remains for the project owner to exercise end-to-end on Windows (`localhost:5180` dev server + live compare preview) before release.
+- Manual interactive verification (`F.3`) remains for the project owner to exercise end-to-end on Windows (`localhost:7173` dev server + live compare preview) before release.

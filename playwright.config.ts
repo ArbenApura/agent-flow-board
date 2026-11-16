@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
-// BROWSER CHECKS RUN AGAINST THE BUILD PREVIEW ON PORT 5180, NEVER THE DEV SERVER (ADR-017)
-const port = Number(process.env.AFB_PREVIEW_PORT ?? 5180);
+// BROWSER CHECKS RUN AGAINST THE BUILD PREVIEW ON PORT 7174, NEVER THE DEV SERVER (ADR-017)
+const port = Number(process.env.AFB_PREVIEW_PORT ?? 7174);
 
 export default defineConfig({
 	testDir: 'tests',

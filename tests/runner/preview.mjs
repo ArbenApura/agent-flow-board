@@ -12,7 +12,7 @@ const stateFile = resolve(stateDir, 'build-hash.json');
 const appPaths = ['src', 'static', 'package.json', 'yarn.lock', 'vite.config.ts', 'tsconfig.json'];
 
 const args = process.argv.slice(2);
-const port = Number(args[args.indexOf('--port') + 1] || process.env.AFB_PREVIEW_PORT || 5180);
+const port = Number(args[args.indexOf('--port') + 1] || process.env.AFB_PREVIEW_PORT || 7174);
 const force = args.includes('--force');
 const buildOnly = args.includes('--build-only');
 

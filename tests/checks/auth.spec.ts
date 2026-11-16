@@ -149,7 +149,7 @@ test('the server refuses a password that is too short even when the browser chec
 	const email = fresh();
 	const res = await page.request.post('/sign-up?/register', {
 		form: { name: 'Short Pass', email, password: 'short', next: '/' },
-		headers: { origin: process.env.AFB_BASE_URL ?? 'http://localhost:5180' }
+		headers: { origin: process.env.AFB_BASE_URL ?? 'http://localhost:7174' }
 	});
 	expect(res.status()).toBeLessThan(500);
 	expect(await res.text()).toContain('at least 10 characters');
@@ -188,7 +188,7 @@ test('a form post from another site, or with no origin, is refused, while token 
 	expect((await request.post('/sign-in?/signIn', { form })).status()).toBe(403);
 	expect(
 		(
-			await request.post('/sign-in?/signIn', { form, headers: { origin: 'http://localhost:5180' } })
+			await request.post('/sign-in?/signIn', { form, headers: { origin: 'http://localhost:7174' } })
 		).status()
 	).toBeLessThan(500);
 	// Tools call these with no Origin header and authenticate with tokens, so they are exempt

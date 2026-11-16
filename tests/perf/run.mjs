@@ -1,12 +1,12 @@
 // PERFORMANCE BUDGET CHECK (SPEC 12): FIRST LOAD JAVASCRIPT (GZIP) AND SERVER RESPONSE p95 PER PAGE, AGAINST THE RUNNING BUILD PREVIEW
-// USAGE: node tests/perf/run.mjs [--base http://localhost:5180] [--paths /,/healthz] [--runs 30]
+// USAGE: node tests/perf/run.mjs [--base http://localhost:7174] [--paths /,/healthz] [--runs 30]
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
-const base = opt('--base', `http://localhost:${process.env.AFB_PREVIEW_PORT ?? 5180}`);
+const base = opt('--base', `http://localhost:${process.env.AFB_PREVIEW_PORT ?? 7174}`);
 const paths = opt('--paths', '/').split(',');
 const runs = Number(opt('--runs', 30));
 const budgets = JSON.parse(readFileSync(resolve(import.meta.dirname, 'budgets.json'), 'utf8'));
