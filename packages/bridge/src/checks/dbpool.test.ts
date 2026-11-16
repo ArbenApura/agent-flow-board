@@ -185,7 +185,7 @@ describe('pooled databases', () => {
 	});
 
 	it('refuses port 5433 and the other forbidden ports before any container is started', async () => {
-		for (const port of [5433, 5180, 5190]) {
+		for (const port of [5433, 7173, 7174]) {
 			const f = fakeDocker();
 			const pool = make(f, { pickPort: async () => port });
 			await expect(

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	WORKFLOWS,
 	WORKFLOW_FILE_NAMES,
+	WORKFLOW_FILES,
 	workflowByName,
 	workflowFile,
 	SERVER_INSTRUCTIONS
@@ -50,7 +51,45 @@ describe('workflow text', () => {
 	});
 
 	it('has the critic supporting files readable by name', () => {
-		for (const f of WORKFLOW_FILE_NAMES) expect(workflowFile(f).length, f).toBeGreaterThan(500);
+		for (const f of WORKFLOW_FILE_NAMES)
+			expect(workflowFile('flow-critic', f).length, f).toBeGreaterThan(500);
+	});
+
+	it('serves the flow browser checks reference as a file of flow, readable to the end in parts (AFB-20261116-1457)', () => {
+		expect(WORKFLOW_FILES.flow).toEqual(['checks', 'reference']);
+		const text = workflowFile('flow', 'checks');
+		expect(text.length).toBeGreaterThan(500);
+		let joined = '';
+		for (let off = 0; off < text.length; off += 12_000) joined += text.slice(off, off + 12_000);
+		expect(joined).toBe(text);
+		expect(text).toContain('How a run works');
+		expect(workflowByName('flow')!.body).toContain('file `checks`');
+		// A file belongs to its own workflow only
+		expect(() => workflowFile('flow', 'plan-lenses')).toThrow();
+		expect(() => workflowFile('flow-critic', 'checks')).toThrow();
+		expect(() => workflowFile('flow-audit', 'checks')).toThrow();
+	});
+
+	it('serves the flow reference (lite flow, model rows, tools, errors) as a file of flow, readable to the end in parts (AFB-20261116-1551)', () => {
+		const text = workflowFile('flow', 'reference');
+		expect(text.length).toBeGreaterThan(500);
+		let joined = '';
+		for (let off = 0; off < text.length; off += 12_000) joined += text.slice(off, off + 12_000);
+		expect(joined).toBe(text);
+		expect(text).toContain('## Lite flow (a plan of 1 to 3 steps)');
+		expect(text).toContain('### Errors');
+		expect(workflowByName('flow')!.body).toContain('file `reference`');
+		expect(() => workflowFile('flow-critic', 'reference')).toThrow();
+		expect(() => workflowFile('flow-audit', 'reference')).toThrow();
+	});
+
+	it('serves no flow-check or flow-verify workflow, and the server instructions name neither (AFB-20261116-1457)', () => {
+		const names = WORKFLOWS.map((w) => w.name);
+		expect(names).not.toContain('flow-check');
+		expect(names).not.toContain('flow-verify');
+		expect(workflowByName('flow-check')).toBeUndefined();
+		expect(SERVER_INSTRUCTIONS).not.toMatch(/flow-check|flow-verify/);
+		for (const w of WORKFLOWS) expect(w.body, w.name).not.toMatch(/flow-check|flow-verify/);
 	});
 
 	it('tells the critic prompt to read its supporting files first, in parts, before any subagent', () => {
@@ -75,7 +114,7 @@ describe('workflow text', () => {
 	it('names no model for the critic subagents, so it fits every harness', () => {
 		// A person sets a model preference in their own private CLAUDE.md; "sonnet" is only a Claude Code alias
 		const body = workflowByName('flow-critic')!.body;
-		const texts = [body, ...WORKFLOW_FILE_NAMES.map((f) => workflowFile(f))];
+		const texts = [body, ...WORKFLOW_FILE_NAMES.map((f) => workflowFile('flow-critic', f))];
 		for (const t of texts) expect(t).not.toMatch(/sonnet|opus|model:/i);
 	});
 

@@ -33,7 +33,7 @@ export type ProjectConfig = {
 	url?: string;
 	/** Exact host names the browser may reach besides the preview. */
 	extraHosts?: string[];
-	/** Running or bridge-started local dev server origin, never 5180/5190/5433. */
+	/** Running or bridge-started local dev server origin, never 7173/7174/5433. */
 	devUrl?: string;
 	/** Write opt-in for dev checks. Off by default. */
 	allowWrites?: boolean;

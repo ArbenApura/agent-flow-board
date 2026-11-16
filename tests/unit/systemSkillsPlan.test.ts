@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { systemSkills } from '../../src/lib/server/system-skills';
 import {
 	HARNESSES,
+	INSTALL_STEPS,
 	changelogCrossed,
 	compareVersions,
 	pageText,
@@ -147,6 +148,43 @@ describe('the action for one skill', () => {
 		]);
 		expect(plan.ignored).toBe(2);
 		expect(JSON.stringify(plan)).not.toContain('etc');
+	});
+});
+
+describe('retired skills (AFB-20261116-1457)', () => {
+	const retired = ['gone-one', 'gone-two'];
+	const run = (installed: InstalledSkill[]) =>
+		planSkills(served, 'claude-code', 'user', installed, true, retired);
+
+	it('offers to remove an installed, unedited copy of a retired skill, named from the manifest', () => {
+		const p = run([clean('gone-one', '1.0.0'), clean('alpha', '1.2.0')]);
+		expect(p.retired).toEqual([
+			{ name: 'gone-one', action: 'retire', reason: expect.stringContaining('no longer part') }
+		]);
+		expect(p.ignored).toBe(0);
+	});
+
+	it('asks instead of removing a copy that was edited, has no stamp, or was reported twice', () => {
+		const edited = run([clean('gone-one', '1.0.0', { computedSha256: 'b'.repeat(64) })]);
+		expect(edited.retired[0].action).toBe('ask');
+		const unstamped = run([{ name: 'gone-two' }]);
+		expect(unstamped.retired[0].action).toBe('ask');
+		const twice = run([clean('gone-one', '1.0.0'), clean('gone-one', '1.0.0')]);
+		expect(twice.retired[0].action).toBe('ask');
+	});
+
+	it('says nothing about a retired skill that is not installed, and never names caller input', () => {
+		const p = run([{ name: '../../etc' }, { name: 'mine' }]);
+		expect(p.retired).toEqual([]);
+		expect(p.ignored).toBe(2);
+		expect(JSON.stringify(p)).not.toContain('etc');
+	});
+
+	it('is empty with no retired list, and the steps tell an agent to delete only a folder the plan names', () => {
+		expect(planSkills(served, 'claude-code', 'user', [clean('gone-one', '1.0.0')]).retired).toEqual(
+			[]
+		);
+		expect(INSTALL_STEPS.join('\n')).toContain('Delete only a folder the plan names');
 	});
 });
 

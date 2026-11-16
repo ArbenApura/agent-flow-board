@@ -10,14 +10,12 @@
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
 	import Compass from '@lucide/svelte/icons/compass';
 	import FileText from '@lucide/svelte/icons/file-text';
-	import FlaskConical from '@lucide/svelte/icons/flask-conical';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import MessagesSquare from '@lucide/svelte/icons/messages-square';
 	import PencilRuler from '@lucide/svelte/icons/pencil-ruler';
 	import Route from '@lucide/svelte/icons/route';
 	import ScanSearch from '@lucide/svelte/icons/scan-search';
 	import Search from '@lucide/svelte/icons/search';
-	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import Sparkles from '@lucide/svelte/icons/sparkles';
 	// IMPORTED COMPONENTS
 	import Badge from '#lib/ui/Badge.svelte';
@@ -38,8 +36,6 @@
 		'messages-square': MessagesSquare,
 		'scan-search': ScanSearch,
 		'clipboard-list': ClipboardList,
-		'shield-check': ShieldCheck,
-		'flask-conical': FlaskConical,
 		'pencil-ruler': PencilRuler,
 		compass: Compass,
 		sparkles: Sparkles

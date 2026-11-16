@@ -17,6 +17,7 @@ type Manifest = {
 	bundle: { version: string; releasedAt: string };
 	skills: Record<string, { version: string; history: { version: string; hash: string }[] }>;
 	changelog: { version: string; date: string; notes: string[]; skills: Record<string, string> }[];
+	retired?: string[];
 };
 
 // -- CONSTANTS -- //
@@ -79,6 +80,12 @@ for (const name of names) {
 	console.log(`${name} ${entry.version} ${hash.slice(0, 12)}`);
 }
 if (failed) process.exit(1);
+// A retired skill has no source folder any more: remove its copy in the local skills folder, by exact name from the manifest only
+for (const gone of manifest.retired ?? []) {
+	if (!/^[a-z0-9-]+$/.test(gone) || names.includes(gone)) continue;
+	rmSync(join(LOCAL, gone), { recursive: true, force: true });
+	console.log(`${gone}: retired, removed from the local skills folder`);
+}
 if (!manifest.changelog.length)
 	manifest.changelog.push({
 		version: manifest.bundle.version,

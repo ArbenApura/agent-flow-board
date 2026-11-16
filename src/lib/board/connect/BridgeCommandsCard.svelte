@@ -35,13 +35,15 @@
 <!-- EVERY BRIDGE COMMAND, FILLED IN FOR THIS ORGANISATION. SEARCH AND A FILTER BY KIND, KEPT IN THE PAGE -->
 <Card
 	padded={false}
+	class="lg:absolute lg:inset-0 lg:flex lg:flex-col"
+	bodyClass="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
 	data-testid="bridge-commands"
 	icon={SquareTerminal}
 	title="Every bridge command"
 	description={`Filled in for ${orgName}. Copy one and run it in a terminal.`}
 >
 	<div
-		class="flex flex-col gap-3 border-b border-line px-4 py-3 max-sm:px-3.5 sm:flex-row sm:items-center"
+		class="flex shrink-0 flex-col gap-3 border-b border-line px-4 py-3 max-sm:px-3.5 sm:flex-row sm:items-center"
 	>
 		<div class="sm:w-72">
 			<TextField
@@ -78,42 +80,45 @@
 			{/each}
 		</div>
 	</div>
-	{#if groups.length === 0}
-		<div class="flex items-center gap-4 px-4 py-5 max-sm:px-3.5">
-			<span
-				class="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-raised text-muted"
-				aria-hidden="true"><Search size={18} /></span
-			>
-			<div>
-				<p class="text-sm font-medium text-ink">No command matches</p>
-				<p class="text-sm text-muted">Try another word, or choose All.</p>
-			</div>
-		</div>
-	{:else}
-		{#each groups as g (g.kind)}
-			<div>
-				<p
-					class="px-4 pt-3 pb-1 text-xs font-medium tracking-wide whitespace-nowrap text-muted uppercase max-sm:px-3.5"
+	<!-- THE LIST SCROLLS INSIDE THE CARD, SO THE CARD KEEPS THE HEIGHT OF THE COLUMN BESIDE IT -->
+	<div class="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+		{#if groups.length === 0}
+			<div class="flex items-center gap-4 px-4 py-5 max-sm:px-3.5">
+				<span
+					class="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-raised text-muted"
+					aria-hidden="true"><Search size={18} /></span
 				>
-					{g.kind}
-				</p>
-				<ul>
-					{#each g.rows as c (c.command)}
-						<li
-							class="flex items-start gap-3 border-b border-line px-4 py-2.5 last:border-b-0 max-sm:px-3.5"
-						>
-							<span class="flex min-w-0 flex-1 flex-col gap-0.5">
-								<code
-									class="block [scrollbar-width:none]! overflow-x-auto font-mono text-xs whitespace-nowrap text-ink [&::-webkit-scrollbar]:hidden"
-									>{c.command}</code
-								>
-								<span class="text-xs text-muted">{c.text}</span>
-							</span>
-							<CopyButton text={c.command} variant="icon" ariaLabel="Copy the command" />
-						</li>
-					{/each}
-				</ul>
+				<div>
+					<p class="text-sm font-medium text-ink">No command matches</p>
+					<p class="text-sm text-muted">Try another word, or choose All.</p>
+				</div>
 			</div>
-		{/each}
-	{/if}
+		{:else}
+			{#each groups as g (g.kind)}
+				<div>
+					<p
+						class="px-4 pt-3 pb-1 text-xs font-medium tracking-wide whitespace-nowrap text-muted uppercase max-sm:px-3.5"
+					>
+						{g.kind}
+					</p>
+					<ul>
+						{#each g.rows as c (c.command)}
+							<li
+								class="flex items-start gap-3 border-b border-line px-4 py-2.5 last:border-b-0 max-sm:px-3.5"
+							>
+								<span class="flex min-w-0 flex-1 flex-col gap-0.5">
+									<code
+										class="block [scrollbar-width:none]! overflow-x-auto font-mono text-xs whitespace-nowrap text-ink [&::-webkit-scrollbar]:hidden"
+										>{c.command}</code
+									>
+									<span class="text-xs text-muted">{c.text}</span>
+								</span>
+								<CopyButton text={c.command} variant="icon" ariaLabel="Copy the command" />
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/each}
+		{/if}
+	</div>
 </Card>

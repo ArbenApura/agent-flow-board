@@ -86,7 +86,7 @@ const ALLOWED_METHODS: ReadonlySet<string> = new Set(WRITE_METHODS);
 
 /**
  * Validates and normalises a dev-server URL. Accepts only http:// or https:// on localhost, 127.0.0.1 or [::1]
- * with an explicit port, and never 5180, 5190 or 5433.
+ * with an explicit port, and never 7173, 7174 or 5433.
  */
 export function cleanDevUrl(raw: string): string {
 	const text = String(raw ?? '').trim();

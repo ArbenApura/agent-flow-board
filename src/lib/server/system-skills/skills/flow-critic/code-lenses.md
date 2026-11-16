@@ -181,7 +181,7 @@ Inspect test coverage, error handling, and component resilience:
 ## Lens F - Design Fit Reviewer
 
 The user is often disappointed because a generated screen comes out bigger, busier or more confusing than the pages around it. If the repo rulebook says the user looks at every screen themselves and runs no UI shots, judge from the code and say plainly what you could not see. Read the repo's design rules if it has any (the rulebook's design list, a design document, a size scale, any design notes for the coding assistant) and the code of the sibling pages the new screen sits next to. Judge the screen the code builds, not only the diff. If the repo has no design rules, compare against the sibling pages only.
-(example) the root `CLAUDE.md` "Design fit" list, `DESIGN.md`, `.claude/skills/coding-guidelines/design-fit.md`, `tests/ui-shots/scale.json`; the user checks screens on the local dev server at port 5180.
+(example) the root `CLAUDE.md` "Design fit" list, `DESIGN.md`, `.claude/skills/coding-guidelines/design-fit.md`, `tests/ui-shots/scale.json`; the user checks screens on the local dev server at port 7173.
 
 - [ ] **Say what could not be seen, or refuse `APPROVED` if mockup evidence is missing**
   When picture pairs (`{UI_SHOTS_DIR}`) or the compare measurements/diff JSON (`{COMPARE_DIFF_JSON}`) are given, inspect them. When none are given, name the screens the diff changes and say plainly that no picture was looked at because the user checks them.

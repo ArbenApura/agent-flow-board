@@ -37,16 +37,16 @@ describe('liveSiteProblems', () => {
 		expect(liveSiteProblems({ url }).length).toBeGreaterThan(0);
 	});
 	it.each([
-		'http://127.0.0.1:5180',
-		'http://localhost:5190/',
+		'http://127.0.0.1:7173',
+		'http://localhost:7174/',
 		'http://127.0.0.1:5433',
-		'http://0.0.0.0:5180',
-		'http://[::1]:5180'
+		'http://0.0.0.0:7173',
+		'http://[::1]:7173'
 	])('refuses a local address on a forbidden port: %s', (url) => {
 		expect(liveSiteProblems({ url }).join(' ')).toMatch(/port/);
 	});
-	it('does not refuse a remote host that happens to use 5180', () => {
-		expect(liveSiteProblems({ url: 'https://app.example.com:5180' })).toEqual([]);
+	it('does not refuse a remote host that happens to use 7173', () => {
+		expect(liveSiteProblems({ url: 'https://app.example.com:7173' })).toEqual([]);
 	});
 	it.each([
 		'*.example.com',

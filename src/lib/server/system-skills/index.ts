@@ -23,6 +23,8 @@ export type Manifest = {
 	bundle: { version: string; releasedAt: string };
 	skills: Record<string, { version: string; history: { version: string; hash: string }[] }>;
 	changelog: { version: string; date: string; notes: string[]; skills: Record<string, string> }[];
+	/** Skills that were part of an earlier bundle and are gone. An install plan offers to remove an installed copy of one (AFB-20261116-1457). */
+	retired?: string[];
 };
 
 export type SystemSkill = {
@@ -45,6 +47,7 @@ export type SystemSkillsIndex = {
 		files: { path: string; sha256: string; bytes: number }[];
 	}[];
 	changelog: Manifest['changelog'];
+	retired: string[];
 };
 
 // -- CONSTANTS -- //
@@ -83,6 +86,9 @@ export function systemSkills(): SystemSkill[] {
 	if (!names.length) throw new Error('The system skills manifest lists no skill.');
 	if (!SEMVER.test(MANIFEST.bundle.version))
 		throw new Error(`The bundle version is not semver: ${MANIFEST.bundle.version}`);
+	for (const gone of MANIFEST.retired ?? [])
+		if (MANIFEST.skills[gone] || sources[gone])
+			throw new Error(`The retired skill ${gone} is still a skill of the bundle.`);
 	for (const folder of Object.keys(sources))
 		if (!MANIFEST.skills[folder])
 			throw new Error(`The skill folder ${folder} is missing from the system skills manifest.`);
@@ -169,7 +175,8 @@ export function systemSkillsIndex(): SystemSkillsIndex {
 			hash: s.hash,
 			files: s.files.map((f) => ({ path: f.path, sha256: f.sha256, bytes: f.bytes }))
 		})),
-		changelog: MANIFEST.changelog
+		changelog: MANIFEST.changelog,
+		retired: MANIFEST.retired ?? []
 	};
 }
 

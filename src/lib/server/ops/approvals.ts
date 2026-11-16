@@ -405,7 +405,7 @@ export async function claimApprovals(
 // -- THE PERSON'S SIDE (A SIGNED-IN PERSON) -- //
 
 /**
- * Kept for one release for the shipped flow-check skill text, which tells an agent to call approval_list first (decision 7 of AFB-20261115-1229). Agent approvals are always on,
+ * Kept for one release for installed copies of the earlier browser checks skill text, which tell an agent to call approval_list first (decision 7 of AFB-20261115-1229). Agent approvals are always on,
  * so it only says so: there is no switch, no link and no history list. Everyone who can read the org may call it.
  */
 export async function approvalList(ctx: Ctx) {

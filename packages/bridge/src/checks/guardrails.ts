@@ -18,7 +18,7 @@ export type Scripts = Record<string, string>;
 // -- CONSTANTS -- //
 
 /** Never used by a check: the dev server, the build preview that is served, and the local Docker PostgreSQL that holds real data. */
-export const FORBIDDEN_PORTS: ReadonlySet<number> = new Set([5180, 5190, 5433]);
+export const FORBIDDEN_PORTS: ReadonlySet<number> = new Set([7173, 7174, 5433]);
 /** The only flags of a build or start command, besides the script name. Anything else could run a file the agent wrote. */
 const ARG_OK = /^(--port|\{port\}|--host|127\.0\.0\.1|--strictPort|--)$/;
 /** The one word a script may be given besides flags: what a database command should do. */

@@ -9,7 +9,9 @@ What the starter gives you:
 - a `<meta name="afb-config">` tag with a mode option as an example (delete what the app does not have: an app with one colour mode declares no mode, and a page with one screen declares no screens). The page draws no switch of its own. Give an option `"screens":["key", ...]` when it matters only on some screens, and make every declared option and screen change the page: style it with `[data-<key>="..."]` selectors on the root element, or define `window.afbSet`.
 - a place for the classes the kit lacks (section 3 of the skill): a `<style>` after the marker, in the same layer as the kit.
 
-To look at the page yourself, make a temporary copy in which the marker is replaced by the text between the kit's `<!--afb-kit:start-->` and `<!--afb-kit:end-->`. Publish the file with the marker.
+To look at the page yourself, make a temporary copy in which the marker is replaced by the text between the kit's `<!--afb-kit:start-->` and `<!--afb-kit:end-->`, and make it again after every edit. Publish the file with the marker. Before publishing, search the file for `PLACEHOLDER`: any left means the starter's shell was not replaced, and you stop.
+
+The `<html>` line below is a shape only. Copy the real root element's attributes from the app's HTML template (`data-mode`, `data-system`, a sidebar state, an inline `style`), not `data-mode="light"` alone, and use only the app's own colour-mode mechanism in the script at the end (delete the class example unless the app uses a class).
 
 **A project with no kit yet.** Build the kit first (the skill, section 2). Do not paste colours, fonts or icons into the page to get by: no emoji, no icon font, no font or image loaded by address and no stylesheet from a network address.
 

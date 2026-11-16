@@ -575,10 +575,10 @@ describe('registry', () => {
 			expect(() => cleanSiteUrl('https://user:pw@x.test')).toThrow(/user name/);
 			expect(() => cleanSiteUrl('not a url')).toThrow(/not a url/);
 			for (const u of [
-				'http://localhost:5180',
-				'http://127.0.0.1:5190/x',
+				'http://localhost:7173',
+				'http://127.0.0.1:7174/x',
 				'http://[::1]:5433',
-				'http://0.0.0.0:5180',
+				'http://0.0.0.0:7173',
 				'http://host.docker.internal:5433'
 			])
 				expect(() => cleanSiteUrl(u), u).toThrow(/never uses/);

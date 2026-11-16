@@ -66,7 +66,7 @@ describe('validateRecipe', () => {
 			'not a plain build or preview command'
 		);
 	});
-	it.each([5180, 5190, 5433])('refuses a ready path that names port %i', (port) => {
+	it.each([7173, 7174, 5433])('refuses a ready path that names port %i', (port) => {
 		expect(validateRecipe({ ...GOOD, ready: `/x${port}` }, SCRIPTS).join(' ')).toContain(
 			String(port)
 		);
@@ -373,7 +373,7 @@ describe('the real hapr-gameplan recipes', () => {
 		);
 		expect(variant({ POSTMARK_SERVER_TOKEN: 'a-literal-token' })).not.toContain('a-literal-token');
 		expect(
-			validateRecipe({ ...web, start: 'pnpm preview --port 5190' }, SCRIPTS).join(' ')
-		).toContain('5190');
+			validateRecipe({ ...web, start: 'pnpm preview --port 7174' }, SCRIPTS).join(' ')
+		).toContain('7174');
 	});
 });

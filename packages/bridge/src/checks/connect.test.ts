@@ -84,7 +84,9 @@ describe('check connect', () => {
 		const start = calls.find((c) => c.url.endsWith('/oauth/device/code'));
 		expect(JSON.parse(start?.body ?? '{}')).toMatchObject({
 			client_name: 'afb-checks',
-			code_challenge_method: 'S256'
+			code_challenge_method: 'S256',
+			// The organisation goes with the code, so the approval page shows that one
+			org: 'arbenger'
 		});
 		// The runner is registered with the personal token once, with the projects asked for
 		const reg = calls.find((c) => c.url.includes('/runners/tool'));
@@ -128,6 +130,24 @@ describe('check connect', () => {
 				wait: async () => undefined
 			})
 		).rejects.toThrow(/manage permission/);
+		expect(loadRunnerToken(store, SERVER, 'arbenger')).toBeNull();
+	});
+
+	it('says plainly that a project key is not one of the organisation, instead of a bare Not found', async () => {
+		const store = fileStore(dir);
+		await expect(
+			connectChecks({
+				server: SERVER,
+				org: 'arbenger',
+				projects: ['ZZZ'],
+				json: false,
+				store,
+				fetch: fakeBoard({ registerStatus: 404 }).fetchImpl,
+				log: () => undefined,
+				out: () => undefined,
+				wait: async () => undefined
+			})
+		).rejects.toThrow(/arbenger has no project with the key ZZZ/);
 		expect(loadRunnerToken(store, SERVER, 'arbenger')).toBeNull();
 	});
 });

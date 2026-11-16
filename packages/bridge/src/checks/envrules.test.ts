@@ -39,8 +39,8 @@ describe('databaseProblems: the local database on 5433 in every spelling', () =>
 			expect(databaseProblems(env).join(' ')).not.toContain('pw-secret-9');
 		});
 
-	it('refuses the person servers 5180 and 5190 and the database 5433 on any variable name', () => {
-		for (const port of [5180, 5190, 5433]) {
+	it('refuses the person servers 7173 and 7174 and the database 5433 on any variable name', () => {
+		for (const port of [7173, 7174, 5433]) {
 			expect(names({ API_BASE: `http://localhost:${port}/api` })).toEqual(['API_BASE']);
 			expect(names({ SOMETHING: `127.0.0.1:${port}` })).toEqual(['SOMETHING']);
 		}
@@ -66,7 +66,7 @@ describe('databaseProblems: the local database on 5433 in every spelling', () =>
 		expect(names(env)).toContain('APP_DB_URL');
 		const host = { DB_HOST: 'localhost', DB_PORT: '5433' };
 		expect(names(host)).toEqual(expect.arrayContaining(['DB_HOST', 'DB_PORT']));
-		const redis = { REDIS_URL: 'redis://localhost', REDIS_PORT: '5190' };
+		const redis = { REDIS_URL: 'redis://localhost', REDIS_PORT: '7174' };
 		expect(names(redis)).toContain('REDIS_URL');
 	});
 

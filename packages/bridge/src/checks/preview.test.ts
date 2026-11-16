@@ -333,10 +333,10 @@ describe('preview', () => {
 				{ runId: 'rlive2', scope: new RunScope('rlive2'), log: () => {} }
 			);
 		for (const url of [
-			'http://127.0.0.1:5180/',
-			'http://localhost:5190/',
+			'http://127.0.0.1:7173/',
+			'http://localhost:7174/',
 			'http://[::1]:5433/',
-			'http://0.0.0.0:5180/'
+			'http://0.0.0.0:7173/'
 		])
 			await expect(run(url), url).rejects.toThrow(/not one a check may use/);
 		await expect(run('ftp://example.com/')).rejects.toThrow(/http/);

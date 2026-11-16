@@ -41,13 +41,13 @@ describe('dev target bridge policy and refusals', () => {
 		rmSync(base, { recursive: true, force: true });
 	});
 
-	it('refuses non-local URLs, missing ports and forbidden ports 5180, 5190, 5433 without saving', () => {
+	it('refuses non-local URLs, missing ports and forbidden ports 7173, 7174, 5433 without saving', () => {
 		for (const bad of [
 			'https://staging.example.com:5173',
 			'http://10.0.0.5:5173',
 			'http://localhost',
-			'http://localhost:5180',
-			'http://127.0.0.1:5190',
+			'http://localhost:7173',
+			'http://127.0.0.1:7174',
 			'http://[::1]:5433',
 			'http://localhost:5173/app'
 		]) {
@@ -68,7 +68,7 @@ describe('dev target bridge policy and refusals', () => {
 
 		const crossPortFetch = vi.fn(
 			async () =>
-				new Response(null, { status: 302, headers: { location: 'http://localhost:5180/' } })
+				new Response(null, { status: 302, headers: { location: 'http://localhost:7173/' } })
 		) as unknown as typeof fetch;
 		const resPort = await probeDevUrl('http://localhost:5173', crossPortFetch);
 		expect(resPort.ok).toBe(false);

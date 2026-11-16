@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.16.0",
-		"releasedAt": "2026-11-15"
+		"version": "1.17.0",
+		"releasedAt": "2026-11-16"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.7.6",
+			"version": "1.8.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -146,11 +146,15 @@
 				{
 					"version": "1.7.6",
 					"hash": "b743da2c8285badd65c975cf9011ca4ca8204d979c400295ebace6421bd4e04b"
+				},
+				{
+					"version": "1.8.0",
+					"hash": "20a1da8203271220ed0d63a251d232eba4d4691395483e700a4f54c61553c301"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.3.3",
+			"version": "1.3.4",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -203,112 +207,15 @@
 				{
 					"version": "1.3.3",
 					"hash": "9f2589005d240e8722c984a4eeef99bcebbfa9186781fa604ef57a3e47bc93a5"
-				}
-			]
-		},
-		"flow-check": {
-			"version": "1.3.2",
-			"history": [
-				{
-					"version": "1.0.0",
-					"hash": "1c153f2dbb240233be890f0efa2d61b3816a48a361b12868efbed37d3bac6395"
 				},
 				{
-					"version": "1.0.1",
-					"hash": "0ab6ecbd7c5dc3cebdbe39af68d78984967969ade1a2d37c04d7a7665afad535"
-				},
-				{
-					"version": "1.1.0",
-					"hash": "0ab6ecbd7c5dc3cebdbe39af68d78984967969ade1a2d37c04d7a7665afad535"
-				},
-				{
-					"version": "1.1.1",
-					"hash": "d774fe10568a9cb6c5939ea4e947ec5f57f39fad062ff8e65a28aecf39be1399"
-				},
-				{
-					"version": "1.1.2",
-					"hash": "6fa74ed324a365be02b84b2daf176271bed6e392c2c0fd3209946d119299db99"
-				},
-				{
-					"version": "1.1.3",
-					"hash": "ea3614de196e58903b99fa4f916cef03720a1390f06646f076c5d91377a8fc0d"
-				},
-				{
-					"version": "1.1.4",
-					"hash": "4ce2af871598a34145201a603eed921197b8a9db4da7f6b40444e5babcad5b58"
-				},
-				{
-					"version": "1.1.5",
-					"hash": "8d038f679d2363229e18acef3822c18372485e751bdec10dcd5e4604e586e6c7"
-				},
-				{
-					"version": "1.1.6",
-					"hash": "e31ab495a078101cd48058b81ad400a9e0a135361e7b577b443a1964586c24f6"
-				},
-				{
-					"version": "1.1.7",
-					"hash": "a00cd782d320c155430fd78f8ac6cb46afdfec8a175fee14dcecfe1bf2430826"
-				},
-				{
-					"version": "1.1.8",
-					"hash": "fede68673f003ad0d903f7613bd8df50f600624f977d0330c3cee86eacb16c1f"
-				},
-				{
-					"version": "1.1.9",
-					"hash": "24207266d7649364f6475b48c04a8dbd061320ec94bff6fc0ee3586be7c68266"
-				},
-				{
-					"version": "1.1.10",
-					"hash": "f4ac12df47d29622d2b417b59ce6adbf5e3bc0aaa7017862bff5a8647f7021e5"
-				},
-				{
-					"version": "1.1.11",
-					"hash": "78e3084f9b5151e1946acd155f62c2acc1bb4609a10ef71895fe7ee42a324418"
-				},
-				{
-					"version": "1.1.12",
-					"hash": "469dd98a6e7a4825c41f10e622e1e71a45dde84322874d4ea0336915ba739e88"
-				},
-				{
-					"version": "1.1.13",
-					"hash": "6db9bd9cdc523f3c787ac13e5c72b2be4254925b8df78c6d41b28160ed4ee56d"
-				},
-				{
-					"version": "1.1.14",
-					"hash": "3d955430f5d11d8e276a8128f4b9bc17b2a8dd69c83c711b3d92152dd4114932"
-				},
-				{
-					"version": "1.1.15",
-					"hash": "dfd35e94a3b48f97885a8f8021a9b1c8cfc34036fc1792269f02b979fc00b27d"
-				},
-				{
-					"version": "1.2.0",
-					"hash": "35a2b9b14b867bc567cca26f6b2c492c38ecabeb24ea6a579e6cc3b304977e63"
-				},
-				{
-					"version": "1.2.1",
-					"hash": "4db17383962841d5a38f8a2c46c49f605670e9405d4d975d73f8f3130bd385b0"
-				},
-				{
-					"version": "1.2.2",
-					"hash": "fbe33aa5211f06ed57f4f26faa7f93ff95bd3f47b3ecc705a66b56443d5439a3"
-				},
-				{
-					"version": "1.3.0",
-					"hash": "8a8e8b7196508a706bac2aee4e0c033ab298a0d4419f011811e739ebdde4ea76"
-				},
-				{
-					"version": "1.3.1",
-					"hash": "46d0abe9e39ef6208667c52cce3f865605d2d5a2c4168fb563ff1fc6227479ce"
-				},
-				{
-					"version": "1.3.2",
-					"hash": "3e54d90a1ad9038fe823e0307fcf17ef7be59a431d5b47e8bd840c854bf4d4e9"
+					"version": "1.3.4",
+					"hash": "9ba5b4127838a276e238d0138fd15d3178cc480cf3514a669bf0befc9c5af1bb"
 				}
 			]
 		},
 		"flow-critic": {
-			"version": "1.5.4",
+			"version": "1.5.5",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -381,11 +288,15 @@
 				{
 					"version": "1.5.4",
 					"hash": "c64c804647d5485717b120759fe912c7ebb67f5aa719a08b17791b0a51351ee9"
+				},
+				{
+					"version": "1.5.5",
+					"hash": "8bf7ff930fad2dfea3014ff57e0b884487d66ec46881aac0deb791ed3e3ac2a5"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.2.2",
+			"version": "1.2.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -438,11 +349,15 @@
 				{
 					"version": "1.2.2",
 					"hash": "e60fa2ccb8a9a2ab878fa04843ba3418428df4ed950c19d74afd9a33eaa6e59f"
+				},
+				{
+					"version": "1.2.3",
+					"hash": "628608b933f214950cd02178b38220206fcafcfdf5ec2bba17275700eb249fc5"
 				}
 			]
 		},
 		"flow-mockup": {
-			"version": "1.8.1",
+			"version": "1.8.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -499,6 +414,10 @@
 				{
 					"version": "1.8.1",
 					"hash": "4c8219e3fd1509b5ecde1a2d3f84acf6c7ef9b4b487e1a5f8cead2e93c0daddd"
+				},
+				{
+					"version": "1.8.2",
+					"hash": "e3c34fdba39fdf6312d4d33c09b7d216559a5dfd9a97dfffddcf6217fe405e85"
 				}
 			]
 		},
@@ -531,45 +450,8 @@
 				}
 			]
 		},
-		"flow-verify": {
-			"version": "1.3.0",
-			"history": [
-				{
-					"version": "1.0.0",
-					"hash": "a06f8da83d904e52197c6c0ccf98d0b7c0961ec45ed7352bb972a560b3304417"
-				},
-				{
-					"version": "1.0.1",
-					"hash": "463fa7d76c6591ab5d6266fe7e66cb372b81c34eae04c99b34fc10ae4ff6d2a9"
-				},
-				{
-					"version": "1.1.0",
-					"hash": "463fa7d76c6591ab5d6266fe7e66cb372b81c34eae04c99b34fc10ae4ff6d2a9"
-				},
-				{
-					"version": "1.1.1",
-					"hash": "9fd56a6d2bc0eb46cc59e639bcb1ca461c6d048fe101dfca9588bad7edef1ea8"
-				},
-				{
-					"version": "1.1.2",
-					"hash": "5aa51c81c9e89114a37e2777556e2fd343c2c35ab2eb384d1b2ec7d39113a3c8"
-				},
-				{
-					"version": "1.1.3",
-					"hash": "41ccd18ebe9d3ffdf6d7c7311b0373a12ed3fe002d8439349ff3f981e8ecf0cf"
-				},
-				{
-					"version": "1.2.0",
-					"hash": "1bd69a44d1315658c50428472d26db895477255ca3ce9a687af0dc747d233197"
-				},
-				{
-					"version": "1.3.0",
-					"hash": "b94479acfd2f089aaa6549bd10711f2bfe448f005a6b4ebf15ee75b031c9b6ba"
-				}
-			]
-		},
 		"flow-align": {
-			"version": "1.3.0",
+			"version": "1.4.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -586,11 +468,35 @@
 				{
 					"version": "1.3.0",
 					"hash": "76c3fa9aa33f4046c23210bb5a4ade2299f323f4dfb99b4295d7d5b8bafdaa4f"
+				},
+				{
+					"version": "1.4.0",
+					"hash": "2801898046e93c6ba7d9727dc3dab21a2e6377283d5c995745cfb0bd8673f203"
 				}
 			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.17.0",
+			"date": "2026-11-16",
+			"notes": [
+				"flow-check and flow-verify are removed. Browser checks and the gates are part of flow now: section 3 step 5a writes and runs an automatic check for a plan with a visible change (a title that starts with Auto, no plan step), keeps the hard safety rules in the skill and moves the bridge reference to a new file, checks.md, read with workflow_get name flow and file checks. flow-verify's gate rules (the files you changed, never a repo-wide rewrite, no related tests is not a pass) are in flow step 5.",
+				"The hand-over after a plan is a choice card where the tool shows GUI questions: Go, /flow-critic then go, just /flow-critic, change the plan, or a custom message. Only Go and /flow-critic then go are a go. Without such a tool it stays plain text.",
+				"An installed copy of a removed skill is offered for removal: flow_skills lists it under retired as remove (not edited) or ask (edited by hand). flow-audit, flow-critic, flow-interview and flow-mockup point at flow instead of the removed skills.",
+				"flow: a Work efficiently section, a phase peek (one read-only screenshot check after a phase that changes a screen, never a gate; the repo rulebook decides the target, then a running dev server read-only, then the preview), a web readiness line in the hand-over (set up checks, never a go) and a guided Set up checks section in checks.md (what the agent does, what only the person does, sign-in by window or a seeded test account). flow-critic reuses recorded results and never runs a check. flow-audit counts only a preview run. flow-align rules block 1.4.0 adds two lines.",
+				"flow is reorganised and gains a supporting file, reference.md (the lite flow, the model reference rows, the tool table, the error codes and the several-mockups sentences, moved word for word and read with workflow_get name flow and file reference); every rule, the safety lists and the sentences the flow-align rules block repeats stay in SKILL.md. The approval gate block is ordered in labelled bullets. New text: what a good step is (section 2), the gate-results record after the end-of-plan gates (step 5), the resume-here refresh at every phase end (step 6a) and work_waiting in the stop reasons. flow-audit compares gate-results and the refreshed resume-here with what was built."
+			],
+			"skills": {
+				"flow": "1.8.0",
+				"flow-audit": "1.3.4",
+				"flow-critic": "1.5.5",
+				"flow-interview": "1.2.3",
+				"flow-mockup": "1.8.2",
+				"flow-task": "1.1.3",
+				"flow-align": "1.4.0"
+			}
+		},
 		{
 			"version": "1.16.0",
 			"date": "2026-11-15",
@@ -1389,5 +1295,9 @@
 				"flow-verify": "1.0.0"
 			}
 		}
+	],
+	"retired": [
+		"flow-check",
+		"flow-verify"
 	]
 }

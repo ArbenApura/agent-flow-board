@@ -25,7 +25,7 @@ const SCRIPTS = {
 
 describe('FORBIDDEN_PORTS', () => {
 	it('holds the dev server, the preview and the local database', () => {
-		expect([...FORBIDDEN_PORTS].sort()).toEqual([5180, 5190, 5433]);
+		expect([...FORBIDDEN_PORTS].sort()).toEqual([5433, 7173, 7174]);
 	});
 });
 
@@ -34,7 +34,7 @@ describe('scriptBodyProblem', () => {
 		expect(scriptBodyProblem('build', SCRIPTS)).toBeNull();
 		expect(scriptBodyProblem('preview', SCRIPTS)).toBeNull();
 	});
-	it.each([5180, 5190, 5433])('refuses port %i', (port) => {
+	it.each([7173, 7174, 5433])('refuses port %i', (port) => {
 		expect(scriptBodyProblem('preview', { preview: `vite preview --port ${port}` })).toContain(
 			String(port)
 		);
@@ -110,7 +110,7 @@ describe('commandProblem', () => {
 	it('refuses a command with no script', () => {
 		expect(commandProblem('yarn', SCRIPTS, 'The build')).toContain('no package.json script');
 	});
-	it.each([5180, 5190, 5433])('refuses a fixed port %i', (port) => {
+	it.each([7173, 7174, 5433])('refuses a fixed port %i', (port) => {
 		expect(commandProblem(`yarn preview --port ${port}`, SCRIPTS, 'The start')).toContain('{port}');
 	});
 	it('refuses an unknown flag and a foreign host', () => {

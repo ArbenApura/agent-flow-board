@@ -31,12 +31,10 @@ const NAMES = [
 	'flow',
 	'flow-align',
 	'flow-audit',
-	'flow-check',
 	'flow-critic',
 	'flow-interview',
 	'flow-mockup',
-	'flow-task',
-	'flow-verify'
+	'flow-task'
 ];
 
 // -- TESTS -- //
@@ -62,8 +60,10 @@ describe('the system skills manifest', () => {
 		for (const rule of rules) expect(flow, rule).toContain(rule);
 	});
 
-	it('lists the nine flow skills, each with a semver version', () => {
+	it('lists the seven flow skills, each with a semver version, and the retired ones apart (AFB-20261116-1457)', () => {
 		expect(Object.keys(MANIFEST.skills).sort()).toEqual(NAMES);
+		expect([...(MANIFEST.retired ?? [])].sort()).toEqual(['flow-check', 'flow-verify']);
+		for (const gone of MANIFEST.retired ?? []) expect(MANIFEST.skills[gone], gone).toBeUndefined();
 		expect(MANIFEST.bundle.version).toMatch(/^\d+\.\d+\.\d+$/);
 		for (const [name, entry] of Object.entries(MANIFEST.skills))
 			expect(entry.version, name).toMatch(/^\d+\.\d+\.\d+$/);
@@ -161,7 +161,7 @@ describe('workflow_get and the bundle', () => {
 		const critic = systemSkills().find((s) => s.name === 'flow-critic')!;
 		for (const f of WORKFLOW_FILE_NAMES)
 			expect(critic.files.find((x) => x.path === `${f}.md`)?.text.trimEnd(), f).toBe(
-				workflowFile(f).trimEnd()
+				workflowFile('flow-critic', f).trimEnd()
 			);
 		expect(critic.files.map((f) => f.path).sort()).toEqual([
 			'SKILL.md',

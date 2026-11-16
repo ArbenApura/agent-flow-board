@@ -71,7 +71,7 @@
 <!-- SECTIONS OF THIS PAGE. EACH ONE IS A CARD THAT SAYS WHAT IT IS FOR AND HOW IT STANDS RIGHT NOW. A SIDEWAYS ROW OF PILLS ON A PHONE -->
 <nav
 	bind:this={row}
-	class="enter -m-1 flex [scrollbar-width:none]! gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain p-1 md:grid md:grid-cols-4 md:overflow-visible [&::-webkit-scrollbar]:hidden"
+	class="enter -m-1 flex [scrollbar-width:none]! gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain p-1 md:grid md:grid-cols-2 md:overflow-visible xl:grid-cols-4 [&::-webkit-scrollbar]:hidden"
 	aria-label="Connect sections"
 	data-testid="connect-tabs"
 >

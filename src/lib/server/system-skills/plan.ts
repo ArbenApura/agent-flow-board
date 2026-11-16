@@ -41,12 +41,17 @@ export type SkillPlan = {
 	files: { path: string; sha256: string; bytes: number }[];
 };
 
+/** A skill that left the bundle and is installed: the manifest names it, never the caller. */
+export type RetiredPlan = { name: string; action: 'retire' | 'ask'; reason: string };
+
 export type InstallPlan = {
 	harness: Harness;
 	scope: Scope;
 	/** The skills folder, or null when the harness has no folder this server knows. */
 	folder: string | null;
 	skills: SkillPlan[];
+	/** Installed copies of skills the bundle no longer has. Only names from the manifest's retired list appear here. */
+	retired: RetiredPlan[];
 	/** How many reported folders are not skills of this bundle. They are left alone and never named. */
 	ignored: number;
 };
@@ -57,11 +62,12 @@ export type InstallPlan = {
 export const INSTALL_STEPS = [
 	'1. Offer once per session, and only when the person did not ask for the install: name this connection, the board address, the folder and the skills, then wait for a yes. After one yes do everything below without more questions.',
 	'2. Find the harness (claude-code, gemini-cli, antigravity, codex or other) and the scope (user unless the person says project). When folder is null, read the tool documentation for its skills folder or ask the person.',
-	'3. List the skills folder. For each folder named like a bundle skill, read its SKILL.md front matter and report stampVersion (afb-version), stampSha256 (afb-source-sha256) and computedSha256: the sha256 of the SKILL.md after removing the lines that start with afb-bundle:, afb-version: and afb-source-sha256:, with LF line endings and no byte order mark. Report otherFilesChanged and files when you can compare them.',
+	'3. List the skills folder. For each folder named like a bundle skill or named in retiredNames of this reply, read its SKILL.md front matter and report stampVersion (afb-version), stampSha256 (afb-source-sha256) and computedSha256: the sha256 of the SKILL.md after removing the lines that start with afb-bundle:, afb-version: and afb-source-sha256:, with LF line endings and no byte order mark. Report otherFilesChanged and files when you can compare them.',
 	'4. Call flow_skills with checked true and what you found. Act on each skill by its action: install and update write every listed file, unchanged does nothing, ask shows the person the reason (and what differs for an edited skill) and waits for a yes.',
-	'5. Write one skill at a time. Get each file from the urls in this reply when you can fetch, otherwise from skills_file (pass next as the next offset and join the parts). Copy any file you overwrite to <name>.<timestamp>.bak first. Keep the file names and folder layout; flow-critic has supporting files next to its SKILL.md.',
+	'5. Write one skill at a time. Get each file from the urls in this reply when you can fetch, otherwise from skills_file (pass next as the next offset and join the parts). Copy any file you overwrite to <name>.<timestamp>.bak first. Keep the file names and folder layout; flow-critic has supporting files next to its SKILL.md, and flow has checks.md and reference.md.',
 	'6. Compare the sha256 of every file you wrote with the plan. If one differs, delete what you wrote for that skill, say so and go on. Never keep a file that failed the check.',
-	'7. Tell the person, skill by skill: installed, updated (from which version to which), unchanged or skipped (and why). Quote the changelog lines. Some tools load new skills only in a new session.'
+	'7. Tell the person, skill by skill: installed, updated (from which version to which), unchanged or skipped (and why). Quote the changelog lines. Some tools load new skills only in a new session.',
+	'8. When the plan lists retired skills, the bundle no longer has them. For action retire, copy the folder to a backup place outside the skills folder (a folder with a SKILL.md inside the skills folder can be loaded as a skill) and then delete the folder; for action ask, show the person the reason and wait for a yes. Delete only a folder the plan names, and say which ones you removed.'
 ];
 
 export const HARNESSES = ['claude-code', 'gemini-cli', 'antigravity', 'codex', 'other'] as const;
@@ -176,18 +182,52 @@ export function changelogCrossed(
 		.map((c) => ({ version: c.version, date: c.date, notes: c.notes }));
 }
 
-/** One action per served skill, in served order. Reported folders that are not bundle skills are counted, never named. */
+/** What to do with an installed copy of a retired skill: remove it, or ask when it may carry the person's own edits. */
+function decideRetired(
+	name: string,
+	found: InstalledSkill,
+	reportedTimes: number
+): Pick<RetiredPlan, 'action' | 'reason'> {
+	if (reportedTimes > 1)
+		return { action: 'ask', reason: 'It was reported twice with possibly different findings.' };
+	if (!found.stampVersion || !found.stampSha256)
+		return {
+			action: 'ask',
+			reason: `${name} has no bundle stamp, so it did not come from this bundle.`
+		};
+	if (!found.computedSha256 || found.computedSha256 !== found.stampSha256)
+		return { action: 'ask', reason: `${name} was edited by hand or was not hashed.` };
+	if (found.otherFilesChanged === true || found.files?.length)
+		return {
+			action: 'ask',
+			reason: `${name} has files next to its SKILL.md that are not part of the bundle.`
+		};
+	return {
+		action: 'retire',
+		reason: `${name} is no longer part of the bundle and was not edited.`
+	};
+}
+
+/**
+ * One action per served skill, in served order. Reported folders that are not bundle skills are counted, never named,
+ * except the retired skills the manifest lists: those get their own entry, built from the manifest's name.
+ */
 export function planSkills(
 	served: ServedSkill[],
 	harness: Harness,
 	scope: Scope,
 	installed: InstalledSkill[] = [],
-	checked = false
+	checked = false,
+	retiredNames: string[] = []
 ): InstallPlan {
 	const byName = new Map(installed.map((i) => [i.name, i]));
 	const counts = new Map<string, number>();
 	for (const i of installed) counts.set(i.name, (counts.get(i.name) ?? 0) + 1);
-	const known = new Set(served.map((s) => s.name));
+	const known = new Set([...served.map((s) => s.name), ...retiredNames]);
+	const retired = [...new Set(retiredNames)].flatMap((name) => {
+		const found = byName.get(name);
+		return found ? [{ name, ...decideRetired(name, found, counts.get(name) ?? 0) }] : [];
+	});
 	return {
 		harness,
 		scope,
@@ -208,6 +248,7 @@ export function planSkills(
 				files: s.files.map((f) => ({ path: f.path, sha256: f.sha256, bytes: f.bytes }))
 			};
 		}),
+		retired,
 		ignored: new Set(installed.map((i) => i.name).filter((n) => !known.has(n))).size
 	};
 }

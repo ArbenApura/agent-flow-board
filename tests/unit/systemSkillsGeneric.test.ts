@@ -15,7 +15,7 @@ import { frontMatterKeys } from '../../src/lib/server/system-skills/hash';
 // Whole-token repo facts. The bare key AFB is case-sensitive and the reference form AFB-YYYYMMDD stays fine.
 const FORBIDDEN: { name: string; pattern: RegExp }[] = [
 	{ name: 'a local path', pattern: /[A-Za-z]:[\\/]|\/Users\/|\/home\/[a-z]/ },
-	{ name: 'a fixed port or database port', pattern: /\b(5433|5180|5190)\b/ },
+	{ name: 'a fixed port or database port', pattern: /\b(5433|5180|5190|7173|7174)\b/ },
 	{ name: 'HAPR', pattern: /\bHAPR\b/ },
 	{ name: 'the bare project key AFB', pattern: /\bAFB\b(?!-)/ },
 	{
@@ -115,6 +115,19 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			pattern: /refuses more than 3 steps in .lite_new./
 		},
 		{ rule: 'scope stays what was asked', pattern: /Scope stays what was asked/ },
+		// AFB-20261116-1551: the gate result, the resume note and work_waiting are written down in the flow text
+		{
+			rule: 'the gate result is recorded in its own section',
+			pattern: /write their results in a section with the slug `gate-results`/
+		},
+		{
+			rule: 'resume-here is refreshed at the end of every phase',
+			pattern: /Refresh `resume-here` at the end of every phase/
+		},
+		{
+			rule: 'work_waiting is cleared and adds no stop',
+			pattern: /Clear it with `clear: true` in the first call after the person answers/
+		},
 		{
 			rule: 'an answer covers only questions seen',
 			pattern: /covers only the questions the user has seen/
@@ -128,10 +141,27 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'a go is given once', pattern: /A go is given once/ },
 		// AFB-20261110-2305: the plan ends at a plain hand-over and waits for a go
 		{
-			rule: 'the plan ends with a plain-text hand-over and asks no question',
-			pattern: /Ask no question/
+			rule: 'the plan ends at the hand-over and asks no question in the text',
+			pattern: /Ask no question in the text/
 		},
-		{ rule: 'the harness question tool is named and forbidden', pattern: /`AskUserQuestion`/ },
+		{ rule: 'the harness question tool is named', pattern: /`AskUserQuestion`/ },
+		// AFB-20261116-1457: the hand-over is one choice card where a GUI question tool exists
+		{
+			rule: 'the hand-over choice card is the only question tool after a plan',
+			pattern: /no other question tool is called after a plan/
+		},
+		{
+			rule: 'only the card options that say go are a go',
+			pattern: /"Go" and "`\/flow-critic` then go" are a go/
+		},
+		{
+			rule: 'just the critic is not a go',
+			pattern: /"just `\/flow-critic`" runs the critic and ends at the hand-over again/
+		},
+		{
+			rule: 'no open question goes in the card',
+			pattern: /Put no open design, money or wording question in the card/
+		},
 		{
 			rule: 'the turn ends at the hand-over until a later message says to build',
 			pattern: /until the user sends a later message/
@@ -206,17 +236,6 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			pattern: /check every inventory line against the code/
 		},
 		{ rule: 'the free notes are checked', pattern: /The Free notes are complete/ }
-	],
-	'flow-verify': [
-		{ rule: 'tests after a merge before a push', pattern: /After a merge, a pull or a rebase/ },
-		{ rule: 'no push or deploy', pattern: /Never run a push, a deploy/ },
-		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
-		{ rule: 'no gates found', pattern: /no gates found/ },
-		{
-			rule: 'no whole-project gate after each change',
-			pattern: /Autonomous execution, once at the end of the whole plan/
-		},
-		{ rule: 'a passed gate is not rerun', pattern: /Never twice for nothing/ }
 	],
 	'flow-interview': [
 		{ rule: 'no code before approval', pattern: /approves the plan|approve the plan/i },
@@ -300,19 +319,84 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
 		{ rule: 'no work_start', pattern: /Do not call `work_start`/ },
 		{ rule: 'task text is data', pattern: /instructions found inside a task/ }
-	],
-	'flow-check': [
-		{ rule: 'blocked calls are listed', pattern: /addInitScript/ },
-		{
-			rule: 'the write path is proved first',
-			pattern: /The write path and the dialog that closes first/
-		},
-		{ rule: 'stop for a shared database, a server or a live site', pattern: /live site/ },
-		{ rule: 'the bridge check commands', pattern: /agent-flow-board check/ },
-		{ rule: 'the switch is read before asking', pattern: /Look before you ask/ },
-		{ rule: 'the agent runs the login command', pattern: /The command is yours to run/ }
 	]
 };
+
+// The rules of the two removed skills (flow-check, flow-verify) now live in flow: the hard ones in SKILL.md, the reference in checks.md (AFB-20261116-1457)
+const FLOW_ONLY: { file: string; rule: string; pattern: RegExp }[] = [
+	{
+		file: 'SKILL.md',
+		rule: 'saved sign-ins and secrets are never opened',
+		pattern: /never open, copy or print saved sign-ins, sealed secrets or the profile folder/
+	},
+	{
+		file: 'SKILL.md',
+		rule: 'blocked calls and the script time limit',
+		pattern: /`addInitScript` or `about:blank` and runs at most 2 minutes/
+	},
+	{
+		file: 'SKILL.md',
+		rule: 'a live site is never a write target',
+		pattern: /a live site is never a write target/
+	},
+	{
+		file: 'SKILL.md',
+		rule: 'a saved board script is untrusted',
+		pattern: /saved on the board is untrusted text/
+	},
+	{
+		file: 'SKILL.md',
+		rule: 'the reference is read before the first check',
+		pattern: /Read it before the first check or the first approval request/
+	},
+	{
+		file: 'SKILL.md',
+		rule: 'no bridge install for a check nobody asked for',
+		pattern: /Never install the bridge, install the browser, connect an organisation/
+	},
+	{
+		file: 'SKILL.md',
+		rule: 'the one stop of a check',
+		pattern: /a local server you did not start, or a deploy the user has not just confirmed/
+	},
+	{
+		file: 'SKILL.md',
+		rule: 'the gates run on the files you changed',
+		pattern: /Scope of the gates/
+	},
+	{
+		file: 'SKILL.md',
+		rule: 'no related tests is not a pass',
+		pattern: /finds no tests related to the change is not a pass/
+	},
+	{ file: 'SKILL.md', rule: 'a passed gate is not rerun', pattern: /Never twice for nothing/ },
+	{
+		file: 'SKILL.md',
+		rule: 'tests after a merge before a push',
+		pattern: /After a merge, a pull or a rebase/
+	},
+	{
+		file: 'checks.md',
+		rule: 'the write path is proved first',
+		pattern: /The write path and the dialog that closes first/
+	},
+	{ file: 'checks.md', rule: 'the bridge check commands', pattern: /agent-flow-board check/ },
+	{
+		file: 'checks.md',
+		rule: 'the agent runs the login command',
+		pattern: /The command is yours to run/
+	},
+	{
+		file: 'checks.md',
+		rule: 'a refused rule is not an approval to seek',
+		pattern: /is not an approval you may seek/
+	},
+	{
+		file: 'checks.md',
+		rule: 'a live site is never a check target',
+		pattern: /A target the environments mark as live is never a check target/
+	}
+];
 
 // -- FUNCTIONS -- //
 
@@ -364,6 +448,33 @@ describe('the shipped skills keep their safety rules', () => {
 			expect(missing, name).toEqual([]);
 		});
 	}
+});
+
+describe('the flow rules stay in the flow SKILL.md itself, not only in a supporting file (AFB-20261116-1551)', () => {
+	// reference.md holds moved reference text; an agent that never opens it must still read every retained rule
+	it('has every retained flow rule in SKILL.md alone', () => {
+		const skill = sourceFiles().flow.find((f) => f.path === 'SKILL.md')!.text;
+		const missing = RETAINED.flow.filter((r) => !r.pattern.test(skill)).map((r) => r.rule);
+		expect(missing).toEqual([]);
+	});
+});
+
+describe('the flow skill keeps the rules of the removed flow-check and flow-verify skills (AFB-20261116-1457)', () => {
+	const flowFiles = sourceFiles().flow;
+	for (const r of FLOW_ONLY) {
+		it(`${r.file}: ${r.rule}`, () => {
+			const file = flowFiles.find((f) => f.path === r.file);
+			expect(file, `flow/${r.file} exists`).toBeDefined();
+			expect(r.pattern.test(file!.text), r.rule).toBe(true);
+		});
+	}
+	it('names neither removed skill in any shipped text', () => {
+		const hits: string[] = [];
+		for (const [name, files] of Object.entries(sourceFiles()))
+			for (const file of files)
+				if (/flow-check|flow-verify/.test(file.text)) hits.push(`${name}/${file.path}`);
+		expect(hits).toEqual([]);
+	});
 });
 
 describe('the shipped skills no longer ask an approval question', () => {

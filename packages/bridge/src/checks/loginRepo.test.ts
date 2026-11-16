@@ -172,7 +172,7 @@ describe('the pasted sign-in link', () => {
 			/not this preview/
 		);
 		// Another service on this machine (the dev server, the preview on another port) is not this preview
-		expect(linkProblem('http://127.0.0.1:5180/x', allowed)).toMatch(/not this preview/);
+		expect(linkProblem('http://127.0.0.1:7173/x', allowed)).toMatch(/not this preview/);
 		expect(linkProblem('http://127.0.0.1/x', allowed)).toMatch(/not this preview/);
 		expect(linkProblem('file:///C:/secrets.txt', allowed)).toMatch(/Only a web address/);
 		expect(linkProblem('javascript:alert(1)', allowed)).toMatch(/Only a web address/);

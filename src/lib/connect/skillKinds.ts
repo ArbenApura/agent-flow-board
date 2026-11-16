@@ -10,8 +10,6 @@ export type SkillIcon =
 	| 'messages-square'
 	| 'scan-search'
 	| 'clipboard-list'
-	| 'shield-check'
-	| 'flask-conical'
 	| 'pencil-ruler'
 	| 'compass'
 	| 'sparkles';
@@ -53,18 +51,6 @@ export const SKILL_INFO: Record<string, SkillInfo> = {
 		icon: 'clipboard-list',
 		summary:
 			'Compares what was built with what the board says, in both directions, and fixes the board so it tells the truth.'
-	},
-	'flow-verify': {
-		kind: 'Check',
-		icon: 'shield-check',
-		summary:
-			'Works out which files changed and runs only the gates they need, then reports pass or fail for each.'
-	},
-	'flow-check': {
-		kind: 'Check',
-		icon: 'flask-conical',
-		summary:
-			'Writes, runs and reads browser checks on this machine through the bridge, with no steps typed by hand.'
 	},
 	'flow-mockup': {
 		kind: 'Design',
