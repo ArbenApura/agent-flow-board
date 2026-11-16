@@ -11,7 +11,7 @@
 		favourite: boolean;
 		excerpt: string;
 		match: { text: string; marks: [number, number][] } | null;
-		lastEditor: { id: string; name: string } | null;
+		lastEditor: { id: string; name: string; v?: number | null } | null;
 		updatedAt: Date | string;
 	};
 </script>

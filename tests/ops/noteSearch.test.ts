@@ -88,7 +88,7 @@ describe('note search', () => {
 		const row = all.notes.find((n) => n.title === 'Excerpt check');
 		expect(row?.excerpt).toBe('Bold words and a link before the zircontide word.');
 		expect(row?.match).toBeNull();
-		expect(row?.lastEditor).toEqual({ id: w.people.member, name: 'member' });
+		expect(row?.lastEditor).toEqual({ id: w.people.member, name: 'member', v: null });
 		const hit = (await listNotes(m, { project: P(), q: 'zircontide' })).notes[0];
 		expect(hit?.match?.text).toContain('zircontide');
 		const [a, b] = hit?.match?.marks[0] ?? [0, 0];

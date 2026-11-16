@@ -66,7 +66,12 @@
 	{/if}
 	<div class="mt-auto flex min-w-0 items-center gap-2 border-t border-line pt-3 text-xs text-muted">
 		{#if note.lastEditor}
-			<Avatar name={note.lastEditor.name} userId={note.lastEditor.id} size={24} />
+			<Avatar
+				name={note.lastEditor.name}
+				userId={note.lastEditor.id}
+				v={note.lastEditor.v}
+				size={24}
+			/>
 			<span class="truncate">{note.lastEditor.name}</span>
 			<span aria-hidden="true">·</span>
 		{/if}

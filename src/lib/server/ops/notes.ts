@@ -24,7 +24,8 @@ import {
 	noteLink,
 	noteUpdate,
 	noteVersion,
-	user
+	user,
+	userPictureV
 } from '../db/schema';
 import { noteCreateInput, noteUpdateInput } from '../db/zod';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
@@ -372,11 +373,12 @@ export async function listNotes(ctx: Ctx, raw: z.input<typeof noteListInput>) {
 			: [...new Set(page.map((r) => r.updatedBy ?? r.createdBy).filter((v): v is string => !!v))];
 		const people = ids.length
 			? await tx
-					.select({ id: user.id, name: user.name })
+					.select({ id: user.id, name: user.name, v: userPictureV })
 					.from(user)
 					.where(sql`${user.id} in (${sql.join(ids, sql`, `)})`)
 			: [];
 		const nameOf = new Map(people.map((p) => [p.id, p.name]));
+		const pictureOf = new Map(people.map((p) => [p.id, p.v]));
 		return {
 			project: { id: proj.id, key: proj.key },
 			notes: page.map(({ source, updatedBy, ...r }) => {
@@ -387,7 +389,13 @@ export async function listNotes(ctx: Ctx, raw: z.input<typeof noteListInput>) {
 					mine: r.createdBy === me,
 					excerpt: input.brief ? '' : noteExcerpt(r.title, source),
 					match: input.q && !input.brief ? noteMatch(source, input.q) : null,
-					lastEditor: editor ? { id: editor, name: nameOf.get(editor) ?? 'Someone' } : null
+					lastEditor: editor
+						? {
+								id: editor,
+								name: nameOf.get(editor) ?? 'Someone',
+								v: pictureOf.get(editor) ?? null
+							}
+						: null
 				};
 			}),
 			next: rows.length > input.limit ? input.offset + input.limit : null
