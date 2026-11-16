@@ -455,6 +455,19 @@ body {
 		transform-origin: left;
 		animation: afb-fill 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 120ms both;
 	}
+	/* ACTIVITY AND TRASH ROWS FADE UP IN TURN (THE FIRST TEN), THE DAYS LEFT RING DRAWS ONCE */
+	.row-in {
+		animation: afb-rise 220ms ease-out both;
+		animation-delay: calc(min(var(--i, 0), 9) * 35ms);
+	}
+	.ring-draw {
+		animation: afb-ring-draw 800ms cubic-bezier(0.4, 0, 0.2, 1) both;
+	}
+}
+@keyframes afb-ring-draw {
+	from {
+		stroke-dashoffset: 100.53;
+	}
 }
 
 /* TEXTURE LAYERS (FLOW-20261016-0935 10.4 AND 14.2). EACH IS A FIXED LAYER BEHIND THE PAGE, DRAWN FROM TOKENS, SO IT NEVER REPAINTS ON SCROLL */

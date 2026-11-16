@@ -1,22 +1,11 @@
 // IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
-// IMPORTED MODULES
-import { OpError } from '#lib/server/ops/context.js';
-import { listTrash } from '#lib/server/ops/history.js';
-import { childContext, pageError } from '#lib/server/web/ctx.js';
+// IMPORTED ENVS
+import { redirect } from '@sveltejs/kit';
 
 // -- FUNCTIONS -- //
 
-/** What is in the trash. Reading it needs the delete capability, so a viewer sees a permission panel. */
-export const load: PageServerLoad = async ({ params, parent, locals, depends }) => {
-	depends('afb:project');
-	const { org, summary } = await parent();
-	if (!summary) return { trash: null, denied: null };
-	const ctx = await childContext(locals, org.id);
-	try {
-		return { trash: await listTrash(ctx, params.project), denied: null };
-	} catch (e) {
-		if (e instanceof OpError) return { trash: null, ...pageError(e) };
-		throw e;
-	}
+/** The Trash page now lives in Project settings. Old bookmarks and links land on its section. */
+export const load: PageServerLoad = ({ params }) => {
+	redirect(308, `/${params.org}/${params.project}/settings?tab=trash`);
 };

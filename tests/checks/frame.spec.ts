@@ -13,7 +13,7 @@ const ORG_SCREENS = [
 	'/acme/CKT?view=list',
 	'/acme/CKT/CKT-1',
 	'/acme/CKT/tasks',
-	'/acme/CKT/activity',
+	'/acme/CKT/settings?tab=activity',
 	'/acme/search?q=promo',
 	'/acme/settings',
 	'/acme/CKT/settings',

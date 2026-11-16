@@ -174,7 +174,7 @@ test('M6 undo restores a deleted item from the trash and from the activity log',
 	await page.getByRole('button', { name: 'Move to trash' }).click();
 	await expect(page).toHaveURL(/\/acme\/CKT$/);
 	// It is in the trash, with days left, and restoring brings it back
-	await page.goto('/acme/CKT/trash');
+	await page.goto('/acme/CKT/settings?tab=trash');
 	const row = page.getByTestId('trash-items').getByRole('listitem').filter({ hasText: made.ref });
 	await expect(row).toContainText('30 days left');
 	await row.getByTestId('restore').click();
@@ -183,7 +183,7 @@ test('M6 undo restores a deleted item from the trash and from the activity log',
 	await expect(page.getByTestId('page-title')).toHaveText('Board check item to delete');
 	// Delete again and undo from the activity log instead
 	await page.request.delete(`${ACME}/items/${made.ref}`);
-	await page.goto('/acme/CKT/activity');
+	await page.goto('/acme/CKT/settings?tab=activity');
 	await page
 		.locator('[data-testid="event"][data-verb="item.delete"]')
 		.first()
@@ -232,7 +232,7 @@ test('M6 permission denied is a panel that names the role, and a viewer sees no 
 	baseURL
 }) => {
 	const { ctx, page } = await as(browser, baseURL!, 'viewer@acme.example');
-	await page.goto('/acme/CKT/trash');
+	await page.goto('/acme/CKT/settings?tab=trash');
 	await expect(page.getByRole('alert')).toContainText('You cannot open the trash');
 	await expect(page.getByRole('alert')).toContainText('Member');
 	await expect(page.getByRole('alert')).toContainText('Viewer');
@@ -275,7 +275,7 @@ test('M6 the pages work on a phone: no sideways scroll, a menu drawer, big tap t
 		'/acme/CKT?view=list',
 		'/acme/CKT/CKT-1',
 		'/acme/CKT/tasks',
-		'/acme/CKT/activity'
+		'/acme/CKT/settings?tab=activity'
 	]) {
 		await page.goto(path);
 		await expect(page.getByTestId('page-title')).toBeVisible();
@@ -450,14 +450,14 @@ test('M7 first load JavaScript and the server response of the board pages stay i
 		'/acme/CKT/CKT-1?tab=checks',
 		'/acme/CKT/CKT-1?tab=ui',
 		'/acme/CKT/tasks',
-		'/acme/CKT/activity',
+		'/acme/CKT/settings?tab=activity',
 		'/acme/CKT/ui',
 		'/acme/CKT/settings',
 		'/acme/settings',
 		'/acme/LOAD',
 		'/acme/LOAD?view=areas',
 		'/acme/LOAD/tasks',
-		'/acme/LOAD/activity',
+		'/acme/LOAD/settings?tab=activity',
 		'/acme/LOAD/ui'
 	];
 	for (const path of PAGES) {

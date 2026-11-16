@@ -41,7 +41,6 @@ test('M9 a tool hook call over the API gives a brief, a title once, a close ques
 }) => {
 	const { ctx, page } = await as(browser, baseURL!, 'owner@acme.example');
 	const { key, ref } = await setup(page);
-	await page.request.patch(`${ACME}/projects/${key}`, { data: { agentsMayComplete: true } });
 	const other = await (
 		await page.request.post(`${ACME}/projects/${key}/items`, {
 			data: { title: 'Another item', phases: [] }

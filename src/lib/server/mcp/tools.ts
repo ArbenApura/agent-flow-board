@@ -807,7 +807,6 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				streams: p.streams,
 				// An empty list means the project sets none: an item may name any stream and scope, and takes these when it names none
 				defaults: { stream: DEFAULT_STREAM, scope: DEFAULT_SCOPE },
-				agentsMayComplete: p.agentsMayComplete,
 				webApp: p.webApp,
 				workflows: WORKFLOWS.map((w) => ({ name: w.name, summary: w.summary })),
 				lensPack: parseLensPack(p.rules ?? ''),
