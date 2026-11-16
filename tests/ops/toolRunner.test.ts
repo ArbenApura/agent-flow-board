@@ -10,18 +10,22 @@ import {
 	claimCheckJob,
 	finishCheckRun,
 	itemChecks,
+	peekQueue,
 	requestRun,
 	runnerStatus,
 	saveCheck
 } from '../../src/lib/server/ops/checks';
 import {
+	listMyBridges,
+	removeMyBridge,
+	setMyBridgeProjects
+} from '../../src/lib/server/ops/bridgeRunners';
+import {
 	TOOL_AUDIT_HEADER,
 	TOOL_PROTOCOL_HEADER,
 	authenticateRunner,
 	createRunner,
-	listRunners,
-	registerToolRunner,
-	setRunnerProjects
+	registerToolRunner
 } from '../../src/lib/server/ops/environments';
 import { createItem } from '../../src/lib/server/ops/items';
 import { updateProject } from '../../src/lib/server/ops/projects';
@@ -65,11 +69,11 @@ describe('the afb-checks tool as a runner', () => {
 	}, 240_000);
 	afterAll(() => db?.stop());
 
-	it('only a manager registers a tool, the token is shown once, and the same name replaces the old token', async () => {
+	it('a member who may write registers their own tool, a viewer cannot, the token is shown once, and the same name replaces the old token', async () => {
 		await expect(
-			registerToolRunner(as('member'), { name: 'My PC afb-checks' })
+			registerToolRunner(as('viewer'), { name: 'My PC afb-checks' })
 		).rejects.toMatchObject({ code: 'FORBIDDEN' });
-		const first = await registerToolRunner(as('admin'), { name: 'My PC afb-checks' });
+		const first = await registerToolRunner(as('member'), { name: 'My PC afb-checks' });
 		expect(first.token).toMatch(/^afx_/);
 		expect(first.kind).toBe('tool');
 		expect(first.projects).toBeGreaterThanOrEqual(1);
@@ -77,21 +81,21 @@ describe('the afb-checks tool as a runner', () => {
 			kind: 'tool',
 			name: 'My PC afb-checks'
 		});
-		const second = await registerToolRunner(as('admin'), { name: 'My PC afb-checks' });
+		const second = await registerToolRunner(as('member'), { name: 'My PC afb-checks' });
 		expect(second.id).toBe(first.id);
 		expect(await authenticateRunner(db, first.token)).toBeNull();
 		expect(await authenticateRunner(db, second.token)).not.toBeNull();
-		const listed = (await listRunners(as('admin'))).filter((r) => r.kind === 'tool');
+		const listed = (await listMyBridges(as('member'))).bridges;
 		expect(listed).toHaveLength(1);
 		expect(JSON.stringify(listed)).not.toContain(second.token);
 		// A tool named for projects serves only those
-		const scoped = await registerToolRunner(as('admin'), {
+		const scoped = await registerToolRunner(as('member'), {
 			name: 'Laptop afb-checks',
 			projects: [w.projectKey]
 		});
 		expect(scoped.projects).toBe(1);
 		await expect(
-			registerToolRunner(as('admin'), { name: 'Bad', projects: ['NOPE'] })
+			registerToolRunner(as('member'), { name: 'Bad', projects: ['NOPE'] })
 		).rejects.toThrow();
 	});
 
@@ -115,7 +119,7 @@ describe('the afb-checks tool as a runner', () => {
 		)!;
 		expect(before.available).toBe(false);
 		expect(before.reason).toMatch(/afb-checks/);
-		const tool = await registerToolRunner(as('admin'), { name: 'Desk afb-checks' });
+		const tool = await registerToolRunner(as('member'), { name: 'Desk afb-checks' });
 		const auth = (await authenticateRunner(db, tool.token))!;
 		const after = (await itemChecks(as('member'), item.ref)).targets.find(
 			(t) => t.target === 'preview'
@@ -149,7 +153,7 @@ describe('the afb-checks tool as a runner', () => {
 
 	it("there is no default target setting: a run that names no target is on the preview, the old field is ignored, and a pin or a person's saved choice still wins", async () => {
 		await db.admin.exec(`delete from runner where org_id = '${w.orgId}'`);
-		const tool = await registerToolRunner(as('admin'), { name: 'Target afb-checks' });
+		const tool = await registerToolRunner(as('member'), { name: 'Target afb-checks' });
 		// A tool counts as online once it has called the board
 		await authenticateRunner(db, tool.token);
 		const item = await createItem(as('member'), {
@@ -184,7 +188,7 @@ describe('the afb-checks tool as a runner', () => {
 			phases: [{ key: '1', title: 'B', steps: [{ text: 'x' }] }]
 		});
 		await saveCheck(as('member'), { item: item.ref, key: 'M1', script: 's' });
-		const tool = await registerToolRunner(as('admin'), { name: 'Other afb-checks', projects: [] });
+		const tool = await registerToolRunner(as('member'), { name: 'Other afb-checks', projects: [] });
 		const toolAuth = (await authenticateRunner(db, tool.token))!;
 		const hosted = await createRunner(as('admin'), {
 			name: 'Hosted',
@@ -198,7 +202,7 @@ describe('the afb-checks tool as a runner', () => {
 		expect(await claimCheckJob(db, toolAuth, services)).toBeNull();
 		expect(await claimCheckJob(db, hostedAuth, services)).toBeNull();
 		// Once the tool serves the project the run is asked for and the tool takes it
-		await setRunnerProjects(as('admin'), tool.id, [w.projectKey]);
+		await setMyBridgeProjects(as('member'), { id: tool.id, projects: [w.projectKey] });
 		const fresh = (await authenticateRunner(db, tool.token))!;
 		const asked = await requestRun(as('member'), { item: item.ref, key: 'M1', target: 'preview' });
 		expect(asked.unavailable).toBe(false);
@@ -207,7 +211,7 @@ describe('the afb-checks tool as a runner', () => {
 		expect(await claimCheckJob(db, fresh, services)).not.toBeNull();
 	});
 
-	it('a tool stops working the moment the person who made it is removed or can no longer manage', async () => {
+	it('a tool stops working the moment the person who made it is removed or can no longer write', async () => {
 		const tool = await registerToolRunner(as('admin'), { name: 'Admin afb-checks' });
 		expect(await authenticateRunner(db, tool.token)).not.toBeNull();
 		await db.admin.exec(
@@ -275,6 +279,97 @@ describe('the afb-checks tool as a runner', () => {
 			`select audit_lines from runner where id = '${hosted.id}'`
 		);
 		expect(rows[0].audit_lines).toBeNull();
+	});
+
+	it("a colleague's computer never takes my run, is never listed or counted, and I cannot change or remove it", async () => {
+		await db.admin.exec(`delete from runner where org_id = '${w.orgId}'`);
+		const theirs = await registerToolRunner(as('admin'), { name: 'Their afb-checks' });
+		const theirAuth = (await authenticateRunner(db, theirs.token))!;
+		const item = await createItem(as('member'), {
+			project: w.projectKey,
+			title: 'Not shared',
+			phases: [{ key: '1', title: 'B', steps: [{ text: 'x' }] }]
+		});
+		await saveCheck(as('member'), { item: item.ref, key: 'M1', script: 's' });
+		// Their computer is online, yet for me the preview target is not available and the status says nobody is online
+		const mine = (await itemChecks(as('member'), item.ref)).targets.find(
+			(t) => t.target === 'preview'
+		)!;
+		expect(mine.available).toBe(false);
+		expect((await runnerStatus(as('member'), w.projectKey)).projects[0].online).toBe(false);
+		expect((await runnerStatus(as('admin'), w.projectKey)).projects[0].online).toBe(true);
+		const asked = await requestRun(as('member'), { item: item.ref, key: 'M1', target: 'preview' });
+		expect(asked.unavailable).toBe(true);
+		// A run that does sit queued for me is not taken, and does not wake, their computer
+		await db.admin.exec(
+			`update check_run set result = 'queued', finished_at = null where id = '${asked.run.id}'`
+		);
+		expect(await claimCheckJob(db, theirAuth, services)).toBeNull();
+		expect(await peekQueue(db, theirAuth)).toBe(0);
+		// I see none of their computers, and cannot change or remove one by its id
+		expect((await listMyBridges(as('member'))).bridges).toHaveLength(0);
+		await expect(
+			setMyBridgeProjects(as('member'), { id: theirs.id, projects: [w.projectKey] })
+		).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(removeMyBridge(as('member'), theirs.id)).rejects.toMatchObject({
+			code: 'NOT_FOUND'
+		});
+		expect(await authenticateRunner(db, theirs.token)).not.toBeNull();
+		// Their own list shows it, and a computer of mine takes my run
+		expect((await listMyBridges(as('admin'))).bridges.map((b) => b.id)).toEqual([theirs.id]);
+		const mineTool = await registerToolRunner(as('member'), { name: 'My afb-checks' });
+		const mineAuth = (await authenticateRunner(db, mineTool.token))!;
+		// Runs queued by earlier tests are closed, so the next one waiting for me is this one
+		await db.admin.exec(
+			`update check_run set result = 'error', finished_at = now() where result = 'queued' and id <> '${asked.run.id}'`
+		);
+		expect((await claimCheckJob(db, mineAuth, services))?.id).toBe(asked.run.id);
+		// Removing my own computer ends the run it held with a plain reason
+		await removeMyBridge(as('member'), mineTool.id);
+		expect(await authenticateRunner(db, mineTool.token)).toBeNull();
+		const [ended] = await db.admin.query<{ result: string; reason: string }>(
+			`select result, reason from check_run where id = '${asked.run.id}'`
+		);
+		expect(ended.result).toBe('error');
+		expect(ended.reason).toMatch(/removed/);
+	});
+
+	it('only a person who may write changes or removes their own computer, only for projects they may write to, and two registrations at once make one row', async () => {
+		await db.admin.exec(`delete from runner where org_id = '${w.orgId}'`);
+		const mine = await registerToolRunner(as('member'), { name: 'Edges afb-checks' });
+		// A viewer has no computer, and cannot change or remove one, even by its id
+		await expect(
+			setMyBridgeProjects(as('viewer'), { id: mine.id, projects: [w.projectKey] })
+		).rejects.toMatchObject({ code: 'FORBIDDEN' });
+		await expect(removeMyBridge(as('viewer'), mine.id)).rejects.toMatchObject({
+			code: 'FORBIDDEN'
+		});
+		// An unknown project is refused and changes nothing
+		await expect(
+			setMyBridgeProjects(as('member'), { id: mine.id, projects: ['NOPE'] })
+		).rejects.toThrow();
+		// A project this person may not write to is refused: a viewer of the project cannot opt a computer into it
+		await db.admin.exec(
+			`update member set role = 'viewer' where org_id = '${w.orgId}' and user_id = '${w.people.member}'`
+		);
+		await expect(
+			setMyBridgeProjects(as('member'), { id: mine.id, projects: [w.projectKey] })
+		).rejects.toMatchObject({ code: 'FORBIDDEN' });
+		await db.admin.exec(
+			`update member set role = 'member' where org_id = '${w.orgId}' and user_id = '${w.people.member}'`
+		);
+		// Two registrations of one computer at once end in one row, and its newest token is the one that works
+		const [a, b] = await Promise.all([
+			registerToolRunner(as('member'), { name: 'Twin afb-checks' }),
+			registerToolRunner(as('member'), { name: 'Twin afb-checks' })
+		]);
+		const rows = await db.admin.query<{ id: string }>(
+			`select id from runner where org_id = '${w.orgId}' and name = 'Twin afb-checks'`
+		);
+		expect(rows).toHaveLength(1);
+		expect(a.id).toBe(b.id);
+		const works = [await authenticateRunner(db, a.token), await authenticateRunner(db, b.token)];
+		expect(works.filter(Boolean)).toHaveLength(1);
 	});
 
 	it('a tool older than the board expects is told to upgrade, and a runner program that names no version is unchanged', async () => {

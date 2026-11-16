@@ -71,7 +71,7 @@ describe('agent approvals, end to end', () => {
 		const tool = await registerToolRunner(as('admin'), { name: 'E2E off' });
 		const board = new RunnerBoard('http://board.test', tool.token, wire() as never);
 		await db.admin.exec(
-			`update member set role = 'member' where org_id = '${w.orgId}' and user_id = '${w.people.admin}'`
+			`update member set role = 'viewer' where org_id = '${w.orgId}' and user_id = '${w.people.admin}'`
 		);
 		const refusal = await askOwner(board, {
 			entries: [{ action: 'roots', target: home }],

@@ -15,6 +15,7 @@
 	import { daysUntil, formatUtcDate } from '#lib/board/when.js';
 	import IdentityHeader from '#lib/settings/IdentityHeader.svelte';
 	import ModePreview from '#lib/settings/ModePreview.svelte';
+	import MyComputers from '#lib/settings/MyComputers.svelte';
 	import Section from '#lib/settings/Section.svelte';
 	import SettingsRow from '#lib/settings/SettingsRow.svelte';
 	import { live, setLiveMode } from '#lib/theme/live.svelte.js';
@@ -23,7 +24,6 @@
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
-	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import GoogleLogo from '#lib/ui/GoogleLogo.svelte';
 	import PasswordStrength from '#lib/ui/PasswordStrength.svelte';
 	import PictureUpload from '#lib/ui/PictureUpload.svelte';
@@ -332,7 +332,7 @@
 								? 'Your email address and a password'
 								: 'Sign in with your Google account'}
 						</span>
-						{#snippet trail()}<Badge tone="success" dot>Connected</Badge>{/snippet}
+						{#snippet trail()}<Badge tone="success" icon>Connected</Badge>{/snippet}
 					</SettingsRow>
 				{/each}
 			</ul>
@@ -395,7 +395,7 @@
 							>
 							{#snippet trail()}
 								{#if s.current}
-									<Badge tone="success" dot>This device</Badge>
+									<Badge tone="success" icon>This device</Badge>
 								{:else}
 									<Button variant="ghost" tone="danger" onclick={() => endSession(s.token)}
 										>End it</Button
@@ -420,45 +420,65 @@
 			icon={Plug}
 			group="Security"
 			title="Tools and tokens"
-			text="The coding tools and tokens that act as you. Revoke one and it stops at once."
+			text="Your computers that run your browser checks, and the sign-ins that act as you. Nobody else can use either."
 		>
-			{#if data.tools.length === 0}
-				<EmptyState
-					kind="tools"
-					title="No tool is connected"
-					text="A coding tool you connect shows up here, and you can cut it off at any time."
-				>
-					{#snippet action()}<Button href="/connect">Connect a tool</Button>{/snippet}
-				</EmptyState>
-			{:else}
-				<ul class="overflow-hidden rounded-lg border border-line" data-testid="tool-list">
-					{#each data.tools as t (t.id)}
-						{@const left = expiry(t.expiresAt)}
-						<SettingsRow data-testid="tool">
-							{#snippet lead()}<OrgTile
-									name={t.orgName}
-									logo={logoOf(t.org)}
-									palette={paletteOf(t.org)}
-								/>{/snippet}
-							<span class="block truncate font-medium text-ink">{t.name}</span>
-							<span class="block truncate text-xs text-muted"
-								>{t.orgName}, <span class={cn(left.soon && 'text-warning')}>{left.text}</span></span
-							>
-							{#snippet trail()}
-								<Badge>{t.kind}</Badge>
-								<Button variant="ghost" tone="danger" onclick={() => revokeTool(t.org, t.id)}
-									>Revoke</Button
-								>
-							{/snippet}
-						</SettingsRow>
-					{/each}
-				</ul>
+			<!-- YOUR COMPUTERS -->
+			<div class="flex flex-col gap-2" data-testid="computers">
 				<div>
-					<a class="text-sm text-accent-text hover:underline" href="/connect"
-						>Connect another tool</a
-					>
+					<h3 class="text-xs font-medium text-muted">Your computers</h3>
+					<p class="text-xs text-muted">
+						A computer of yours that runs browser checks for you, with the agent-flow-board bridge.
+						A colleague's computer never runs yours, and yours never runs theirs.
+					</p>
 				</div>
-			{/if}
+				<MyComputers computers={data.computers} {logoOf} {paletteOf} />
+			</div>
+
+			<!-- SIGN-INS -->
+			<div class="flex flex-col gap-2" data-testid="signins">
+				<div>
+					<h3 class="text-xs font-medium text-muted">Sign-ins</h3>
+					<p class="text-xs text-muted">
+						The coding tools and tokens that act as you. Revoke one and it stops at once.
+					</p>
+				</div>
+				{#if data.tools.length === 0}
+					<p class="rounded-lg border border-line px-3 py-3 text-sm text-muted">
+						No tool is signed in as you. A coding tool you connect shows up here, and you can cut it
+						off at any time.
+						<a class="text-accent-text hover:underline" href="/connect">Connect a tool</a>
+					</p>
+				{:else}
+					<ul class="overflow-hidden rounded-lg border border-line" data-testid="tool-list">
+						{#each data.tools as t (t.id)}
+							{@const left = expiry(t.expiresAt)}
+							<SettingsRow data-testid="tool">
+								{#snippet lead()}<OrgTile
+										name={t.orgName}
+										logo={logoOf(t.org)}
+										palette={paletteOf(t.org)}
+									/>{/snippet}
+								<span class="block truncate font-medium text-ink">{t.name}</span>
+								<span class="block truncate text-xs text-muted"
+									>{t.orgName},
+									<span class={cn(left.soon && 'text-warning')}>{left.text}</span></span
+								>
+								{#snippet trail()}
+									<Badge>{t.kind}</Badge>
+									<Button variant="ghost" tone="danger" onclick={() => revokeTool(t.org, t.id)}
+										>Revoke</Button
+									>
+								{/snippet}
+							</SettingsRow>
+						{/each}
+					</ul>
+					<div>
+						<a class="text-sm text-accent-text hover:underline" href="/connect"
+							>Connect another tool</a
+						>
+					</div>
+				{/if}
+			</div>
 		</Section>
 
 		<!-- PREFERENCES -->

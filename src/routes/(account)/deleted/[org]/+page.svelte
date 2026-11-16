@@ -49,8 +49,8 @@
 		<h2 class="text-lg font-semibold">What this means</h2>
 		<p class="text-[15px] leading-6">
 			An owner deleted this organisation on {day(data.deletedAt)}. Nobody can open its projects, and
-			its tokens, runners and connected tools have stopped. Everything inside it is erased for good
-			when the date above comes.
+			its tokens and connected apps have stopped. Everything inside it is erased for good when the
+			date above comes.
 		</p>
 		{#if data.purging}
 			<Notice tone="warning" data-testid="deleted-purging">

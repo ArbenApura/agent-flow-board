@@ -31,7 +31,7 @@ export const RUN_FIXES: Record<RunErrorCode, string> = {
 	PREVIEW_HOST_UNREACHABLE:
 		'The preview started but the tool could not reach it. Make the preview listen on 127.0.0.1 (preview host), then run again.',
 	PREVIEW_PORT_BUSY:
-		'The port the preview needs is taken. Run again; the tool picks a free port above 5200. Never free 5180 or 5190.',
+		'The port the preview needs is taken. Run again; the tool picks a free port of its own. Never free 7173 or 7174.',
 	DB_NOT_THROWAWAY:
 		'The tool refused this database because it may hold real data. Use the throwaway database the tool creates itself.',
 	TOOL_OFFLINE:
@@ -91,7 +91,8 @@ const RULES: { code: RunErrorCode; test: RegExp }[] = [
 	},
 	{
 		code: 'TOOL_OFFLINE',
-		test: /no runner (that serves|took)|tool is not connected|no check runner is connected|runner .*offline|no afb-checks tool/i
+		// The old wording stays so runs saved before the rename still classify; the new wording says computer
+		test: /no runner (that serves|took)|tool is not connected|no check runner is connected|runner .*offline|no afb-checks tool|no computer of yours|none of your computers|your computer .*offline|computer was removed/i
 	}
 ];
 

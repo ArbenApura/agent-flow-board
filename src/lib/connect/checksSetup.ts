@@ -1,6 +1,6 @@
 // THE PROMPT A PERSON COPIES INTO THEIR AGENT SO THE AGENT CONNECTS THIS COMPUTER AS A CHECK RUNNER FOR ONE ORGANISATION (AFB-20261115-1000, G.3)
 // Pure, so the text is tested. It holds no token, no verifier, no code and no secret, and nothing the organisation's people wrote: only
-// the organisation's slug (validated by the app) and the board's own address. The way of working is the flow-check skill's.
+// the organisation's slug (validated by the app) and the board's own address. The way of working is the browser checks section of the flow skill (checks.md).
 
 // IMPORTED MODULES
 import { BRIDGE_PACKAGE, BRIDGE_PROGRAM, NODE_REQUIREMENT } from './bridgeInstall';
@@ -10,9 +10,9 @@ import { BRIDGE_PACKAGE, BRIDGE_PROGRAM, NODE_REQUIREMENT } from './bridgeInstal
 /** The Markdown prompt for one organisation. baseUrl is the board's own address, without a trailing slash. */
 export function checksSetupMarkdown(baseUrl: string, org: { slug: string }): string {
 	const server = `--server ${baseUrl} --org ${org.slug}`;
-	return `# Connect this computer as a check runner for ${org.slug}
+	return `# Connect this computer to run your browser checks for ${org.slug}
 
-You are helping a person run browser checks on this computer for the organisation ${org.slug} on Agent Flow Board (${baseUrl}). Follow the flow-check skill, in this order.
+You are helping a person run browser checks on this computer for the organisation ${org.slug} on Agent Flow Board (${baseUrl}). Follow the browser checks section of the flow skill (its checks.md file), in this order.
 
 1. Run \`${BRIDGE_PROGRAM}\` with no arguments. Its usage must list \`check\`. If the command is missing, ask once before installing it with \`npm install -g ${BRIDGE_PACKAGE}\` (${NODE_REQUIREMENT}).
 2. Start \`${BRIDGE_PROGRAM} check connect ${server} --json\` and read its first line. It holds a code.

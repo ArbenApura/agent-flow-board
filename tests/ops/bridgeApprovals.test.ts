@@ -170,7 +170,7 @@ describe('the agent handles approvals on its own', () => {
 		const asked = await ask(laptop, [{ action: 'secrets', target: 'demoted/after-ask' }]);
 		const id = asked.body.requests[0]!.id;
 		// The tool's token stops working the moment its owner cannot manage (runner auth), and the claim re-checks the same role itself
-		await setRole('admin', 'member');
+		await setRole('admin', 'viewer');
 		const during = await call(laptop, '/approvals/claim', { ids: [id] });
 		expect(during.status).toBe(401);
 		expect(during.body.claimed ?? []).toHaveLength(0);
@@ -179,7 +179,7 @@ describe('the agent handles approvals on its own', () => {
 	});
 
 	it('a request from an owner who lost manage is refused, and nothing in the answer sends anybody to a switch', async () => {
-		await setRole('admin', 'member');
+		await setRole('admin', 'viewer');
 		const r = await ask(laptop, [{ action: 'roots', target: '/demoted' }]);
 		await setRole('admin', 'admin');
 		expect(r.status).toBe(401);

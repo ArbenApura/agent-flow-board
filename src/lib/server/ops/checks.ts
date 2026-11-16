@@ -348,7 +348,9 @@ const queueMinutes = (ctx: Ctx) => ctx.services?.runnerQueueMinutes ?? DEFAULT_Q
 export async function targetStatuses(
 	tx: Tx,
 	orgId: string,
-	projectId: string
+	projectId: string,
+	/** The person asking: only a bridge this person owns can take their run. */
+	userId: string
 ): Promise<TargetStatus[]> {
 	const envs = await tx.select().from(environment).where(eq(environment.projectId, projectId));
 	const devRegs = await tx
@@ -362,6 +364,8 @@ export async function targetStatuses(
 		.where(
 			and(
 				eq(runner.orgId, orgId),
+				// Only the asker's own bridge counts: a colleague's bridge never makes a target available
+				eq(runner.ownerId, userId),
 				sql`${projectId}::uuid = any(${runner.projectIds})`,
 				sql`${runner.lastSeenAt} > now() - make_interval(secs => ${RUNNER_ONLINE_SECONDS})`
 			)
@@ -387,7 +391,7 @@ export async function targetStatuses(
 					available: false,
 					environment: reachable.name,
 					reason:
-						'No local runner that serves this project is online. Run checks locally with: agent-flow-board check run --local.'
+						'No computer of yours that serves this project is online. Run checks locally with: agent-flow-board check run --local.'
 				};
 			}
 			return { target, available: true, environment: reachable.name, reason: null };
@@ -402,7 +406,7 @@ export async function targetStatuses(
 				environment: null,
 				reason:
 					target === 'preview'
-						? 'This project has no preview environment and no check runner is connected. Your agent connects the afb-checks tool by itself; runner_status lists the steps.'
+						? 'This project has no preview environment and none of your computers runs browser checks. Your agent connects the afb-checks bridge by itself; runner_status lists the steps.'
 						: `This project has no ${target} environment yet.`
 			};
 		if (!runners.length)
@@ -410,7 +414,7 @@ export async function targetStatuses(
 				target,
 				available: false,
 				environment: candidates[0].name,
-				reason: 'No runner that serves this project is online.'
+				reason: 'No computer of yours that serves this project is online (the afb-checks bridge).'
 			};
 		const reachable = candidates.find((e) =>
 			runners.some((r) => reachesPrivate(r.kind) || !isPrivateUrl(e.url))
@@ -421,7 +425,7 @@ export async function targetStatuses(
 				available: false,
 				environment: candidates[0].name,
 				reason:
-					'Only a hosted runner is online, and this environment is on a private address. Start a local runner.'
+					'This environment is on a private address that your online computer cannot reach from outside. Connect a computer on the same network.'
 			};
 		return { target, available: true, environment: reachable.name, reason: null };
 	});
@@ -434,7 +438,7 @@ export async function sweepRuns(tx: Tx, orgId: string, minutes: number): Promise
 		.set({
 			result: 'timeout',
 			finishedAt: sql`now()`,
-			reason: `No runner took this run within ${minutes} minutes. Check that a runner that serves this project is online, then ask again, or pick another target.`
+			reason: `No computer of yours took this run within ${minutes} minutes. Check that one of your computers that serves this project is online, then ask again, or pick another target.`
 		})
 		.where(
 			and(
@@ -449,7 +453,7 @@ export async function sweepRuns(tx: Tx, orgId: string, minutes: number): Promise
 		.set({
 			result: 'timeout',
 			finishedAt: sql`now()`,
-			reason: `The runner took this run and did not report back within ${RUNNING_TIMEOUT_MINUTES} minutes.`
+			reason: `Your computer took this run and did not report back within ${RUNNING_TIMEOUT_MINUTES} minutes.`
 		})
 		.where(
 			and(
@@ -466,7 +470,7 @@ export async function sweepRuns(tx: Tx, orgId: string, minutes: number): Promise
 		.set({
 			result: 'timeout',
 			finishedAt: sql`now()`,
-			reason: `The runner that took this run stopped reporting for ${BEAT_TIMEOUT_MINUTES} minutes.`
+			reason: `The computer that took this run stopped reporting for ${BEAT_TIMEOUT_MINUTES} minutes.`
 		})
 		.where(
 			and(
@@ -734,7 +738,7 @@ export async function itemChecks(ctx: Ctx, itemName: string) {
 			webApp: p.webApp,
 			preferredTarget: pref?.checkTarget ?? null,
 			canRun: role !== 'viewer' && role !== 'guest',
-			targets: await targetStatuses(tx, ctx.orgId, it.projectId),
+			targets: await targetStatuses(tx, ctx.orgId, it.projectId, ctx.actor.userId),
 			devTargets: devRows.map((d) => devTargetSummary(d, o?.slug)),
 			environments: envs.map((e) => ({
 				name: e.name,
@@ -801,7 +805,7 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 			const [pref] = await tx.select().from(userPref).where(eq(userPref.userId, ctx.actor.userId));
 			// A run that names no target, and has no pin or saved choice, is on the build preview: the only target the afb-checks tool runs
 			const asked = (input.target ?? chk.pinnedTarget ?? pref?.checkTarget ?? 'preview') as Target;
-			const statuses = await targetStatuses(tx, ctx.orgId, it.projectId);
+			const statuses = await targetStatuses(tx, ctx.orgId, it.projectId, ctx.actor.userId);
 			let status = statuses.find((s) => s.target === asked)!;
 			// The registration this run uses: the one named now, else the check's own, else none (the project's only registration)
 			// Only the preview runs in the afb-checks tool, and only the tool has registrations: a dev or deployed run carries none
@@ -817,7 +821,14 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 					.select({ key: project.key })
 					.from(project)
 					.where(eq(project.id, it.projectId));
-				const fit = await registrationFit(tx, ctx.orgId, it.projectId, proj.key, registration);
+				const fit = await registrationFit(
+					tx,
+					ctx.orgId,
+					it.projectId,
+					proj.key,
+					registration,
+					ctx.actor.userId
+				);
 				// Never a guess: a project with several registrations needs one named, and the answer lists them
 				if (!registration && fit.choices)
 					throw new OpError(
@@ -947,7 +958,7 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 			const toolOffline =
 				!status.available &&
 				asked === 'preview' &&
-				/afb-checks|No runner that serves/i.test(status.reason ?? '');
+				/afb-checks|No runner that serves|No computer of yours/i.test(status.reason ?? '');
 			const [o] = toolOffline
 				? await tx.select({ slug: org.slug }).from(org).where(eq(org.id, ctx.orgId))
 				: [];
@@ -959,6 +970,7 @@ export async function requestRun(ctx: Ctx, raw: z.input<typeof requestRunInput>)
 							.where(
 								and(
 									eq(runner.orgId, ctx.orgId),
+									eq(runner.ownerId, ctx.actor.userId),
 									eq(runner.kind, 'tool'),
 									sql`${it.projectId}::uuid = any(${runner.projectIds})`
 								)
@@ -1161,8 +1173,8 @@ export function toolAgentAction(
 		};
 	return {
 		action: 'runner',
-		why: 'A runner serves this project but is offline.',
-		steps: ['Start that runner, then call runner_status again.']
+		why: 'Your computer serves this project but is offline.',
+		steps: ['Start the bridge on that computer, then call runner_status again.']
 	};
 }
 
@@ -1210,7 +1222,14 @@ export async function runnerStatus(ctx: Ctx, keyOrId?: string) {
 					registrations: runner.registrations
 				})
 				.from(runner)
-				.where(and(eq(runner.orgId, ctx.orgId), sql`${p.id}::uuid = any(${runner.projectIds})`));
+				.where(
+					and(
+						eq(runner.orgId, ctx.orgId),
+						// Only the asker's own bridge is listed or counted
+						eq(runner.ownerId, ctx.actor.userId),
+						sql`${p.id}::uuid = any(${runner.projectIds})`
+					)
+				);
 			// The registrations the online tools hold for this project. The folder name and branch are tool-reported text, so a guest sees the names only
 			const { role: seeing } = await requireCap(tx, ctx, 'read', p.id);
 			const onlineNow = runners.filter(
@@ -1271,11 +1290,11 @@ export async function runnerStatus(ctx: Ctx, keyOrId?: string) {
 				registrationRequired: registrations.length > 1,
 				devTargets: devRows.map((d) => devTargetSummary(d, orgSlug)),
 				hint: onlineNow.length
-					? 'A runner is online and will take the next run.'
+					? 'Your computer is online and will take the next run.'
 					: hasTool
 						? 'The afb-checks tool is connected but not running. Follow agentAction on the machine that runs the tool, then ask again.'
 						: runners.length
-							? 'A runner serves this project but is offline. Start it and ask again.'
+							? 'Your computer serves this project but is offline. Start it and ask again.'
 							: 'No afb-checks tool is connected to this project. Follow agentAction to connect it; nobody needs to type a command.',
 				agentAction: onlineNow.length
 					? null
@@ -1358,7 +1377,9 @@ export async function claimCheckJob(
 	services?: Ctx['services'],
 	only?: { runId?: string }
 ): Promise<CheckJob | null> {
-	if (!auth.projectIds.length) return null;
+	// A bridge takes only the runs its own owner asked for. No owner (the person was removed) takes nothing
+	const owner = auth.ownerId;
+	if (!auth.projectIds.length || !owner) return null;
 	return withTenant(handle, { orgId: auth.orgId }, async (tx) => {
 		await sweepRuns(tx, auth.orgId, services?.runnerQueueMinutes ?? DEFAULT_QUEUE_MINUTES);
 		// A run that names a registration is taken only by a tool that reports it (an older tool reports none, so it takes only runs that name none).
@@ -1374,6 +1395,7 @@ export async function claimCheckJob(
 					eq(checkRun.orgId, auth.orgId),
 					eq(checkRun.result, 'queued'),
 					inArray(checkRun.projectId, auth.projectIds),
+					eq(checkRun.requestedBy, owner),
 					registrationClaimable(held),
 					only?.runId ? eq(checkRun.id, only.runId) : undefined
 				)
@@ -1484,9 +1506,9 @@ async function heldRun(tx: Tx, auth: RunnerAuth, runId: string, lock = false) {
 	const [r] = lock ? await q.for('update') : await q;
 	if (!r) throw new OpError('NOT_FOUND', 'No such run.');
 	if (r.runnerId !== auth.runnerId)
-		throw new OpError('FORBIDDEN', 'This run is held by another runner.');
+		throw new OpError('FORBIDDEN', 'This run is held by another computer.');
 	if (!auth.projectIds.includes(r.projectId))
-		throw new OpError('FORBIDDEN', 'This runner no longer serves that project.');
+		throw new OpError('FORBIDDEN', 'This computer no longer serves that project.');
 	return r;
 }
 
@@ -2052,7 +2074,8 @@ async function reopenOnFail(
  * before it starts a container, so an idle queue starts nothing.
  */
 export async function peekQueue(handle: DbHandle, auth: RunnerAuth): Promise<number> {
-	if (!auth.projectIds.length) return 0;
+	const owner = auth.ownerId;
+	if (!auth.projectIds.length || !owner) return 0;
 	return withTenant(handle, { orgId: auth.orgId }, async (tx) => {
 		// Only the runs this tool could claim are counted, so a tool is never woken for a run it cannot take
 		const held = await runnerRegistrationPairs(tx, auth);
@@ -2064,6 +2087,7 @@ export async function peekQueue(handle: DbHandle, auth: RunnerAuth): Promise<num
 					eq(checkRun.orgId, auth.orgId),
 					eq(checkRun.result, 'queued'),
 					inArray(checkRun.projectId, auth.projectIds),
+					eq(checkRun.requestedBy, owner),
 					registrationClaimable(held)
 				)
 			);

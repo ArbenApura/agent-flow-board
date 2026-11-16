@@ -69,7 +69,7 @@ const COMMANDS: { kind: CommandKind; args: string; text: string }[] = [
 	{
 		kind: 'Checks',
 		args: 'check connect --server {server} --org {org} --json',
-		text: 'Make this computer a check runner. An agent approves the printed code.'
+		text: 'Let this computer run your browser checks. An agent approves the printed code.'
 	},
 	{
 		kind: 'Checks',

@@ -218,7 +218,14 @@ export async function signinTargets(ctx: Ctx) {
 		const machines = await tx
 			.select()
 			.from(runner)
-			.where(and(eq(runner.orgId, ctx.orgId), eq(runner.kind, 'tool')))
+			// Only the caller's own computers: a colleague's machine is never listed
+			.where(
+				and(
+					eq(runner.orgId, ctx.orgId),
+					eq(runner.kind, 'tool'),
+					eq(runner.ownerId, ctx.actor.userId)
+				)
+			)
 			.orderBy(asc(runner.name));
 		const rows = await tx
 			.select({
@@ -243,13 +250,16 @@ export async function signinTargets(ctx: Ctx) {
 					keyChangedAt: m.signinKeyChangedAt?.toISOString() ?? null,
 					registrations: [...new Set((m.registrations ?? []).map((r) => r.name))]
 				})),
-			stored: rows.map((r) => ({
-				runnerId: r.runnerId,
-				registration: r.registration,
-				state: r.consumedAt ? ('used' as const) : ('waiting' as const),
-				result: r.result,
-				expiresAt: r.expiresAt.toISOString()
-			}))
+			// Only the stored sign ins of the caller's own computers: a colleague's computer id never leaves this call
+			stored: rows
+				.filter((r) => machines.some((m) => m.id === r.runnerId))
+				.map((r) => ({
+					runnerId: r.runnerId,
+					registration: r.registration,
+					state: r.consumedAt ? ('used' as const) : ('waiting' as const),
+					result: r.result,
+					expiresAt: r.expiresAt.toISOString()
+				}))
 		};
 	});
 }
@@ -269,7 +279,13 @@ export async function storeSignin(ctx: Ctx, raw: z.input<typeof signinStoreInput
 			.select()
 			.from(runner)
 			.where(
-				and(eq(runner.id, input.runnerId), eq(runner.orgId, ctx.orgId), eq(runner.kind, 'tool'))
+				and(
+					eq(runner.id, input.runnerId),
+					eq(runner.orgId, ctx.orgId),
+					eq(runner.kind, 'tool'),
+					// Only the owner of a computer stores a sign in for it: a colleague's computer answers as if it were not there
+					eq(runner.ownerId, ctx.actor.userId)
+				)
 			);
 		if (!m || m.signinKeyId !== input.keyId)
 			throw new OpError('CONFLICT', 'That machine changed its key. Reload the page and try again.');
@@ -326,6 +342,8 @@ export async function discardSignin(ctx: Ctx, runnerId: string, registration: st
 				and(
 					eq(bridgeSigninEnvelope.orgId, ctx.orgId),
 					eq(bridgeSigninEnvelope.runnerId, runnerId),
+					// Only a sign in stored for a computer the caller owns
+					sql`${bridgeSigninEnvelope.runnerId} in (select ${runner.id} from ${runner} where ${runner.orgId} = ${ctx.orgId} and ${runner.ownerId} = ${ctx.actor.userId})`,
 					inArray(bridgeSigninEnvelope.registration, [registration.toLowerCase()])
 				)
 			)

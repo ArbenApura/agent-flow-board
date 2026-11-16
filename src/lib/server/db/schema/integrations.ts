@@ -312,7 +312,13 @@ export const runner = tenantTable(
 		signinKeyChangedAt: timestamp('signin_key_changed_at', { withTimezone: true }),
 		...stamps()
 	},
-	(t) => [oneOf('runner_kind_chk', t.kind, ['local', 'hosted', 'tool'])]
+	(t) => [
+		oneOf('runner_kind_chk', t.kind, ['local', 'hosted', 'tool']),
+		// One computer registers once per person and organisation, so a second registration renews the row instead of adding a duplicate
+		uniqueIndex('runner_tool_owner_name_uq')
+			.on(t.orgId, t.ownerId, t.name)
+			.where(sql`${t.kind} = 'tool'`)
+	]
 );
 
 // -- OWNER APPROVALS FROM THE BOARD (AFB-20261108-1444) -- //
@@ -606,6 +612,11 @@ export const deviceCode = pgTable('device_code', {
 	 * a code its own tool started and not one it was handed. Null for a sign in that sent none (a person approves those on the page).
 	 */
 	challengeHash: text('challenge_hash'),
+	/**
+	 * The organisation slug the tool asked for (login --org). Only a validated slug is stored, never looked up when the code starts,
+	 * so an unauthenticated caller cannot probe which orgs exist. It is checked when a person or an agent approves, and it is written once.
+	 */
+	requestedOrg: text('requested_org'),
 	status: text('status').notNull().default('pending'),
 	approvedBy: text('approved_by').references(() => user.id, { onDelete: 'set null' }),
 	approvedOrgId: uuid('approved_org_id'),

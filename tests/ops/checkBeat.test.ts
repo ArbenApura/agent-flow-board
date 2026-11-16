@@ -70,7 +70,7 @@ describe('the heartbeat of a run', () => {
 		db = await makePostgres();
 		w = await makeWorld(db);
 		await db.admin.exec(`update project set web_app = true where id = '${w.projectId}'`);
-		token = (await registerToolRunner(as('admin'), { name: 'Beat PC afb-checks' })).token;
+		token = (await registerToolRunner(as('member'), { name: 'Beat PC afb-checks' })).token;
 		auth = (await authenticateRunner(db, token))!;
 	}, 240_000);
 	afterAll(() => db?.stop());
@@ -142,7 +142,7 @@ describe('the heartbeat of a run', () => {
 
 	it('only the runner that holds a run may beat for it, and a run that finished or does not exist is refused', async () => {
 		const run = await heldRun();
-		const other = await registerToolRunner(as('admin'), { name: 'Other PC afb-checks' });
+		const other = await registerToolRunner(as('member'), { name: 'Other PC afb-checks' });
 		const otherAuth = (await authenticateRunner(db, other.token))!;
 		await expect(beatCheckRun(db, otherAuth, run.id)).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		await expect(

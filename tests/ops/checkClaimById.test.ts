@@ -63,7 +63,7 @@ describe('claiming a check run by its id', () => {
 		db = await makePostgres();
 		w = await makeWorld(db);
 		await db.admin.exec(`update project set web_app = true where id = '${w.projectId}'`);
-		token = (await registerToolRunner(as('admin'), { name: 'Claim PC afb-checks' })).token;
+		token = (await registerToolRunner(as('member'), { name: 'Claim PC afb-checks' })).token;
 		auth = (await authenticateRunner(db, token))!;
 	}, 240_000);
 	afterAll(() => db?.stop());

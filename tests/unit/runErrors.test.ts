@@ -78,6 +78,40 @@ const CORPUS: { result: string; reason: string; code: string }[] = [
 			'No runner took this run within 10 minutes. Check that a runner that serves this project is online.',
 		code: 'TOOL_OFFLINE'
 	},
+	// The wording after the rename to computers: runs saved with the old wording above still classify, and the new reasons classify the same way
+	{
+		result: 'timeout',
+		reason:
+			'No computer of yours took this run within 10 minutes. Check that one of your computers that serves this project is online, then ask again, or pick another target.',
+		code: 'TOOL_OFFLINE'
+	},
+	{
+		result: 'unavailable',
+		reason: 'No computer of yours that serves this project is online (the afb-checks bridge).',
+		code: 'TOOL_OFFLINE'
+	},
+	{
+		result: 'error',
+		reason: 'Your computer took this run and did not report back within 30 minutes.',
+		code: 'RUN_TIMED_OUT'
+	},
+	{
+		result: 'timeout',
+		reason: 'The computer that took this run stopped reporting for 10 minutes.',
+		code: 'RUN_TIMED_OUT'
+	},
+	{
+		result: 'unavailable',
+		reason:
+			'This project has no preview environment and none of your computers runs browser checks. Your agent connects the afb-checks bridge by itself; runner_status lists the steps.',
+		code: 'TOOL_OFFLINE'
+	},
+	{
+		result: 'error',
+		reason:
+			'This computer was removed from your tools while it held this run. Ask again from another computer.',
+		code: 'TOOL_OFFLINE'
+	},
 	{
 		result: 'error',
 		reason:
@@ -151,7 +185,7 @@ describe('the run error classifier', () => {
 	it('has a fix line for every code, and none of them names a forbidden port as something to use', () => {
 		for (const [code, fix] of Object.entries(RUN_FIXES)) {
 			expect(fix.length, code).toBeGreaterThan(20);
-			expect(fix, code).not.toMatch(/use (5180|5190|5433)/i);
+			expect(fix, code).not.toMatch(/use (5180|5190|5433|7173|7174)/i);
 		}
 	});
 });

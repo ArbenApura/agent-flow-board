@@ -1,5 +1,7 @@
 // IMPORTED DEP-TYPES
 import type { Actions, PageServerLoad } from './$types';
+// IMPORTED TYPES
+import type { MyBridge, MyBridges } from '#lib/server/ops/bridgeRunners.js';
 // IMPORTED DEP-MODULES
 import { fail } from '@sveltejs/kit';
 import { sql } from 'drizzle-orm';
@@ -10,6 +12,7 @@ import { listOrStale } from '#lib/server/auth/fresh.js';
 import { getDb } from '#lib/server/db/index.js';
 import { userPref } from '#lib/server/db/schema/index.js';
 import { withTenant } from '#lib/server/db/tenant.js';
+import { listMyBridges } from '#lib/server/ops/bridgeRunners.js';
 import { listTokens } from '#lib/server/ops/tokens.js';
 import { listMyOrgs } from '#lib/server/orgs/orgs.js';
 import { requireUser } from '#lib/server/web/ctx.js';
@@ -39,6 +42,28 @@ export const load: PageServerLoad = async ({ locals, request, url, depends }) =>
 		withTenant(handle, { userId: user.id }, (tx) => tx.select().from(userPref))
 	]);
 	const tools = [];
+	// The person's own computers, one entry per organisation they are registered in, read together and each read on its own
+	const computers: (MyBridge & { org: string; orgName: string; webApps: MyBridges['webApps'] })[] =
+		[];
+	const active = orgs.filter((o) => !o.deletedAt);
+	const mine = await Promise.all(
+		active.map((o) =>
+			listMyBridges({
+				handle,
+				orgId: o.id,
+				actor: { userId: user.id, kind: 'person' as const, label: user.name }
+			}).catch((e) => {
+				// A failed read leaves that organisation's computers out of the page, with the cause in the log
+				console.error(`The computers of the person in ${o.slug} could not be read.`, e);
+				return null;
+			})
+		)
+	);
+	active.forEach((o, i) => {
+		const got = mine[i];
+		for (const b of got?.bridges ?? [])
+			computers.push({ ...b, org: o.slug, orgName: o.name, webApps: got!.webApps });
+	});
 	for (const o of orgs) {
 		// An org scheduled for deletion has no working tokens, and asking it for them is refused
 		if (o.deletedAt) continue;
@@ -66,6 +91,7 @@ export const load: PageServerLoad = async ({ locals, request, url, depends }) =>
 		})),
 		methods: accounts.map((a) => a.providerId),
 		tools,
+		computers,
 		prefs: {
 			themeMode: parseMode(p?.themeMode),
 			checkTarget: p?.checkTarget ?? '',

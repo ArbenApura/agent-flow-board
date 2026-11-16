@@ -14,14 +14,11 @@
 
 	let {
 		runner,
-		orgName,
-		othersOnline
+		orgName
 	}: {
-		/** The person's own newest runner, or null when none is connected. */
+		/** The person's own newest computer in this organisation, or null when none is connected. */
 		runner: BridgeRunner | null;
 		orgName: string;
-		/** How many runners of colleagues are online, counted and never named. */
-		othersOnline: number;
 	} = $props();
 
 	// -- REACTIVE STATES -- //
@@ -62,22 +59,26 @@
 				{#if runner}
 					<p class="text-sm font-medium text-ink">
 						{runner.online
-							? 'This computer is a check runner for'
-							: 'Your check runner is offline in'}
+							? 'This computer runs your browser checks for'
+							: 'Your computer is offline in'}
 						{orgName}
 					</p>
 					<p class="text-xs text-muted tabular-nums">
 						{runner.name} · seen {when(runner.lastSeenAt)}
 					</p>
 				{:else}
-					<p class="text-sm font-medium text-ink">No check runner of yours in {orgName} yet</p>
+					<p class="text-sm font-medium text-ink">
+						No computer of yours runs browser checks in {orgName} yet
+					</p>
 					<p class="text-xs text-muted">
-						Connect this computer, and your agent can run browser checks here.{#if othersOnline > 0}
-							{othersOnline === 1
-								? ' 1 colleague has a runner online.'
-								: ` ${othersOnline} colleagues have runners online.`}{/if}
+						Connect this computer, and your agent can run browser checks here. Only you can use it.
 					</p>
 				{/if}
+				<!-- THE COMPUTERS THEMSELVES ARE MANAGED IN YOUR SETTINGS, SO THERE IS ONE PLACE FOR THEM -->
+				<a
+					class="mt-1 inline-block cursor-pointer text-xs text-accent-text hover:underline"
+					href="/settings?tab=tools">Manage your computers in Your settings</a
+				>
 			</div>
 			<Badge tone={runner ? (runner.online ? 'success' : 'warning') : 'neutral'}
 				>{runner ? (runner.online ? 'Connected' : 'Offline') : 'Not connected'}</Badge

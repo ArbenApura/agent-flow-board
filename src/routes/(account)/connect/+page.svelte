@@ -25,13 +25,11 @@
 	import EditorLiveCard from '#lib/board/connect/EditorLiveCard.svelte';
 	import EditorSetupCard from '#lib/board/connect/EditorSetupCard.svelte';
 	import EditorStepsCard from '#lib/board/connect/EditorStepsCard.svelte';
-	import SetupChecklist from '#lib/board/connect/SetupChecklist.svelte';
 	import SkillsChangelog from '#lib/board/connect/SkillsChangelog.svelte';
 	import SkillsGrid from '#lib/board/connect/SkillsGrid.svelte';
 	import SkillsInstallCard from '#lib/board/connect/SkillsInstallCard.svelte';
 	import SnippetsCard from '#lib/board/connect/SnippetsCard.svelte';
 	import TokenCard from '#lib/board/connect/TokenCard.svelte';
-	import WhichCard from '#lib/board/connect/WhichCard.svelte';
 	import OrgTile from '#lib/board/OrgTile.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import Card from '#lib/ui/Card.svelte';
@@ -68,14 +66,6 @@
 			runners: data.runners ? mine : null
 		})
 	);
-	// What the board knows about this person's own setup, for the checklist
-	const setupInput = $derived({
-		connections: data.connections.length,
-		signIn: data.editor?.signIn ?? null,
-		runners: data.runners ? mine.map((r) => ({ online: r.online })) : null,
-		marks: data.setup.marks,
-		person: data.editor?.person ?? ''
-	});
 </script>
 
 <svelte:head><title>Connect a tool</title></svelte:head>
@@ -128,9 +118,6 @@
 
 	<!-- SECTIONS OF THIS PAGE, THEN THE PERSON'S OWN SETUP. THE TAB CARDS COME FIRST: WHERE YOU ARE AND WHERE YOU CAN GO -->
 	<ConnectTabs tab={data.tab} org={org?.slug ?? null} {status} />
-	{#if org}
-		<SetupChecklist input={setupInput} panel={data.setup.panel} orgSlug={org.slug} />
-	{/if}
 
 	{#if data.tab === 'skills'}
 		<!-- SYSTEM SKILLS: THE FLOW SKILLS THE PRODUCT SHIPS, ONE VERSIONED BUNDLE -->
@@ -195,14 +182,11 @@
 	{:else if data.tab === 'bridge'}
 		<!-- BRIDGE: THE CHECK RUNNER, BROWSER CHECKS, WHO APPROVES WHAT AND EVERY COMMAND OF THE LOCAL BRIDGE -->
 		<div class="flex min-w-0 flex-col gap-6">
-			<div class="grid gap-6 lg:grid-cols-3 lg:items-start">
+			<!-- THE ROW STRETCHES, SO THE COMMANDS CARD FILLS THE LEFT COLUMN DOWN TO THE END OF THE RIGHT ONE -->
+			<div class="grid gap-6 lg:grid-cols-3">
 				<!-- IN THE ORDER A PERSON NEEDS IT, AND IN THE SAME ORDER FOR A KEYBOARD: WITH NO RUNNER THE CONNECT CARD COMES RIGHT AFTER THE LIVE LINE, WITH ONE WHAT IT CAN CHECK AND THE APPROVALS COME FIRST -->
 				<div class="stagger flex min-w-0 flex-col gap-6 lg:col-span-2">
-					<BridgeRunnerCard
-						runner={mine[0] ?? null}
-						orgName={org.name}
-						othersOnline={data.runners?.othersOnline ?? 0}
-					/>
+					<BridgeRunnerCard runner={mine[0] ?? null} orgName={org.name} />
 					{#if mine[0]}
 						<BridgeProjectsCard runner={mine[0]} />
 						<ChecksApprovalsCard />
@@ -217,18 +201,20 @@
 						/>
 						<ChecksApprovalsCard />
 					{/if}
+					<!-- AT LEAST 24REM TALL, OR AS TALL AS WHAT IS LEFT OF THE COLUMN BESIDE IT. FROM lg UP THE LIST SCROLLS INSIDE -->
+					<div class="lg:relative lg:min-h-96 lg:flex-1">
+						<BridgeCommandsCard server={data.baseUrl} orgSlug={org.slug} orgName={org.name} />
+					</div>
 				</div>
 				<div class="stagger flex min-w-0 flex-col gap-6">
 					<BridgeHealthCard server={data.baseUrl} orgSlug={org.slug} />
 				</div>
 			</div>
-			<BridgeCommandsCard server={data.baseUrl} orgSlug={org.slug} orgName={org.name} />
 		</div>
 	{:else}
 		<!-- TOOLS AND TOKENS: THE WAY IN FIRST, THEN WHAT IS CONNECTED BESIDE IT -->
 		<div class="grid gap-6 lg:grid-cols-3 lg:items-start">
 			<div class="stagger flex min-w-0 flex-col gap-6 lg:col-span-2">
-				<WhichCard />
 				<AgentSetupCard setup={data.agentSetup} slug={org.slug} />
 				<SnippetsCard
 					snippets={data.snippets}

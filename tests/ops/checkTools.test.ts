@@ -81,7 +81,8 @@ describe('checks an agent drives alone', () => {
 		db = await makePostgres();
 		w = await makeWorld(db);
 		await db.admin.exec(`update project set web_app = true where id = '${w.projectId}'`);
-		const made = await registerToolRunner(as('admin'), { name: 'Test PC afb-checks' });
+		// The tool belongs to the member who asks for the runs below: a computer takes only its owner's runs
+		const made = await registerToolRunner(as('member'), { name: 'Test PC afb-checks' });
 		token = made.token;
 		auth = (await authenticateRunner(db, token))!;
 	}, 240_000);
@@ -471,7 +472,7 @@ describe('checks an agent drives alone', () => {
 
 	it('runner_status says online, offline and none, for a reader too, and never shows a token or a name', async () => {
 		await online();
-		const on = await runnerStatus(as('viewer'), w.projectKey);
+		const on = await runnerStatus(as('member'), w.projectKey);
 		expect(on.projects).toHaveLength(1);
 		expect(on.projects[0]).toMatchObject({
 			project: w.projectKey,

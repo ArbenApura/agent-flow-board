@@ -47,17 +47,17 @@ describe('the status pills of the Connect tab cards', () => {
 			expect(['neutral', 'success', 'warning', 'danger']).toContain(of({ signIn: s }).editor.tone);
 	});
 
-	it('says whether the person has a check runner and whether it is on', () => {
-		expect(of({ runners: [] }).bridge.text).toBe('No runner');
-		expect(of({ runners: null }).bridge.text).toBe('No runner');
+	it('says whether the person has a computer that runs their browser checks and whether it is on', () => {
+		expect(of({ runners: [] }).bridge.text).toBe('No computer');
+		expect(of({ runners: null }).bridge.text).toBe('No computer');
 		expect(of({ runners: [{ online: true }] }).bridge).toEqual({
-			text: 'Runner on',
+			text: 'Online',
 			tone: 'success'
 		});
 		expect(of({ runners: [{ online: false }] }).bridge).toEqual({
 			text: 'Offline',
 			tone: 'warning'
 		});
-		expect(of({ runners: [{ online: false }, { online: true }] }).bridge.text).toBe('Runner on');
+		expect(of({ runners: [{ online: false }, { online: true }] }).bridge.text).toBe('Online');
 	});
 });

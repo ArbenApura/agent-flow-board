@@ -26,6 +26,7 @@ import { OpError, capsOf, idempotent, projectAllowed, requireCap, run } from './
 import { actorFields } from './items';
 import { findProject } from './resolve';
 import { openSecret, sealSecret } from '../secrets/vault';
+import { connectionName } from '../../shared/orgConnection';
 import { appendOrgEvent } from './settings';
 import { TARGETS } from '../db/schema/helpers';
 
@@ -346,10 +347,16 @@ export async function createRunner(ctx: Ctx, raw: z.input<typeof runnerInput>) {
 export async function registerToolRunner(ctx: Ctx, raw: z.input<typeof toolRunnerInput>) {
 	const input = toolRunnerInput.parse(raw);
 	return run(ctx, async (tx) => {
-		await requireCap(tx, ctx, 'manage');
+		// A member who may run checks may own a bridge, so the capability is write, not manage
+		await requireCap(tx, ctx, 'write');
 		let ids: string[] = [];
 		if (input.projects) {
-			for (const key of input.projects) ids.push((await findProject(tx, ctx, key)).id);
+			for (const key of input.projects) {
+				const p = await findProject(tx, ctx, key);
+				// The computer may serve only a project the person may write to, as when they choose its web apps later
+				await requireCap(tx, ctx, 'write', p.id);
+				ids.push(p.id);
+			}
 		} else {
 			const all = await tx
 				.select({ id: project.id })
@@ -405,6 +412,17 @@ export async function registerToolRunner(ctx: Ctx, raw: z.input<typeof toolRunne
 					projectIds: ids,
 					tokenHash: hashOf(token)
 				})
+				// Two registrations of one computer at once land on the unique (org, owner, name) index and renew one row
+				.onConflictDoUpdate({
+					target: [runner.orgId, runner.ownerId, runner.name],
+					targetWhere: sql`${runner.kind} = 'tool'`,
+					set: {
+						tokenHash: hashOf(token),
+						// A registration that lost the race keeps the projects the winner set unless it names its own
+						...(input.projects ? { projectIds: ids } : {}),
+						updatedAt: sql`now()`
+					}
+				})
 				.returning({ id: runner.id });
 			runnerId = row.id;
 			await appendOrgEvent(
@@ -441,7 +459,7 @@ export const toolApprovalInput = z.object({
 /** The name packages/bridge/src/device.ts sends when it starts a sign in. */
 export const BRIDGE_CLIENT = 'agent-flow-board bridge';
 export const APPROVAL_CLIENTS: Readonly<Record<string, readonly Capability[]>> = {
-	'afb-checks': ['manage'],
+	'afb-checks': ['read', 'write'],
 	[BRIDGE_CLIENT]: ['read', 'comment', 'write']
 };
 const APPROVAL_CLIENT_NAMES = Object.keys(APPROVAL_CLIENTS);
@@ -468,7 +486,7 @@ export async function approveToolConnection(ctx: Ctx, raw: z.input<typeof toolAp
 		);
 	return run(ctx, (tx) =>
 		idempotent(ctx, tx, async () => {
-			await requireCap(tx, ctx, 'manage');
+			await requireCap(tx, ctx, 'write');
 			// The token the tool receives has no project limit, so a token that is limited to some projects may not approve one: it would hand out more than it holds
 			if (ctx.actor.tokenProjects?.length)
 				throw new OpError(
@@ -479,7 +497,11 @@ export async function approveToolConnection(ctx: Ctx, raw: z.input<typeof toolAp
 			const challenge = createHash('sha256').update(input.verifier).digest('base64url');
 			// The code this caller may approve: pending, not expired, started by a known client, and the caller holds the verifier
 			const [pending] = await tx
-				.select({ id: deviceCode.id, client: deviceCode.client })
+				.select({
+					id: deviceCode.id,
+					client: deviceCode.client,
+					requestedOrg: deviceCode.requestedOrg
+				})
 				.from(deviceCode)
 				.where(
 					and(
@@ -490,6 +512,25 @@ export async function approveToolConnection(ctx: Ctx, raw: z.input<typeof toolAp
 						gt(deviceCode.expiresAt, sql`now()`)
 					)
 				);
+			// The tool asked for one organisation (login --org): an agent on another organisation's connection must not approve it, or the sign in would land in the wrong org
+			if (pending?.requestedOrg) {
+				const [mine] = await tx.select({ slug: org.slug }).from(org).where(eq(org.id, ctx.orgId));
+				if (mine?.slug !== pending.requestedOrg) {
+					const now = Date.now();
+					approvalFailures.set(
+						who,
+						failed && now - failed.since < APPROVAL_FAILURES_WINDOW_MS
+							? { n: failed.n + 1, since: failed.since }
+							: { n: 1, since: now }
+					);
+					throw new OpError(
+						'FORBIDDEN',
+						`This code was started for another organisation. Approve it with the ${connectionName(pending.requestedOrg)} connection, not the one you used.`
+					);
+				}
+			}
+			// A member who may write connects their own afb-checks computer, but approving the sign in of the bridge itself still needs manage
+			if (pending && pending.client !== 'afb-checks') await requireCap(tx, ctx, 'manage');
 			const scopes = pending ? APPROVAL_CLIENTS[pending.client] : undefined;
 			// The token is never given more than the caller holds today in the role and in the caller's own token
 			if (scopes) for (const scope of scopes) await requireCap(tx, ctx, scope);
@@ -547,81 +588,8 @@ export async function approveToolConnection(ctx: Ctx, raw: z.input<typeof toolAp
 	);
 }
 
-export async function listRunners(ctx: Ctx) {
-	return run(ctx, async (tx) => {
-		await requireCap(tx, ctx, 'read');
-		const rows = await tx
-			.select()
-			.from(runner)
-			.where(eq(runner.orgId, ctx.orgId))
-			.orderBy(asc(runner.name));
-		const projects = await tx
-			.select({ id: project.id, key: project.key })
-			.from(project)
-			.where(eq(project.orgId, ctx.orgId));
-		return rows.map((r) => ({
-			id: r.id,
-			name: r.name,
-			kind: r.kind,
-			ownerId: r.ownerId,
-			projects: r.projectIds.map((id) => projects.find((p) => p.id === id)?.key ?? id),
-			lastSeenAt: r.lastSeenAt,
-			// How many runs a tool takes at once and holds, as it last reported them (display only)
-			slots: r.capacitySlots,
-			busy: r.capacityBusy,
-			online: Boolean(
-				r.lastSeenAt && Date.now() - r.lastSeenAt.getTime() < RUNNER_ONLINE_SECONDS * 1000
-			)
-		}));
-	});
-}
-
-/**
- * Changes which projects a runner serves. A local runner's projects are changed only by its owner, who opts each one in; a
- * hosted runner's by any admin.
- */
-export async function setRunnerProjects(ctx: Ctx, runnerId: string, projects: string[]) {
-	return run(ctx, async (tx) => {
-		await requireCap(tx, ctx, 'manage');
-		const [r] = await tx
-			.select()
-			.from(runner)
-			.where(and(eq(runner.id, runnerId), eq(runner.orgId, ctx.orgId)));
-		if (!r) throw new OpError('NOT_FOUND', 'No such runner.');
-		if (r.kind !== 'hosted' && r.ownerId !== ctx.actor.userId)
-			throw new OpError(
-				'FORBIDDEN',
-				'Only the owner of a local runner chooses the projects it serves.'
-			);
-		const ids: string[] = [];
-		for (const key of projects) ids.push((await findProject(tx, ctx, key)).id);
-		await tx
-			.update(runner)
-			.set({ projectIds: ids, updatedAt: sql`now()` })
-			.where(eq(runner.id, r.id));
-		await appendOrgEvent(
-			tx,
-			ctx,
-			'runner.update',
-			{ projects: r.projectIds.length },
-			{ projects: ids.length }
-		);
-		return { id: r.id, projects: ids.length };
-	});
-}
-
-export async function deleteRunner(ctx: Ctx, runnerId: string) {
-	return run(ctx, async (tx) => {
-		await requireCap(tx, ctx, 'manage');
-		const gone = await tx
-			.delete(runner)
-			.where(and(eq(runner.id, runnerId), eq(runner.orgId, ctx.orgId)))
-			.returning({ id: runner.id, name: runner.name });
-		if (!gone.length) throw new OpError('NOT_FOUND', 'No such runner.');
-		await appendOrgEvent(tx, ctx, 'runner.delete', { name: gone[0].name }, {});
-		return { deleted: true };
-	});
-}
+// The org-wide list, project and delete verbs of the old Connected tools page are gone: a person lists, changes and removes only their own
+// computers (listMyBridges, setMyBridgeProjects and removeMyBridge in bridgeRunners.ts).
 
 export type RunnerAuth = {
 	runnerId: string;
@@ -655,8 +623,9 @@ export async function authenticateRunner(
 				.select({ role: member.role })
 				.from(member)
 				.where(and(eq(member.orgId, orgId), eq(member.userId, r.ownerId ?? '')));
-			if (!m || !capsOf(m.role).includes('manage')) return null;
+			if (!m || !capsOf(m.role).includes('write')) return null;
 		}
+		// A hosted runner has no owner and a local one acts for its owner only: neither takes another person's run (see claimCheckJob)
 		await tx
 			.update(runner)
 			.set({ lastSeenAt: sql`now()` })

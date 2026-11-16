@@ -22,13 +22,13 @@ const RESULT: Record<string, CheckStatus> = {
 	error: { label: 'Failed', tone: 'danger' },
 	timeout: { label: 'Could not run', tone: 'warning' },
 	unavailable: { label: 'Could not run', tone: 'warning' },
-	queued: { label: 'Waiting for the runner', tone: 'info' },
+	queued: { label: 'Waiting for your computer', tone: 'info' },
 	running: { label: 'Running', tone: 'running' }
 };
 
 // -- FUNCTIONS -- //
 
-/** The word a run carries: Passed, Failed, Running, Waiting for the runner, or Could not run. */
+/** The word a run carries: Passed, Failed, Running, Waiting for your computer, or Could not run. */
 export const resultStatus = (result: string): CheckStatus =>
 	RESULT[result] ?? { label: result, tone: 'neutral' };
 
@@ -56,7 +56,7 @@ export function failureSentence(run: CheckRunLite): string | null {
 		return `${why ? `${why}${stop} ` : ''}Ask your agent to look into it.`;
 	}
 	if (run.result === 'timeout' || run.result === 'unavailable')
-		return 'The runner did not take this run. Press Run check again once it is connected.';
+		return 'Your computer did not take this run. Press Run check again once it is connected.';
 	return null;
 }
 

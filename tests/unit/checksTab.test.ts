@@ -29,7 +29,7 @@ describe('the Checks tab', () => {
 		expect(resultStatus('pass')).toEqual({ label: 'Passed', tone: 'success' });
 		expect(resultStatus('fail').label).toBe('Failed');
 		expect(resultStatus('error').label).toBe('Failed');
-		expect(resultStatus('queued')).toEqual({ label: 'Waiting for the runner', tone: 'info' });
+		expect(resultStatus('queued')).toEqual({ label: 'Waiting for your computer', tone: 'info' });
 		expect(resultStatus('running').tone).toBe('running');
 		expect(resultStatus('timeout').label).toBe('Could not run');
 		expect(resultStatus('unavailable').label).toBe('Could not run');

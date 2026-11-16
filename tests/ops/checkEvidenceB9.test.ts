@@ -68,6 +68,10 @@ describe('B.9 evidence storage and signed-in picture rules', () => {
 			projects: [w.projectKey]
 		});
 		token = created.token;
+		// A computer takes only the runs its own owner asked for, and the member asks for the runs below
+		await db.admin.exec(
+			`update runner set owner_id = '${w.people.member}' where id = '${created.id}'`
+		);
 		auth = (await authenticateRunner(db, token))!;
 	}, 120_000);
 

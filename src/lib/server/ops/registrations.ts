@@ -106,7 +106,9 @@ export async function registrationFit(
 	orgId: string,
 	projectId: string,
 	projectKey: string,
-	wanted: string | null
+	wanted: string | null,
+	/** The person asking: only the registrations of a bridge they own are offered. */
+	userId: string
 ): Promise<RegistrationFit> {
 	const tools = await tx
 		.select({ registrations: runner.registrations })
@@ -114,6 +116,7 @@ export async function registrationFit(
 		.where(
 			and(
 				eq(runner.orgId, orgId),
+				eq(runner.ownerId, userId),
 				eq(runner.kind, 'tool'),
 				sql`${projectId}::uuid = any(${runner.projectIds})`,
 				sql`${runner.lastSeenAt} > now() - make_interval(secs => ${RUNNER_ONLINE_SECONDS})`

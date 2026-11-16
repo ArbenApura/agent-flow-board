@@ -244,7 +244,7 @@ describe('MCP server', () => {
 		);
 		expect(fresh.rules.join(' ')).toContain('Never run');
 		// One call carries the procedure, so an agent with no skill installed still knows what to do
-		expect(fresh.steps).toHaveLength(7);
+		expect(fresh.steps).toHaveLength(8);
 		expect(fresh.steps.join(' ')).toContain('wait for a yes');
 		expect((await client.listTools()).tools.map((t) => t.name)).not.toContain('skills_check');
 		// The public addresses are the board's own, so an agent never guesses a host

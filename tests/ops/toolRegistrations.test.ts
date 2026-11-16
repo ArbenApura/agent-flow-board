@@ -78,7 +78,8 @@ describe('several registrations for one board project', () => {
 		return item;
 	};
 	const newTool = async (name: string) => {
-		const tool = await registerToolRunner(as('admin'), { name });
+		// The tool belongs to the person who asks for the runs: a computer takes only its owner's runs
+		const tool = await registerToolRunner(as('member'), { name });
 		return { token: tool.token, auth: (await authenticateRunner(db, tool.token))! };
 	};
 
@@ -358,7 +359,7 @@ describe('several registrations for one board project', () => {
 			{ p: 'OTHER', n: 'ELSEWHERE' }
 		]);
 		await authenticateRunner(db, tool.token);
-		const status = (await runnerStatus(as('admin'), w.projectKey)).projects[0];
+		const status = (await runnerStatus(as('member'), w.projectKey)).projects[0];
 		expect(status.registrationRequired).toBe(true);
 		expect(status.registrations.map((r) => r.name).sort()).toEqual(['HAPR', 'HAPRM']);
 		expect(status.registrations.find((r) => r.name === 'HAPRM')).toMatchObject({
@@ -368,7 +369,7 @@ describe('several registrations for one board project', () => {
 		// A damaged header keeps the last good list
 		const kept = await call(tool.token, '/peek', { [TOOL_REGISTRATIONS_HEADER]: 'not valid !!' });
 		expect(kept.status).toBe(200);
-		expect((await runnerStatus(as('admin'), w.projectKey)).projects[0].registrations).toHaveLength(
+		expect((await runnerStatus(as('member'), w.projectKey)).projects[0].registrations).toHaveLength(
 			2
 		);
 	});

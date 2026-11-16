@@ -117,8 +117,8 @@ describe('dev registrations trust split and refusals', () => {
 		expect(await countRows()).toBe(0);
 	});
 
-	it('refuses reserved ports 5180, 5190 and 5433 with no side effect', async () => {
-		for (const port of [5180, 5190, 5433]) {
+	it('refuses reserved ports 7173, 7174 and 5433 with no side effect', async () => {
+		for (const port of [7173, 7174, 5433]) {
 			await expect(
 				saveDevRegistration(as('owner'), {
 					project: w.projectKey,
@@ -404,7 +404,9 @@ describe('dev registrations trust split and refusals', () => {
 		});
 		const chkOffline = await itemChecks(as('member'), it.ref);
 		expect(chkOffline.targets.find((t) => t.target === 'dev')?.available).toBe(false);
-		expect(chkOffline.targets.find((t) => t.target === 'dev')?.reason).toContain('No local runner');
+		expect(chkOffline.targets.find((t) => t.target === 'dev')?.reason).toContain(
+			'No computer of yours'
+		);
 
 		// Once an online private-capable runner reports reachable, targetStatuses('dev') is available
 		const localRunner = await createRunner(as('owner'), {
@@ -412,6 +414,10 @@ describe('dev registrations trust split and refusals', () => {
 			kind: 'local',
 			projects: [w.projectKey]
 		});
+		// Only the computer of the person who asks for the checks makes the dev target available, and the member asks below
+		await db.admin.exec(
+			`update runner set owner_id = '${w.people.member}' where id = '${localRunner.id}'`
+		);
 		const okReport = await runnerCall(localRunner.token, {
 			project: w.projectKey,
 			name: 'app',

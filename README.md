@@ -14,7 +14,7 @@ The live board is at https://afb.arbenger.com. This product is planned on itself
 | People  | Owners, admins, members, viewers and guests, per organisation and per project. Invitations by email. Sign in with email and password or Google.                                                                                                                                                |
 | Agents  | An MCP server at `/mcp`, a REST API at `/api/v1` (OpenAPI at `/api/v1/openapi.json`), personal access tokens, OAuth for tools that support it, a device code flow, and a local stdio bridge. Hooks for Claude Code, Antigravity and Gemini CLI keep a session bound to the item it works on.   |
 | Live    | Every open page updates as items change. A change can be undone for 30 days.                                                                                                                                                                                                                   |
-| Checks  | Browser checks that close a step only when they pass on the right target and show their screenshots, and a runner program (local or hosted in a container).                                                                                                                                    |
+| Checks  | Browser checks that close a step only when they pass on the right target and show their screenshots, run on the bridge of your own computer (nobody else's).                                                                                                                                   |
 | Notes   | A Notes area per project: Markdown notes in folders with versions, links to plans and tasks, and a Turn into a plan or tasks action. Agents read and search notes through the MCP tools `note_list` and `note_get` (references `N-<n>`) and write one only when the user asks in that session. |
 | Backups | Encrypted nightly backups of every organisation, a restore command, and a backup status in Organisation settings that shows when one is late.                                                                                                                                                  |
 
@@ -98,7 +98,7 @@ To release a change to a skill:
 - PostgreSQL through Drizzle. Every tenant table has forced row level security, and the app connects as a role that does not own the tables. Live updates use `LISTEN` and `NOTIFY`, background jobs use pg-boss on the same database, and files live on disk or in any S3 compatible store.
 - One operations layer (`src/lib/server/ops/`). The pages, the REST API, the MCP server and the commands all call it, and each verb reads the caller's live role.
 - Better Auth for sign in, with the OAuth 2.1 and device flows for tools written beside it.
-- `packages/runner` (the browser check runner), `packages/bridge` (the MCP stdio bridge and the tool hooks), `DESIGN.md` (the brand and the size scale).
+- `packages/runner` (the retired browser check program, replaced by the bridge), `packages/bridge` (the MCP stdio bridge and the tool hooks), `DESIGN.md` (the brand and the size scale).
 
 The plan, the decisions and the loophole register this was built from live in the HAPR Board item FLOW-20261014-1047. Current work is planned in the project AFB on the live board.
 

@@ -22,7 +22,7 @@ import { findProject } from './resolve';
 // -- CONSTANTS -- //
 
 /** Fixed local ports that checks must never target or claim. */
-export const FORBIDDEN_DEV_PORTS: ReadonlySet<number> = new Set([5180, 5190, 5433]);
+export const FORBIDDEN_DEV_PORTS: ReadonlySet<number> = new Set([7173, 7174, 5433]);
 export const DEV_WRITE_GUARD_NOTE =
 	'Browser-layer only (service workers blocked, all HTTP methods, sendBeacon and WebSocket routed through the guard).';
 
@@ -159,7 +159,7 @@ export function assertNoLocalExecutionFields(raw: unknown): void {
 
 /**
  * Validates and normalises a dev-server address. Accepts only http/https on localhost, 127.0.0.1 or [::1]
- * with an explicit port, and never 5180, 5190 or 5433.
+ * with an explicit port, and never 7173, 7174 or 5433.
  */
 export function cleanDevUrl(raw: string): string {
 	const text = String(raw ?? '').trim();
@@ -412,7 +412,7 @@ export async function reportDevRegistrationStatus(
 	const devUrl = cleanDevUrl(input.devUrl);
 	const profiles = input.profiles ? cleanProfiles(input.profiles) : undefined;
 	if (runnerAuth.kind === 'hosted')
-		throw new OpError('FORBIDDEN', 'A hosted runner cannot report local dev targets.');
+		throw new OpError('FORBIDDEN', 'A hosted computer cannot report local dev targets.');
 	return withTenant(handle, { orgId: runnerAuth.orgId }, async (tx) => {
 		const [o] = await tx
 			.select({ slug: org.slug, deletedAt: org.deletedAt })
@@ -423,14 +423,17 @@ export async function reportDevRegistrationStatus(
 			.select({ id: runner.id, kind: runner.kind, ownerId: runner.ownerId })
 			.from(runner)
 			.where(and(eq(runner.id, runnerAuth.runnerId), eq(runner.orgId, runnerAuth.orgId)));
-		if (!r) throw new OpError('FORBIDDEN', 'Runner registration is no longer active.');
+		if (!r) throw new OpError('FORBIDDEN', 'This computer is no longer registered.');
 		if (r.kind === 'tool') {
 			const [m] = await tx
 				.select({ role: member.role })
 				.from(member)
 				.where(and(eq(member.orgId, runnerAuth.orgId), eq(member.userId, r.ownerId ?? '')));
 			if (!m || !atLeast(m.role, 'admin'))
-				throw new OpError('FORBIDDEN', 'Tool runner owner no longer holds manage access.');
+				throw new OpError(
+					'FORBIDDEN',
+					'The owner of this computer no longer holds the access it needs.'
+				);
 		}
 		const [p] = await tx
 			.select()
@@ -440,7 +443,7 @@ export async function reportDevRegistrationStatus(
 			);
 		if (!p) throw new OpError('NOT_FOUND', `No project "${input.project}" in this organisation.`);
 		if (!runnerAuth.projectIds.includes(p.id))
-			throw new OpError('FORBIDDEN', 'This runner does not serve that project.');
+			throw new OpError('FORBIDDEN', 'This computer does not serve that project.');
 		const [existing] = await tx
 			.select()
 			.from(devRegistration)

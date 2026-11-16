@@ -7,7 +7,7 @@ import { checksSetupMarkdown } from './checksSetup';
 
 // -- FUNCTIONS -- //
 
-describe('the check runner prompt', () => {
+describe('the prompt that connects a computer to run browser checks', () => {
 	const text = checksSetupMarkdown('https://afb.example.com', { slug: 'arbenger' });
 
 	it('names the organisation, the board and the connect command with its flags', () => {

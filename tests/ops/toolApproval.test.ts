@@ -1,5 +1,5 @@
 // AN AGENT APPROVES THE SIGN IN OF ITS OWN AFB-CHECKS TOOL (AFB-20261021-0341 PHASE 2). The approval is bound to the tool that started the code (a verifier whose
-// hash the tool sent), needs the manage permission of the caller today and of the caller's token, gives only `manage`, is safe to repeat, counts refusals per
+// hash the tool sent), needs the write permission of the caller today and of the caller's token (a member connects their own computer; the bridge client's own sign in still needs manage), gives `read` and `write` and never `manage`, is safe to repeat, counts refusals per
 // caller token, and returns nothing secret. The person's own flow at /device is unchanged and is covered by tests/mcp/oauth.test.ts.
 
 // IMPORTED TYPES
@@ -71,7 +71,7 @@ describe('an agent approves the sign in of its own afb-checks tool', () => {
 		expect(all).not.toContain(t.verifier);
 	});
 
-	it("an admin approves the code its tool started: only manage is given, the org is the caller's, and the tool then receives its token by polling", async () => {
+	it("an admin approves the code its tool started: read and write are given and never manage, the org is the caller's, and the tool then receives its token by polling", async () => {
 		const t = await toolStarts();
 		const done = await approveToolConnection(as('admin'), {
 			userCode: t.userCode,
@@ -86,11 +86,11 @@ describe('an agent approves the sign in of its own afb-checks tool', () => {
 			status: 'approved',
 			approved_by: w.people.admin,
 			approved_org_id: w.orgId,
-			scopes: ['manage']
+			scopes: ['read', 'write']
 		});
 		const token = await pollDevice(db, t.deviceCode);
 		expect(isOAuthError(token)).toBe(false);
-		expect(token).toMatchObject({ token_type: 'Bearer', scope: 'manage' });
+		expect(token).toMatchObject({ token_type: 'Bearer', scope: 'read write' });
 		// A token is handed over exactly once
 		expect(isOAuthError(await pollDevice(db, t.deviceCode))).toBe(true);
 	});
@@ -106,23 +106,23 @@ describe('an agent approves the sign in of its own afb-checks tool', () => {
 		).resolves.toMatchObject({ ok: true });
 	});
 
-	it("needs manage today, in the role and in the caller's own token, and leaves the code pending when refused", async () => {
+	it("needs write today, in the role and in the caller's own token, and leaves the code pending when refused", async () => {
 		const t = await toolStarts();
 		await expect(
-			approveToolConnection(as('member'), { userCode: t.userCode, verifier: t.verifier })
+			approveToolConnection(as('viewer'), { userCode: t.userCode, verifier: t.verifier })
 		).rejects.toMatchObject({ code: 'FORBIDDEN' });
-		// An admin whose token was limited to read and write may not approve, even though the role could
+		// A member whose token was limited to read may not approve, even though the role could
 		await expect(
-			approveToolConnection(
-				asToken('admin', '00000000-0000-4000-8000-0000000000a1', ['read', 'write']),
-				{ userCode: t.userCode, verifier: t.verifier }
-			)
+			approveToolConnection(asToken('member', '00000000-0000-4000-8000-0000000000a1', ['read']), {
+				userCode: t.userCode,
+				verifier: t.verifier
+			})
 		).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		expect((await row(t.userCode)).status).toBe('pending');
-		// The same admin with a token that holds manage can
+		// The same member with a token that holds write can: a member may connect their own computer
 		await expect(
 			approveToolConnection(
-				asToken('admin', '00000000-0000-4000-8000-0000000000a2', ['read', 'write', 'manage']),
+				asToken('member', '00000000-0000-4000-8000-0000000000a2', ['read', 'write']),
 				{ userCode: t.userCode, verifier: t.verifier }
 			)
 		).resolves.toMatchObject({ ok: true });
@@ -145,7 +145,7 @@ describe('an agent approves the sign in of its own afb-checks tool', () => {
 		// The same token without the limit can
 		await expect(
 			approveToolConnection(
-				asToken('admin', '00000000-0000-4000-8000-0000000000b2', ['read', 'manage']),
+				asToken('admin', '00000000-0000-4000-8000-0000000000b2', ['read', 'write']),
 				{
 					userCode: t.userCode,
 					verifier: t.verifier
@@ -200,7 +200,7 @@ describe('an agent approves the sign in of its own afb-checks tool', () => {
 
 	it('a retry of an approval that already went through, with no request id, answers the same and counts no failure', async () => {
 		const t = await toolStarts();
-		const caller = asToken('admin', '00000000-0000-4000-8000-0000000000c1', ['read', 'manage']);
+		const caller = asToken('admin', '00000000-0000-4000-8000-0000000000c1', ['read', 'write']);
 		const first = await approveToolConnection(caller, {
 			userCode: t.userCode,
 			verifier: t.verifier
@@ -332,13 +332,13 @@ describe('an agent approves the sign in of its own afb-checks tool', () => {
 			);
 			expect(JSON.stringify(event)).toContain(BRIDGE);
 			expect(JSON.stringify(event)).not.toContain(t.verifier);
-			// Negative control: the afb-checks client still gets only manage
+			// Negative control: the afb-checks client gets read and write, never manage
 			const checks = await toolStarts();
 			await approveToolConnection(as('admin'), {
 				userCode: checks.userCode,
 				verifier: checks.verifier
 			});
-			expect((await row(checks.userCode)).scopes).toEqual(['manage']);
+			expect((await row(checks.userCode)).scopes).toEqual(['read', 'write']);
 		});
 
 		it('refuses a member, a token limited to some projects, and a token that holds manage but not what the bridge is given', async () => {

@@ -12,6 +12,12 @@ import { SEED_PASSWORD, signIn } from './helpers';
 import { runRunner } from './runnerKit';
 
 const ACME = '/api/v1/orgs/acme';
+// The retired runner program got its token from POST /orgs/{org}/runners, a route that was removed with the organisation Connected tools page
+// (AFB-20261116-1539). The browser checks now run only on a person's own bridge, so this spec of the old program is skipped until the program is deleted.
+test.skip(
+	true,
+	'The runner registration route was removed; the retired runner program has no way to connect.'
+);
 const tag = Date.now().toString(36).toUpperCase().slice(-4);
 let counter = 0;
 const OWNER = 'owner@acme.example';
@@ -211,7 +217,7 @@ test('M11 a run with no runner online says so and offers the targets that can ru
 	const asked = await ask(page, p.ref, { target: 'preview' });
 	expect(asked.unavailable).toBe(true);
 	expect(asked.run.result).toBe('unavailable');
-	expect(asked.run.reason).toMatch(/No runner/);
+	expect(asked.run.reason).toMatch(/No (runner|computer of yours)/);
 	// A viewer cannot ask for a run
 	const viewer = await browser.newContext({ baseURL });
 	const vp = await viewer.newPage();

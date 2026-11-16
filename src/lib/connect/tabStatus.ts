@@ -18,7 +18,7 @@ export type TabStatusInput = {
 	canSetUp: boolean;
 	/** The person's own bridge sign in, or null when it could not be read. */
 	signIn: { state: 'signed-in' | 'expired' | 'none' } | null;
-	/** The person's own check runners, or null when they could not be read. */
+	/** The person's own computers that run their browser checks, or null when they could not be read. */
 	runners: { online: boolean }[] | null;
 };
 
@@ -39,8 +39,8 @@ export function tabStatuses(i: TabStatusInput): Record<ConnectTabKey, TabStatus>
 	else if (i.signIn.state === 'expired') editor = { text: 'Expired', tone: 'warning' };
 	else editor = { text: 'Not set up', tone: 'neutral' };
 	let bridge: TabStatus;
-	if (!i.runners || i.runners.length === 0) bridge = { text: 'No runner', tone: 'neutral' };
-	else if (i.runners.some((r) => r.online)) bridge = { text: 'Runner on', tone: 'success' };
+	if (!i.runners || i.runners.length === 0) bridge = { text: 'No computer', tone: 'neutral' };
+	else if (i.runners.some((r) => r.online)) bridge = { text: 'Online', tone: 'success' };
 	else bridge = { text: 'Offline', tone: 'warning' };
 	return { tools, skills, editor, bridge };
 }

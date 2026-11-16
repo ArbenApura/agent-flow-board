@@ -26,12 +26,9 @@ import {
 	authenticateRunner,
 	createRunner,
 	makeRunKey,
-	deleteRunner,
 	listAccounts,
-	listRunners,
 	saveAccount,
-	saveEnvironment,
-	setRunnerProjects
+	saveEnvironment
 } from '../../src/lib/server/ops/environments';
 import { createItem } from '../../src/lib/server/ops/items';
 import { rotateMasterKey } from '../../src/lib/server/secrets/vault';
@@ -288,19 +285,15 @@ describe('browser checks', () => {
 		});
 		token = made.token;
 		expect(token).toMatch(/^afx_/);
-		const listed = await listRunners(as('member'));
-		expect(JSON.stringify(listed)).not.toContain(token);
-		expect(listed[0].online).toBe(false);
 		expect(await authenticateRunner(db, token + 'x')).toBeNull();
 		expect(await authenticateRunner(db, 'afx_nonsense')).toBeNull();
+		// A computer takes only the runs its own owner asked for: the member asks for the runs below, so the member owns this one
+		await db.admin.exec(
+			`update runner set owner_id = '${w.people.member}' where id = '${made.id}'`
+		);
 		auth = (await authenticateRunner(db, token))!;
 		expect(auth.projectIds).toEqual([w.projectId]);
-		expect((await listRunners(as('member')))[0].online).toBe(true);
-		// Another admin cannot opt projects into someone else's local runner
-		await expect(setRunnerProjects(as('owner'), auth.runnerId, [])).rejects.toMatchObject({
-			code: 'FORBIDDEN'
-		});
-		await setRunnerProjects(as('admin'), auth.runnerId, [w.projectKey]);
+		expect(auth.ownerId).toBe(w.people.member);
 		// A runner of another org cannot be reached with this org's token shape
 		const forged = token.replace(w.orgId, w.other.orgId);
 		expect(await authenticateRunner(db, forged)).toBeNull();
@@ -319,7 +312,7 @@ describe('browser checks', () => {
 		const down = await requestRun(as('member'), { item: it1.ref, key: 'M1' });
 		expect(down.unavailable).toBe(true);
 		expect(down.run.result).toBe('unavailable');
-		expect(down.run.reason).toMatch(/No runner/);
+		expect(down.run.reason).toMatch(/No computer of yours/);
 		await authenticateRunner(db, token);
 		const byDefault = await requestRun(as('member'), { item: it1.ref, key: 'M1' });
 		expect(byDefault.target).toBe('preview');
@@ -549,13 +542,15 @@ describe('browser checks', () => {
 			target: 'preview'
 		});
 		expect(await claimCheckJob(db, otherAuth, services)).toBeNull();
-		await setRunnerProjects(as('admin'), otherAuth.runnerId, [w.projectKey]);
+		await db.admin.exec(
+			`update runner set project_ids = array['${w.projectId}']::uuid[] where id = '${otherAuth.runnerId}'`
+		);
 		const otherAuth2 = (await authenticateRunner(db, other.token))!;
 		expect(await claimCheckJob(db, otherAuth2, services)).toBeNull();
 		const back = await claimCheckJob(db, auth, services);
 		expect(back?.id).toBe(privateOnly.run.id);
 		await finishCheckRun(db, auth, back!.id, { result: 'error', reason: 'done with it' }, services);
-		await deleteRunner(as('admin'), otherAuth.runnerId);
+		await db.admin.exec(`delete from runner where id = '${otherAuth.runnerId}'`);
 		expect(await authenticateRunner(db, other.token)).toBeNull();
 	});
 

@@ -94,6 +94,8 @@ import {
 	emailStatus,
 	getOrgSettings,
 	orgAuditLog,
+	backupDelete,
+	backupDeleteInput,
 	orgBackups,
 	orgSettingsInput,
 	setOrgLogo,
@@ -110,23 +112,19 @@ import {
 } from '../ops/checks';
 import {
 	accountInput,
-	createRunner,
 	deleteAccount,
 	deleteEnvironment,
-	deleteRunner,
 	environmentFields,
 	listAccounts,
 	listEnvironments,
 	approveToolConnection,
-	listRunners,
 	registerToolRunner,
-	runnerInput,
 	saveAccount,
 	saveEnvironment,
-	setRunnerProjects,
 	toolApprovalInput,
 	toolRunnerInput
 } from '../ops/environments';
+import { listMyBridges, removeMyBridge, setMyBridgeProjects } from '../ops/bridgeRunners';
 import {
 	deleteDevRegistration,
 	devRegistrationApiBody,
@@ -661,6 +659,16 @@ export const routes: Route[] = [
 		handler: ({ ctx }) => orgBackups(ctx)
 	},
 	{
+		method: 'POST',
+		path: '/orgs/{org}/backups/delete',
+		summary:
+			'Delete backups of this organisation, the stored file first and then the record (admins and owners). A backup that is still running is refused',
+		tag: 'Settings',
+		body: backupDeleteInput,
+		sessionOnly: true,
+		handler: ({ ctx, body }) => backupDelete(ctx, body as never)
+	},
+	{
 		method: 'GET',
 		path: '/orgs/{org}/email',
 		summary: 'How this server sends email',
@@ -931,25 +939,16 @@ export const routes: Route[] = [
 	},
 	{
 		method: 'GET',
-		path: '/orgs/{org}/runners',
-		summary: 'The runners of the organisation and which are online',
+		path: '/orgs/{org}/my-bridges',
+		summary: 'Your own computers in this organisation, and the web apps you may choose for them',
 		tag: 'Browser checks',
-		handler: ({ ctx }) => listRunners(ctx)
-	},
-	{
-		method: 'POST',
-		path: '/orgs/{org}/runners',
-		summary: 'Register a runner. Its token is shown once.',
-		tag: 'Browser checks',
-		sessionOnly: true,
-		body: runnerInput,
-		handler: ({ ctx, body }) => createRunner(ctx, body as never)
+		handler: ({ ctx }) => listMyBridges(ctx)
 	},
 	{
 		method: 'POST',
 		path: '/orgs/{org}/runners/tool',
 		summary:
-			'Register the afb-checks tool as a runner. A personal token that may manage is enough. Its runner token is shown once.',
+			'Register the afb-checks bridge of this computer for you. A personal token that may write is enough. Its token is shown once.',
 		tag: 'Browser checks',
 		body: toolRunnerInput,
 		handler: ({ ctx, body }) => registerToolRunner(ctx, body as never)
@@ -965,21 +964,24 @@ export const routes: Route[] = [
 	},
 	{
 		method: 'PUT',
-		path: '/orgs/{org}/runners/{id}/projects',
-		summary: 'Choose the projects a runner serves',
+		path: '/orgs/{org}/my-bridges/{id}/projects',
+		summary: 'Choose the web apps one of your own computers may check',
 		tag: 'Browser checks',
 		sessionOnly: true,
 		body: z.object({ projects: z.array(z.string().min(1)).max(50) }),
 		handler: ({ ctx, params, body }) =>
-			setRunnerProjects(ctx, params.id, (body as { projects: string[] }).projects)
+			setMyBridgeProjects(ctx, {
+				id: params.id,
+				projects: (body as { projects: string[] }).projects
+			})
 	},
 	{
 		method: 'DELETE',
-		path: '/orgs/{org}/runners/{id}',
-		summary: 'Remove a runner. Its token stops working at once.',
+		path: '/orgs/{org}/my-bridges/{id}',
+		summary: 'Remove one of your own computers. Its token stops working at once.',
 		tag: 'Browser checks',
 		sessionOnly: true,
-		handler: ({ ctx, params }) => deleteRunner(ctx, params.id)
+		handler: ({ ctx, params }) => removeMyBridge(ctx, params.id)
 	},
 
 	// -- browser checks -- //

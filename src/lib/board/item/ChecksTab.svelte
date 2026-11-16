@@ -235,8 +235,8 @@
 		<!-- THE RUNNER SHOWS ONLY WHEN IT NEEDS ATTENTION -->
 		{#if !runner?.available}
 			<Notice tone="warning" data-testid="runner-status">
-				The check runner is not connected. Your agent connects it by itself the next time a check
-				needs to run, so there is nothing to do here.
+				None of your computers runs browser checks yet. Your agent connects it by itself the next
+				time a check needs to run, so there is nothing to do here.
 			</Notice>
 		{/if}
 

@@ -17,7 +17,6 @@ import {
 import {
 	TOOL_SLOTS_HEADER,
 	authenticateRunner,
-	listRunners,
 	parseToolSlots,
 	registerToolRunner,
 	createRunner
@@ -64,16 +63,16 @@ describe('one tool machine serving more than one organisation', () => {
 			{ handle: db, baseUrl: 'http://board.test', masterKey: MASTER, storage }
 		);
 
-	/** A queued run in the first organisation. */
+	/** A queued run in the first organisation, asked for by the person who owns the tools these tests register (a computer takes only its owner's runs). */
 	const queueRun = async () => {
-		const made = await createItem(as('member'), {
+		const made = await createItem(as('admin'), {
 			project: w.projectKey,
 			title: `Multi org item ${++n}`,
 			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Run it' }] }]
 		});
-		await saveCheck(as('member'), { item: made.ref, key: 'M1', script: 's' });
+		await saveCheck(as('admin'), { item: made.ref, key: 'M1', script: 's' });
 		await db.admin.exec(`update runner set last_seen_at = now()`);
-		await requestRun(as('member'), { item: made.ref, key: 'M1', target: 'preview' });
+		await requestRun(as('admin'), { item: made.ref, key: 'M1', target: 'preview' });
 		return made.ref;
 	};
 
@@ -171,9 +170,11 @@ describe('one tool machine serving more than one organisation', () => {
 				200
 			);
 		expect(await capacity()).toEqual({ slots: 3, busy: 1, free: 2 });
-		// The list the Browser checks tab reads carries the same two numbers
-		const listed = (await listRunners(as('admin'))).find((r) => r.id === tool.id);
-		expect(listed).toMatchObject({ slots: 3, busy: 1 });
+		// The row the Connect page reads carries the same two numbers
+		const [listed] = await db.admin.query<{ capacity_slots: number; capacity_busy: number }>(
+			`select capacity_slots, capacity_busy from runner where id = '${tool.id}'`
+		);
+		expect(listed).toMatchObject({ capacity_slots: 3, capacity_busy: 1 });
 		// A runner that is not the tool never has a capacity recorded
 		const hosted = await createRunner(as('admin'), {
 			name: 'Hosted slots',

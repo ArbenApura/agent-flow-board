@@ -77,7 +77,7 @@ describe('test account sign ins from the board', () => {
 		db = await makePostgres();
 		w = await makeWorld(db);
 		const make = async (name: string) => {
-			const t = await registerToolRunner(as('admin'), { name });
+			const t = await registerToolRunner(as('owner'), { name });
 			const key = newKey();
 			// The machine holds the site HAPRM (reported in the registrations header)
 			await callWith(t.token, '/peek', {

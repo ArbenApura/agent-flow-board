@@ -69,7 +69,7 @@ describe('a tool from before the heartbeat', () => {
 		db = await makePostgres();
 		w = await makeWorld(db);
 		await db.admin.exec(`update project set web_app = true where id = '${w.projectId}'`);
-		token = (await registerToolRunner(as('admin'), { name: 'Old PC afb-checks' })).token;
+		token = (await registerToolRunner(as('member'), { name: 'Old PC afb-checks' })).token;
 		await authenticateRunner(db, token);
 	}, 240_000);
 	afterAll(() => db?.stop());
