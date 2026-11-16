@@ -210,6 +210,7 @@ test('M4 the Connect page shows a snippet per tool, makes a token that is shown 
 		await page.getByRole('tab', { name: tool }).click();
 		await expect(page.getByTestId('snippet-code')).toContainText(/\/mcp|@agent-flow-board\/bridge/);
 	}
+	await page.getByRole('button', { name: 'Make a token' }).click();
 	await page.getByLabel('What is it for?').fill('Connect page token');
 	await page.getByRole('button', { name: 'Create token' }).click();
 	const token = (await page.getByTestId('token-value').innerText()).trim();

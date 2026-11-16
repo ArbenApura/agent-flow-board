@@ -41,7 +41,21 @@ export const actions: Actions = {
 				caps: await grantableCaps(handle, o.id, locals.user!.id)
 			}))
 		);
-		return { step: 'confirm', typed: info.userCode, info, orgs: withCaps };
+		// The tool may have asked for one organisation. It is decided here, never in the page: a member gets it locked, anyone else
+		// (not a member, no such org, an org going away) gets one identical answer and nothing to approve
+		const match = info.requestedOrg ? orgs.find((o) => o.slug === info.requestedOrg) : undefined;
+		const requested = info.requestedOrg
+			? { slug: info.requestedOrg, locked: !!match, blocked: !match }
+			: null;
+		const shown = requested ? withCaps.filter((o) => o.id === match?.id) : withCaps;
+		return {
+			step: 'confirm',
+			typed: info.userCode,
+			info: { client: info.client, origin: info.origin, expiresInSeconds: info.expiresInSeconds },
+			orgs: shown,
+			requested,
+			account: locals.user.email
+		};
 	},
 	approve: async ({ request, locals }) => {
 		if (!locals.user) redirect(303, '/sign-in');

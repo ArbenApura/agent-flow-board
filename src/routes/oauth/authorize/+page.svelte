@@ -11,6 +11,9 @@
 	import SelectField from '#lib/ui/SelectField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { LOADING_MS } from '#lib/ui/toastEnhance.js';
+	// IMPORTED DEP-COMPONENTS
+	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 
 	// -- CONSTANTS -- //
 
@@ -23,6 +26,9 @@
 		manage: 'Change project settings'
 	};
 	const VIEW_CAPS = ['read', 'comment'];
+	const POLL_MS = 1500;
+	// A little past the code's own 60 seconds, so a lapsed code is reported by the server first
+	const GIVE_UP_MS = 75_000;
 
 	// -- REQUIRED PROPS -- //
 
@@ -35,6 +41,9 @@
 	$effect(() => {
 		if (!orgId) orgId = data.orgs[0]?.id ?? '';
 	});
+	// The page stays open when the tool takes the answer through its own address, so it follows the connection to the end
+	let phase = $state<'ask' | 'waiting' | 'connected' | 'expired'>('ask');
+	let toastId = $state<string | number | undefined>();
 
 	// -- REACTIVE STATES -- //
 
@@ -54,12 +63,53 @@
 	// -- FUNCTIONS -- //
 
 	// The answer is a full page POST that ends on the tool's own address, so the toast only covers the wait
-	function answering(text: string) {
+	function answering(text: string, approve = false) {
 		return () => {
 			// A private-scheme redirect leaves this page open, so the toast must not wait for ever
-			toast.loading(text, { duration: LOADING_MS });
+			toastId = toast.loading(text, { duration: LOADING_MS });
+			if (approve) phase = 'waiting';
 		};
 	}
+
+	// Asks whether the tool has redeemed the code. A failed call is ignored, so the next tick simply tries again
+	async function check(): Promise<'none' | 'waiting' | 'connected' | 'expired'> {
+		try {
+			const q = new URLSearchParams({
+				org: orgId,
+				client_id: data.raw.client_id ?? '',
+				code_challenge: data.raw.code_challenge ?? ''
+			});
+			const res = await fetch(`/oauth/authorize/status?${q}`, { cache: 'no-store' });
+			if (!res.ok) return 'none';
+			return ((await res.json()) as { status: 'none' | 'waiting' | 'connected' | 'expired' })
+				.status;
+		} catch {
+			return 'none';
+		}
+	}
+
+	// -- SUBSCRIPTIONS -- //
+
+	// Polls only while an approval is in flight, and stops for good once it is connected, lapsed or given up on
+	$effect(() => {
+		if (phase !== 'waiting') return;
+		const started = Date.now();
+		let stopped = false;
+		const timer = setInterval(async () => {
+			const status = await check();
+			if (stopped) return;
+			if (status === 'connected' || status === 'expired' || Date.now() - started > GIVE_UP_MS) {
+				stopped = true;
+				clearInterval(timer);
+				toast.dismiss(toastId);
+				phase = status === 'connected' ? 'connected' : 'expired';
+			}
+		}, POLL_MS);
+		return () => {
+			stopped = true;
+			clearInterval(timer);
+		};
+	});
 </script>
 
 <svelte:head><title>Connect a tool</title></svelte:head>
@@ -97,9 +147,9 @@
 				id="consent-form"
 				method="POST"
 				action="/oauth/authorize/decision"
-				class="flex flex-col gap-3"
+				class={['flex flex-col gap-3', phase !== 'ask' && 'hidden']}
 				data-testid="consent-form"
-				onsubmit={answering('Connecting...')}
+				onsubmit={answering('Connecting...', true)}
 			>
 				{#each Object.entries(data.raw) as [k, v] (k)}<input
 						type="hidden"
@@ -147,7 +197,7 @@
 				</fieldset>
 			</form>
 			<!-- BOTH ANSWERS SIT ON ONE ROW. THE CONNECT BUTTON BELONGS TO THE CONSENT FORM THROUGH ITS FORM ATTRIBUTE -->
-			<div class="mt-4 flex flex-col-reverse gap-2 sm:flex-row">
+			<div class={['mt-4 flex flex-col-reverse gap-2 sm:flex-row', phase !== 'ask' && 'hidden']}>
 				<form
 					method="POST"
 					action="/oauth/authorize/decision"
@@ -166,6 +216,33 @@
 					>Connect</Button
 				>
 			</div>
+			<!-- THE ANSWER ONCE SENT: WAITING FOR THE TOOL, THEN CONNECTED, OR A LAPSED CODE -->
+			{#if phase !== 'ask'}
+				<div
+					class="flex flex-col gap-3"
+					role="status"
+					aria-live="polite"
+					data-testid="oauth-{phase}"
+				>
+					{#if phase === 'waiting'}
+						<p class="flex items-center gap-2 text-sm text-muted">
+							<LoaderCircle size={18} class="animate-spin" aria-hidden="true" />
+							Approved. Waiting for {shortName} to finish connecting...
+						</p>
+					{:else if phase === 'connected'}
+						<p class="flex items-center gap-2 text-sm font-medium">
+							<CircleCheck size={18} class="text-[var(--success)]" aria-hidden="true" />
+							{shortName} is connected{org ? ` to ${org.name}` : ''}.
+						</p>
+						<p class="text-sm text-muted">You can close this tab and go back to {shortName}.</p>
+					{:else}
+						<Notice tone="warning">
+							The approval ran out before {shortName} finished. Start the connection from {shortName}
+							again.
+						</Notice>
+					{/if}
+				</div>
+			{/if}
 		{/if}
 	{/if}
 </AuthShell>

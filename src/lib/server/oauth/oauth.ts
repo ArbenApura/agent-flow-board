@@ -22,6 +22,7 @@ import {
 import { withTenant } from '../db/tenant';
 import { ALL_CAPS, OpError, capsOf, run } from '../ops/context';
 import { mintToken } from '../ops/tokens';
+import { isOrgSlug } from '../../shared/orgConnection';
 
 // -- CONSTANTS -- //
 
@@ -173,6 +174,31 @@ export async function grantableCaps(
 	});
 }
 
+/** The slug of an org, only when the person is a member and the org is not scheduled for deletion. A non member, a missing org and a deleted one all read the same: null. */
+export async function memberOrgSlug(
+	handle: DbHandle,
+	orgId: string,
+	userId: string
+): Promise<string | null> {
+	if (!UUID.test(orgId)) return null;
+	return withTenant(handle, { orgId, userId }, async (tx) => {
+		const [o] = await tx
+			.select({ slug: org.slug, deletedAt: org.deletedAt })
+			.from(org)
+			.where(eq(org.id, orgId));
+		if (!o || o.deletedAt) return null;
+		const [m] = await tx
+			.select({ role: member.role })
+			.from(member)
+			.where(and(eq(member.orgId, orgId), eq(member.userId, userId)));
+		return m ? o.slug : null;
+	});
+}
+
+/** The one refusal for a tool that asked for an organisation this approval is not for, whatever the reason, so no one can probe which slugs exist. */
+export const REQUESTED_ORG_REFUSAL =
+	'This tool asked to connect to a different organisation than the one you are approving, or one your account is not in. Start the sign in again for the organisation you want.';
+
 /** Issues a one time code after the person approved. The code is `<orgId>.<secret>`, valid 60 seconds, bound to the PKCE challenge. */
 export async function issueCode(
 	handle: DbHandle,
@@ -217,6 +243,35 @@ export async function issueCode(
 		})
 	);
 	return code;
+}
+
+/**
+ * Where the person's own approval stands, for the consent page left open while the tool finishes.
+ * It is found by the PKCE challenge the page already holds, only for the signed in person who approved it, so no secret is exposed.
+ * `waiting` is an approved code the tool has not redeemed yet, `connected` is a redeemed one, `expired` is a code that lapsed unused.
+ */
+export async function approvalStatus(
+	handle: DbHandle,
+	input: { orgId: string; userId: string; clientId: string; challenge: string }
+): Promise<'none' | 'waiting' | 'connected' | 'expired'> {
+	if (!UUID.test(input.orgId)) return 'none';
+	return withTenant(handle, { orgId: input.orgId, userId: input.userId }, async (tx) => {
+		const [row] = await tx
+			.select({ usedAt: oauthCode.usedAt, expiresAt: oauthCode.expiresAt })
+			.from(oauthCode)
+			.where(
+				and(
+					eq(oauthCode.clientId, input.clientId),
+					eq(oauthCode.userId, input.userId),
+					eq(oauthCode.codeChallenge, input.challenge)
+				)
+			)
+			.orderBy(desc(oauthCode.expiresAt))
+			.limit(1);
+		if (!row) return 'none';
+		if (row.usedAt) return 'connected';
+		return row.expiresAt <= new Date() ? 'expired' : 'waiting';
+	});
 }
 
 async function issueTokens(
@@ -409,6 +464,8 @@ export async function startDevice(
 		origin?: string;
 		code_challenge?: unknown;
 		code_challenge_method?: unknown;
+		/** The organisation slug the tool asked for (login --org). Only checked for its shape here, never looked up. */
+		org?: unknown;
 	}
 ) {
 	const client =
@@ -429,6 +486,17 @@ export async function startDevice(
 			);
 		challengeHash = input.code_challenge;
 	}
+	// The slug is stored as the tool wrote it (lowercased), after a shape check only: this endpoint has no sign in, so it never says whether an org exists
+	let requestedOrg: string | null = null;
+	if (input.org !== undefined && input.org !== null && input.org !== '') {
+		const slug = typeof input.org === 'string' ? input.org.trim().toLowerCase() : '';
+		if (!isOrgSlug(slug))
+			return err(
+				'invalid_request',
+				'org must be an organisation slug: lowercase letters, digits and dashes.'
+			);
+		requestedOrg = slug;
+	}
 	const deviceCodeValue = randomBytes(32).toString('base64url');
 	for (let i = 0; i < 5; i++) {
 		const userCode = Array.from(
@@ -442,6 +510,7 @@ export async function startDevice(
 				client,
 				origin: (input.origin ?? '').slice(0, 80) || null,
 				challengeHash,
+				requestedOrg,
 				expiresAt: new Date(Date.now() + DEVICE_SECONDS * 1000)
 			});
 			return {
@@ -467,6 +536,7 @@ export async function describeDevice(handle: DbHandle, typed: string) {
 		userCode: code,
 		client: row.client,
 		origin: row.origin,
+		requestedOrg: row.requestedOrg,
 		expiresInSeconds: Math.max(0, Math.floor((row.expiresAt.getTime() - Date.now()) / 1000))
 	};
 }
@@ -499,6 +569,12 @@ export async function approveDevice(
 			.where(eq(deviceCode.userCode, info.userCode));
 		return { ok: true, client: info.client };
 	}
+	// The tool named an organisation: the page is only a hint, so the rule is enforced here, before anything else, and does not spend the wrong code budget
+	if (
+		info.requestedOrg &&
+		(await memberOrgSlug(handle, input.orgId, input.userId)) !== info.requestedOrg
+	)
+		return err('access_denied', REQUESTED_ORG_REFUSAL);
 	const allowed = await grantableCaps(handle, input.orgId, input.userId);
 	const scopes = input.scopes.filter((s) => allowed.includes(s));
 	if (scopes.length === 0)

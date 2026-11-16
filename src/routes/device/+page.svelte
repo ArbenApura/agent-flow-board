@@ -41,6 +41,9 @@
 			role: 'owner' | 'admin' | 'member' | 'viewer' | 'guest';
 			caps: string[];
 		}[];
+		// Set when the tool asked for one organisation. The server decides locked and blocked, the page only shows them
+		requested: { slug: string; locked: boolean; blocked: boolean } | null;
+		account: string;
 	};
 
 	// -- STATES -- //
@@ -53,11 +56,13 @@
 	const confirm = $derived(
 		form && 'step' in form && form.step === 'confirm' ? (form as unknown as Confirm) : null
 	);
-	// The first organisation is shown selected, which is the one the form sends
+	// The first organisation is shown selected, which is the one the form sends. A requested organisation is the only one offered, and a blocked request offers none
 	$effect(() => {
 		if (confirm && !orgId) orgId = confirm.orgs[0]?.id ?? '';
 	});
 	const org = $derived(confirm?.orgs.find((o) => o.id === orgId) ?? confirm?.orgs[0]);
+	const locked = $derived(!!confirm?.requested?.locked);
+	const blocked = $derived(!!confirm?.requested?.blocked);
 </script>
 
 <svelte:head><title>Approve a tool</title></svelte:head>
@@ -83,43 +88,62 @@
 				? ` from ${confirm.info.origin}`
 				: ''}. The code works for {Math.floor(confirm.info.expiresInSeconds / 60)} minutes, once.
 		</div>
-		<form
-			method="POST"
-			action="?/approve"
-			use:enhance={toastEnhance({
-				id: 'device-approve',
-				loading: 'Approving the tool...',
-				success: 'Tool approved.',
-				inline: true,
-				reset: true
-			})}
-			class="flex flex-col gap-3"
-		>
-			<input type="hidden" name="code" value={confirm.typed} />
-			<input type="hidden" name="org" value={org?.id ?? ''} />
-			<SelectField
-				label="Organisation"
-				options={confirm.orgs.map((o) => ({
-					value: o.id,
-					label: `${o.name} (${ROLE_LABEL[o.role]})`
-				}))}
-				bind:value={orgId}
-			/>
-			<fieldset class="flex flex-col">
-				<legend class="mb-1 text-xs font-medium text-muted">What it may do</legend>
-				{#key org?.id}
-					{#each org?.caps ?? [] as c (c)}
-						<Checkbox
-							label={CAP_TEXT[c] ?? c}
-							name="scope"
-							value={c}
-							checked={DEFAULT_ON.includes(c)}
-						/>
-					{/each}
-				{/key}
-			</fieldset>
-			<Button type="submit" variant="primary" class="w-full">Approve</Button>
-		</form>
+		{#if blocked && confirm.requested}
+			<!-- THE TOOL ASKED FOR AN ORGANISATION THIS ACCOUNT CANNOT USE: ONE WORDING FOR EVERY REASON, NOTHING TO APPROVE -->
+			<Notice tone="danger" class="mb-3" data-testid="device-org-blocked">
+				This tool asked to connect to <span class="font-mono text-xs">{confirm.requested.slug}</span
+				>, but you are signed in as {confirm.account}, and that account is not in an organisation
+				with that name. Refuse this request, then sign in with the right account or start the sign
+				in again.
+			</Notice>
+		{:else}
+			<form
+				method="POST"
+				action="?/approve"
+				use:enhance={toastEnhance({
+					id: 'device-approve',
+					loading: 'Approving the tool...',
+					success: 'Tool approved.',
+					inline: true,
+					reset: true
+				})}
+				class="flex flex-col gap-3"
+			>
+				<input type="hidden" name="code" value={confirm.typed} />
+				<input type="hidden" name="org" value={org?.id ?? ''} />
+				{#if locked && org}
+					<!-- THE TOOL NAMED ONE ORGANISATION, SO THERE IS NOTHING TO PICK -->
+					<p class="text-sm" data-testid="device-org-locked">
+						<span class="text-muted">Connecting to</span>
+						<span class="font-medium">{org.name}</span>
+						<span class="text-muted">({ROLE_LABEL[org.role]})</span>
+					</p>
+				{:else}
+					<SelectField
+						label="Organisation"
+						options={confirm.orgs.map((o) => ({
+							value: o.id,
+							label: `${o.name} (${ROLE_LABEL[o.role]})`
+						}))}
+						bind:value={orgId}
+					/>
+				{/if}
+				<fieldset class="flex flex-col">
+					<legend class="mb-1 text-xs font-medium text-muted">What it may do</legend>
+					{#key org?.id}
+						{#each org?.caps ?? [] as c (c)}
+							<Checkbox
+								label={CAP_TEXT[c] ?? c}
+								name="scope"
+								value={c}
+								checked={DEFAULT_ON.includes(c)}
+							/>
+						{/each}
+					{/key}
+				</fieldset>
+				<Button type="submit" variant="primary" class="w-full">Approve</Button>
+			</form>
+		{/if}
 		<form
 			method="POST"
 			action="?/deny"

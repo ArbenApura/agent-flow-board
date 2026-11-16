@@ -38,7 +38,7 @@ export const MAX_PASSWORD = 128;
 // -- FUNCTIONS -- //
 
 /**
- * Browsers share cookies between ports on localhost, so the dev server and the build preview (same port 5180, other secret and
+ * Browsers share cookies between ports on localhost, so the dev server and the build preview (same host on ports 7173 and 7174, other secret and
  * database) would overwrite and clear each other's session cookie. Over plain http the name carries a short tag of the secret, so
  * each server only ever sees its own cookie. A secure (deployed) site keeps the plain `afb` prefix.
  */

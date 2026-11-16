@@ -1,0 +1,1 @@
+ALTER TABLE "device_code" ADD COLUMN "requested_org" text;

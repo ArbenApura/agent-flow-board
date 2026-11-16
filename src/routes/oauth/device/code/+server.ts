@@ -24,7 +24,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress }) => {
 		client_name: p.client_name,
 		origin,
 		code_challenge: p.code_challenge,
-		code_challenge_method: p.code_challenge_method
+		code_challenge_method: p.code_challenge_method,
+		org: p.org
 	});
 	return json(started, isOAuthError(started) ? 400 : 200);
 };
