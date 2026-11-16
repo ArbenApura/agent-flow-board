@@ -14,6 +14,7 @@
 	// IMPORTED DEP-COMPONENTS
 	import ArrowDownUp from '@lucide/svelte/icons/arrow-up-down';
 	import ClipboardList from '@lucide/svelte/icons/clipboard-list';
+	import Check from '@lucide/svelte/icons/check';
 	import Clock from '@lucide/svelte/icons/clock';
 	import FileIcon from '@lucide/svelte/icons/paperclip';
 	import LayoutPanel from '@lucide/svelte/icons/panels-top-left';
@@ -247,6 +248,24 @@
 	}
 </script>
 
+<!-- THE CHECKBOX OF THE APP: A DRAWN BOX WITH A TICK, THE NATIVE INPUT STAYS FOR KEYBOARD AND SCREEN READERS -->
+{#snippet box(checked: boolean, onchange: () => void, label: string)}
+	<span class="relative inline-flex size-5 shrink-0">
+		<input
+			type="checkbox"
+			{checked}
+			{onchange}
+			aria-label={label}
+			class="peer absolute inset-0 size-5 cursor-pointer appearance-none rounded-[5px] border-[1.5px] border-muted bg-surface checked:border-accent checked:bg-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+		/>
+		<Check
+			size={14}
+			strokeWidth={3}
+			class="pointer-events-none absolute top-[3px] left-[3px] text-accent-ink opacity-0 peer-checked:opacity-100"
+		/>
+	</span>
+{/snippet}
+
 <!-- THE TRASH SECTION: WHAT WAS REMOVED, WHAT LEAVES SOON, AND RESTORE. THE PERMISSION PANEL STAYS FOR A VIEWER -->
 {#if denied}
 	<PermissionDenied needed={denied.needed} current={denied.role} what="the trash" />
@@ -365,13 +384,7 @@
 
 		<div class="flex min-h-11 items-center gap-3 px-3 text-xs text-muted max-sm:px-2">
 			<label class="flex min-h-11 cursor-pointer items-center">
-				<input
-					type="checkbox"
-					checked={allShown}
-					onchange={togglePickAll}
-					aria-label="Select everything shown"
-					class="size-5 cursor-pointer rounded-[5px] border-[1.5px] border-muted bg-surface accent-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
-				/>
+				{@render box(allShown, togglePickAll, 'Select everything shown')}
 			</label>
 			<span class="tabular-nums" data-shown-count
 				>Showing {shown.length} of {rows.length} things, {sort === 'expiring'
@@ -398,13 +411,7 @@
 						data-testid="trash-row"
 						data-kind={r.kind}
 					>
-						<input
-							type="checkbox"
-							checked={on}
-							onchange={() => togglePick(r.key)}
-							aria-label={`Select ${r.title}`}
-							class="size-5 shrink-0 cursor-pointer rounded-[5px] border-[1.5px] border-muted bg-surface accent-[var(--accent)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
-						/>
+						{@render box(on, () => togglePick(r.key), `Select ${r.title}`)}
 						<span
 							class="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-line bg-raised text-muted"
 							aria-hidden="true"

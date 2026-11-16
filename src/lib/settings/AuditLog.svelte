@@ -282,7 +282,10 @@
 							{@const body = `audit-fold-${row.first.id}`}
 							{@const open = !!opened[row.key]}
 							<li class="relative" style="--i:{row.i}" data-item data-testid="audit-group">
-								<div class="relative ml-1 rounded-xl border border-line bg-raised/40">
+								<!-- AN OPAQUE TINT SO THE RAIL BEHIND THE LIST DOES NOT SHOW THROUGH THE CARD -->
+								<div
+									class="relative ml-1 rounded-xl border border-line bg-[color-mix(in_oklab,var(--raised)_40%,var(--surface))]"
+								>
 									<!-- THE HEADER OF A FOLDED ROW OPENS EACH TIME IT HAPPENED -->
 									<button
 										type="button"
