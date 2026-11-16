@@ -47,7 +47,7 @@ for (const width of [1440, 390]) {
 		await sideways(`/acme/${key}?view=list`);
 		await sideways(`/acme/${key}?view=areas`);
 		for (const ref of refs) await sideways(`/acme/${key}/${ref}`);
-		await sideways(`/acme/${key}/activity`);
+		await sideways(`/acme/${key}/settings?tab=activity`);
 		await ctx.close();
 	});
 }

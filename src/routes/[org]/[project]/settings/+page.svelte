@@ -10,7 +10,9 @@
 	import PictureUpload from '#lib/ui/PictureUpload.svelte';
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
 	import { ApiError, api, deletePicture, newKey, putPicture } from '#lib/board/api.js';
+	import EventList from '#lib/board/EventList.svelte';
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
+	import TrashPanel from '#lib/board/TrashPanel.svelte';
 	import { canon, createFollower } from '#lib/settings/follow.js';
 	import {
 		savedStreams,
@@ -26,13 +28,14 @@
 	import Switch from '#lib/ui/Switch.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
+	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	// IMPORTED DEP-COMPONENTS
 	import Settings from '@lucide/svelte/icons/settings';
 	import Layers from '@lucide/svelte/icons/layers';
-	import Bot from '@lucide/svelte/icons/bot';
+	import Activity from '@lucide/svelte/icons/activity';
 	import Download from '@lucide/svelte/icons/download';
 	import Trash from '@lucide/svelte/icons/trash';
-	import ArrowRight from '@lucide/svelte/icons/arrow-right';
+	import ListFilter from '@lucide/svelte/icons/list-filter';
 
 	// -- REQUIRED PROPS -- //
 
@@ -43,7 +46,6 @@
 	let name = $state('');
 	let webApp = $state(false);
 	let streams = $state<StreamRow[]>([]);
-	let mayComplete = $state(true);
 	let status = $state<Record<string, { saving: boolean; saved: boolean; error: string }>>({});
 
 	// -- FUNCTIONS -- //
@@ -54,17 +56,17 @@
 	const key = $derived(page.params.project ?? '');
 	const p = $derived(data.project);
 	const can = $derived(data.canManage);
+	const tab = $derived(page.url.searchParams.get('tab'));
+	const canWrite = $derived(can);
 	const dirty = $derived(
 		p
 			? {
 					general: name.trim() !== p.name || webApp !== p.webApp,
-					streams: canon(savedStreams(streams)) !== canon(p.streams),
-					agents: mayComplete !== p.agentsMayComplete
+					streams: canon(savedStreams(streams)) !== canon(p.streams)
 				}
 			: {
 					general: false,
-					streams: false,
-					agents: false
+					streams: false
 				}
 	);
 
@@ -82,7 +84,6 @@
 		follow('name', p.name, (v) => (name = v));
 		follow('webApp', p.webApp, (v) => (webApp = v));
 		follow('streams', p.streams, (v) => (streams = withIds(v)));
-		follow('mayComplete', p.agentsMayComplete, (v) => (mayComplete = v));
 	});
 
 	async function save(id: string, path: string, body: Record<string, unknown>, method = 'PATCH') {
@@ -124,6 +125,29 @@
 
 	const patchProject = (id: string, body: Record<string, unknown>) =>
 		save(id, `/projects/${key}`, body);
+
+	/** Undoes everything one agent session changed, after a confirmation that names what happens. */
+	async function undoSession(sessionId: string | null) {
+		if (!sessionId) return;
+		if (
+			!(await askConfirm({
+				title: 'Undo this whole session?',
+				body: 'Everything the session changed is put back, newest change first, until one cannot be undone safely.',
+				confirmLabel: 'Undo it all'
+			}))
+		)
+			return;
+		try {
+			await toast.promise(api(org, `/sessions/${sessionId}/undo`, { method: 'POST', body: {} }), {
+				loading: 'Undoing the session...',
+				success: 'Everything that session changed is undone.',
+				error: (e) => (e instanceof ApiError ? e.message : 'The session could not be undone.')
+			});
+			await invalidate('afb:project');
+		} catch {
+			// The promise toast already shows the failure
+		}
+	}
 </script>
 
 <svelte:head><title>Project settings, {p?.name ?? ''}</title></svelte:head>
@@ -212,36 +236,57 @@
 			</Section>
 
 			<Section
-				id="agents"
-				icon={Bot}
-				title="Agents and closing"
-				text="Whether an agent may set an item to COMPLETED. Off keeps closing for people."
-				dirty={dirty.agents}
-				saving={st('agents').saving}
-				saved={st('agents').saved}
-				error={st('agents').error}
-				readonly={!can}
-				onsave={() => patchProject('agents', { agentsMayComplete: mayComplete })}
+				id="activity"
+				icon={Activity}
+				title="Activity"
+				text="Everything that changed in this project, newest first. Most changes can be undone."
 			>
-				<Switch
-					label="Agents may set COMPLETED"
-					hint="An agent still has to confirm closing an item it is not working on."
-					bind:checked={mayComplete}
-					disabled={!can}
-				/>
+				{#if tab === 'activity' && data.activity}
+					<div class="flex flex-col gap-3">
+						{#if data.sessionId}
+							<div
+								class="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-accent/35 bg-accent-soft px-4 py-3 max-sm:px-3"
+								data-testid="session-notice"
+							>
+								<ListFilter size={16} class="shrink-0 text-accent-text" />
+								<p class="min-w-0 flex-1 text-sm font-medium text-accent-text">
+									Only what one agent session changed.
+								</p>
+								<div class="flex items-center gap-3">
+									<a
+										class="text-sm text-accent-text hover:underline"
+										href={`/${org}/${key}/settings?tab=activity`}>Show everything</a
+									>
+									{#if canWrite}<Button
+											size="sm"
+											variant="danger"
+											onclick={() => undoSession(data.sessionId)}>Undo this session</Button
+										>{/if}
+								</div>
+							</div>
+						{/if}
+						<EventList
+							events={data.activity.events}
+							{org}
+							refs={data.activity.refs}
+							linkBase={`/${org}/${key}`}
+							canUndo={canWrite}
+							onchanged={() => invalidate('afb:project')}
+							onundosession={(id) => undoSession(id)}
+						/>
+					</div>
+				{/if}
 			</Section>
 
 			<Section
 				id="trash"
 				icon={Trash}
 				title="Trash"
-				text="Items, tasks and files you remove stay for 30 days."
+				text="Things stay here for 30 days, then they are removed for good."
 			>
-				<div>
-					<Button href={`/${org}/${key}/trash`} data-testid="open-trash"
-						>Open the trash <ArrowRight size={16} /></Button
-					>
-				</div>
+				{#if tab === 'trash' && data.trash}
+					<TrashPanel {org} projectKey={key} trash={data.trash.list} denied={data.trash.denied} />
+				{/if}
 			</Section>
 
 			<Section

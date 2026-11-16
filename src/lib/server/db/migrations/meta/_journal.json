@@ -351,6 +351,13 @@
       "when": 1794739422462,
       "tag": "0049_boring_kinsey_walden",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794787313044,
+      "tag": "0050_drop_agents_may_complete",
+      "breakpoints": true
     }
   ]
 }

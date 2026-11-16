@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { searchBoard } from '../../src/lib/server/ops/board';
 import { createTask, updateTask } from '../../src/lib/server/ops/docs';
 import { createItem, getItem, trashItem, updateItem } from '../../src/lib/server/ops/items';
-import { listProjects, updateProject } from '../../src/lib/server/ops/projects';
+import { listProjects } from '../../src/lib/server/ops/projects';
 import { setStatus } from '../../src/lib/server/ops/status';
 import { recordSteps } from '../../src/lib/server/ops/steps';
 import {
@@ -211,23 +211,6 @@ describe('access rules', () => {
 			)
 		).resolves.toBeTruthy();
 		void listProjects;
-	});
-
-	it('an agent cannot switch off the rule that keeps COMPLETED for people, a person can', async () => {
-		const agent = {
-			...w.ctx('admin'),
-			actor: {
-				userId: w.people.admin,
-				kind: 'agent' as const,
-				tokenId: '00000000-0000-4000-8000-0000000000a2'
-			}
-		};
-		await expect(
-			updateProject(agent, { project: w.projectKey, agentsMayComplete: true })
-		).rejects.toMatchObject({ code: 'FORBIDDEN' });
-		await expect(
-			updateProject(w.ctx('admin'), { project: w.projectKey, agentsMayComplete: false })
-		).resolves.toBeTruthy();
 	});
 
 	it('a request id used again for another request is refused, and for the same one returns the first answer', async () => {

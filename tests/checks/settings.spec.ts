@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- API replies are parsed from JSON and read loosely in checks */
 // M8: the palette live preview shows both
-// modes, the "Agents may set COMPLETED" switch persists, and each settings section saves on its own. Organisation changes run in
+// modes, the Activity and Trash sections open from their tabs, and each settings section saves on its own. Organisation changes run in
 // a fresh organisation of their own, so they never disturb the seeded one the other checks use.
 import { expect, test, type Browser } from '@playwright/test';
 import { hexToRgb, generatePalette } from '../../src/lib/theme/palette';
@@ -186,40 +186,9 @@ test('M8 a project: the Agents may set COMPLETED switch and other sections persi
 	await page.goto(`/acme/${key}/settings`);
 	await expect(page.getByTestId('page-title')).toHaveText('Project settings');
 
-	// The switch persists: off, saved, reload, still off, then back on
-	await tab(page, 'agents');
-	const agents = page.getByRole('switch', { name: 'Agents may set COMPLETED' });
-	await expect(agents).toHaveAttribute('aria-checked', 'true');
-	await expect(page.getByTestId('save-agents')).toBeDisabled();
-	await agents.click();
-	await expect(agents).toHaveAttribute('aria-checked', 'false');
-	await page.getByTestId('save-agents').click();
-	await expect(page.getByTestId('saved-agents')).toBeVisible();
-	expect((await project()).agentsMayComplete).toBe(false);
-	await page.reload();
-	await expect(page.getByRole('switch', { name: 'Agents may set COMPLETED' })).toHaveAttribute(
-		'aria-checked',
-		'false'
-	);
-	await page.getByRole('switch', { name: 'Agents may set COMPLETED' }).click();
-	await page.getByTestId('save-agents').click();
-	await expect(page.getByTestId('saved-agents')).toBeVisible();
-	expect((await project()).agentsMayComplete).toBe(true);
-
-	// Each section saves alone: an unsaved name stays unsaved while the agents section saves
+	// Each section saves alone: an unsaved name stays unsaved while the streams section saves
 	await tab(page, 'general');
 	await page.getByTestId('project-name-input').fill('Name typed but not saved');
-	await tab(page, 'agents');
-	await page.getByRole('switch', { name: 'Agents may set COMPLETED' }).click();
-	await page.getByTestId('save-agents').click();
-	await expect.poll(async () => (await project()).agentsMayComplete).toBe(false);
-	await page.getByRole('switch', { name: 'Agents may set COMPLETED' }).click();
-	await page.getByTestId('save-agents').click();
-	await expect.poll(async () => (await project()).agentsMayComplete).toBe(true);
-	expect(await project()).toMatchObject({ name: `Settings ${key}` });
-	await tab(page, 'general');
-	await expect(page.getByTestId('save-general')).toBeEnabled();
-	// Streams and UI shots
 	await tab(page, 'streams');
 	// A new project already holds the standard set, so the new row is the last one
 	await page.getByTestId('add-stream').click();
@@ -386,14 +355,6 @@ test('M8 a member and a viewer see the settings but cannot change them, and the 
 		expect((await page.request.get('/api/v1/orgs/acme/backups')).status()).toBe(403);
 		await page.goto('/acme/CKT/settings');
 		await expect(page.getByTestId('save-general')).toHaveCount(0);
-		await expect(page.getByTestId('save-agents')).toHaveCount(0);
-		expect(
-			(
-				await page.request.patch('/api/v1/orgs/acme/projects/CKT', {
-					data: { agentsMayComplete: false }
-				})
-			).status()
-		).toBe(403);
 		await ctx.close();
 	}
 	// An unsigned person is sent to sign in, and a token cannot change org settings

@@ -4,7 +4,6 @@
 	// IMPORTED DEP-MODULES
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	// IMPORTED ENVS
-	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	// IMPORTED MODULES
 	import PageFrame from '#lib/ui/PageFrame.svelte';
@@ -12,11 +11,12 @@
 	import SettingsShell from '#lib/settings/SettingsShell.svelte';
 	import { ApiError, api, deletePicture, newKey, putPicture } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
-	import { verbText } from '#lib/board/verbs.js';
-	import { addDays, formatUtcDate, groupByDay } from '#lib/board/when.js';
+	import { addDays, formatUtcDate } from '#lib/board/when.js';
 	import { ORG_DELETE_GRACE_DAYS, sameOrgName } from '#lib/shared/orgDeletion.js';
 	import { ROLE_LABEL, type Role } from '#lib/shared/roles.js';
 	import { createFollower } from '#lib/settings/follow.js';
+	import AuditLog from '#lib/settings/AuditLog.svelte';
+	import EmailSending from '#lib/settings/EmailSending.svelte';
 	import IdentityHeader from '#lib/settings/IdentityHeader.svelte';
 	import PalettePicker from '#lib/settings/PalettePicker.svelte';
 	import Runners from '#lib/settings/Runners.svelte';
@@ -32,7 +32,6 @@
 	import Switch from '#lib/ui/Switch.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
-	import { toastEnhance } from '#lib/ui/toastEnhance.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	// IMPORTED DEP-COMPONENTS
 	import Settings from '@lucide/svelte/icons/settings';
@@ -41,7 +40,6 @@
 	import Mail from '@lucide/svelte/icons/mail';
 	import DatabaseBackup from '@lucide/svelte/icons/database-backup';
 	import Gauge from '@lucide/svelte/icons/gauge';
-	import ScrollText from '@lucide/svelte/icons/scroll-text';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 
 	// -- REQUIRED PROPS -- //
@@ -72,7 +70,10 @@
 	let rev = $state(0);
 	let nextAudit = $state<number | null>(null);
 	let auditProject = $state('');
-	let busyTest = $state(false);
+	/** True while the audit log loads a project or the next page. */
+	let auditLoading = $state(false);
+	/** Why the last audit load failed, or an empty string. */
+	let auditError = $state('');
 	let deleteOpen = $state(false);
 	let typedName = $state('');
 	/** Kept while the dialog closes, so its numbers do not vanish during the transition. */
@@ -212,23 +213,49 @@
 		if (nextAudit === null) return;
 		const params = new SvelteURLSearchParams({ before: String(nextAudit), limit: '25' });
 		if (auditProject) params.set('project', auditProject);
-		const more = await api<{ events: AuditEvents; next: number | null }>(org, `/audit?${params}`);
-		extraAudit = [...extraAudit, ...more.events];
-		nextAudit = more.next;
+		auditLoading = true;
+		try {
+			const more = await api<{ events: AuditEvents; next: number | null }>(org, `/audit?${params}`);
+			extraAudit = [...extraAudit, ...more.events];
+			nextAudit = more.next;
+		} catch (e) {
+			auditError =
+				e instanceof ApiError
+					? e.message
+					: 'The changes of this organisation could not be read. Check your connection and try again.';
+		} finally {
+			auditLoading = false;
+		}
 	}
 
 	async function filterAudit(project: string) {
 		auditProject = project;
 		const params = new SvelteURLSearchParams({ limit: '25' });
 		if (project) params.set('project', project);
-		const first = await api<{ events: AuditEvents; next: number | null }>(org, `/audit?${params}`);
-		extraAudit = first.events;
-		nextAudit = first.next;
+		auditError = '';
+		auditLoading = true;
+		// The old rows go at once, so the skeleton shows while the project loads
+		extraAudit = [];
 		filtered = true;
+		try {
+			const first = await api<{ events: AuditEvents; next: number | null }>(
+				org,
+				`/audit?${params}`
+			);
+			extraAudit = first.events;
+			nextAudit = first.next;
+			filtered = true;
+		} catch (e) {
+			auditError =
+				e instanceof ApiError
+					? e.message
+					: 'The changes of this organisation could not be read. Check your connection and try again.';
+		} finally {
+			auditLoading = false;
+		}
 	}
 	let filtered = $state(false);
 	const shownEvents = $derived(filtered ? extraAudit : events);
-	const auditDays = $derived(groupByDay(shownEvents, (e) => e.createdAt));
 </script>
 
 <svelte:head><title>Organisation settings, {data.org.name}</title></svelte:head>
@@ -383,63 +410,8 @@
 			{/if}
 		</Section>
 
-		<Section
-			id="email"
-			icon={Mail}
-			group="Delivery"
-			title="Email sending"
-			text="How this server sends invitations, sign in codes and alerts."
-		>
-			{#if data.email.configured}
-				<!-- THE PROVIDER CARD. A REAL PROVIDER IS GREEN, THE LOG SENDER IS AMBER BECAUSE NOTHING LEAVES THE SERVER -->
-				<div
-					class="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-raised/50 p-3"
-				>
-					<span class="min-w-0 flex-1 text-sm">
-						Sending through <Badge tone={data.email.provider === 'log' ? 'warning' : 'success'} dot
-							>{data.email.provider}</Badge
-						>
-						{#if data.email.provider === 'log'}
-							<span class="block text-muted"
-								>The log sender only writes mail to a file, nothing leaves the server.</span
-							>
-						{/if}
-					</span>
-				</div>
-				{#if can}
-					<form
-						method="POST"
-						action="?/testEmail"
-						class="flex flex-wrap items-center gap-3"
-						use:enhance={toastEnhance({
-							id: 'test-email',
-							loading: 'Sending the test email...',
-							success: 'Test email sent.',
-							inline: true,
-							// The form's own update keeps its default reset
-							reset: true,
-							onStart: () => (busyTest = true),
-							onDone: () => (busyTest = false)
-						})}
-					>
-						<Button type="submit" loading={busyTest} data-testid="test-email"
-							>Send me a test email</Button
-						>
-						{#if form?.sent}
-							<span class="text-sm text-success" role="status" data-testid="test-email-result"
-								>Sent to {form.to}.</span
-							>
-						{:else if form?.message}
-							<span class="text-sm text-danger" role="alert" data-testid="test-email-result"
-								>{form.message}</span
-							>
-						{/if}
-					</form>
-				{/if}
-			{:else}
-				<div class="text-sm text-muted">This server has no way to send email yet.</div>
-			{/if}
-		</Section>
+		<!-- EMAIL SENDING: THE PROVIDER, WHAT GOES THROUGH IT AND THE TEST MESSAGE -->
+		<EmailSending email={data.email} {can} {form} group="Delivery" />
 
 		<Runners {org} projects={data.projects} {can} group="Delivery" />
 
@@ -534,64 +506,19 @@
 				/>
 			</Section>
 
-			<Section
-				id="audit"
-				icon={ScrollText}
+			<!-- AUDIT LOG: READ ONLY, A TIMELINE GROUPED BY DAY -->
+			<AuditLog
+				events={shownEvents}
+				projects={data.projects}
+				project={auditProject}
+				hasMore={nextAudit !== null}
+				loading={auditLoading}
+				error={auditError}
+				onfilter={filterAudit}
+				onmore={moreAudit}
+				onretry={() => filterAudit(auditProject)}
 				group="Safety"
-				title="Audit log"
-				text="Everything that changed in this organisation, newest first."
-			>
-				<div class="flex flex-wrap items-end gap-2">
-					<Select
-						label="Project"
-						value={auditProject}
-						options={[
-							{ value: '', label: 'Every project' },
-							...data.projects.map((p) => ({ value: p.key, label: p.key }))
-						]}
-						onchange={(v) => filterAudit(v)}
-						class="w-44"
-					/>
-				</div>
-				{#if shownEvents.length === 0}
-					<div class="text-sm text-muted">Nothing has happened here yet.</div>
-				{:else}
-					<!-- A TIMELINE: A RAIL WITH A NODE PER EVENT, GROUPED BY UTC DAY -->
-					<div class="flex flex-col gap-4" data-testid="audit-list">
-						{#each auditDays as day (day.key)}
-							<section aria-label={day.label}>
-								<h3 class="mb-1 text-xs font-medium text-muted">{day.label}</h3>
-								<ol class="ml-1.5 border-l border-line">
-									{#each day.items as e (e.id)}
-										<li
-											class="relative flex min-h-12 flex-wrap items-center gap-x-3 py-2 pl-5"
-											data-item
-											data-row
-											data-testid="audit-event"
-										>
-											<span
-												class="absolute top-1/2 -left-[4.5px] size-2 -translate-y-1/2 rounded-full border border-line bg-surface"
-												aria-hidden="true"
-											></span>
-											<span class="w-14 shrink-0 font-mono text-xs text-muted">{e.project}</span>
-											<span class="min-w-0 flex-1 truncate text-sm"
-												><span class="font-medium">{e.actorLabel ?? 'Someone'}</span>
-												{verbText(e.verb)}</span
-											>
-											<span class="shrink-0 text-xs text-muted">{ago(e.createdAt)}</span>
-										</li>
-									{/each}
-								</ol>
-							</section>
-						{/each}
-					</div>
-					{#if nextAudit !== null}
-						<div>
-							<Button size="sm" onclick={moreAudit} data-testid="audit-more">Show more</Button>
-						</div>
-					{/if}
-				{/if}
-			</Section>
+			/>
 		{/if}
 
 		{#if isOwner}
