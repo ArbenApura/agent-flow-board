@@ -29,7 +29,7 @@ node tests/runner/preview.mjs
 
 That builds the app, starts a throwaway PostgreSQL of its own for the run (the same embedded server the tests use) and serves the app at http://localhost:5180 with demo organisations and people (read from `.env.test`; the shared sign in password is `seed-password-for-previews` and must never reach a deployment). Sign in as `owner@acme.example`.
 
-Localhost uses two fixed ports: **5180** is the dev server and **5190** is the local build preview (`yarn build && yarn preview`). `vite.config.ts` sets `strictPort`, so a second server fails instead of moving to another port. The live board is the server at https://afb.arbenger.com, deployed with `yarn deploy:vps`.
+Localhost uses two fixed ports: **7173** is the dev server and **5190** is the local build preview (`yarn build && yarn preview`). `vite.config.ts` sets `strictPort`, so a second server fails instead of moving to another port. The live board is the server at https://afb.arbenger.com, deployed with `yarn deploy:vps`.
 
 ### Local development (Docker PostgreSQL)
 
@@ -38,7 +38,7 @@ For day to day work run a local PostgreSQL 17 in Docker. It keeps its data in a 
 ```
 yarn db:up              # start the container (Docker Desktop must be running)
 yarn db:local:migrate   # tables, plus the app_runtime login
-yarn dev:local          # http://localhost:5180 with demo data (owner@acme.example)
+yarn dev:local          # http://localhost:7173 with demo data (owner@acme.example)
 ```
 
 `yarn dev:local` sets its database and `AFB_BASE_URL` in the process, which takes priority over `.env`, so a `DATABASE_URL` in your `.env` stays untouched and cannot be seeded by accident. `yarn db:down` stops the container and keeps the data. `yarn db:local:reset` deletes the volume and rebuilds it empty: **it erases every plan in the local database, so never run it on a database you want to keep.** The passwords in `deploy/local/compose.yaml` and `package.json` are throwaways for this machine. The local owner is the `postgres` superuser, because the demo seed needs to write across organisations, which forced row level security blocks for a normal owner.
