@@ -1,6 +1,5 @@
 // THE PAGES OF A PROJECT, IN THE ORDER THE SIDEBAR, THE PHONE MENU AND THE COMMAND PALETTE SHOW THEM
-// One list, read by all three, so they always agree. Four main pages, then Project settings (DESIGN.md, App shell).
-// Activity and Trash live inside Project settings as sections (AFB-20261115-1355).
+// One list, read by all three, so they always agree. Five main pages, then Trash and Project settings (DESIGN.md, App shell).
 
 // -- TYPES -- //
 
@@ -13,7 +12,9 @@ export const PROJECT_TAB_LABELS = [
 	'Registry',
 	'Tasks',
 	'Notes',
+	'Activity',
 	'Mockups',
+	'Trash',
 	'Project settings'
 ] as const;
 
@@ -33,10 +34,14 @@ export function projectTabs(
 		{ href: at(''), label: 'Registry', exact: true },
 		{ href: at('/tasks'), label: 'Tasks' },
 		{ href: at('/notes'), label: 'Notes' },
+		{ href: at('/activity'), label: 'Activity' },
 		{ href: at('/mockups'), label: 'Mockups' }
 	];
 	return {
 		primary: role === 'guest' ? primary.filter((t) => t.label !== 'Notes') : primary,
-		secondary: [{ href: at('/settings'), label: 'Project settings' }]
+		secondary: [
+			{ href: at('/trash'), label: 'Trash' },
+			{ href: at('/settings'), label: 'Project settings' }
+		]
 	};
 }

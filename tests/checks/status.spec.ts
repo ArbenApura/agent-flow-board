@@ -7,6 +7,7 @@ import {
 	request as pwRequest,
 	test,
 	type APIRequestContext,
+	type Browser,
 	type Page
 } from '@playwright/test';
 
@@ -27,7 +28,8 @@ const json = async (res: Awaited<ReturnType<APIRequestContext['get']>>): Promise
 
 test('M17 status follows the work, over REST as a person and as an agent', async ({
 	page,
-	baseURL
+	baseURL,
+	browser
 }) => {
 	// A person signs in and mints a token for an agent
 	await signIn(page, 'member@acme.example');
@@ -96,13 +98,20 @@ test('M17 status follows the work, over REST as a person and as an agent', async
 	expect((await json(early)).error.details.reason).toBe('open-steps');
 	await record(agent, { marks: [{ key: '2.1', mark: 'done' }] });
 
-	// Once every step is closed, a person may close it
+	// Where the project keeps COMPLETED for people, an agent is refused and a person may close it
+	await signInOwnerAndSetSwitch(browser, baseURL!, false);
+	const refused = await agent.post(`${ORG}/items/${ref}/status`, {
+		data: { status: 'COMPLETED', note: 'An agent closes it' }
+	});
+	expect(refused.status()).toBe(409);
+	expect((await json(refused)).error.details.reason).toBe('people-only');
 	const closed = await person.post(`${ORG}/items/${ref}/status`, {
 		data: { status: 'COMPLETED', note: 'A person closes it' }
 	});
 	expect(closed.status()).toBe(200);
 	d = await read();
 	expect(d.item.status).toBe('COMPLETED');
+	await signInOwnerAndSetSwitch(browser, baseURL!, true);
 	await agent.dispose();
 });
 
@@ -141,3 +150,13 @@ test('another org and an unknown person get 404 and 401, never data', async ({ p
 	expect((await anonymous.get('/api/v1/openapi.json')).status()).toBe(200);
 	await anonymous.dispose();
 });
+
+/** Signs in as the seed owner in its own browser context and sets the project's "agents may set COMPLETED" switch. */
+async function signInOwnerAndSetSwitch(browser: Browser, baseURL: string, on: boolean) {
+	const ctx = await browser.newContext({ baseURL });
+	const page = await ctx.newPage();
+	await signIn(page, 'owner@acme.example');
+	const res = await page.request.patch(`${ORG}/projects/CKT`, { data: { agentsMayComplete: on } });
+	expect(res.status()).toBe(200);
+	await ctx.close();
+}

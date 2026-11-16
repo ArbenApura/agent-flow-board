@@ -10,6 +10,7 @@
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
 	import SidebarShell from '#lib/board/SidebarShell.svelte';
 	// IMPORTED DEP-COMPONENTS
+	import Activity from '@lucide/svelte/icons/activity';
 	import Building2 from '@lucide/svelte/icons/building-2';
 	import House from '@lucide/svelte/icons/house';
 	import LayoutList from '@lucide/svelte/icons/layout-list';
@@ -19,6 +20,7 @@
 	import Settings from '@lucide/svelte/icons/settings';
 	import Settings2 from '@lucide/svelte/icons/settings-2';
 	import SquareCheckBig from '@lucide/svelte/icons/square-check-big';
+	import Trash from '@lucide/svelte/icons/trash';
 
 	// -- TYPES -- //
 
@@ -56,7 +58,9 @@
 		Registry: LayoutList,
 		Tasks: SquareCheckBig,
 		Notes: NotebookText,
+		Activity,
 		Mockups: PanelsTopLeft,
+		Trash,
 		'Project settings': Settings2
 	};
 

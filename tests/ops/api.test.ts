@@ -296,7 +296,7 @@ describe('REST API', () => {
 		expect((await call('GET', `${base()}/items/${apiRef}`, { token })).status).toBe(401);
 	});
 
-	it('COMPLETED over REST: refused while steps are open, allowed to a person once every step is closed', async () => {
+	it('COMPLETED over REST: refused while steps are open, refused to agents when the project keeps it for people, allowed to a person', async () => {
 		const mk = await call('POST', `${base()}/tokens`, {
 			as: 'member',
 			body: { name: 'closer', permissions: ['read', 'write', 'complete'] }
@@ -321,6 +321,21 @@ describe('REST API', () => {
 		await call('POST', `${base()}/items/${ref}/record`, {
 			token,
 			body: { marks: [{ key: '1.1', mark: 'done' }] }
+		});
+		expect(
+			(
+				await call('PATCH', `${base()}/projects/API`, {
+					as: 'admin',
+					body: { agentsMayComplete: false }
+				})
+			).status
+		).toBe(200);
+		const refused = await call('POST', `${base()}/items/${ref}/status`, {
+			token,
+			body: { status: 'COMPLETED', note: 'An agent closes it' }
+		});
+		expect(refused.body).toMatchObject({
+			error: { code: 'COMPLETED_REFUSED', details: { reason: 'people-only' } }
 		});
 		const person = await call('POST', `${base()}/items/${ref}/status`, {
 			as: 'member',

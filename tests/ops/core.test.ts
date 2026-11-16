@@ -4,7 +4,7 @@
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // IMPORTED MODULES
-import { event, item, task } from '../../src/lib/server/db/schema';
+import { event, item, project, task } from '../../src/lib/server/db/schema';
 import { LIMITS, OpError } from '../../src/lib/server/ops/context';
 import {
 	createItem,
@@ -408,7 +408,7 @@ describe('operations', () => {
 		).rejects.toMatchObject({ code: 'INVALID' });
 	});
 
-	it('COMPLETED needs every step closed and the capability, and an agent closing an unbound item is asked first', async () => {
+	it('COMPLETED needs every step closed, the capability, and respects the people-only switch', async () => {
 		const made = await create('member', {
 			phases: [{ key: '1', title: 'One', steps: [{ text: 'Only step' }] }]
 		});
@@ -419,6 +419,17 @@ describe('operations', () => {
 			setStatus(w.ctx('viewer'), { item: made.ref, status: 'COMPLETED', note: 'Done now' })
 		).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		await recordSteps(w.ctx('member'), { item: made.ref, marks: [{ key: '1.1', mark: 'done' }] });
+		// An agent is refused where the project keeps COMPLETED for people
+		await db.admin.exec(
+			`update project set agents_may_complete = false where id = '${w.projectId}'`
+		);
+		await expect(
+			setStatus(w.ctx('member', { kind: 'agent', tool: 'claude-code' }), {
+				item: made.ref,
+				status: 'COMPLETED',
+				note: 'Done now'
+			})
+		).rejects.toMatchObject({ code: 'COMPLETED_REFUSED', details: { reason: 'people-only' } });
 		// A person may close it
 		await expect(
 			setStatus(w.ctx('member'), {
@@ -427,7 +438,10 @@ describe('operations', () => {
 				note: 'Signed off by the team'
 			})
 		).resolves.toMatchObject({ already: false });
-		// An agent may close another item too, once it confirms the close (ADR-029)
+		// With the switch on, an agent may close another item
+		await db.admin.exec(
+			`update project set agents_may_complete = true where id = '${w.projectId}'`
+		);
 		const other = await create('member', {
 			phases: [],
 			title: 'Closed by an agent'
@@ -440,6 +454,10 @@ describe('operations', () => {
 				confirmed: true
 			})
 		).resolves.toMatchObject({ already: false });
+		const [p] = await withTenant(db, { orgId: w.orgId }, (tx) =>
+			tx.select({ s: project.agentsMayComplete }).from(project).where(eq(project.id, w.projectId))
+		);
+		expect(p.s).toBe(true);
 	});
 
 	it('linked tasks follow progress but are never set DONE', async () => {

@@ -9,7 +9,7 @@ import { z } from 'zod';
 // IMPORTED MODULES
 import { computeHealthForItem } from '../db/calc';
 import { appendEvent } from '../db/events';
-import { item, step, task } from '../db/schema';
+import { item, project, step, task } from '../db/schema';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields, checkVersion, type ItemRow } from './items';
 import { findItem } from './resolve';
@@ -137,8 +137,8 @@ export const setStatusInput = z.object({
 });
 
 /**
- * A manual status change. COMPLETED needs every counted step closed and the "complete" capability, and an agent closing an
- * item its session is not bound to is asked to confirm first (ADR-029). The automatic moves never reach COMPLETED or REMOVED.
+ * A manual status change. COMPLETED needs every counted step closed, needs the "complete" capability, and is refused to
+ * agents where the project keeps it for people (ADR-027). The automatic moves never reach COMPLETED or REMOVED.
  */
 export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 	const input = setStatusInput.parse(raw);
@@ -155,7 +155,18 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 			checkVersion(it, input.expectVersion);
 			if (it.status === input.status)
 				return { item: it, statusChanges: [] as StatusChange[], already: true };
+			const [proj] = await tx
+				.select({ agentsMayComplete: project.agentsMayComplete })
+				.from(project)
+				.where(eq(project.id, it.projectId));
 			if (input.status === 'COMPLETED') {
+				if (ctx.actor.kind === 'agent' && !proj.agentsMayComplete) {
+					throw new OpError(
+						'COMPLETED_REFUSED',
+						'This project keeps COMPLETED for people. Ask a person to close the item from the board.',
+						{ reason: 'people-only' }
+					);
+				}
 				const [open] = await tx
 					.select({ n: sql<number>`count(*) filter (where ${step.state} = 'open')::int` })
 					.from(step)

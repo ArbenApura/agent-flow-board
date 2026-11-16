@@ -135,6 +135,8 @@ export const project = tenantTable(
 			.$type<ProjectThemes>()
 			.notNull()
 			.default(sql`'[]'::jsonb`),
+		/** ADR-027: on by default, off for the imported HAPR project. */
+		agentsMayComplete: boolean('agents_may_complete').notNull().default(true),
 		staleDays: integer('stale_days').notNull().default(3),
 		/** Pages UI shots compare new screens with, as addresses inside the web app. */
 		referencePages: text('reference_pages')

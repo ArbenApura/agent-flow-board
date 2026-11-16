@@ -31,6 +31,7 @@
 	import Skeleton from '#lib/ui/Skeleton.svelte';
 	import Texture from '#lib/ui/Texture.svelte';
 	import StaleWriteDialog from '#lib/ui/StaleWriteDialog.svelte';
+	import Switch from '#lib/ui/Switch.svelte';
 	import TagInput from '#lib/ui/TagInput.svelte';
 	import TextArea from '#lib/ui/TextArea.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
@@ -67,6 +68,7 @@
 	let text = $state('');
 	let area = $state('');
 	let checked = $state(true);
+	let on = $state(true);
 	let seg = $state('list');
 	let tags = $state(['frontend']);
 	let status = $state<string | undefined>('progress');
@@ -184,6 +186,11 @@
 				label="Notify the team"
 				hint="Sends one message when the status changes."
 				bind:checked
+			/>
+			<Switch
+				label="Agents may set COMPLETED"
+				hint="Off keeps closing for people only."
+				bind:checked={on}
 			/>
 			<SegmentedControl
 				label="View"

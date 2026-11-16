@@ -71,6 +71,8 @@ export const projectUpdateInput = z.object({
 		.array(z.object({ key: z.string().min(1).max(30), label: z.string().min(1).max(40) }))
 		.max(8)
 		.optional(),
+	/** ADR-027: when off, an agent's COMPLETED is refused and people close items. */
+	agentsMayComplete: z.boolean().optional(),
 	/** Addresses inside the web app that UI shots compare new screens with. */
 	referencePages: z
 		.array(z.string().regex(/^\/[^\s]{0,198}$/, 'A reference page is an address starting with /'))
@@ -78,7 +80,15 @@ export const projectUpdateInput = z.object({
 		.optional()
 });
 
-const PATCH = ['name', 'webApp', 'rules', 'streams', 'themes', 'referencePages'] as const;
+const PATCH = [
+	'name',
+	'webApp',
+	'rules',
+	'streams',
+	'themes',
+	'agentsMayComplete',
+	'referencePages'
+] as const;
 
 // -- FUNCTIONS -- //
 
@@ -158,6 +168,9 @@ export async function updateProject(ctx: Ctx, raw: z.input<typeof projectUpdateI
 	return run(ctx, async (tx) => {
 		const p = await findProject(tx, ctx, input.project);
 		await requireCap(tx, ctx, 'manage', p.id);
+		// The rule that keeps COMPLETED for people cannot be switched off by the agents it restrains (ADR-027)
+		if (ctx.actor.kind === 'agent' && input.agentsMayComplete !== undefined)
+			throw new OpError('FORBIDDEN', 'Only a person can change whether agents may complete items.');
 		checkVersion(p, input.expectVersion);
 		const before: Record<string, unknown> = {};
 		const after: Record<string, unknown> = {};

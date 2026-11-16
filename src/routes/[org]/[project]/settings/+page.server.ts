@@ -1,63 +1,19 @@
 // IMPORTED DEP-TYPES
 import type { PageServerLoad } from './$types';
 // IMPORTED MODULES
-import { OpError } from '#lib/server/ops/context.js';
-import { refsFor } from '#lib/server/ops/board.js';
 import { getProject } from '#lib/server/ops/projects.js';
-import { listEvents, listTrash } from '#lib/server/ops/history.js';
-import { childContext, pageError } from '#lib/server/web/ctx.js';
-
-// -- TYPES -- //
-
-type TrashList = Awaited<ReturnType<typeof listTrash>>;
+import { childContext } from '#lib/server/web/ctx.js';
 
 // -- FUNCTIONS -- //
 
-/**
- * The project's settings. Everyone who can read the project may look, admins and owners change. The Activity and Trash
- * sections read their lists only while their own tab is open, so the other tabs never wait for them.
- */
-export const load: PageServerLoad = async ({ params, parent, locals, url, depends }) => {
+/** The project's settings. Everyone who can read the project may look, admins and owners change. */
+export const load: PageServerLoad = async ({ params, parent, locals, depends }) => {
 	depends('afb:settings');
-	depends('afb:project');
 	const { org, summary } = await parent();
-	const tab = url.searchParams.get('tab');
-	const sessionId = url.searchParams.get('session') || null;
-	if (!summary)
-		return { project: null, usage: [], canManage: false, activity: null, trash: null, sessionId };
+	if (!summary) return { project: null, usage: [] };
 	const ctx = await childContext(locals, org.id);
 	const canManage = summary.caps.includes('manage');
 	const project = await getProject(ctx, params.project);
-
-	let activity: {
-		events: Awaited<ReturnType<typeof listEvents>>;
-		refs: Awaited<ReturnType<typeof refsFor>>;
-	} | null = null;
-	let trash: { list: TrashList | null; denied: { needed: string; role: string } | null } | null =
-		null;
-
-	if (tab === 'activity') {
-		const events = await listEvents(ctx, {
-			project: params.project,
-			sessionId: sessionId ?? undefined,
-			limit: 100
-		});
-		const refs = await refsFor(
-			ctx,
-			params.project,
-			events.flatMap((e) => (e.itemId ? [e.itemId] : []))
-		);
-		activity = { events, refs };
-	}
-	if (tab === 'trash') {
-		try {
-			trash = { list: await listTrash(ctx, params.project), denied: null };
-		} catch (e) {
-			if (e instanceof OpError) trash = { list: null, ...pageError(e) };
-			else throw e;
-		}
-	}
-
 	return {
 		project: {
 			id: project.id,
@@ -67,13 +23,12 @@ export const load: PageServerLoad = async ({ params, parent, locals, url, depend
 			webApp: project.webApp,
 			streams: project.streams,
 			themes: project.themes,
-			referencePages: project.referencePages
+			referencePages: project.referencePages,
+			agentsMayComplete: project.agentsMayComplete,
+			rules: project.rules
 		},
 		// How many items sit under each stream and scope, as this person may see them (private and trashed items are not counted)
 		usage: summary.areas.map((a) => ({ stream: a.stream, scope: a.scope, n: a.n })),
-		canManage,
-		activity,
-		trash,
-		sessionId
+		canManage
 	};
 };

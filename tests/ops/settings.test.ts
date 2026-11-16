@@ -257,17 +257,22 @@ describe('settings', () => {
 	});
 
 	it('project settings: the reference pages and the other fields are saved by the section that owns them', async () => {
+		await expect(
+			updateProject(ctx('member'), { project: w.projectKey, agentsMayComplete: false })
+		).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		const r = await updateProject(ctx(), {
 			project: w.projectKey,
 			referencePages: ['/settings', '/acme/CKT'],
 			themes: [
 				{ key: 'light', label: 'Light' },
 				{ key: 'dark', label: 'Dark' }
-			]
+			],
+			agentsMayComplete: false
 		});
 		expect(r.changed).toBe(true);
 		expect(r.project).toMatchObject({
-			referencePages: ['/settings', '/acme/CKT']
+			referencePages: ['/settings', '/acme/CKT'],
+			agentsMayComplete: false
 		});
 		await expect(
 			updateProject(ctx(), { project: w.projectKey, referencePages: ['no-slash'] })

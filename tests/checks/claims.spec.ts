@@ -112,6 +112,7 @@ test('M19 a close clears every claim on the item, tells each holder once, and cl
 	const owner = await as(browser, baseURL!, 'owner@acme.example');
 	const key = `CC${tag}${++counter}`;
 	await owner.page.request.post(`${ACME}/projects`, { data: { key, name: `Closing ${key}` } });
+	await owner.page.request.patch(`${ACME}/projects/${key}`, { data: { agentsMayComplete: true } });
 	const make = async (title: string) =>
 		(await (
 			await owner.page.request.post(`${ACME}/projects/${key}/items`, {

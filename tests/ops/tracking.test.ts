@@ -233,6 +233,9 @@ describe('tracking', () => {
 	});
 
 	it('an agent closing an item its session is not bound to is asked first, naming both, and repeats with confirmed; a person is never asked', async () => {
+		await db.admin.exec(
+			`update project set agents_may_complete = true where id = '${w.projectId}'`
+		);
 		const mine = await newItem('Mine');
 		const theirs = await newItem('Theirs');
 		const done = (it: { ref: string }) =>
@@ -293,6 +296,9 @@ describe('tracking', () => {
 			note: 'A person closes'
 		});
 		expect(byPerson.statusChanges[0].to).toBe('COMPLETED');
+		await db.admin.exec(
+			`update project set agents_may_complete = false where id = '${w.projectId}'`
+		);
 	});
 
 	it('evidence is checked by the server: a fake or empty commit, a wrong check run and a weak target are refused with the reason', async () => {
