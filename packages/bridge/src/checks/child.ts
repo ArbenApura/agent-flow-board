@@ -309,7 +309,23 @@ async function main(): Promise<void> {
 				}
 			}
 		};
-		const fn = ((await import(pathToFileURL(job.checkFile).href)) as { default?: unknown }).default;
+		let loaded: { default?: unknown };
+		try {
+			loaded = (await import(pathToFileURL(job.checkFile).href)) as { default?: unknown };
+		} catch (e) {
+			// A bare top-level script uses page, baseUrl and the others before any function gave them to it
+			if (
+				e instanceof ReferenceError ||
+				e instanceof SyntaxError ||
+				(e as { code?: string })?.code === 'ERR_MODULE_NOT_FOUND'
+			)
+				throw new Error(
+					`${String((e as Error).message)}. A check must be wrapped as: export default async function ({ page, step, shot, expect, log, baseUrl }) { ... } (use full URLs or page.goto with a path).`,
+					{ cause: e }
+				);
+			throw e;
+		}
+		const fn = loaded.default;
 		if (typeof fn !== 'function')
 			throw new Error(
 				'A check file must export default an async function({ page, step, shot, expect, log, baseUrl, sweep }).'

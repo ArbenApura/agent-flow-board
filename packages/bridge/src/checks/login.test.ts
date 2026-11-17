@@ -225,7 +225,10 @@ describe('loginCommand headed', () => {
 	});
 	it('says a desktop exists only where one can show a window', () => {
 		expect(desktopProblem({ SESSIONNAME: 'Console' }, 'win32')).toBeNull();
-		expect(desktopProblem({}, 'win32')).toMatch(/no desktop/);
+		// An app terminal can lack SESSIONNAME and still be on the desktop
+		expect(desktopProblem({ USERNAME: 'Admin' }, 'win32')).toBeNull();
+		expect(desktopProblem({ USERNAME: 'PC$' }, 'win32')).toMatch(/no desktop/);
+		expect(desktopProblem({ SSH_CONNECTION: 'x' }, 'win32')).toMatch(/no desktop/);
 		expect(desktopProblem({ DISPLAY: ':0' }, 'linux')).toBeNull();
 		expect(desktopProblem({ WAYLAND_DISPLAY: 'wayland-0' }, 'linux')).toBeNull();
 		expect(desktopProblem({}, 'linux')).toMatch(/no desktop/);

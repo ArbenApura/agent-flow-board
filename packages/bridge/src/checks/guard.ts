@@ -117,7 +117,8 @@ const UNSAFE: [RegExp, string][] = [
 		'a way back to the browser context'
 	],
 	[
-		/\bgetBuiltinModule\b|\bglobalThis\b|\bFunction\s*\(|\beval\s*\(|\[\s*['"]constructor['"]\s*\]/,
+		// A bare eval( or Function( only: page.$eval, page.$$eval and locator.evaluate run in the page, not in the check
+		/\bgetBuiltinModule\b|\bglobalThis\b|(?<![\w$.])Function\s*\(|(?<![\w$.])eval\s*\(|\[\s*['"]constructor['"]\s*\]/,
 		'a way around the checks'
 	]
 ];
@@ -375,10 +376,20 @@ export function pageForCheck<T extends object>(
 	return proxy(page, guard);
 }
 
-/** A speed bump, not a wall: names what a check does that a check has no business doing. Refused unless the person says --allow-unsafe. */
+/** A speed bump, not a wall: names what a check does that a check has no business doing, with the text it found. */
 export function lintCheck(source: string): string[] {
 	const found: string[] = [];
-	for (const [re, label] of UNSAFE)
-		if (re.test(source) && !found.includes(label)) found.push(label);
+	// Whole-line comments do not run, so they are skipped the same way check_save skips them (a note that names fetch( is not a finding)
+	const code = source
+		.split('\n')
+		.filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+		.join('\n');
+	for (const [re, label] of UNSAFE) {
+		const m = re.exec(code);
+		// The matched text is named, so the person sees which line to rewrite
+		const named = m ? `${label} (found \`${m[0].trim().slice(0, 40)}\`)` : null;
+		// One entry per label, with the first match text
+		if (named && !found.some((f) => f.startsWith(`${label} (found `))) found.push(named);
+	}
 	return found;
 }

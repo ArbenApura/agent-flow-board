@@ -179,7 +179,13 @@ describe('lintCheck', () => {
 		['const c = page.context();', 'a way back to the browser context']
 	];
 	it.each(bad)('flags %s', (source, label) => {
-		expect(lintCheck(source)).toContain(label);
+		expect(lintCheck(source).some((l) => l.startsWith(label))).toBe(true);
+	});
+
+	it('does not flag page.$$eval or page.$eval, and names what it found', () => {
+		expect(lintCheck("await page.$$eval('a', (els) => els.length);")).toEqual([]);
+		expect(lintCheck("await page.$eval('a', (e) => e.id);")).toEqual([]);
+		expect(lintCheck("eval('1')")[0]).toContain('eval(');
 	});
 
 	it('passes a plain check', () => {

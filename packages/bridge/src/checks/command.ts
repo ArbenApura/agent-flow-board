@@ -92,6 +92,12 @@ export function parallelFlag(raw: string | undefined): number | undefined {
 export async function checkMain(ctx: CheckContext): Promise<number> {
 	const { args, log, out } = ctx;
 	const sub = args[0];
+	// --name=value is not read by any flag below, so it would be dropped without a word (a --profile=doctor login would save the default sign-in)
+	const glued = args.find((a) => /^--[\w-]+=/.test(a));
+	if (glued) {
+		log(`Write ${glued.split('=')[0]} <value> with a space, not ${glued.split('=')[0]}=value.`);
+		return 2;
+	}
 	// A flag that is given takes the next word as its value; a missing value, or another flag in its place (--step --json), is an error and never a silent default
 	const flag = (name: string): string | undefined => {
 		if (!args.includes(name)) return undefined;
@@ -478,7 +484,7 @@ export async function checkMain(ctx: CheckContext): Promise<number> {
 				const o = flag('--org') ?? (only.length === 1 ? only[0]?.org : undefined);
 				if (!s || !o || !ORG_SLUG.test(o))
 					throw new Error(
-						'Say which board: --server <url> --org <slug> (or connect this machine to one board only).'
+						`Say which board: --server <url> --org <slug>${only.length > 1 ? `. This machine is connected to: ${only.map((c) => `${c.org} on ${c.server}`).join('; ')}` : ' (or connect this machine to one board only)'}.`
 					);
 				const token = loadRunnerToken(ctx.store, s.replace(/\/$/, ''), o);
 				if (!token)
