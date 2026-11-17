@@ -11,6 +11,12 @@ const BLOCKED: { pattern: RegExp; what: string; fix: string }[] = [
 		fix: 'set the state after the page has loaded with page.evaluate, or through the page itself'
 	},
 	{
+		pattern:
+			/\bglobalThis\b|(?<![\w$.])Function\s*\(|(?<![\w$.])eval\s*\(|\[\s*['"]constructor['"]\s*\]|\bfetch\s*\(|\brequire\s*\(|\bprocess\.(env|exit|kill)\b|\.\s*(context|storageState|cookies)\s*\(/,
+		what: 'a way around the checks (eval, Function, globalThis, fetch, require, process or the browser context) is refused by the afb-checks tool',
+		fix: 'use only page, step, expect, shot, log and baseUrl; page.$eval, page.$$eval and evaluate are fine'
+	},
+	{
 		pattern: /\.\s*goto\s*\(\s*['"`]about:blank/i,
 		what: 'navigating to about:blank is blocked by the afb-checks tool',
 		fix: 'go straight to the page under test with page.goto(path) and wait for what you need'
