@@ -1,8 +1,14 @@
 // THE NOTE_RELATED VERB: RANKING, WHAT A CALLER MAY SEE, PAGING AND THE LINKS OF A HIT (AFB-20261117-0026)
 
+// IMPORTED TYPES
+import type { Tx } from '../../src/lib/server/db/client';
 // IMPORTED DEP-MODULES
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // IMPORTED MODULES
+import { note } from '../../src/lib/server/db/schema';
+import { run } from '../../src/lib/server/ops/context';
+import { readNoteHitLinks } from '../../src/lib/server/ops/noteLinks';
 import { createItem } from '../../src/lib/server/ops/items';
 import { createFolder, trashFolder } from '../../src/lib/server/ops/noteFolders';
 import { createNote, linkNote, trashNote } from '../../src/lib/server/ops/notes';
@@ -212,6 +218,49 @@ describe('related notes', () => {
 		const past = await relatedNotes(m, { q: 'ibis wetland', project: P(), offset: 50 });
 		expect(past.notes).toEqual([]);
 		expect(past.nextOffset).toBeNull();
+	});
+
+	it('reads the links of every hit in the same number of queries, whatever the number of hits', async () => {
+		const m = w.ctx('member');
+		const plan = await createItem(m, { project: P(), title: 'Link count plan', ...PLAN });
+		for (let i = 0; i < 6; i++) {
+			const n = await createNote(m, {
+				project: P(),
+				title: `Linkcount ${i}`,
+				body: 'linkcount body'
+			});
+			await linkNote(m, { project: P(), note: n.ref, targetKind: 'item', target: plan.ref });
+		}
+		const result = await run(m, async (tx) => {
+			const ids = (
+				await tx
+					.select({ id: note.id })
+					.from(note)
+					.where(sql`${note.title} like 'Linkcount %'`)
+			).map((r) => r.id);
+			const measure = async (list: string[]) => {
+				let queries = 0;
+				const counted = new Proxy(tx, {
+					get(target, key, receiver) {
+						const value = Reflect.get(target, key, receiver);
+						if (key === 'select' || key === 'selectDistinct' || key === 'execute')
+							return (...args: unknown[]) => {
+								queries++;
+								return (value as (...a: unknown[]) => unknown).apply(target, args);
+							};
+						return value;
+					}
+				});
+				const links = await readNoteHitLinks(counted as Tx, w.people.member, list, null);
+				return { queries, links };
+			};
+			return { ids, one: await measure(ids.slice(0, 1)), many: await measure(ids) };
+		});
+		expect(result.ids).toHaveLength(6);
+		expect(result.one.queries).toBeGreaterThan(0);
+		expect(result.many.queries).toBe(result.one.queries);
+		expect(result.many.links.size).toBe(6);
+		expect([...result.many.links.values()].every((l) => l.length === 1)).toBe(true);
 	});
 
 	it('shows only the plans a note links to that the reader may see, and ranks the notes of a plan higher', async () => {

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { memoryStorage, verifySignedFile } from '../../src/lib/server/adapters/storage';
 import { handleApi, type ApiDeps, type ApiResponse } from '../../src/lib/server/api/dispatch';
 import { buildOpenApi } from '../../src/lib/server/api/openapi';
+import { createNote } from '../../src/lib/server/ops/notes';
 import { compile, match, routes } from '../../src/lib/server/api/routes';
 import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
@@ -480,6 +481,32 @@ describe('REST API', () => {
 		expect(hits.status).toBe(200);
 		const all = await call('GET', `${base()}/search`, { as: 'viewer', query: { q: 'REST' } });
 		expect(Array.isArray(all.body)).toBe(true);
+	});
+
+	it('finds the notes closest to an idea through the related-notes route, and refuses what a stranger may not read (AFB-20261117-0026)', async () => {
+		const made = await createNote(w.ctx('member'), {
+			project: w.projectKey,
+			title: 'Gecko terrarium humidity',
+			body: 'gecko terrarium humidity and heat'
+		});
+		const ask = (query: Record<string, string>, as: keyof World['people'] | null = 'member') =>
+			call('GET', `${base()}/related-notes`, { ...(as ? { as } : {}), query });
+		const ok = await ask({ q: 'gecko terrarium', project: w.projectKey, limit: '3' });
+		expect(ok.status).toBe(200);
+		const body = ok.body as { untrusted: boolean; notes: { ref: string; untrusted: boolean }[] };
+		expect(body.untrusted).toBe(true);
+		expect(body.notes.map((n) => n.ref)).toContain(made.ref);
+		expect(body.notes.every((n) => n.untrusted)).toBe(true);
+		// No sign in, no usable word, and a limit that is not a number are told plainly, never a server error
+		expect((await ask({ q: 'gecko terrarium' }, null)).status).toBe(401);
+		expect((await ask({ q: 'a to of', project: w.projectKey })).status).toBe(400);
+		expect((await ask({ q: 'gecko terrarium', project: w.projectKey, limit: 'abc' })).status).toBe(
+			200
+		);
+		// A project that is not there answers as a stranger is answered
+		expect((await ask({ q: 'gecko terrarium', project: 'NOSUCHPROJECT' })).status).toBe(404);
+		// The route is in the OpenAPI document
+		expect(Object.keys(buildOpenApi(BASE).paths)).toContain('/orgs/{org}/related-notes');
 	});
 
 	it('a server failure answers with a plain message and nothing else', async () => {

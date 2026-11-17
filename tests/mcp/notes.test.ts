@@ -429,4 +429,69 @@ describe('note tools', () => {
 		});
 		expect(Array.isArray(related.notes)).toBe(true);
 	});
+
+	it('note_related ranks the notes of a project, hides private ones, and searches the claimed plan project when none is named (AFB-20261117-0026)', async () => {
+		const second = w.projectId.replace(/11$/, '31');
+		await db.admin.exec(
+			`INSERT INTO project (id, org_id, key, name) VALUES ('${second}', '${w.orgId}', 'NRSECOND', 'Note related second')`
+		);
+		const here = await createNote(w.ctx('member'), {
+			project: P(),
+			title: 'Axolotl tank cycling',
+			body: 'axolotl tank cycling schedule'
+		});
+		await createNote(w.ctx('member'), {
+			project: 'NRSECOND',
+			title: 'Axolotl tank elsewhere',
+			body: 'axolotl tank cycling schedule'
+		});
+		await createNote(w.ctx('admin'), {
+			project: P(),
+			title: 'Axolotl private of the admin',
+			body: 'axolotl tank cycling schedule',
+			visibility: 'private'
+		});
+		// A named project: ranked, with a digest and not the text of the note
+		const named = await call(member, 'note_related', { q: 'axolotl tank cycling', project: P() });
+		expect(named.error).toBeUndefined();
+		expect(named.untrusted).toBe(true);
+		expect(named.notes[0]).toMatchObject({ ref: here.ref, project: P(), untrusted: true });
+		expect(named.notes.map((n: { title: string }) => n.title)).not.toContain(
+			'Axolotl private of the admin'
+		);
+		expect(named.notes.every((n: { project: string }) => n.project === P())).toBe(true);
+		// No project and no claimed plan: every project the caller reads
+		const idle = (await call(member, 'session_start', { tool: 'codex' })).sessionId;
+		const all = await call(member, 'note_related', { q: 'axolotl tank cycling', sessionId: idle });
+		expect(new Set(all.notes.map((n: { project: string }) => n.project))).toEqual(
+			new Set([P(), 'NRSECOND'])
+		);
+		// With a claimed plan, its project is the one searched
+		const plan = await createItem(w.ctx('member'), {
+			project: P(),
+			title: 'Claimed plan',
+			...PLAN
+		});
+		const started = await call(member, 'work_start', {
+			sessionId: idle,
+			item: plan.ref,
+			requestId: 'note-related-claim-1'
+		});
+		expect(started).toMatchObject({ ref: plan.ref });
+		const claimed = await call(member, 'note_related', {
+			q: 'axolotl tank cycling',
+			sessionId: idle
+		});
+		expect(claimed.notes.length).toBeGreaterThan(0);
+		expect([...new Set(claimed.notes.map((n: { project: string }) => n.project))]).toEqual([P()]);
+		// A folder needs a project, and the tool says so plainly; a tool call with a read-only token still works
+		const noProject = await call(reader, 'note_related', { q: 'axolotl tank', folder: 'Research' });
+		expect(noProject.error.code).toBe('INVALID');
+		expect(noProject.error.message).toContain('project');
+		const readOnly = await call(reader, 'note_related', {
+			q: 'axolotl tank cycling',
+			project: P()
+		});
+		expect(readOnly.notes.length).toBeGreaterThan(0);
+	});
 });

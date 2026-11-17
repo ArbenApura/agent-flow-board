@@ -104,7 +104,8 @@ export function registerNoteTools({ tool }: ToolBuilder) {
 			limit: z.number().int().min(1).max(10).optional(),
 			offset: z.number().int().min(0).optional().describe('Where the page starts: nextOffset')
 		},
-		ro,
+		// The session is optional on a read: only when one is passed does the claimed plan supply the project
+		{ ...ro, session: true },
 		async (a, { ctx, claimed }) => {
 			// With no project named, the project of the claimed item is searched
 			let projectKey = a.project;
