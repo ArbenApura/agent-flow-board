@@ -10,6 +10,7 @@ import { bindFolder } from './bind.js';
 import { browserLaunches, browserState, confirmBrowserDownload, ensureBrowser } from './browser.js';
 import { listFlag, strictList } from '../listFlags.js';
 import { connectChecks, loadRunnerToken, runnerAccount } from './connect.js';
+import { checkOrgAccess } from '../orgAccess.js';
 import { forgetConnection, listConnections, recordConnection } from './connections.js';
 import { RunnerBoard } from './board.js';
 import { publishSigninKey } from './signinKey.js';
@@ -31,7 +32,7 @@ import { serviceCommand } from './service.js';
 // -- CONSTANTS -- //
 export const CHECK_USAGE = [
     'Usage: agent-flow-board check <command>',
-    '  connect --server <url> --org <slug> [--project KEY,KEY] [--json]   make this machine a runner (an agent approves the code)',
+    '  connect --server <url> --org <slug> [--project KEY,KEY] [--json]   let this machine run your browser checks (an agent approves the code)',
     '  run <item> <key> --server <url> --org <slug> [--step 1.2] [--run <id>] [--dir <repo>] [--json]   run one check in this repo',
     '  pull <item> <key> --server <url> --org <slug> [--accept-hash <sha256>]   read the board copy of a script; accept it by hash',
     '  bind --org <slug> --project <KEY> [--dir <repo>]   remember the folder of a board project for "check watch"',
@@ -122,7 +123,7 @@ export async function checkMain(ctx) {
             const o = org();
             ctx.store.delete(runnerAccount(s, o));
             forgetConnection(s, o);
-            log('Disconnected. The runner on the board is removed from the board settings.');
+            log('Disconnected. Remove this computer from Your settings, Tools and tokens on the board too, so its token stops working.');
             return 0;
         }
         if (sub === 'run') {
@@ -234,8 +235,15 @@ export async function checkMain(ctx) {
             const s = server();
             const o = org();
             const personal = ctx.personalToken(s, o);
-            if (!personal)
-                throw new Error(`Not signed in to ${o} on ${s}. Run: agent-flow-board login --json --server ${s} --org ${o}`);
+            const access = await checkOrgAccess({
+                server: s,
+                org: o,
+                token: personal,
+                fetch: ctx.fetch,
+                fromEnv: Boolean(process.env.AFB_TOKEN)
+            });
+            if (!access.ok || !personal)
+                throw new Error(access.ok ? '' : access.message);
             const res = await ctx.fetch(`${s}/api/v1/orgs/${encodeURIComponent(o)}/items/${encodeURIComponent(item)}/browser-checks`, {
                 headers: { authorization: `Bearer ${personal}` },
                 signal: AbortSignal.timeout(30_000)

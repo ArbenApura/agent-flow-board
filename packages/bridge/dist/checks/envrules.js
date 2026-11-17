@@ -1,13 +1,13 @@
 // THE DATABASE RULE OF A PREVIEW ENVIRONMENT THAT ADOPTED THE REPO'S OWN .env (STEP 3.7). It FAILS THE RUN, it does not strip. Every variable that is named like a database, and
 // every value that is a URL or host:port, is parsed after ${VAR} expansion, URL-decoding and case-folding. Then:
-//   1. a loopback host (localhost, 127.x, ::1, 0.0.0.0, host.docker.internal and its kin, in any spelling) on port 5433, 5180 or 5190 is refused, whatever the variable is called
-//      (5433 is the local Docker PostgreSQL with real data; 5180 and 5190 are the person's servers). The port is the URL port, or the elided default completed from a sibling
+//   1. a loopback host (localhost, 127.x, ::1, 0.0.0.0, host.docker.internal and its kin, in any spelling) on port 5433, 7173 or 7174 is refused, whatever the variable is called
+//      (5433 is the local Docker PostgreSQL with real data; 7173 and 7174 are the person's servers). The port is the URL port, or the elided default completed from a sibling
 //      *_PORT / PGPORT variable or a ?port= parameter;
 //   2. a database or Supabase host is allowed only when it is the sealed test project's host or the run's own throwaway database; anything else fails the run.
 // Every sentence names the VARIABLE and never its value.
 // -- CONSTANTS -- //
 /** Ports a check never reaches: the person's dev server, the build preview and the local Docker PostgreSQL. Same set as guardrails.ts, kept here so this file imports nothing. */
-const FORBIDDEN = new Set([5180, 5190, 5433]);
+const FORBIDDEN = new Set([7173, 7174, 5433]);
 /** Name tokens that make a variable a database setting (split on anything that is not a letter or digit). */
 const DB_TOKENS = new Set([
     'DB',

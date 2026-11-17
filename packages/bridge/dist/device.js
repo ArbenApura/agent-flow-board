@@ -13,6 +13,7 @@ export async function deviceLogin(server, fetchImpl, log, options = {}) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
             client_name: options.name ?? 'agent-flow-board bridge',
+            ...(options.org ? { org: options.org } : {}),
             ...(verifier
                 ? {
                     code_challenge: createHash('sha256').update(verifier).digest('base64url'),
@@ -22,8 +23,11 @@ export async function deviceLogin(server, fetchImpl, log, options = {}) {
         }),
         signal: AbortSignal.timeout(DEVICE_CALL_TIMEOUT_MS)
     });
-    if (!start.ok)
-        throw new Error(`The server refused the sign in (${start.status}).`);
+    if (!start.ok) {
+        // A 400 carries the reason (for example a malformed organisation), which is more useful than the number
+        const why = (await start.json().catch(() => null));
+        throw new Error(why?.error_description ?? `The server refused the sign in (${start.status}).`);
+    }
     const d = (await start.json());
     options.onCode?.({
         userCode: d.user_code,
@@ -32,6 +36,8 @@ export async function deviceLogin(server, fetchImpl, log, options = {}) {
         expiresInSeconds: d.expires_in
     });
     log(`To sign in, open ${d.verification_uri} and type this code: ${d.user_code}`);
+    if (options.org)
+        log(`The approval page shows only the organisation ${options.org}. Sign in there with an account that is in it.`);
     log(`The code works for ${Math.floor(d.expires_in / 60)} minutes. Waiting for you to approve it...`);
     let interval = d.interval * 1000;
     const deadline = Date.now() + d.expires_in * 1000;

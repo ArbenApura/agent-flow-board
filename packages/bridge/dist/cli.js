@@ -29,6 +29,7 @@ import { hookSettings, validServer } from './hooks/settings.js';
 import { runSetup } from './hooks/setup.js';
 import { applyStatusFile } from './hooks/statusFile.js';
 import { deviceLogin } from './device.js';
+import { checkOrgAccess } from './orgAccess.js';
 import { listParts, pullParts, pushBundle, pushShell } from './bundle.js';
 import { mintMockupUrlCli, pullMockup, pushKit, pushMockup } from './mockup.js';
 import { Queue } from './queue.js';
@@ -215,6 +216,18 @@ async function main() {
         if (!org) {
             log('Say which organisation: --org <slug>.');
             process.exit(2);
+        }
+        // One early answer for every mockup command: not signed in, or a sign in that is not valid for this organisation
+        const access = await checkOrgAccess({
+            server,
+            org,
+            token: tokenFor(server, org, true),
+            fetch: fetchImpl,
+            fromEnv: Boolean(process.env.AFB_TOKEN)
+        });
+        if (!access.ok) {
+            log(access.message);
+            process.exit(1);
         }
         // One nonce per run in the idempotency key (rule R11): a second run replaces the first render, a retry in one run resends the stored body
         const runNonce = randomBytes(4).toString('hex');
@@ -569,13 +582,15 @@ async function main() {
             log('setup needs --org <slug>: the organisation the hooks send to.');
             process.exit(2);
         }
-        const token = tokenFor(server, org);
-        if (!token) {
-            log(`Not signed in to ${org} on ${server}. Run: agent-flow-board login --json --server ${server} --org ${org}`);
-            process.exit(1);
-        }
-        if (!(await belongsToOrg(server, org, token))) {
-            log(`The saved sign in is not for ${org}. Run the login for ${org} again.`);
+        const access = await checkOrgAccess({
+            server,
+            org,
+            token: tokenFor(server, org),
+            fetch: fetchImpl,
+            fromEnv: Boolean(process.env.AFB_TOKEN)
+        });
+        if (!access.ok) {
+            log(access.message);
             process.exit(1);
         }
         const result = runSetup({
@@ -618,12 +633,13 @@ async function main() {
         const r = await deviceLogin(server, fetchImpl, log, asJson
             ? {
                 pkce: true,
+                org,
                 onCode: (c) => process.stdout.write(JSON.stringify(c) + '\n')
             }
-            : {});
-        // The device approval lets the person choose the organisation, so it is checked against the one asked for before it is kept
+            : { org });
+        // The approval page is told the organisation, but an older server ignores that, so the token is still checked against the one asked for before it is kept
         if (org && !(await belongsToOrg(server, org, r.token))) {
-            throw new Error(`That sign in is for a different organisation than ${org}. It was not saved. Run the sign in again and choose ${org} when the approval page asks.`);
+            throw new Error(`That sign in is for a different organisation than ${org}. It was not saved. Run the sign in again and approve it for ${org}.`);
         }
         store.set(account, r.token);
         log('Signed in.');

@@ -35,6 +35,7 @@ export async function connectChecks(options) {
     const personal = await deviceLogin(options.server, options.fetch, options.log, {
         name: TOOL_CLIENT_NAME,
         pkce: true,
+        org: options.org,
         wait: options.wait,
         onCode: (c) => {
             if (options.json)
@@ -46,7 +47,7 @@ export async function connectChecks(options) {
                     expiresIn: c.expiresInSeconds
                 }));
             else
-                options.log('On that page choose your organisation and tick "Change project settings" (manage). This is used once, to make this machine a runner.');
+                options.log(`On that page tick "Change project settings" (manage) for ${options.org}. This is used once, to let this machine run your browser checks.`);
         }
     });
     const name = runnerName();
@@ -61,8 +62,12 @@ export async function connectChecks(options) {
         signal: AbortSignal.timeout(30_000)
     });
     const body = (await res.json().catch(() => ({})));
+    // The board answers 404 when a project key is not one of this organisation's (or one the account may use), and for an unknown organisation
+    if (res.status === 404 && projects)
+        throw new Error(`${options.org} has no project with ${projects.length > 1 ? 'one of the keys' : 'the key'} ${projects.join(', ')}, or this account may not use ${projects.length > 1 ? 'them' : 'it'}. Check the keys, or leave --project out to serve every project you may use.`);
     if (!res.ok || !body.token)
-        throw new Error(body.error?.message ?? `The board answered ${res.status} when making this machine a runner.`);
+        throw new Error(body.error?.message ??
+            `The board answered ${res.status} when connecting this machine to run your browser checks.`);
     options.store.set(runnerAccount(options.server, options.org), body.token);
     const served = projects ? projects.join(', ') : 'every project of the organisation you may use';
     if (options.json)
