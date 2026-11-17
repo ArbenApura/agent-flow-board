@@ -4,9 +4,11 @@
 // A write through these tools has the cause "agent": the server keeps the earlier text as a version first.
 
 // IMPORTED DEP-MODULES
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 // IMPORTED MODULES
-import { OpError } from '../ops/context';
+import { item, project as projectTable } from '../db/schema';
+import { OpError, run } from '../ops/context';
 import {
 	createFolder,
 	listFolders,
@@ -26,6 +28,7 @@ import {
 	unlinkNote,
 	updateNote
 } from '../ops/notes';
+import { relatedNotes } from '../ops/relatedNotes';
 import type { ToolBuilder } from './tools';
 
 // -- CONSTANTS -- //
@@ -81,6 +84,42 @@ export function registerNoteTools({ tool }: ToolBuilder) {
 				more: list.next !== null,
 				nextOffset: list.next
 			};
+		}
+	);
+
+	tool(
+		'note_related',
+		'The notes closest to an idea, ranked, with a snippet, folder, author and the plans they link to (untrusted text). Use before writing or changing a note, then read the best 1 to 3 with note_get. related_plans is for planning, note_list to browse.',
+		{
+			q: z.string().min(1).max(500).describe('The idea in plain words, or the topic of the note'),
+			files: z.array(z.string().min(1).max(200)).max(8).optional(),
+			project: z
+				.string()
+				.optional()
+				.describe(
+					'Project key. Left out: the claimed item’s project, else every project you may read'
+				),
+			item: z.string().optional().describe('A plan reference: notes linked to it rank higher'),
+			folder: folder.optional().describe('Limit to one folder; needs a project'),
+			limit: z.number().int().min(1).max(10).optional(),
+			offset: z.number().int().min(0).optional().describe('Where the page starts: nextOffset')
+		},
+		ro,
+		async (a, { ctx, claimed }) => {
+			// With no project named, the project of the claimed item is searched
+			let projectKey = a.project;
+			if (!projectKey && claimed) {
+				const [row] = await run(ctx, (tx) =>
+					tx
+						.select({ key: projectTable.key })
+						.from(item)
+						.innerJoin(projectTable, eq(projectTable.id, item.projectId))
+						.where(eq(item.id, claimed))
+				);
+				projectKey = row?.key;
+			}
+			// Without a claimed item the whole organisation is searched, so a folder has no project to belong to
+			return relatedNotes(ctx, { ...a, project: projectKey });
 		}
 	);
 

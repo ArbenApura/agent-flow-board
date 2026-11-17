@@ -193,6 +193,78 @@ export async function seeTargets(
 
 const KIND_ORDER: NoteLinkKind[] = ['item', 'task', 'mockup', 'note'];
 
+/** A plan, task or mockup a note links to, as a search hit shows it. Only what the reader may see; status is a plan's. */
+export type NoteHitLink = {
+	kind: NoteLinkKind;
+	ref: string | null;
+	title: string;
+	status?: string;
+};
+
+/** The most links shown per note in a search hit. */
+const HIT_LINKS_MAX = 5;
+
+/**
+ * The plans, tasks and mockups that each of the given notes links to, for the reader, in a fixed number of queries whatever
+ * the number of notes. What a reader may not see never comes back: the targets pass seeTargets first, and the status of a
+ * plan is read only for the plans it let through. `exceptItemId` (the plan the reader works on) is left out of the lists.
+ */
+export async function readNoteHitLinks(
+	tx: Tx,
+	userId: string,
+	noteIds: string[],
+	exceptItemId: string | null
+): Promise<Map<string, NoteHitLink[]>> {
+	const out = new Map<string, NoteHitLink[]>();
+	if (!noteIds.length) return out;
+	const rows = await tx
+		.select({ noteId: noteLink.noteId, kind: noteLink.targetKind, target: noteLink.targetId })
+		.from(noteLink)
+		.where(
+			and(
+				inArray(noteLink.noteId, noteIds),
+				inArray(noteLink.targetKind, ['item', 'task', 'mockup'])
+			)
+		);
+	if (!rows.length) return out;
+	const seen = await seeTargets(
+		tx,
+		userId,
+		rows.map((r) => ({ kind: r.kind, id: r.target }))
+	);
+	const itemIds = [...seen.values()].filter((t) => t.kind === 'item').map((t) => t.id);
+	const status = new Map<string, string>();
+	if (itemIds.length)
+		for (const r of rowsOf<{ id: string; status: string }>(
+			await tx.execute(sql`select id, status from item where id in (${uuids(itemIds)})`)
+		))
+			status.set(r.id, r.status);
+	const byNote = new Map<string, Map<string, NoteHitLink & { order: number }>>();
+	for (const r of rows) {
+		const key = `${r.kind}:${r.target}`;
+		const t = seen.get(key);
+		if (!t || (r.kind === 'item' && r.target === exceptItemId)) continue;
+		const mine = byNote.get(r.noteId) ?? new Map<string, NoteHitLink & { order: number }>();
+		mine.set(key, {
+			kind: t.kind,
+			ref: t.ref,
+			title: t.title,
+			...(t.kind === 'item' && status.has(t.id) ? { status: status.get(t.id) } : {}),
+			order: KIND_ORDER.indexOf(t.kind)
+		});
+		byNote.set(r.noteId, mine);
+	}
+	for (const [noteId, mine] of byNote)
+		out.set(
+			noteId,
+			[...mine.values()]
+				.sort((a, b) => a.order - b.order || a.title.localeCompare(b.title))
+				.slice(0, HIT_LINKS_MAX)
+				.map(({ order: _order, ...link }) => link)
+		);
+	return out;
+}
+
 /** What one note links to and what links to it, for this reader. */
 export async function readNoteLinks(tx: Tx, noteId: string, userId: string) {
 	const rows = await tx

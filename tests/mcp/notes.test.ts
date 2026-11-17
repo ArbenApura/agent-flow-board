@@ -54,7 +54,8 @@ describe('note tools', () => {
 			'note_folder',
 			'note_trash',
 			'note_restore',
-			'note_link'
+			'note_link',
+			'note_related'
 		])
 			expect(names).toContain(n);
 	});

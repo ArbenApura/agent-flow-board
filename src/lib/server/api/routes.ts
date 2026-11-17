@@ -5,6 +5,7 @@
 // IMPORTED TYPES
 import { searchBoard } from '../ops/board';
 import { relatedPlans } from '../ops/related';
+import { relatedNotes } from '../ops/relatedNotes';
 import type { Ctx } from '../ops/context';
 // IMPORTED DEP-MODULES
 import { z } from 'zod';
@@ -736,6 +737,37 @@ export const routes: Route[] = [
 				stream: query.stream,
 				scope: query.scope,
 				limit: num(query.limit)
+			})
+	},
+
+	{
+		method: 'GET',
+		path: '/orgs/{org}/related-notes',
+		summary: 'The notes closest to an idea, ranked, as short digests',
+		tag: 'Search',
+		query: z.object({
+			q: z.string().min(1).max(500),
+			project: z.string().optional(),
+			files: z.string().max(1000).optional(),
+			item: z.string().max(100).optional(),
+			folder: z.string().max(500).optional(),
+			limit: z.number().optional(),
+			offset: z.number().optional()
+		}),
+		handler: ({ ctx, query }) =>
+			relatedNotes(ctx, {
+				q: query.q,
+				project: query.project,
+				// Files come as one comma separated list in a query string
+				files: query.files
+					?.split(',')
+					.map((f) => f.trim())
+					.filter(Boolean)
+					.slice(0, 8),
+				item: query.item,
+				folder: query.folder,
+				limit: num(query.limit),
+				offset: num(query.offset)
 			})
 	},
 

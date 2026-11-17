@@ -8,14 +8,26 @@ import type { Ctx } from './context';
 // IMPORTED DEP-MODULES
 import { and, eq, inArray, sql } from 'drizzle-orm';
 // IMPORTED MODULES
-import { noteRef } from '../../shared/notes';
-import { decision, event, item, note, project, projectMember, section, step } from '../db/schema';
+import { decision, event, item, project, section, step } from '../db/schema';
 import { relatedTokens, searchRelated } from '../db/search';
-import { effectiveProjectRole } from '../orgs/roles';
-import { OpError, effectiveCaps, orgRoleOf, projectAllowed, requireCap, run } from './context';
-import { readTree } from './noteFolders';
+import { OpError, requireCap, run } from './context';
 import { readNotesLinkedTo } from './noteLinks';
-import { findItem, findProject, noteRoleOf, visibleNoteSql } from './resolve';
+import {
+	RELATED_NOTES_MAX,
+	around,
+	folderPaths,
+	plainSnippet,
+	rankRelatedNotes,
+	readableProjectIds,
+	type RelatedNote
+} from './relatedNotes';
+import { findItem, findProject, noteRoleOf } from './resolve';
+
+// -- RE-EXPORTS -- //
+
+// The note helpers moved to relatedNotes.ts; these names stay importable from here
+export { RELATED_NOTES_MAX, plainSnippet };
+export type { RelatedNote };
 
 // -- CONSTANTS -- //
 
@@ -25,6 +37,7 @@ export const RELATED_NOTICE =
 
 const SNIPPET_CHARS = 200;
 const NOTE_CHARS = 300;
+// The notes related_plans lists beside the plans: the same ranking as note_related, five at most
 const MAX_LIMIT = 10;
 /** Plans returned when the caller does not say; three precedents are read in full, more only on request. */
 const DEFAULT_LIMIT = 3;
@@ -53,71 +66,14 @@ export type RelatedPlan = {
 	reopened: number;
 };
 
-/** The most close notes related_plans (and the notes linked to a claimed item) list. */
-export const RELATED_NOTES_MAX = 5;
-
-/** A note as an agent is shown it: a pointer to read with note_get, never the whole text. Written by people, so untrusted. */
-export type RelatedNote = {
-	ref: string;
-	project: string;
-	title: string;
-	/** The folder path from the top, or null at the top of the project. */
-	folder: string | null;
-	/** A short excerpt around the words that matched. Left out of a list of the notes linked to a plan. */
-	snippet?: string;
-	untrusted: true;
-};
-
 // -- FUNCTIONS -- //
 
-/** Text another person wrote, as plain text of at most `max` characters: no HTML, no link or image markup, one line. */
-export function plainSnippet(text: string, max: number): string {
-	// A body can be 200,000 characters of unclosed brackets, which makes an open-ended pattern quadratic: only the head is
-	// read, and every pattern has a bounded reach
-	const plain = text
-		.slice(0, max * 8 + 200)
-		.replace(/!\[[^\]]{0,300}\]\([^)]{0,300}\)/g, ' ')
-		.replace(/\[([^\]]{0,300})\]\([^)]{0,300}\)/g, '$1')
-		.replace(/<[^>]{0,300}>/g, ' ')
-		.replace(/[<>`#*_|]/g, ' ')
-		.replace(/\s+/g, ' ')
-		.trim();
-	if (plain.length <= max) return plain;
-	// Cut at a whole character and, when there is one close by, at a word
-	const cut = Array.from(plain).slice(0, max).join('');
-	const space = cut.lastIndexOf(' ');
-	return `${(space > max * 0.7 ? cut.slice(0, space) : cut).trim()}…`;
-}
-
-/** A window of the text around the first of the words, so the snippet shows why the plan matched. */
-function around(text: string, words: string[], max: number): string {
-	// Only the start of a long body is searched for the words, so one huge section cannot hold the server
-	const flat = text.slice(0, 60_000).replace(/\s+/g, ' ');
-	const lower = flat.toLowerCase();
-	let at = -1;
-	for (const w of words) {
-		const i = lower.indexOf(w);
-		if (i >= 0 && (at < 0 || i < at)) at = i;
-	}
-	const from = Math.max(0, at - Math.floor(max / 4));
-	return plainSnippet(flat.slice(from), max);
-}
-
-/** The folder path of each folder id of the given projects, from the live tree. */
-async function folderPaths(tx: Tx, projectIds: string[]): Promise<Map<string, string>> {
-	const paths = new Map<string, string>();
-	for (const id of new Set(projectIds))
-		for (const f of await readTree(tx, id)) paths.set(f.id, f.path);
-	return paths;
-}
-
 /**
- * The (at most five) notes closest to a request, for related_plans (AFB-20261111-0035, step 6.2). Only projects where the
- * caller's own role on that project is not guest are read, and only notes they may see (shared, or their own private ones,
- * not in the trash). It runs in a savepoint and never throws: a failed lookup gives `notesUnavailable` and the plans still
- * come back.
+ * The (at most five) notes closest to a request, for related_plans (AFB-20261111-0035, step 6.2). The ranking and the
+ * visibility rules are the verb of relatedNotes.ts, shared with note_related. It runs in a savepoint and never throws: a
+ * failed lookup gives `notesUnavailable` and the plans still come back.
  */
-async function relatedNotes(
+async function relatedNotesOf(
 	ctx: Ctx,
 	outer: Tx,
 	tokens: string[],
@@ -125,69 +81,20 @@ async function relatedNotes(
 ): Promise<{ notes: RelatedNote[]; notesUnavailable?: true }> {
 	try {
 		const notes = await outer.transaction(async (inner) => {
-			const sp = inner as unknown as Tx;
-			const allowed: string[] = [];
-			for (const id of projectIds) if (await noteRoleOf(sp, ctx, id)) allowed.push(id);
-			if (!allowed.length || !tokens.length) return [];
-			const toks = sql.join(
-				tokens.map((t) => sql`${t}`),
-				sql`, `
-			);
-			const any = sql.join(
-				tokens.map((t) => sql`plainto_tsquery('simple', ${t})`),
-				sql` || `
-			);
-			const matched = sql<number>`(select count(*)::int from unnest(array[${toks}]::text[]) as t(tok) where ${note.searchVector} @@ plainto_tsquery('simple', t.tok))`;
-			// Several words must agree, as for plans
-			const minTokens = tokens.length <= 2 ? 1 : Math.max(2, Math.ceil(tokens.length / 3));
-			const rows = await sp
-				.select({
-					number: note.number,
-					title: note.title,
-					projectId: note.projectId,
-					folderId: note.folderId,
-					// Only the head of a body is ever read
-					body: sql<string>`left(${note.body}, 60000)`
-				})
-				.from(note)
-				.where(
-					and(
-						inArray(note.projectId, allowed),
-						visibleNoteSql(ctx.actor.userId),
-						sql`${note.searchVector} @@ (${any})`,
-						sql`${matched} >= ${minTokens}`
-					)
-				)
-				.orderBy(
-					sql`${matched} desc`,
-					sql`ts_rank(${note.searchVector}, (${any})) desc`,
-					note.number
-				)
-				.limit(RELATED_NOTES_MAX);
-			if (!rows.length) return [];
-			const keys = new Map(
-				(
-					await sp
-						.select({ id: project.id, key: project.key })
-						.from(project)
-						.where(
-							inArray(
-								project.id,
-								rows.map((r) => r.projectId)
-							)
-						)
-				).map((p) => [p.id, p.key])
-			);
-			const paths = await folderPaths(
-				sp,
-				rows.map((r) => r.projectId)
-			);
-			return rows.map((r): RelatedNote => ({
-				ref: noteRef(r.number),
-				project: keys.get(r.projectId) ?? '',
-				title: plainSnippet(r.title, 120),
-				folder: r.folderId ? (paths.get(r.folderId) ?? null) : null,
-				snippet: around(r.body, tokens, SNIPPET_CHARS),
+			const { hits } = await rankRelatedNotes(inner as unknown as Tx, ctx, {
+				tokens,
+				projectIds,
+				limit: RELATED_NOTES_MAX,
+				offset: 0,
+				withLinks: false
+			});
+			// The older, shorter shape: a pointer and an excerpt
+			return hits.map((h): RelatedNote => ({
+				ref: h.ref,
+				project: h.project,
+				title: h.title,
+				folder: h.folder,
+				snippet: h.snippet,
 				untrusted: true
 			}));
 		});
@@ -282,25 +189,7 @@ export async function relatedPlans(
 			await requireCap(tx, ctx, 'read', p.id);
 			projectIds = [p.id];
 		} else {
-			// The role on every project in two queries (projects, then the person's own overrides), not one lookup per project
-			const orgRole = await orgRoleOf(tx, ctx.orgId, ctx.actor.userId);
-			const all = await tx
-				.select({ id: project.id })
-				.from(project)
-				.where(eq(project.orgId, ctx.orgId));
-			const overrides = await tx
-				.select({ projectId: projectMember.projectId, role: projectMember.role })
-				.from(projectMember)
-				.where(eq(projectMember.userId, ctx.actor.userId));
-			projectIds = [];
-			for (const p of all) {
-				if (!orgRole || !projectAllowed(ctx.actor, p.id)) continue;
-				const role = effectiveProjectRole(
-					orgRole,
-					overrides.find((o) => o.projectId === p.id)?.role ?? null
-				);
-				if (role && effectiveCaps(role, ctx.actor).includes('read')) projectIds.push(p.id);
-			}
+			projectIds = await readableProjectIds(tx, ctx);
 		}
 		// The caller's own item is never its own precedent
 		let exclude: string | null = null;
@@ -312,7 +201,7 @@ export async function relatedPlans(
 			}
 		}
 		// The close notes, by the caller's role on each project (a failure here never fails the plans)
-		const noteHits = await relatedNotes(ctx, tx, tokens, projectIds);
+		const noteHits = await relatedNotesOf(ctx, tx, tokens, projectIds);
 		// More than asked for come back so the boosts below can reorder them, then the list is cut to the limit
 		const rows = await searchRelated(tx, tokens, {
 			projectIds,
