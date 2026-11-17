@@ -244,7 +244,19 @@ async function main() {
                 }
             }
         };
-        const fn = (await import(pathToFileURL(job.checkFile).href)).default;
+        let loaded;
+        try {
+            loaded = (await import(pathToFileURL(job.checkFile).href));
+        }
+        catch (e) {
+            // A bare top-level script uses page, baseUrl and the others before any function gave them to it
+            if (e instanceof ReferenceError ||
+                e instanceof SyntaxError ||
+                e?.code === 'ERR_MODULE_NOT_FOUND')
+                throw new Error(`${String(e.message)}. A check must be wrapped as: export default async function ({ page, step, shot, expect, log, baseUrl }) { ... } (use full URLs or page.goto with a path).`, { cause: e });
+            throw e;
+        }
+        const fn = loaded.default;
         if (typeof fn !== 'function')
             throw new Error('A check file must export default an async function({ page, step, shot, expect, log, baseUrl, sweep }).');
         let timer;

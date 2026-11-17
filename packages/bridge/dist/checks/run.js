@@ -207,7 +207,7 @@ export async function runCheck(o) {
         const source = readFileSync(script, 'utf8');
         const unsafe = lintCheck(source);
         if (unsafe.length)
-            return stop(`This check uses ${unsafe.join(', ')}, which a check has no business doing, so it was not run. Rewrite it.`);
+            return stop(`This check uses ${unsafe.join(', ')}, which a check has no business doing, so it was not run. Rewrite it with only page, step, expect, shot, log and baseUrl (page.$eval, page.$$eval and page.evaluate are allowed).`);
         const mockupRef = o.mockup !== undefined ? parseMockupRef(o.mockup) : null;
         if (mockupRef && local)
             return stop('--local runs here with no board, so it cannot fetch a hosted --mockup URL from the board.');
@@ -302,7 +302,18 @@ export async function runCheck(o) {
         runRegistration = registration?.name;
         // The saved sign-in this run needs: --profile, else the script's "// afb-profile:" line, else the default. A named one that cannot be used ends the run before anything is built
         const wantedProfile = mockupRef ? undefined : (o.profile ?? profileHeader(source) ?? undefined);
-        const signinNamed = !mockupRef && (Boolean(o.profile) || Boolean(wantedProfile) || Boolean(o.registration));
+        // A header that is in the script but not in the form the reader accepts would be dropped without a word
+        if (!mockupRef &&
+            /afb-(profile|registration):/i.test(source) &&
+            !profileHeader(source) &&
+            !routed.scriptRegistration)
+            o.log('A "afb-profile:" or "afb-registration:" line was found but not read. Use a // line in the first 12 lines, with the profile name in lower case.');
+        const signinNamed = !mockupRef &&
+            (Boolean(o.profile) ||
+                Boolean(wantedProfile) ||
+                Boolean(o.registration) ||
+                // A board run that asked for a registration by name counts as the person naming it
+                Boolean(job?.registration));
         if (registration && wantedProfile) {
             const early = chooseSignin({
                 org: o.org,
@@ -403,6 +414,10 @@ export async function runCheck(o) {
             usedSavedSignIn = state !== null;
             if (choice.note)
                 o.log(choice.note);
+            // One line that settles at once whether the saved sign-in was applied
+            o.log(usedSavedSignIn
+                ? `Saved sign-in "${choice.profile}" applied: yes.`
+                : `Saved sign-in applied: no${signinNamed ? '' : ' (the run did not name the registration or a profile)'}.`);
         }
         if (!mockupRef && !state && preview.testUser) {
             o.log(`Signing in as ${preview.testUser.email.replace(/^(.).*(@.*)$/, '$1***$2')}...`);

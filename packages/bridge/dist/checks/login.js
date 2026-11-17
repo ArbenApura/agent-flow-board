@@ -107,8 +107,14 @@ export function keepRelated(state, hosts) {
  */
 export function desktopProblem(env = process.env, platform = process.platform) {
     const none = 'This process has no desktop to show a window on (for example it runs as a service or over a remote shell). Run the login from a terminal opened on the computer itself.';
+    // An app terminal on Windows can start with SESSIONNAME stripped from its environment, so only a remote shell or a service (account name ending in $) is refused
+    // The bridge's own service child has no window to show on any platform
+    if (env.AFB_CHECKS_SERVICE_CHILD)
+        return none;
     if (platform === 'win32')
-        return env.SESSIONNAME ? null : none;
+        return env.SSH_CONNECTION || env.SSH_TTY || (!env.SESSIONNAME && env.USERNAME?.endsWith('$'))
+            ? none
+            : null;
     if (platform === 'darwin')
         return env.SSH_CONNECTION || env.SSH_TTY ? none : null;
     return env.DISPLAY || env.WAYLAND_DISPLAY ? null : none;
