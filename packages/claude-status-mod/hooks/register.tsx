@@ -14,11 +14,12 @@ import {
 	INITIAL,
 	POLL_MS,
 	SHAPE,
+	bestOutcome,
+	candidateOrgs,
 	hookOrgOf,
 	isQuiet,
 	lookupUrl,
 	nextView,
-	pickOrg,
 	readStatusFile,
 	statusPaths
 } from './status';
@@ -129,14 +130,14 @@ async function ask($: EngineInterface, options: PluginOptions, isForced: boolean
 	// The bridge's status file first: no token, no setting. The lookup below is the way for a conversation without one.
 	if (await refreshFromFile($)) return;
 	const server = setting(options, 'server');
-	const picked = pickOrg(
+	const picks = candidateOrgs(
 		[
 			{ org: setting(options, 'org'), token: setting(options, 'token') },
 			{ org: setting(options, 'org2'), token: setting(options, 'token2') }
 		],
 		await hookOrg($)
 	);
-	if (!server || !picked) {
+	if (!server || picks.length === 0) {
 		// At the very start the bridge's file may not be written yet: stay quiet, and say the setting is missing only when asked again
 		if (!isForced) return;
 		await update($, view, (v): View => ({ ...v, kind: 'setup', item: null, etag: null }));
@@ -144,24 +145,31 @@ async function ask($: EngineInterface, options: PluginOptions, isForced: boolean
 	}
 	const conversationId = await $.session.id();
 	const canSendEtag = current.kind === 'ok' || current.kind === 'none';
-	let outcome: Outcome;
-	try {
-		// No x-session-id: that header would make the board treat every poll as a heartbeat of the session
-		const res = await $.http.fetch(
-			lookupUrl(server, picked.org, conversationId, canSendEtag ? current.etag : null),
-			{ headers: { authorization: `Bearer ${picked.token}`, accept: 'application/json' } }
-		);
-		let body: unknown = null;
+	const outcomes: Outcome[] = [];
+	// With no hook organisation (a conversation in no folder) each organisation is asked in turn, until one has the conversation
+	for (const picked of picks) {
+		let outcome: Outcome;
 		try {
-			body = JSON.parse(res.text);
+			// No x-session-id: that header would make the board treat every poll as a heartbeat of the session
+			const res = await $.http.fetch(
+				lookupUrl(server, picked.org, conversationId, canSendEtag ? current.etag : null),
+				{ headers: { authorization: `Bearer ${picked.token}`, accept: 'application/json' } }
+			);
+			let body: unknown = null;
+			try {
+				body = JSON.parse(res.text);
+			} catch {
+				body = null;
+			}
+			outcome = { status: res.status, body };
 		} catch {
-			body = null;
+			// The reason is never shown: an error text could carry the address or the token
+			outcome = { failed: true };
 		}
-		outcome = { status: res.status, body };
-	} catch {
-		// The reason is never shown: an error text could carry the address or the token
-		outcome = { failed: true };
+		outcomes.push(outcome);
+		if ('status' in outcome && outcome.status === 200) break;
 	}
+	const outcome = bestOutcome(outcomes);
 	await update($, view, (v) => nextView(v, outcome, now));
 }
 

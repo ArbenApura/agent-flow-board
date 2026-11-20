@@ -11,6 +11,8 @@ import {
 	hookOrgOf,
 	isQuiet,
 	pickOrg,
+	candidateOrgs,
+	bestOutcome,
 	FILE_STALE_MS,
 	readStatusFile,
 	statusName,
@@ -353,6 +355,31 @@ test('the organisation comes from the repo hooks, with its own token', () => {
 	// A hook organisation with no token of its own is a missing setting, never another organisation's token
 	expect(pickOrg([pairs[0], { org: 'mangoman', token: '' }], 'mangoman')).toBeNull();
 	expect(pickOrg(pairs, 'other')).toBeNull();
+});
+
+test('a conversation in no folder asks every organisation, and one bad token does not hide another answer', () => {
+	const pairs = [
+		{ org: 'arbenger', token: 'a' },
+		{ org: 'mangoman', token: 'm' }
+	];
+	expect(candidateOrgs(pairs, null).map((p) => p.org)).toEqual(['arbenger', 'mangoman']);
+	expect(candidateOrgs(pairs, 'mangoman').map((p) => p.org)).toEqual(['mangoman']);
+	expect(candidateOrgs(pairs, 'other')).toEqual([]);
+	const found = { status: 200, body: { item: null } };
+	expect(
+		bestOutcome([
+			{ status: 401, body: null },
+			{ status: 404, body: null }
+		])
+	).toEqual({
+		status: 404,
+		body: null
+	});
+	expect(bestOutcome([{ status: 401, body: null }, found])).toBe(found);
+	expect(bestOutcome([{ status: 401, body: null }, { failed: true }])).toEqual({
+		status: 401,
+		body: null
+	});
 });
 
 // -- THE STATUS FILE OF THE BRIDGE (AFB-20261108-0427, S.3 AND S.4) -- //

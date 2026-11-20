@@ -249,6 +249,30 @@ export function pickOrg(pairs: OrgPair[], hookOrg: string | null): OrgPair | nul
 	return usable[0] ?? null;
 }
 
+/**
+ * Every organisation and token to ask with, in order. With a hook organisation it is that one alone (as pickOrg). With none to go
+ * by (a conversation in no folder has no repo hooks) it is every complete pair, because the conversation may live in any of them.
+ */
+export function candidateOrgs(pairs: OrgPair[], hookOrg: string | null): OrgPair[] {
+	if (hookOrg) {
+		const one = pickOrg(pairs, hookOrg);
+		return one ? [one] : [];
+	}
+	return pairs.filter((p) => p.org && p.token);
+}
+
+/** How well an answer settles the question: an answer of the board beats a missing conversation, which beats a bad token. */
+const rank = (o: Outcome): number => {
+	if ('failed' in o) return 0;
+	if (o.status === 401 || o.status === 403) return 1;
+	if (o.status === 404) return 2;
+	return o.status === 200 ? 4 : 0;
+};
+
+/** The best of the answers of several organisations, so one organisation's expired token never hides another's answer. */
+export const bestOutcome = (outcomes: Outcome[]): Outcome =>
+	outcomes.reduce<Outcome>((best, o) => (rank(o) > rank(best) ? o : best), { failed: true });
+
 /** The address of the lookup. The conversation id and the etag are encoded; no token and no session header go with it. */
 export function lookupUrl(
 	server: string,
