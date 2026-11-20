@@ -57,7 +57,7 @@ The command prints the new password once, ends that Owner's sessions and clears 
 
 ## 4. Backups
 
-The app backs up every organisation each night (the hour is `AFB_BACKUP_HOUR`, UTC, 2 by default) into the `appdata` volume under `/data/backups`, as encrypted archives with the database rows and the files. It keeps 14 daily, 8 weekly and 12 monthly archives. Organisation settings shows when a backup is late or has failed, and an Owner gets an email. **Keep a copy of `AFB_MASTER_KEY` with the backups.** The archives hold the sealed test account passwords, and they cannot be opened without it.
+The app backs up every organisation each night (the hour is `AFB_BACKUP_HOUR`, UTC, 2 by default) into the `appdata` volume under `/data/backups`, as encrypted archives with the database rows and the files. It keeps the newest 7 good archives of each organisation, removes the older ones (and any archive file no record names) after each good run, and leaves out the drawn screenshots and rendered trees of mockups, which the bridge draws again. An organisation can pause its nightly backup with a switch in Organisation settings. Organisation settings shows when a backup is late or has failed, and an Owner gets an email. **Keep a copy of `AFB_MASTER_KEY` with the backups.** The archives hold the sealed test account passwords, and they cannot be opened without it.
 
 **Copy the archives off the machine.** A backup on the same disk is not a backup. For example, from your own computer:
 

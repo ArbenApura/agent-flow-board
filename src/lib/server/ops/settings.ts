@@ -10,7 +10,7 @@ import { z } from 'zod';
 // IMPORTED MODULES
 import { storedPalette } from '../../theme/css';
 import { checkPalette, generatePalette } from '../../theme/palette';
-import { DEFAULT_RETENTION, backupHealth } from '../backup/run';
+import { DEFAULT_RETENTION, backupHealth, type BackupHealth } from '../backup/run';
 import { appendEvent } from '../db/events';
 import { backupRun, event, org, project } from '../db/schema';
 import type { OrgSettings } from '../db/schema/core';
@@ -29,28 +29,28 @@ export const orgSettingsInput = z.object({
 		.nullable()
 		.optional(),
 	tokenMaxDays: z.number().int().min(1).max(90).optional(),
-	allowGuestInvites: z.boolean().optional()
+	allowGuestInvites: z.boolean().optional(),
+	/** Turns the nightly backup of this organisation on or off. */
+	autoBackups: z.boolean().optional()
 });
-export const DEFAULT_SETTINGS: Required<Pick<OrgSettings, 'tokenMaxDays' | 'allowGuestInvites'>> = {
+type Limits = Required<Pick<OrgSettings, 'tokenMaxDays' | 'allowGuestInvites' | 'autoBackups'>>;
+export const DEFAULT_SETTINGS: Limits = {
 	tokenMaxDays: 90,
-	allowGuestInvites: true
+	allowGuestInvites: true,
+	autoBackups: true
 };
 
 // -- FUNCTIONS -- //
 
 /** The org's limits with their defaults filled in. */
-export const settingsOf = (
-	s: OrgSettings | null | undefined
-): Required<Pick<OrgSettings, 'tokenMaxDays' | 'allowGuestInvites'>> => {
+export const settingsOf = (s: OrgSettings | null | undefined): Limits => {
 	const own: Record<string, unknown> = { ...(s ?? {}) };
 	// The day's trash clean up leaves its mark in the same record, and no page or token needs to see it
 	delete own.trashPurgedAt;
 	// The per-person agent switch was removed (AFB-20261115-1229); old keys of it stay in the stored record and must never reach a page or a token
 	delete own.autoApproveBy;
 	delete own.boardApprovals;
-	return { ...DEFAULT_SETTINGS, ...own } as Required<
-		Pick<OrgSettings, 'tokenMaxDays' | 'allowGuestInvites'>
-	>;
+	return { ...DEFAULT_SETTINGS, ...own } as Limits;
 };
 
 /** What the Organisation settings page needs. Readable by every member, changeable by admins and owners. */
@@ -115,8 +115,16 @@ export async function updateOrgSettings(ctx: Ctx, raw: z.input<typeof orgSetting
 			after.allowGuestInvites = input.allowGuestInvites;
 			limits.allowGuestInvites = input.allowGuestInvites;
 		}
+		if (
+			input.autoBackups !== undefined &&
+			input.autoBackups !== settingsOf(o.settings).autoBackups
+		) {
+			before.autoBackups = settingsOf(o.settings).autoBackups;
+			after.autoBackups = input.autoBackups;
+			limits.autoBackups = input.autoBackups;
+		}
 		// Only the changed limits are merged into the stored object in the same statement, so keys stored beside them (an old autoApproveBy, the trash purge mark) are never overwritten
-		if ('tokenMaxDays' in after || 'allowGuestInvites' in after)
+		if ('tokenMaxDays' in after || 'allowGuestInvites' in after || 'autoBackups' in after)
 			set.settings = sql`coalesce(${org.settings}, '{}'::jsonb) || ${JSON.stringify(limits)}::jsonb`;
 		if (!Object.keys(set).length) return { changed: false };
 		await tx
@@ -247,11 +255,34 @@ export async function orgAuditLog(ctx: Ctx, raw: z.input<typeof auditInput>) {
 	});
 }
 
+/**
+ * How the newest backup looks for an org that paused its nightly backup: it is never late, because nothing is expected, but a
+ * failed latest run (one made by hand) is still reported.
+ */
+const pausedHealth = (h: BackupHealth): BackupHealth => ({
+	...h,
+	late: false,
+	ok: !h.lastFailed,
+	message: h.lastFailed ? h.message : null
+});
+
+/** The health of the newest backup as an admin or owner reads it, the same on the page and on the REST route. */
+export async function orgBackupHealth(ctx: Ctx): Promise<BackupHealth> {
+	const autoBackups = await run(ctx, async (tx) => {
+		await requireCap(tx, ctx, 'manage');
+		const [o] = await tx.select({ settings: org.settings }).from(org).where(eq(org.id, ctx.orgId));
+		return settingsOf(o?.settings).autoBackups;
+	});
+	const health = await backupHealth(ctx.handle, ctx.orgId);
+	return autoBackups ? health : pausedHealth(health);
+}
+
 /** Whether backups are on for this server, how the newest one went, and the recent runs. */
 export async function orgBackups(ctx: Ctx) {
 	await run(ctx, (tx) => requireCap(tx, ctx, 'manage'));
 	const health = await backupHealth(ctx.handle, ctx.orgId);
-	const { runs, stored } = await run(ctx, async (tx) => {
+	const { runs, stored, autoBackups } = await run(ctx, async (tx) => {
+		const [o] = await tx.select({ settings: org.settings }).from(org).where(eq(org.id, ctx.orgId));
 		const rows = await tx
 			.select({
 				id: backupRun.id,
@@ -276,14 +307,18 @@ export async function orgBackups(ctx: Ctx) {
 		return {
 			// The stored location is a server path and is never sent to a page, only whether a file is there to download
 			runs: rows.map(({ location, ...r }) => ({ ...r, hasFile: Boolean(location) })),
-			stored: { bytes: Number(total?.bytes ?? 0), copies: total?.copies ?? 0 }
+			stored: { bytes: Number(total?.bytes ?? 0), copies: total?.copies ?? 0 },
+			autoBackups: settingsOf(o?.settings).autoBackups
 		};
 	});
 	return {
 		enabled: Boolean(ctx.services?.backups),
 		/** True when this server can hand the stored files out, so the page shows the download buttons. */
 		canDownload: Boolean(ctx.services?.backupStorage),
-		health,
+		/** Whether the nightly job takes a copy of this org. Off means paused: never late, no alert. */
+		autoBackups,
+		// A paused org is not unhealthy: the newest copy ages without a warning, and the page says Paused
+		health: autoBackups ? health : pausedHealth(health),
 		runs,
 		stored,
 		retention: DEFAULT_RETENTION
@@ -355,11 +390,18 @@ export async function backupDelete(ctx: Ctx, raw: z.input<typeof backupDeleteInp
 			throw new OpError('INVALID', 'Backups are not set up on this server.');
 		const gone: string[] = [];
 		let failed = 0;
+		let freed = 0;
 		for (const r of rows) {
 			if (r.location) {
 				try {
 					await storage!.delete(r.location);
-				} catch {
+					// Proof that the space is free: the file must be gone when it is looked up again. A file that is still
+					// there keeps its record, so the person sees it and the next delete or prune tries again
+					if ((await storage!.size(r.location)) !== null)
+						throw new Error('The file is still in storage after the delete.');
+					freed += r.size ?? 0;
+				} catch (e) {
+					console.error(`Backup file ${r.location} was not removed from storage`, e);
 					failed += 1;
 					continue;
 				}
@@ -384,10 +426,10 @@ export async function backupDelete(ctx: Ctx, raw: z.input<typeof backupDeleteInp
 							at: r.createdAt.toISOString()
 						}))
 				},
-				{ deleted: gone.length, failed }
+				{ deleted: gone.length, failed, freedBytes: freed }
 			);
 		}
-		return { deleted: gone.length, failed };
+		return { deleted: gone.length, failed, freedBytes: freed };
 	});
 }
 

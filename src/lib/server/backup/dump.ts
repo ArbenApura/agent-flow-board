@@ -198,7 +198,10 @@ export async function exportOrgTo<T>(
 				`select "storage_key", "mime", "size", "checksum", "deleted_at" from "attachment" where "org_id" = $1 order by "id"`,
 				[orgId]
 			);
-			// Mockup files (versions, screenshots, kits) are stored files too. Screenshots and kits carry no saved checksum, so one is taken now
+			// Mockup files (versions, the version screenshot, kits, parts) are stored files too. Screenshots and kits carry no saved
+			// checksum, so one is taken now. The drawn shots and rendered trees of a version (derived.shots and derived.trees) are
+			// left out on purpose: the bridge draws them from the version HTML, they grew 100 to 200 MB a day and made every nightly
+			// archive larger (2026-11-20), and a read that finds one missing already skips it
 			const mockupFiles = await q.query<{
 				storage_key: string;
 				mime: string;
@@ -211,8 +214,6 @@ export async function exportOrgTo<T>(
 				 union all select "storage_key", 'text/html', "size", null, null from "mockup_kit" where "org_id" = $1
 				 union all select "storage_key", "mime", "size", "checksum", null from "mockup_kit_asset" where "org_id" = $1
 				 union all select "storage_key", 'text/plain', "size", "checksum", null from "mockup_part" where "org_id" = $1
-				 union select s->>'storageKey', coalesce(s->>'mime', 'image/png'), null, null, null from "mockup_version", jsonb_array_elements(case when jsonb_typeof("derived"->'shots') = 'array' then "derived"->'shots' else '[]'::jsonb end) s where "org_id" = $1
-				 union select s->>'storageKey', 'application/json', null, null, null from "mockup_version", jsonb_array_elements(case when jsonb_typeof("derived"->'trees') = 'array' then "derived"->'trees' else '[]'::jsonb end) s where "org_id" = $1
 				 union all select "storage_key", "mime", "size", "checksum", null from "note_file" where "org_id" = $1
 				 order by 1`,
 				[orgId]

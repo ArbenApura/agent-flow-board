@@ -84,7 +84,7 @@ export async function registerBackups(jobs: JobRunner): Promise<(() => Promise<v
 		// A backup the same night already finished is not made twice, whichever process the schedule woke
 		const results = await runBackup(
 			{ handle, admin, storage: getStorage(), backups, key: BACKUP_KEY!, mailer: getMailer() },
-			{ skipIfWithinHours: 20 }
+			{ skipIfWithinHours: 20, onlyAutoBackups: true }
 		);
 		for (const r of results)
 			if (r.state === 'failed') console.error(`Backup of ${r.orgId} failed: ${r.error}`);

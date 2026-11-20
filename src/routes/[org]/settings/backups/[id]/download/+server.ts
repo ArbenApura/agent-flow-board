@@ -1,5 +1,7 @@
 // IMPORTED DEP-TYPES
 import type { RequestHandler } from './$types';
+// IMPORTED DEP-MODULES
+import { Readable } from 'node:stream';
 // IMPORTED MODULES
 import { OpError } from '#lib/server/ops/context.js';
 import { backupDownload } from '#lib/server/ops/settings.js';
@@ -15,21 +17,18 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
 	const { ctx } = await orgContext(locals, params.org, url.pathname);
 	try {
 		const file = await backupDownload(ctx, params.id);
-		const chunks = file.stream[Symbol.asyncIterator]();
-		// The stream is pulled one chunk at a time, so a copy of several hundred MB is never held in memory
-		const body = new ReadableStream<Uint8Array>({
-			async pull(controller) {
-				const next = await chunks.next();
-				if (next.done) controller.close();
-				else controller.enqueue(next.value);
-			},
-			async cancel() {
-				await chunks.return?.();
-			}
-		});
+		// The file goes out as a byte stream with a 2 MiB buffer: Node moves it in large pieces with no per-chunk promise of our
+		// own, so a copy of several hundred MB is never held in memory and the connection is kept full. A client that cancels
+		// destroys the stream, which closes the stored file
+		const body = Readable.toWeb(
+			Readable.from(file.stream, { objectMode: false, highWaterMark: 2 * 1024 * 1024 })
+		) as unknown as ReadableStream<Uint8Array>;
 		return new Response(body, {
 			headers: {
 				'content-type': 'application/octet-stream',
+				// The bytes are already encrypted, so they do not compress. Naming an encoding keeps the proxy (Caddy) from spending
+				// CPU on them, and from dropping the Content-Length the download window needs for its progress bar
+				'content-encoding': 'identity',
 				'content-length': String(file.size),
 				'content-disposition': `attachment; filename="${file.filename}"`,
 				'cache-control': 'no-store',

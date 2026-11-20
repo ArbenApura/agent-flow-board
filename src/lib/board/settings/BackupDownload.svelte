@@ -1,8 +1,8 @@
 <script lang="ts">
 	// IMPORTED TYPES
-	import type { DownloadFile, DownloadProgress } from '#lib/board/backups.js';
+	import type { DownloadFile, DownloadProgress, SaveFolder } from '#lib/board/backups.js';
 	// IMPORTED MODULES
-	import { downloadBackup, formatBytes } from '#lib/board/backups.js';
+	import { canPickFolder, downloadBackup, formatBytes, pickFolder } from '#lib/board/backups.js';
 	import { cn } from '#lib/ui/cn.js';
 	// IMPORTED DEP-COMPONENTS
 	import Check from '@lucide/svelte/icons/check';
@@ -32,6 +32,8 @@
 	let phase = $state<Phase>('prep');
 	let entries = $state<Entry[]>([]);
 	let reason = $state('');
+	// True when a copy was too large to gather in memory and the browser's own download took it
+	let browserSaved = $state(false);
 	let startedAt = $state(0);
 	let now = $state(0);
 	let samples = $state<{ at: number; bytes: number }[]>([]);
@@ -67,7 +69,9 @@
 	);
 	const sub = $derived(
 		phase === 'done'
-			? 'Check your Downloads folder. The files stay encrypted.'
+			? browserSaved
+				? 'Your browser is saving the file. Its Downloads list shows the progress. The files stay encrypted.'
+				: 'Check your Downloads folder. The files stay encrypted.'
 			: phase === 'error'
 				? 'The file was not saved.'
 				: phase === 'prep'
@@ -88,6 +92,7 @@
 		controller = new AbortController();
 		entries = files.map((f, i) => ({ ...f, received: 0, state: i === 0 ? 'run' : 'waiting' }));
 		reason = '';
+		browserSaved = false;
 		phase = 'prep';
 		startedAt = Date.now();
 		now = startedAt;
@@ -97,13 +102,33 @@
 	}
 
 	async function run(signal: AbortSignal) {
+		// Several copies go into one folder the person picks, so none is held in memory. The picker must open straight from the
+		// click, so it is the first thing that happens. Closing it is not a failure
+		let folder: SaveFolder | null = null;
+		if (entries.length > 1 && canPickFolder()) {
+			try {
+				folder = await pickFolder();
+			} catch {
+				if (!signal.aborted) open = false;
+				return;
+			}
+			// Two copies of one day share a file name, and a folder would overwrite the first, so a repeat gets a number
+			const used: string[] = [];
+			for (const e of entries) {
+				let n = e.name;
+				for (let k = 2; used.includes(n); k += 1) n = e.name.replace(/\.afbbak$/, `-${k}.afbbak`);
+				used.push(n);
+				e.name = n;
+			}
+		}
 		for (let i = 0; i < entries.length; i += 1) {
 			const entry = entries[i];
 			entry.state = 'run';
 			try {
-				await downloadBackup(`/${org}/settings/backups/${entry.id}/download`, {
+				const saved = await downloadBackup(`/${org}/settings/backups/${entry.id}/download`, {
 					fallbackName: entry.name,
 					signal,
+					folder,
 					// Only the first file can use the save window, because the browser needs the click to be fresh
 					direct: i === 0 && entries.length === 1,
 					onProgress: (p: DownloadProgress) => {
@@ -118,6 +143,7 @@
 						];
 					}
 				});
+				if (saved.browser) browserSaved = true;
 				entry.received = entry.size;
 				entry.state = 'done';
 			} catch (e) {
@@ -166,6 +192,7 @@
 	{open}
 	{title}
 	size="md"
+	dismissOnBackdrop={false}
 	onclose={() => (phase === 'run' || phase === 'prep' ? cancel() : (open = false))}
 >
 	<div class="flex flex-col gap-4" data-testid="backup-download">

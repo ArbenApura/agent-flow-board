@@ -2,10 +2,13 @@
 // ANOTHER ORGANISATION'S BACKUP IS NEVER REACHABLE, A RUNNING BACKUP IS REFUSED, AND A DELETE REMOVES THE STORED FILE BEFORE THE RECORD.
 
 // IMPORTED DEP-MODULES
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 // IMPORTED MODULES
-import { memoryStorage } from '../../src/lib/server/adapters/storage';
+import { diskStorage, memoryStorage } from '../../src/lib/server/adapters/storage';
 import { event } from '../../src/lib/server/db/schema';
 import { withTenant } from '../../src/lib/server/db/tenant';
 import { backupDelete, backupDownload, orgBackups } from '../../src/lib/server/ops/settings';
@@ -84,7 +87,8 @@ describe('backup management', () => {
 	it('the page data carries the retention, the total stored and whether files can be handed out, and never a stored path', async () => {
 		const r = await orgBackups(ctx());
 		expect(r.canDownload).toBe(true);
-		expect(r.retention).toEqual({ daily: 14, weekly: 8, monthly: 12 });
+		expect(r.retention).toEqual({ max: 7 });
+		expect(r.autoBackups).toBe(true);
 		expect(r.stored).toEqual({ bytes: 24, copies: 3 });
 		expect(JSON.stringify(r.runs)).not.toContain('k/good');
 		expect(r.runs.find((x) => x.id === ids.good)?.hasFile).toBe(true);
@@ -134,7 +138,8 @@ describe('backup management', () => {
 
 	it('a delete removes the stored file and then the record, once, with an audit entry', async () => {
 		const r = await backupDelete(ctx('admin'), { ids: [ids.older, ids.older, ids.failed] });
-		expect(r).toEqual({ deleted: 2, failed: 0 });
+		// Only a backup with a stored file frees bytes: the failed run had none
+		expect(r).toEqual({ deleted: 2, failed: 0, freedBytes: 8 });
 		expect(await storage.get('k/older')).toBeNull();
 		const left = (await orgBackups(ctx())).runs.map((x) => x.id);
 		expect(left).not.toContain(ids.older);
@@ -142,7 +147,7 @@ describe('backup management', () => {
 		expect(left).toContain(ids.good);
 		const logged = await verbs('backup.delete');
 		expect(logged).toHaveLength(1);
-		expect(logged[0].after).toEqual({ deleted: 2, failed: 0 });
+		expect(logged[0].after).toEqual({ deleted: 2, failed: 0, freedBytes: 8 });
 		// The other organisation's backup and file are untouched
 		expect(await storage.get('k/foreign')).not.toBeNull();
 	});
@@ -158,7 +163,57 @@ describe('backup management', () => {
 			{ ...w.ctx('admin'), services: { backups: true, backupStorage: stuck } },
 			{ ids: [ids.good] }
 		);
-		expect(r).toEqual({ deleted: 0, failed: 1 });
+		expect(r).toEqual({ deleted: 0, failed: 1, freedBytes: 0 });
 		expect((await orgBackups(ctx())).runs.some((x) => x.id === ids.good)).toBe(true);
+	});
+
+	it('a delete that reports success but leaves the file behind is not trusted: the record stays and it counts as failed', async () => {
+		// A storage whose delete does nothing, so the file is still there when it is looked up again
+		const lingering = { ...storage, delete: async () => undefined };
+		const r = await backupDelete(
+			{ ...w.ctx('admin'), services: { backups: true, backupStorage: lingering } },
+			{ ids: [ids.good] }
+		);
+		expect(r).toEqual({ deleted: 0, failed: 1, freedBytes: 0 });
+		expect(await storage.get('k/good')).not.toBeNull();
+		expect((await orgBackups(ctx())).runs.some((x) => x.id === ids.good)).toBe(true);
+	});
+
+	it('on a disk storage a delete really removes the file from the folder, and the folder listing shows it gone', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'afb-backup-delete-'));
+		try {
+			const disk = diskStorage(dir, 'a-secret-of-more-than-32-characters-long!!');
+			const folder = `backups/${w.orgId}`;
+			const keyA = `${folder}/2026-11-10T02-00-00-000Z.afbbak`;
+			const keyB = `${folder}/2026-11-11T02-00-00-000Z.afbbak`;
+			await disk.put(keyA, BYTES, 'application/octet-stream');
+			await disk.put(keyB, BYTES, 'application/octet-stream');
+			// A half written file of a run that is still going is never listed
+			await disk.putStream(
+				`${folder}/x.afbbak`,
+				(async function* () {})(),
+				'application/octet-stream'
+			);
+			await mkdir(join(dir, folder), { recursive: true });
+			await writeFile(join(dir, folder, 'live.afbbak.partial'), BYTES);
+			expect((await disk.list(folder)).sort()).toEqual([keyA, keyB, `${folder}/x.afbbak`].sort());
+			expect(await disk.list(`backups/${w.other.orgId}`)).toEqual([]);
+			const a = await seed(w.orgId, 'done', {
+				location: keyA,
+				size: 8,
+				at: '2026-11-10T02:00:00Z'
+			});
+			const r = await backupDelete(
+				{ ...w.ctx('admin'), services: { backups: true, backupStorage: disk } },
+				{ ids: [a] }
+			);
+			expect(r).toEqual({ deleted: 1, failed: 0, freedBytes: 8 });
+			expect(await disk.size(keyA)).toBeNull();
+			expect(await disk.get(keyA)).toBeNull();
+			expect((await disk.list(folder)).sort()).toEqual([keyB, `${folder}/x.afbbak`].sort());
+			expect(await readdir(join(dir, folder))).not.toContain('2026-11-10T02-00-00-000Z.afbbak');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 });

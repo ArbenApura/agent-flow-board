@@ -21,6 +21,7 @@ import {
 	emailStatus,
 	getOrgSettings,
 	orgAuditLog,
+	orgBackupHealth,
 	orgBackups,
 	sendTestEmail,
 	setOrgLogo,
@@ -136,7 +137,8 @@ describe('settings', () => {
 		s = await getOrgSettings(ctx());
 		expect(s.settings).toEqual({
 			tokenMaxDays: 14,
-			allowGuestInvites: false
+			allowGuestInvites: false,
+			autoBackups: true
 		});
 		expect(s.accent).toBe('#e11d48');
 		// Back to the default palette, and an unchanged save says so
@@ -146,8 +148,35 @@ describe('settings', () => {
 		expect(settingsOf(null)).toEqual(DEFAULT_SETTINGS);
 		expect(settingsOf({ tokenMaxDays: 7 })).toEqual({
 			tokenMaxDays: 7,
-			allowGuestInvites: true
+			allowGuestInvites: true,
+			autoBackups: true
 		});
+		// The nightly backup switch: on until turned off, stored beside the other limits and logged, and an unchanged save says so
+		expect(settingsOf({ autoBackups: false }).autoBackups).toBe(false);
+		expect((await updateOrgSettings(ctx(), { autoBackups: true })).changed).toBe(false);
+		expect((await updateOrgSettings(ctx(), { autoBackups: false })).changed).toBe(true);
+		expect((await getOrgSettings(ctx())).settings).toEqual({
+			tokenMaxDays: 14,
+			allowGuestInvites: false,
+			autoBackups: false
+		});
+		// A paused org is not unhealthy and not late, and the page is told it is paused
+		const paused = await orgBackups(ctx());
+		expect(paused.autoBackups).toBe(false);
+		expect(paused.health).toMatchObject({
+			ok: true,
+			late: false,
+			lastFailed: false,
+			message: null
+		});
+		// The REST route reads the same health, so a monitor polling it does not see a paused org as late either
+		expect(await orgBackupHealth(ctx())).toMatchObject({ ok: true, late: false, message: null });
+		await expect(orgBackupHealth(ctx('member'))).rejects.toMatchObject({ code: 'FORBIDDEN' });
+		await expect(updateOrgSettings(ctx('member'), { autoBackups: true })).rejects.toMatchObject({
+			code: 'FORBIDDEN'
+		});
+		await updateOrgSettings(ctx(), { autoBackups: true });
+		expect((await orgBackups(ctx())).autoBackups).toBe(true);
 	});
 
 	it('the org limits are enforced: token lifetime and guest invitations', async () => {

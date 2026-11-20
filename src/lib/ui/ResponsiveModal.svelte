@@ -18,6 +18,7 @@
 		children,
 		footer,
 		busy = false,
+		dismissOnBackdrop = true,
 		size = 'md',
 		variant = 'dialog'
 	}: {
@@ -29,6 +30,8 @@
 		footer?: Snippet;
 		/** While true the dialog cannot be closed (an action is running). */
 		busy?: boolean;
+		/** False makes a click on the dim background do nothing, so a running download is not lost by a stray click. The close button and Escape still ask to close. */
+		dismissOnBackdrop?: boolean;
 		size?: 'sm' | 'md' | 'lg';
 		/** A drawer slides in from the right on a wide screen, so a record can be read next to the page it came from. */
 		variant?: 'dialog' | 'drawer' | 'top';
@@ -90,7 +93,7 @@
 				'absolute inset-0 cursor-default bg-[var(--overlay)] transition-opacity duration-150 motion-reduce:transition-none',
 				shown ? 'opacity-100' : 'opacity-0'
 			)}
-			onclick={requestClose}
+			onclick={() => dismissOnBackdrop && requestClose()}
 		></button>
 		<!-- PANEL, A BOTTOM SHEET ON PHONES AND A CENTRED DIALOG FROM sm UP -->
 		<div

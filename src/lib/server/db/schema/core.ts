@@ -32,6 +32,8 @@ export type OrgSettings = {
 	tokenMaxDays?: number;
 	/** Whether people may be invited as guests. */
 	allowGuestInvites?: boolean;
+	/** Whether the nightly backup takes a copy of this org. Missing means on. */
+	autoBackups?: boolean;
 	// The old per-person agent approvals switch (AFB-20261115-1229) left an autoApproveBy key in stored records; nothing reads it and settingsOf hides it.
 };
 export type StreamConfig = { stream: string; scopes: string[] }[];

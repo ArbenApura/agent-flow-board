@@ -37,6 +37,11 @@ export interface Storage {
 	/** The size in bytes, or null when the file is not there. */
 	size(key: string): Promise<number | null>;
 	delete(key: string): Promise<void>;
+	/**
+	 * The keys of the files directly inside a folder key such as `backups/<org id>` (no trailing slash), full keys, in no
+	 * particular order. A folder that does not exist has none. A `.partial` file of a put that is still running is not listed.
+	 */
+	list(folder: string): Promise<string[]>;
 	/** A URL that works for `ttlSeconds` and then stops. The base is the public address of this app. */
 	signedUrl(baseUrl: string, key: string, ttlSeconds: number): Promise<string>;
 }
@@ -145,6 +150,12 @@ export function memoryStorage(
 		async delete(key) {
 			files.delete(safeKey(key));
 		},
+		async list(folder) {
+			const prefix = `${safeKey(folder)}/`;
+			return [...files.keys()].filter(
+				(k) => k.startsWith(prefix) && !k.slice(prefix.length).includes('/')
+			);
+		},
 		async signedUrl(baseUrl, key, ttl) {
 			return signedFileUrl(baseUrl, secret, key, ttl);
 		}
@@ -200,7 +211,8 @@ export function diskStorage(root: string, secret: string): Storage {
 			} catch {
 				return null;
 			}
-			return createReadStream(file);
+			// 1 MiB reads (the default is 64 KiB): a large stored copy is handed out with far fewer round trips through the event loop
+			return createReadStream(file, { highWaterMark: 1024 * 1024 });
 		},
 		async size(key) {
 			try {
@@ -211,6 +223,18 @@ export function diskStorage(root: string, secret: string): Storage {
 		},
 		async delete(key) {
 			await rm(path(key), { force: true });
+		},
+		async list(folder) {
+			const dir = path(folder);
+			try {
+				const entries = await readdir(dir, { withFileTypes: true });
+				return entries
+					.filter((e) => e.isFile() && !e.name.endsWith('.partial'))
+					.map((e) => `${folder}/${e.name}`);
+			} catch {
+				// A folder that was never written has no files
+				return [];
+			}
 		},
 		async signedUrl(baseUrl, key, ttl) {
 			return signedFileUrl(baseUrl, secret, key, ttl);
@@ -295,6 +319,29 @@ export function s3Storage(options: {
 			const res = await client.fetch(url(key), { method: 'DELETE' });
 			if (!res.ok && res.status !== 404)
 				throw new Error(`Storage could not delete the file (${res.status})`);
+		},
+		async list(folder) {
+			// ListObjectsV2 pages of up to 1000 keys. The folder is a key prefix, so only keys directly inside it are returned
+			const prefix = `${safeKey(folder)}/`;
+			const found: string[] = [];
+			let token: string | null = null;
+			do {
+				const query = new URLSearchParams({ 'list-type': '2', prefix });
+				if (token) query.set('continuation-token', token);
+				const res = await client.fetch(
+					`${options.endpoint.replace(/\/$/, '')}/${options.bucket}?${query.toString()}`
+				);
+				if (!res.ok) throw new Error(`Storage could not list the files (${res.status})`);
+				const xml = await res.text();
+				for (const m of xml.matchAll(/<Key>([^<]*)<\/Key>/g)) {
+					const key = m[1].replace(/&amp;/g, '&');
+					if (key.startsWith(prefix) && !key.slice(prefix.length).includes('/')) found.push(key);
+				}
+				token = /<IsTruncated>true<\/IsTruncated>/.test(xml)
+					? (xml.match(/<NextContinuationToken>([^<]*)<\/NextContinuationToken>/)?.[1] ?? null)
+					: null;
+			} while (token);
+			return found;
 		},
 		async signedUrl(_base, key, ttl) {
 			const signed = await client.sign(new Request(`${url(key)}?X-Amz-Expires=${ttl}`), {

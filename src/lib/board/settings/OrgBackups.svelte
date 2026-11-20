@@ -3,7 +3,9 @@
 	import type { orgBackups } from '#lib/server/ops/settings.js';
 	// IMPORTED MODULES
 	import { deserialize } from '$app/forms';
-	import { invalidate } from '$app/navigation';
+	import { invalidate, invalidateAll } from '$app/navigation';
+	import { ApiError, api, newKey } from '#lib/board/api.js';
+	import { createFollower } from '#lib/settings/follow.js';
 	import {
 		formatBytes,
 		groupRuns,
@@ -31,6 +33,7 @@
 	import Notice from '#lib/ui/Notice.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
+	import Switch from '#lib/ui/Switch.svelte';
 
 	// -- TYPES -- //
 
@@ -69,6 +72,11 @@
 	let pending = $state<Pending | null>(null);
 	let confirmOpen = $state(false);
 	let deleting = $state(false);
+	// The nightly switch: what the person set, and how its own save went
+	let auto = $state(true);
+	let savingAuto = $state(false);
+	let savedAuto = $state(false);
+	let autoError = $state('');
 	let downloader = $state<{
 		start: (files: { id: string; name: string; size: number }[]) => void;
 	}>();
@@ -102,10 +110,35 @@
 		{ value: 'failed', label: 'Failed', count: failedCount }
 	]);
 	const pickedRuns = $derived(runs.filter((r) => picked.includes(r.id)));
+	// A missing value means on. Paused follows the saved value, never an unsaved tick of the switch
+	const autoSaved = $derived(backups?.autoBackups ?? true);
+	const paused = $derived(!autoSaved);
+	const autoDirty = $derived(auto !== autoSaved);
 
 	// -- FUNCTIONS -- //
 
 	const when = (v: string | Date) => whenText(v);
+
+	// The switch follows the saved value whenever the page data is replaced, and keeps an unsaved tick otherwise
+	const follow = createFollower();
+
+	/** Saves the nightly switch through the same settings call as the other organisation limits. */
+	async function saveAuto() {
+		savingAuto = true;
+		savedAuto = false;
+		autoError = '';
+		try {
+			await api(org, '/settings', { method: 'PATCH', body: { autoBackups: auto }, key: newKey() });
+		} catch (e) {
+			autoError = e instanceof ApiError ? e.message : 'That was not saved.';
+			savingAuto = false;
+			return;
+		}
+		toast.success(auto ? 'Nightly backups are on.' : 'Nightly backups are paused.');
+		await invalidateAll().catch(() => undefined);
+		savingAuto = false;
+		savedAuto = true;
+	}
 
 	function pick(id: string, on: boolean) {
 		picked = on ? [...picked, id] : picked.filter((p) => p !== id);
@@ -193,6 +226,10 @@
 
 	// -- REACTIVE STATEMENTS -- //
 
+	$effect(() => {
+		follow('auto', autoSaved, (v) => (auto = v));
+	});
+
 	// A run that was deleted, here or somewhere else, leaves the selection
 	$effect(() => {
 		const ids = new Set(runs.map((r) => r.id));
@@ -207,12 +244,25 @@
 	{group}
 	title="Backups"
 	text="A nightly encrypted copy of this organisation, kept apart from the app."
+	dirty={autoDirty}
+	saving={savingAuto}
+	saved={savedAuto}
+	error={autoError}
+	onsave={backups?.enabled ? saveAuto : undefined}
 >
 	{#if !backups?.enabled}
 		<div class="text-sm text-muted" data-testid="backups-off">
 			Backups are not set up on this server. An operator turns them on with a backup key.
 		</div>
 	{:else}
+		<!-- THE NIGHTLY SWITCH: OFF PAUSES THE AUTOMATIC COPY OF THIS ORGANISATION, THE COPIES ALREADY KEPT STAY -->
+		<Switch
+			label="Take a backup every night"
+			hint="Turn this off to pause the nightly copy. Copies you already have stay, and you can still download or delete them."
+			bind:checked={auto}
+			data-testid="backups-auto"
+		/>
+
 		<!-- THE SERVER'S OWN WORDS WHEN SOMETHING IS WRONG, ONCE, ABOVE THE BAND -->
 		{#if health && !health.ok && health.message && !empty}
 			<Notice tone="danger" data-testid="backups-alert">{health.message}</Notice>
@@ -227,12 +277,14 @@
 			<div class="flex min-w-0 flex-col gap-1 bg-raised px-4 py-3">
 				<dt class="order-1 text-xs text-muted">Status</dt>
 				<dd class="order-2 flex min-h-7 items-center text-lg font-semibold">
-					<Badge tone={health?.ok || empty ? 'success' : 'danger'}
-						>{health?.ok || empty ? 'Healthy' : 'Needs attention'}</Badge
+					<Badge tone={paused ? 'neutral' : health?.ok || empty ? 'success' : 'danger'}
+						>{paused ? 'Paused' : health?.ok || empty ? 'Healthy' : 'Needs attention'}</Badge
 					>
 				</dd>
 				<dd class="order-3 text-xs text-muted">
-					{#if empty}
+					{#if paused}
+						Nightly copies are off.
+					{:else if empty}
 						Waiting for the first copy.
 					{:else if health?.ok}
 						Copies are being taken as planned.
@@ -268,8 +320,7 @@
 			<div class="flex min-w-0 flex-col gap-1 bg-raised px-4 py-3">
 				<dt class="order-1 text-xs text-muted">Kept for</dt>
 				<dd class="order-2 min-h-7 text-sm font-semibold">
-					{backups.retention.daily} daily, {backups.retention.weekly} weekly, {backups.retention
-						.monthly} monthly
+					The newest {backups.retention.max}
 				</dd>
 				<dd class="order-3 text-xs text-muted">Older copies are removed by themselves.</dd>
 			</div>
@@ -518,7 +569,11 @@
 			>
 				<DatabaseBackup size={24} aria-hidden="true" />
 				<span class="font-medium text-ink">No backup has run yet</span>
-				<span>The first copy shows here after the next nightly run.</span>
+				<span
+					>{paused
+						? 'Nightly copies are off. Turn the switch on to take one every night.'
+						: 'The first copy shows here after the next nightly run.'}</span
+				>
 			</div>
 		{/if}
 	{/if}

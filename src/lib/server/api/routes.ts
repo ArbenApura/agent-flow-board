@@ -85,7 +85,7 @@ import {
 } from '../ops/waiting';
 import { setStatus, setStatusInput } from '../ops/status';
 import { createToken, listTokens, revokeToken, tokenInput } from '../ops/tokens';
-import { OpError, requireCap, run } from '../ops/context';
+import { OpError, run } from '../ops/context';
 import { sql } from 'drizzle-orm';
 import { project } from '../db/schema';
 import { clearProjectLogo, setProjectLogo } from '../ops/pictures';
@@ -95,6 +95,7 @@ import {
 	emailStatus,
 	getOrgSettings,
 	orgAuditLog,
+	orgBackupHealth,
 	backupDelete,
 	backupDeleteInput,
 	orgBackups,
@@ -132,7 +133,6 @@ import {
 	listDevRegistrations,
 	saveDevRegistration
 } from '../ops/devRegistrations';
-import { backupHealth } from '../backup/run';
 import { mockupRoutes } from './mockupRoutes';
 import { noteRoutes } from './noteRoutes';
 import { noteVersionRoutes } from './noteVersionRoutes';
@@ -695,10 +695,8 @@ export const routes: Route[] = [
 		summary:
 			'Whether the newest backup of this organisation is recent and good (admins and owners)',
 		tag: 'Backups',
-		handler: async ({ ctx }) => {
-			await run(ctx, (tx) => requireCap(tx, ctx, 'manage'));
-			return backupHealth(ctx.handle, ctx.orgId);
-		}
+		// A paused org (automatic backups off) reads as not late here too, the same as on the settings page
+		handler: ({ ctx }) => orgBackupHealth(ctx)
 	},
 
 	// -- search -- //

@@ -30,11 +30,20 @@ type SaveHandle = {
 	}>;
 };
 type SavePicker = (options: { suggestedName: string }) => Promise<SaveHandle>;
+/** A folder the person chose, so several copies are written into it one after another with one click. */
+export type SaveFolder = {
+	getFileHandle(name: string, options: { create: boolean }): Promise<SaveHandle>;
+};
+type FolderPicker = (options: { mode: 'readwrite' }) => Promise<SaveFolder>;
 
 // -- CONSTANTS -- //
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
 const NO_REASON = 'No reason was recorded.';
+/** A copy larger than this is never gathered in memory: the browser's own download saves it. */
+const MEMORY_LIMIT = 256 * 1024 * 1024;
+/** The progress callback runs at most this often, so a fast transfer does not spend its time redrawing. */
+const REPORT_MS = 100;
 
 // -- FUNCTIONS -- //
 
@@ -111,6 +120,29 @@ function fileNameFrom(header: string | null, fallback: string): string {
 	return match?.[1] ?? fallback;
 }
 
+/** Whether this browser can write several files into one chosen folder. */
+export const canPickFolder = () =>
+	typeof window !== 'undefined' &&
+	typeof (window as unknown as { showDirectoryPicker?: FolderPicker }).showDirectoryPicker ===
+		'function';
+
+/** Asks for the folder. Must be called straight from the click, before any await that takes time. */
+export function pickFolder(): Promise<SaveFolder> {
+	return (window as unknown as { showDirectoryPicker: FolderPicker }).showDirectoryPicker({
+		mode: 'readwrite'
+	});
+}
+
+/** Hands the address to the browser's own download, which saves a large file straight to disk with its own progress. */
+function startLinkDownload(url: string, name: string) {
+	const link = document.createElement('a');
+	link.href = url;
+	link.download = name;
+	document.body.append(link);
+	link.click();
+	link.remove();
+}
+
 /**
  * Downloads one backup and reports real progress from the response stream against its Content-Length. Where the browser can
  * write straight to a chosen file the bytes never sit in memory; elsewhere they are gathered into a file at the end. A
@@ -124,12 +156,15 @@ export async function downloadBackup(
 		signal: AbortSignal;
 		onProgress: (p: DownloadProgress) => void;
 		direct: boolean;
+		/** A folder the person chose for a queue of several files: each is written into it, never gathered in memory. */
+		folder?: SaveFolder | null;
 	}
-): Promise<{ name: string; direct: boolean }> {
+): Promise<{ name: string; direct: boolean; browser?: boolean }> {
 	const picker = (window as unknown as { showSaveFilePicker?: SavePicker }).showSaveFilePicker;
 	// The window must open before the first await that takes time, or the browser treats the click as stale
 	let target: SaveHandle | null = null;
-	if (options.direct && picker) target = await picker({ suggestedName: options.fallbackName });
+	if (!options.folder && options.direct && picker)
+		target = await picker({ suggestedName: options.fallbackName });
 	const res = await fetch(url, { signal: options.signal, credentials: 'same-origin' });
 	if (!res.ok || !res.body) {
 		// Only a plain sentence from the server is shown; anything else (an error page, JSON) becomes a fixed sentence
@@ -138,11 +173,29 @@ export async function downloadBackup(
 			: '';
 		throw new Error(plain || 'The server could not open the stored copy.');
 	}
+	// A file in the chosen folder is made only once the server has answered well, so a refusal leaves no empty file behind
+	if (options.folder)
+		target = await options.folder.getFileHandle(options.fallbackName, { create: true });
 	const name = fileNameFrom(res.headers.get('content-disposition'), options.fallbackName);
 	const total = Number(res.headers.get('content-length')) || 0;
 	const reader = res.body.getReader();
 	let received = 0;
-	options.onProgress({ received, total });
+	let lastReport = 0;
+	const report = (force = false) => {
+		const at = performance.now();
+		if (!force && at - lastReport < REPORT_MS) return;
+		lastReport = at;
+		options.onProgress({ received, total });
+	};
+	report(true);
+	// No place to write straight to, and too large to hold: the browser's own download takes over (no byte progress here)
+	if (!target && total > MEMORY_LIMIT) {
+		await reader.cancel().catch(() => undefined);
+		startLinkDownload(url, name);
+		received = total;
+		report(true);
+		return { name, direct: false, browser: true };
+	}
 	if (target) {
 		const out = await target.createWritable();
 		try {
@@ -151,8 +204,9 @@ export async function downloadBackup(
 				if (done) break;
 				await out.write(value);
 				received += value.byteLength;
-				options.onProgress({ received, total });
+				report();
 			}
+			report(true);
 			await out.close();
 		} catch (e) {
 			await out.abort().catch(() => undefined);
@@ -166,8 +220,9 @@ export async function downloadBackup(
 		if (done) break;
 		parts.push(value as Uint8Array<ArrayBuffer>);
 		received += value.byteLength;
-		options.onProgress({ received, total });
+		report();
 	}
+	report(true);
 	const href = URL.createObjectURL(new Blob(parts, { type: 'application/octet-stream' }));
 	const link = document.createElement('a');
 	link.href = href;

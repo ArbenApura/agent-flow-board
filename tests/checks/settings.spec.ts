@@ -73,7 +73,11 @@ test('M8 an organisation: each section saves on its own, the palette preview sho
 	await expect(page.getByTestId('saved-limits')).toBeVisible();
 	let saved = await (await page.request.get(`${api}/settings`)).json();
 	expect(saved.name).toBe(`Settings ${slug}`);
-	expect(saved.settings).toEqual({ tokenMaxDays: 14, allowGuestInvites: false });
+	expect(saved.settings).toEqual({
+		tokenMaxDays: 14,
+		allowGuestInvites: false,
+		autoBackups: true
+	});
 	await tab(page, 'general');
 	await expect(page.getByTestId('org-name-input')).toHaveValue('Renamed organisation');
 	await expect(page.getByTestId('save-general')).toBeEnabled();
