@@ -39,6 +39,8 @@ export type SkillPlan = {
 	version: string;
 	installedVersion: string | null;
 	files: { path: string; sha256: string; bytes: number }[];
+	/** Files this skill used to ship and no longer does: an installed copy deletes them. Only names from the manifest appear here. */
+	removedFiles: string[];
 };
 
 /** A skill that left the bundle and is installed: the manifest names it, never the caller. */
@@ -64,10 +66,10 @@ export const INSTALL_STEPS = [
 	'2. Find the harness (claude-code, gemini-cli, antigravity, codex or other) and the scope (user unless the person says project). When folder is null, read the tool documentation for its skills folder or ask the person.',
 	'3. List the skills folder. For each folder named like a bundle skill or named in retiredNames of this reply, read its SKILL.md front matter and report stampVersion (afb-version), stampSha256 (afb-source-sha256) and computedSha256: the sha256 of the SKILL.md after removing the lines that start with afb-bundle:, afb-version: and afb-source-sha256:, with LF line endings and no byte order mark. Report otherFilesChanged and files when you can compare them.',
 	'4. Call flow_skills with checked true and what you found. Act on each skill by its action: install and update write every listed file, unchanged does nothing, ask shows the person the reason (and what differs for an edited skill) and waits for a yes.',
-	'5. Write one skill at a time. Get each file from the urls in this reply when you can fetch, otherwise from skills_file (pass next as the next offset and join the parts). Copy any file you overwrite to <name>.<timestamp>.bak first. Keep the file names and folder layout; flow-critic has supporting files next to its SKILL.md, and flow has reference.md.',
-	'6. Compare the sha256 of every file you wrote with the plan. If one differs, delete what you wrote for that skill, say so and go on. Never keep a file that failed the check.',
+	'5. Write one skill at a time. Get each file from the urls in this reply when you can fetch, otherwise from skills_file (pass next as the next offset and join the parts). Put the files in a new temporary folder outside the skills folder, check every sha256, and only when all match move them over the old ones: the newest version replaces the old one, with no .bak copy. Keep the front matter exactly as served and add no key to it. Keep the file names and folder layout; a skill can have supporting files next to its SKILL.md.',
+	'6. When a file differs from the plan, leave the old skill as it was, say so and go on. Never keep a file that failed the check.',
 	'7. Tell the person, skill by skill: installed, updated (from which version to which), unchanged or skipped (and why). Quote the changelog lines. Some tools load new skills only in a new session.',
-	'8. When the plan lists retired skills, the bundle no longer has them. For action retire, copy the folder to a backup place outside the skills folder (a folder with a SKILL.md inside the skills folder can be loaded as a skill) and then delete the folder; for action ask, show the person the reason and wait for a yes. Delete only a folder the plan names, and say which ones you removed.'
+	'8. When the plan lists retired skills, the bundle no longer has them. For action retire, delete the folder outright, with no backup copy; for action ask, show the person the reason and wait for a yes. Delete only a folder the plan names, and say which ones you removed. Also delete every file the plan lists as removedFiles for an installed skill, but only after that skill was installed or updated with every sha256 matching (or after a yes for an ask), only inside that skill folder and never a path containing .., and say so.'
 ];
 
 export const HARNESSES = ['claude-code', 'gemini-cli', 'antigravity', 'codex', 'other'] as const;
@@ -218,7 +220,8 @@ export function planSkills(
 	scope: Scope,
 	installed: InstalledSkill[] = [],
 	checked = false,
-	retiredNames: string[] = []
+	retiredNames: string[] = [],
+	removedFiles: Record<string, string[]> = {}
 ): InstallPlan {
 	const byName = new Map(installed.map((i) => [i.name, i]));
 	const counts = new Map<string, number>();
@@ -245,7 +248,8 @@ export function planSkills(
 				version: s.version,
 				installedVersion:
 					found?.stampVersion && SEMVER.test(found.stampVersion) ? found.stampVersion : null,
-				files: s.files.map((f) => ({ path: f.path, sha256: f.sha256, bytes: f.bytes }))
+				files: s.files.map((f) => ({ path: f.path, sha256: f.sha256, bytes: f.bytes })),
+				removedFiles: removedFiles[s.name] ?? []
 			};
 		}),
 		retired,
@@ -259,12 +263,12 @@ export function planSkills(
  */
 export function skillsNotice(passed: string | undefined, served: string): string | null {
 	if (passed === 'none')
-		return `The Agent Flow Board skills (bundle ${served}) are not installed in your tool. Offer the person to install them: call flow_skills.`;
+		return `The Agent Flow Board skills (bundle ${served}) are not installed in your tool. Offer the person to install them with /flow-update-skills (a tool with no skills reads it with workflow_get flow-update-skills).`;
 	const order = passed === undefined ? Number.NaN : compareVersions(passed, served);
 	if (passed === undefined || Number.isNaN(order))
-		return 'If no flow skill is in your skill list, tell the person once, before you go on, that the Agent Flow Board skills (the /flow family) are not installed in this tool, and offer to install them: name this connection, its address and the folder flow_skills gives, and on one yes call flow_skills and install everything it plans. If your skill list has them, ignore this line.';
+		return 'If no flow skill is in your skill list, tell the person once, before you go on, that the Agent Flow Board skills (the /flow family) are not installed in this tool, and offer to install them with /flow-update-skills (a tool with no skills reads it with workflow_get flow-update-skills): name this connection, its address and the folder flow_skills gives. If your skill list has them, ignore this line.';
 	return order < 0
-		? `Your installed Agent Flow Board skills (bundle ${passed}) are older than the served ${served}. Call flow_skills and offer the update.`
+		? `Your installed Agent Flow Board skills (bundle ${passed}) are older than the served ${served}. Offer the update with /flow-update-skills.`
 		: null;
 }
 

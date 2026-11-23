@@ -11,7 +11,7 @@ import { fail } from './respond';
 // -- CONSTANTS -- //
 
 export const RUNNER_API_GONE =
-	'Browser checks were removed from Agent Flow Board. Update the skills with flow_skills and the bridge with yarn or npm (@agent-flow-board/bridge), and stop calling the runner API.';
+	'Browser checks were removed from Agent Flow Board. Update the skills with /flow-update-skills and the bridge with yarn or npm (@agent-flow-board/bridge), and stop calling the runner API.';
 
 // -- FUNCTIONS -- //
 

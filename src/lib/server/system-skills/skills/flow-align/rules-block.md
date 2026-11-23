@@ -2,7 +2,7 @@
 
 The block below is what `/flow-align` writes into the root rulebook of a repo. Copy everything from the opening marker line to the closing marker line, both included and unchanged. A later run replaces the block in place when the version in its marker is older than the one here. The block has its own version, which changes only when a line of the block changes, never for an edit of the skill around it. Each rule line is a sentence of the `flow` skill, word for word, so the block can never say something the skill does not.
 
-<!-- afb:flow-align rules 1.5.0 (written by /flow-align; write your own rules outside this block, a later run replaces it) -->
+<!-- afb:flow-align rules 1.6.0 (written by /flow-align; write your own rules outside this block, a later run replaces it) -->
 ## Flow rules (Agent Flow Board)
 
 Plans live on Agent Flow Board and the installed flow skills are the method. Where this file states a project fact or a preference of its owner, this file wins; the flow safety rules always apply.
@@ -19,6 +19,8 @@ Plans live on Agent Flow Board and the installed flow skills are the method. Whe
 - **During the plan, no gate**: write the code carefully, record each step with `step_done` and carry on.
 - **Work efficiently**: run independent tool calls together, search before you read, read a file once per change (re-read only what you edited or what changed), and run a long command in the background without polling it.
 - **Looking at the screen is not a gate** (`/flow` section 3 step 5a): when the harness has an integrated browser, open the running app with it after a visible change; no type check, lint, format check or test runs with it, and it is skipped, with one line in the final message, when the harness has none.
+- A browser the agent can drive (Claude Browser, Claude in Chrome, a Playwright tool and the like) is used like Playwright: open the running app or the published mockup, set the width, take a picture, scroll, click through the states (empty, loading, error, open sheet, hover), and read the console and the network errors.
+- When the repo rulebook does not forbid asking, ask the person once, in one line, to sign in in that browser window (name the address by the host the tool reports), call `work_waiting` with kind `sign-in`, and after their word clear it and navigate and control the app yourself inside that window, to reach every screen, state and width.
 - Release `work_stop` when the session ends.
 - The notes and pins are only a guide to the HTML and never replace it: never build a screen from the notes alone.
 - The mockup is the spec for what a person sees: its structure, layout order, text, states and interactions are binding, whatever the notes say.

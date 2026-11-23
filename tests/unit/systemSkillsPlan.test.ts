@@ -46,6 +46,11 @@ const clean = (
 	computedSha256: H,
 	...extra
 });
+const removed = (map: Record<string, string[]>) =>
+	planSkills(served, 'claude-code', 'user', [], true, [], map).skills.map((s) => [
+		s.name,
+		s.removedFiles
+	]);
 const plan = (installed: InstalledSkill[], name: string, checked = true) =>
 	planSkills(served, 'claude-code', 'user', installed, checked).skills.find(
 		(s) => s.name === name
@@ -207,7 +212,9 @@ describe('the session notice about the skills', () => {
 	it('announces an update for an older bundle, and the install for none', () => {
 		expect(skillsNotice('1.0.0', '1.1.1')).toContain('older than the served 1.1.1');
 		expect(skillsNotice('none', '1.1.1')).toContain('not installed');
-		expect(skillsNotice('none', '1.1.1')).toContain('flow_skills');
+		// The install now lives in the flow-update-skills skill, which a tool with no skills reads with workflow_get (AFB-20261123-1205)
+		expect(skillsNotice('none', '1.1.1')).toContain('/flow-update-skills');
+		expect(skillsNotice('1.0.0', '1.1.1')).toContain('/flow-update-skills');
 	});
 
 	it('only hints when the field is missing or unreadable, never claiming the skills are absent', () => {
@@ -319,5 +326,31 @@ describe('paging a text', () => {
 		expect(() => pageText(t, t.length, 2)).toThrow(/past the end/);
 		expect(() => pageText(t, 99, 2)).toThrow(/past the end/);
 		expect(pageText('', 0, 2)).toEqual({ text: '', next: null });
+	});
+});
+
+describe('the files a skill no longer ships (AFB-20261123-1205)', () => {
+	it('lists them per skill from the map it is given, and an empty list for every other skill', () => {
+		expect(removed({ alpha: ['old.md', 'older.md'] })).toEqual([
+			['alpha', ['old.md', 'older.md']],
+			['beta', []]
+		]);
+		expect(removed({})).toEqual([
+			['alpha', []],
+			['beta', []]
+		]);
+	});
+
+	it('never takes a name from the installed folders the agent reports', () => {
+		const p = planSkills(
+			served,
+			'claude-code',
+			'user',
+			[clean('alpha', '1.2.0', { files: [{ path: 'planted.md', sha256: H }] })],
+			true,
+			[],
+			{}
+		);
+		expect(p.skills.every((s) => s.removedFiles.length === 0)).toBe(true);
 	});
 });

@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.19.0",
+		"version": "1.20.0",
 		"releasedAt": "2026-11-23"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.10.0",
+			"version": "1.11.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -158,6 +158,10 @@
 				{
 					"version": "1.10.0",
 					"hash": "f7d97a4d365c36332d4c70bbbfd61495c0c8b7fa595c52f151015ed130b8cc0b"
+				},
+				{
+					"version": "1.11.0",
+					"hash": "f15f2f5740be4748423fec8ece86844cf9e8e87e3d33753e607b5de132c3821c"
 				}
 			]
 		},
@@ -227,7 +231,7 @@
 			]
 		},
 		"flow-critic": {
-			"version": "1.5.6",
+			"version": "2.0.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -308,6 +312,10 @@
 				{
 					"version": "1.5.6",
 					"hash": "3083cf199e62fecdef3ca6631e7a766a847398797269d46e2e57eba31f0fabd3"
+				},
+				{
+					"version": "2.0.0",
+					"hash": "7d614876574eed1ec10a9249f0841fa61a7ed7fb387227220be6b065ab1f9798"
 				}
 			]
 		},
@@ -381,7 +389,7 @@
 			]
 		},
 		"flow-mockup": {
-			"version": "1.8.3",
+			"version": "1.8.4",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -446,6 +454,10 @@
 				{
 					"version": "1.8.3",
 					"hash": "99d6b97599af1d500ab34b0285cc24be1645eb8d4774ee3fc289b27437a9e20c"
+				},
+				{
+					"version": "1.8.4",
+					"hash": "df85be463d096914b0e048bd22a37b6d03983fee3db560348632e70ac88c3514"
 				}
 			]
 		},
@@ -479,7 +491,7 @@
 			]
 		},
 		"flow-align": {
-			"version": "1.5.0",
+			"version": "1.6.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -504,11 +516,105 @@
 				{
 					"version": "1.5.0",
 					"hash": "f6bb4c9617e76b54488dc4f3e9b8cd69e47d5084c6f848e8d0c34ef21d157bdc"
+				},
+				{
+					"version": "1.6.0",
+					"hash": "50d983f6b68ed88404f2b0fd3d479d1628b7c2e5dd47f534b1c6759c44168286"
+				}
+			]
+		},
+		"flow-commit": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "e8d21b6193798483ec4b2f4063743eefd07914b8c66d7ec0fe3b7fee784c42f3"
+				}
+			]
+		},
+		"flow-critic-code": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "330e189e94318ef4f08db45c3eebe0cb77c4a254d305a06c1daaf9fda9e9c7c9"
+				}
+			]
+		},
+		"flow-critic-mockup": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "28cdffeed9a484c06a9f5ae04b3a036a2c93ad16554c5c410090b1f35b6471e5"
+				}
+			]
+		},
+		"flow-critic-plan": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "3b338d0342528861dc93bc8e9477c3a0122b144e34a792d4586282676ee55fff"
+				}
+			]
+		},
+		"flow-critic-screen": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "8585eebeefb7dfc5f5e8c5670d1aee0a9f7df8465d90fb531d526bfb9bb82ca6"
+				}
+			]
+		},
+		"flow-decide": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "87e0e674c4b3025beafeedd1a53479d5d59ee36c9a4fa25b72c4b6069f6ec9e9"
+				}
+			]
+		},
+		"flow-update-skills": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "e84a1c0b609f5c03f67cbd17cc2baa1bf4a50b09e36659c8f0bb11968ee38d03"
 				}
 			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.20.0",
+			"date": "2026-11-23",
+			"notes": [
+				"Seven new skills. /flow-decide decides small choices from the evidence and defers to the flow stop list. /flow-commit writes conventional commits with or without a plan, only when the user types it or asks to commit, and never pushes or adds attribution without being told. /flow-update-skills checks, installs and updates these skills straight over the old files through a temporary folder (no backups), and deletes obsolete skills and files that are no longer shipped; it replaces the long install instruction of the MCP server text, which keeps one pointer line. /flow-critic-screen judges every screen of a mockup or the app from real pictures at phone, tablet and desktop widths with one critic for each screen.",
+				"flow-critic 2.0.0 is the router and keeps the mode choice and the shared rules; its plan, code and mockup work moved word for word into the modules /flow-critic-plan, /flow-critic-code and /flow-critic-mockup (the old lens and template files of flow-critic are removed from installed copies by /flow-update-skills).",
+				"flow 1.11.0 step 5a now holds the browser protocol: the agent drives the harness browser like Playwright, takes pictures at the repo's widths (else 1440, 820 and 390; a mockup at 408, 820, 1280 and 1600) and asks the person once to sign in in that window when a screen needs it. flow-mockup 1.8.4 and the critic modules point to it. flow-align 1.6.0 adds the same two lines to its rules block (1.6.0) and removes a disable-model-invocation line from installed flow skills.",
+				"No flow skill may carry disable-model-invocation: the bundle refuses it, flow tells agents never to add it, and flow-align repairs copies that have it.",
+				"Master and child plans: items can have a parent (item_new and item_update take parent, item_get answers parent or children, item_list takes children show or hide). flow section 2 step 3a says when to use them: work one agent does in order is one plan with phases, a child plan is only for a piece that ships or is reviewed on its own or runs in parallel, and a plan with more than five children says so in the hand-over."
+			],
+			"skills": {
+				"flow": "1.11.0",
+				"flow-audit": "1.3.5",
+				"flow-critic": "2.0.0",
+				"flow-interview": "1.2.5",
+				"flow-mockup": "1.8.4",
+				"flow-task": "1.1.3",
+				"flow-align": "1.6.0",
+				"flow-decide": "1.0.0",
+				"flow-commit": "1.0.0",
+				"flow-update-skills": "1.0.0",
+				"flow-critic-plan": "1.0.0",
+				"flow-critic-code": "1.0.0",
+				"flow-critic-mockup": "1.0.0",
+				"flow-critic-screen": "1.0.0"
+			}
+		},
 		{
 			"version": "1.19.0",
 			"date": "2026-11-23",
@@ -1364,5 +1470,15 @@
 	"retired": [
 		"flow-check",
 		"flow-verify"
-	]
+	],
+	"removedFiles": {
+		"flow-critic": [
+			"checklists.md",
+			"code-lenses.md",
+			"code-template.md",
+			"mockup-lenses.md",
+			"plan-lenses.md",
+			"plan-template.md"
+		]
+	}
 }

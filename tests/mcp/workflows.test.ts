@@ -50,9 +50,42 @@ describe('workflow text', () => {
 		expect(workflowByName('flow-audit')!.body).not.toContain('## Short rules');
 	});
 
-	it('has the critic supporting files readable by name', () => {
-		for (const f of WORKFLOW_FILE_NAMES)
-			expect(workflowFile('flow-critic', f).length, f).toBeGreaterThan(500);
+	it('has the critic supporting files readable by name, each in its own module, and none in the router (AFB-20261123-1205)', () => {
+		const modules = Object.entries(WORKFLOW_FILES).filter(([n]) => n.startsWith('flow-critic'));
+		expect(modules.map(([n]) => n).sort()).toEqual([
+			'flow-critic-code',
+			'flow-critic-mockup',
+			'flow-critic-plan',
+			'flow-critic-screen'
+		]);
+		for (const [name, files] of modules)
+			for (const f of files)
+				expect(workflowFile(name, f).length, `${name}/${f}`).toBeGreaterThan(500);
+		expect(WORKFLOW_FILES['flow-critic']).toBeUndefined();
+		expect(() => workflowFile('flow-critic', 'plan-lenses')).toThrow();
+		expect(() => workflowFile('flow-critic-plan', 'code-lenses')).toThrow();
+		expect([...WORKFLOW_FILE_NAMES].length).toBe(7);
+	});
+
+	it('serves the new skills as workflows, and the install instruction points at flow-update-skills (AFB-20261123-1205)', () => {
+		for (const name of [
+			'flow-decide',
+			'flow-commit',
+			'flow-update-skills',
+			'flow-critic-plan',
+			'flow-critic-code',
+			'flow-critic-mockup',
+			'flow-critic-screen'
+		])
+			expect(workflowByName(name), name).toBeDefined();
+		expect(SERVER_INSTRUCTIONS).toContain('flow-update-skills');
+		// The per-file install procedure and its backup are gone from the server text
+		expect(SERVER_INSTRUCTIONS).not.toMatch(/back up any file|\.bak/);
+		// flow-commit and flow-update-skills claim no item, so the shared work_start rule is not appended
+		for (const name of ['flow-commit', 'flow-update-skills'])
+			expect(workflowByName(name)!.body, name).not.toContain(
+				'Call work_start for the item the user names before any edit'
+			);
 	});
 
 	it('serves only the reference as a file of flow; the browser checks file was removed (AFB-20261123-0936)', () => {
@@ -87,36 +120,56 @@ describe('workflow text', () => {
 		for (const w of WORKFLOWS) expect(w.body, w.name).not.toMatch(/flow-check|flow-verify/);
 	});
 
-	it('tells the critic prompt to read its supporting files first, in parts, before any subagent', () => {
-		const body = workflowByName('flow-critic')!.body;
-		// The note comes first, ahead of the critic text
-		const note = body.indexOf('First action');
-		expect(note).toBeGreaterThan(-1);
-		expect(note).toBeLessThan(body.indexOf('# Flow Critic'));
-		for (const f of WORKFLOW_FILE_NAMES) expect(body, f).toContain(f);
-		expect(body).toContain('workflow_get name flow-critic and file');
-		expect(body).toContain('Plan mode: read plan-template and plan-lenses');
-		expect(body).toContain('Code mode: read code-template, code-lenses and checklists');
-		expect(body).toContain('offset');
-		expect(body).toContain('Do not dispatch any subagent until the files for your mode are read');
-		// AFB-20261110-2305: the critic has no size gate, three subagents by default
-		expect(body).not.toContain('small diff, 3 otherwise');
-		expect(body).toContain('3 subagents by default');
-		// The note must send the model to workflow_get, never to a tool that no longer exists
-		expect(body.slice(note, body.indexOf('# Flow Critic'))).not.toContain('skill_get');
+	it('tells each critic module to read the shared rules and its supporting files first, in parts, before any subagent', () => {
+		const modules = {
+			'flow-critic-plan': ['plan-template', 'plan-lenses'],
+			'flow-critic-code': ['code-template', 'code-lenses', 'checklists'],
+			'flow-critic-mockup': ['mockup-lenses'],
+			'flow-critic-screen': ['critic-brief']
+		};
+		for (const [name, files] of Object.entries(modules)) {
+			const body = workflowByName(name)!.body;
+			// The note comes first, ahead of the module text
+			const note = body.indexOf('First action');
+			expect(note, name).toBeGreaterThan(-1);
+			expect(note, name).toBeLessThan(body.indexOf('# Flow Critic'));
+			for (const f of files) expect(body, `${name}/${f}`).toContain(f);
+			expect(body, name).toContain(`workflow_get name ${name} and file`);
+			expect(body, name).toContain('workflow_get name flow-critic');
+			expect(body, name).toContain('offset');
+			expect(body, name).toContain(
+				'Do not dispatch any subagent until the files of this module are read'
+			);
+			// The note must send the model to workflow_get, never to a tool that no longer exists
+			expect(body.slice(note, body.indexOf('# Flow Critic'))).not.toContain('skill_get');
+		}
+		// AFB-20261110-2305: the critic has no size gate, three subagents by default; the router keeps that rule
+		const router = workflowByName('flow-critic')!.body;
+		expect(router).not.toContain('small diff, 3 otherwise');
+		expect(router).toContain('3 subagents by default');
+		expect(router).not.toContain('First action');
 	});
 
 	it('names no model for the critic subagents, so it fits every harness', () => {
 		// A person sets a model preference in their own private CLAUDE.md; "sonnet" is only a Claude Code alias
-		const body = workflowByName('flow-critic')!.body;
-		const texts = [body, ...WORKFLOW_FILE_NAMES.map((f) => workflowFile('flow-critic', f))];
+		const texts = [
+			workflowByName('flow-critic')!.body,
+			...Object.entries(WORKFLOW_FILES)
+				.filter(([n]) => n.startsWith('flow-critic'))
+				.flatMap(([n, files]) => [workflowByName(n)!.body, ...files.map((f) => workflowFile(n, f))])
+		];
 		for (const t of texts) expect(t).not.toMatch(/sonnet|opus|model:/i);
 	});
 
 	it('shares the rule with every workflow through the common rules', () => {
 		for (const w of WORKFLOWS) {
 			// flow-align claims no item and has no steps, like flow-task, so it has its own short rules
-			if (w.name === 'flow-task' || w.name === 'flow-audit' || w.name === 'flow-align') continue;
+			if (
+				['flow-task', 'flow-audit', 'flow-align', 'flow-commit', 'flow-update-skills'].includes(
+					w.name
+				)
+			)
+				continue;
 			expect(w.body, w.name).toContain('Progress first');
 		}
 	});

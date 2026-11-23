@@ -223,11 +223,43 @@ describe('MCP server', () => {
 		const flow = await call(client, 'workflow_get', { name: 'flow' });
 		expect(String(flow.text)).toContain('step_done');
 		expect(names).not.toContain('skill_get');
-		const wf = await call(client, 'workflow_get', { name: 'flow-critic' });
+		// Every workflow name the tool accepts answers with its own text (AFB-20261123-1205)
+		for (const name of [
+			'flow',
+			'flow-task',
+			'flow-interview',
+			'flow-critic',
+			'flow-critic-plan',
+			'flow-critic-code',
+			'flow-critic-mockup',
+			'flow-critic-screen',
+			'flow-audit',
+			'flow-mockup',
+			'flow-align',
+			'flow-decide',
+			'flow-commit',
+			'flow-update-skills'
+		]) {
+			const each = await call(client, 'workflow_get', { name });
+			expect(each.name, name).toBe(name);
+			expect(String(each.text).length, name).toBeGreaterThan(500);
+		}
+		const brief = await call(client, 'workflow_get', {
+			name: 'flow-critic-screen',
+			file: 'critic-brief'
+		});
+		expect(brief.name).toBe('flow-critic-screen/critic-brief');
+		const wf = await call(client, 'workflow_get', { name: 'flow-critic-plan' });
 		expect(String(wf.text).toLowerCase()).toContain('design fit');
-		// A supporting file of the critic is readable, and a file on another workflow is refused
-		const lenses = await call(client, 'workflow_get', { name: 'flow-critic', file: 'plan-lenses' });
-		expect(lenses.name).toBe('flow-critic/plan-lenses');
+		// flow-critic is the router: it has no supporting file, its modules do
+		const router = await call(client, 'workflow_get', { name: 'flow-critic', file: 'plan-lenses' });
+		expect(router.error ?? router.code).toBeTruthy();
+		// A supporting file of a critic module is readable, and a file on another workflow is refused
+		const lenses = await call(client, 'workflow_get', {
+			name: 'flow-critic-plan',
+			file: 'plan-lenses'
+		});
+		expect(lenses.name).toBe('flow-critic-plan/plan-lenses');
 		expect(String(lenses.text).length).toBeGreaterThan(500);
 		const wrongFile = await call(client, 'workflow_get', { name: 'flow', file: 'plan-lenses' });
 		expect(wrongFile.error ?? wrongFile.code).toBeTruthy();
@@ -249,6 +281,20 @@ describe('MCP server', () => {
 			index.skills.map(() => 'install')
 		);
 		expect(fresh.rules.join(' ')).toContain('Never run');
+		// The files flow-critic stopped shipping come from the manifest, for that skill only
+		const gone = Object.fromEntries(
+			fresh.skills.map((s: { name: string; removedFiles: string[] }) => [s.name, s.removedFiles])
+		);
+		expect([...gone['flow-critic']].sort()).toEqual([
+			'checklists.md',
+			'code-lenses.md',
+			'code-template.md',
+			'mockup-lenses.md',
+			'plan-lenses.md',
+			'plan-template.md'
+		]);
+		expect(gone.flow).toEqual([]);
+		expect(fresh.rules.join(' ')).toContain('removedFiles');
 		// One call carries the procedure, so an agent with no skill installed still knows what to do
 		expect(fresh.steps).toHaveLength(8);
 		expect(fresh.steps.join(' ')).toContain('wait for a yes');

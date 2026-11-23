@@ -25,6 +25,8 @@ export type Manifest = {
 	changelog: { version: string; date: string; notes: string[]; skills: Record<string, string> }[];
 	/** Skills that were part of an earlier bundle and are gone. An install plan offers to remove an installed copy of one (AFB-20261116-1457). */
 	retired?: string[];
+	/** Files a skill used to ship and no longer does, by skill name. An update deletes them from an installed copy. */
+	removedFiles?: Record<string, string[]>;
 };
 
 export type SystemSkill = {
@@ -52,7 +54,8 @@ export type SystemSkillsIndex = {
 
 // -- CONSTANTS -- //
 
-export const MANIFEST = manifestJson as Manifest;
+// The changelog entries list different skills over time, so the JSON's own union type is read through unknown
+export const MANIFEST = manifestJson as unknown as Manifest;
 
 const SOURCES = import.meta.glob('./skills/**/*.md', {
 	query: '?raw',
@@ -61,6 +64,9 @@ const SOURCES = import.meta.glob('./skills/**/*.md', {
 }) as Record<string, string>;
 
 const SEMVER = /^\d+\.\d+\.\d+$/;
+
+/** Front matter keys that stop the model from running a skill. No flow skill may carry one, with any value. */
+export const FORBIDDEN_FRONT_MATTER_KEYS = ['disable-model-invocation'];
 
 // -- FUNCTIONS -- //
 
@@ -74,6 +80,30 @@ export function sourceFiles(): Record<string, SkillFile[]> {
 	}
 	for (const files of Object.values(out)) files.sort((a, b) => (a.path < b.path ? -1 : 1));
 	return out;
+}
+
+/**
+ * What every skill source must satisfy before it is served, as a pure check so a test can feed it a fixture:
+ * no file the manifest lists as removed, and no front matter key that hides the skill from the model.
+ */
+export function assertSkillShape(
+	name: string,
+	files: SkillFile[],
+	removedFiles: string[] = []
+): void {
+	const skillMd = files.find((f) => f.path === 'SKILL.md');
+	if (!skillMd) throw new Error(`The system skill ${name} has no SKILL.md.`);
+	for (const gone of removedFiles)
+		if (files.some((f) => f.path === gone))
+			throw new Error(
+				`The system skill ${name} still ships ${gone}, which the manifest lists as removed.`
+			);
+	// A flow skill must always be runnable by the model: a source that hides it is refused loudly, never served
+	const keys = frontMatterKeys(skillMd.text);
+	if (FORBIDDEN_FRONT_MATTER_KEYS.some((k) => k in keys))
+		throw new Error(
+			`The system skill ${name} has a front matter key no flow skill may have: ${FORBIDDEN_FRONT_MATTER_KEYS.join(', ')}.`
+		);
 }
 
 let cached: SystemSkill[] | null = null;
@@ -99,6 +129,7 @@ export function systemSkills(): SystemSkill[] {
 			throw new Error(`The system skill ${name} has no SKILL.md.`);
 		if (!SEMVER.test(entry.version))
 			throw new Error(`The version of ${name} is not semver: ${entry.version}`);
+		assertSkillShape(name, files, MANIFEST.removedFiles?.[name] ?? []);
 		const skillMd = files.find((f) => f.path === 'SKILL.md')!;
 		const keys = frontMatterKeys(skillMd.text);
 		const served = files.map((f) => {

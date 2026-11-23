@@ -23,7 +23,12 @@ import {
 	unstampSkill
 } from '../../src/lib/server/system-skills/hash';
 import { crc32, zipStored } from '../../src/lib/server/system-skills/zip';
-import { WORKFLOWS, WORKFLOW_FILE_NAMES, workflowFile } from '../../src/lib/server/mcp/workflows';
+import {
+	WORKFLOWS,
+	WORKFLOW_FILE_NAMES,
+	WORKFLOW_FILES,
+	workflowFile
+} from '../../src/lib/server/mcp/workflows';
 
 // -- CONSTANTS -- //
 
@@ -31,10 +36,17 @@ const NAMES = [
 	'flow',
 	'flow-align',
 	'flow-audit',
+	'flow-commit',
 	'flow-critic',
+	'flow-critic-code',
+	'flow-critic-mockup',
+	'flow-critic-plan',
+	'flow-critic-screen',
+	'flow-decide',
 	'flow-interview',
 	'flow-mockup',
-	'flow-task'
+	'flow-task',
+	'flow-update-skills'
 ];
 
 // -- TESTS -- //
@@ -60,8 +72,17 @@ describe('the system skills manifest', () => {
 		for (const rule of rules) expect(flow, rule).toContain(rule);
 	});
 
-	it('lists the seven flow skills, each with a semver version, and the retired ones apart (AFB-20261116-1457)', () => {
+	it('lists the fourteen flow skills, each with a semver version, and the retired ones apart (AFB-20261116-1457)', () => {
 		expect(Object.keys(MANIFEST.skills).sort()).toEqual(NAMES);
+		// Files flow-critic used to ship are listed as removed, and no skill still ships a file its entry lists as removed (AFB-20261123-1205)
+		expect([...(MANIFEST.removedFiles?.['flow-critic'] ?? [])].sort()).toEqual([
+			'checklists.md',
+			'code-lenses.md',
+			'code-template.md',
+			'mockup-lenses.md',
+			'plan-lenses.md',
+			'plan-template.md'
+		]);
 		expect([...(MANIFEST.retired ?? [])].sort()).toEqual(['flow-check', 'flow-verify']);
 		for (const gone of MANIFEST.retired ?? []) expect(MANIFEST.skills[gone], gone).toBeUndefined();
 		expect(MANIFEST.bundle.version).toMatch(/^\d+\.\d+\.\d+$/);
@@ -157,16 +178,34 @@ describe('workflow_get and the bundle', () => {
 		expect(stripFrontMatter('---\nname: a\n---\n\n# A\n')).toBe('# A\n');
 	});
 
-	it('read each flow-critic supporting file from the bundle files', () => {
-		const critic = systemSkills().find((s) => s.name === 'flow-critic')!;
-		for (const f of WORKFLOW_FILE_NAMES)
-			expect(critic.files.find((x) => x.path === `${f}.md`)?.text.trimEnd(), f).toBe(
-				workflowFile('flow-critic', f).trimEnd()
-			);
-		expect(critic.files.map((f) => f.path).sort()).toEqual([
-			'SKILL.md',
-			...WORKFLOW_FILE_NAMES.map((f) => `${f}.md`)
-		]);
+	it('read each critic module supporting file from the bundle files, and flow-critic itself has none (AFB-20261123-1205)', () => {
+		for (const [name, names] of Object.entries(WORKFLOW_FILES).filter(([n]) =>
+			n.startsWith('flow-critic')
+		)) {
+			const skill = systemSkills().find((s) => s.name === name)!;
+			for (const f of names)
+				expect(skill.files.find((x) => x.path === `${f}.md`)?.text.trimEnd(), `${name}/${f}`).toBe(
+					workflowFile(name, f).trimEnd()
+				);
+			expect(skill.files.map((f) => f.path).sort(), name).toEqual([
+				...[...names]
+					.sort()
+					.map((f) => `${f}.md`)
+					.concat('SKILL.md')
+					.sort()
+			]);
+		}
+		expect(
+			systemSkills()
+				.find((s) => s.name === 'flow-critic')!
+				.files.map((f) => f.path)
+		).toEqual(['SKILL.md']);
+		// Every supporting file name is owned by exactly one module
+		const owned = Object.entries(WORKFLOW_FILES)
+			.filter(([n]) => n.startsWith('flow-critic'))
+			.flatMap(([, names]) => [...names])
+			.sort();
+		expect(owned).toEqual([...WORKFLOW_FILE_NAMES].sort());
 	});
 });
 

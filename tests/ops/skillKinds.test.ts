@@ -32,6 +32,16 @@ describe('skill kinds of the Skills tab', () => {
 		// The kind and the word both have to match
 		expect(filterSkills(rows, 'Setup', 'mockup')).toEqual([]);
 		expect(filterSkills(rows, 'All', 'no such word anywhere')).toEqual([]);
-		expect(filterSkills(rows, 'All', '  critic  ').map((r) => r.name)).toEqual(['flow-critic']);
+		expect(
+			filterSkills(rows, 'All', '  critic  ')
+				.map((r) => r.name)
+				.sort()
+		).toEqual([
+			'flow-critic',
+			'flow-critic-code',
+			'flow-critic-mockup',
+			'flow-critic-plan',
+			'flow-critic-screen'
+		]);
 	});
 });

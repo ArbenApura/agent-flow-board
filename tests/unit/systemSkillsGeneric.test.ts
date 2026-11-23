@@ -7,7 +7,11 @@
 // IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
 // IMPORTED MODULES
-import { sourceFiles } from '../../src/lib/server/system-skills';
+import {
+	FORBIDDEN_FRONT_MATTER_KEYS,
+	assertSkillShape,
+	sourceFiles
+} from '../../src/lib/server/system-skills';
 import { frontMatterKeys } from '../../src/lib/server/system-skills/hash';
 
 // -- CONSTANTS -- //
@@ -217,25 +221,50 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 	],
 	'flow-critic': [
 		{ rule: 'no commit or push', pattern: /Never commit or push as part of a review/ },
-		{ rule: 'no AI attribution', pattern: /Claude or Anthropic attribution/ },
 		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
-		{ rule: 'checks the design brief', pattern: /Has a sourced design brief/ },
-		{ rule: 'checks the build against the design', pattern: /An unapproved difference is/ },
-		{ rule: 'mockup mode runs only on the user word', pattern: /runs only on the user's word/ },
-		{ rule: 'a mockup shell must be the app own', pattern: /The shell is the app's own/ },
+		{
+			rule: 'mockup and screen mode run only on the user word',
+			pattern: /run only on the user's word/
+		},
+		// AFB-20261123-1205: the shared rules stay in the router, the work is in the modules below
+		{
+			rule: 'the router names every module',
+			pattern:
+				/flow-critic-plan[\s\S]*flow-critic-code[\s\S]*flow-critic-mockup[\s\S]*flow-critic-screen/
+		},
 		// AFB-20261110-2305: no size gate, three subagents by default
 		{
 			rule: 'no review is skipped for being small',
 			pattern: /No review is skipped for being small/
 		},
-		{ rule: 'three subagents by default', pattern: /\*\*3 subagents by default\*\*/ },
+		{ rule: 'three subagents by default', pattern: /\*\*3 subagents by default\*\*/ }
+	],
+	// AFB-20261123-1205: the moved rules of the critic modules, each pinned where it now lives
+	'flow-critic-plan': [
+		{ rule: 'checks the design brief', pattern: /Has a sourced design brief/ },
+		{ rule: 'reads the shared rules first', pattern: /Shared rules first\./ }
+	],
+	'flow-critic-code': [
+		{ rule: 'no AI attribution', pattern: /Claude or Anthropic attribution/ },
+		{ rule: 'checks the build against the design', pattern: /An unapproved difference is/ },
 		// AFB-20261110-2331: a critic gets the mockup itself and checks the build against it
 		{ rule: 'the critic is given the mockup file', pattern: /give the critic the mockup itself/ },
 		{
 			rule: 'the inventory is checked against the code',
 			pattern: /check every inventory line against the code/
 		},
-		{ rule: 'the free notes are checked', pattern: /The Free notes are complete/ }
+		{ rule: 'reads the shared rules first', pattern: /Shared rules first\./ }
+	],
+	'flow-critic-mockup': [
+		{ rule: 'the free notes are checked', pattern: /The Free notes are complete/ },
+		{ rule: 'a mockup shell must be the app own', pattern: /The shell is the app's own/ },
+		{ rule: 'runs only when the user asks', pattern: /It runs only when the user asks for it/ },
+		{ rule: 'reads the shared rules first', pattern: /Shared rules first\./ }
+	],
+	'flow-critic-screen': [
+		{ rule: 'never a critic without pictures', pattern: /Dispatch a critic without pictures/ },
+		{ rule: 'a critic never drives a browser', pattern: /A critic never drives a browser/ },
+		{ rule: 'reads the shared rules first', pattern: /Shared rules first\./ }
 	],
 	'flow-interview': [
 		{ rule: 'no code before approval', pattern: /approves the plan|approve the plan/i },
@@ -475,5 +504,85 @@ describe('the skill descriptions', () => {
 			const value = raw.replace(/^description:\s*/, '').replace(/^"(.*)"$/, '$1');
 			expect(description, name).toBe(value);
 		}
+	});
+});
+
+describe('no flow skill can be hidden from the model', () => {
+	it('has no disable-model-invocation (or any other forbidden key) in any SKILL.md front matter', () => {
+		for (const [name, files] of Object.entries(sourceFiles())) {
+			const keys = frontMatterKeys(files.find((f) => f.path === 'SKILL.md')!.text);
+			for (const key of FORBIDDEN_FRONT_MATTER_KEYS)
+				expect(keys, `${name}: ${key}`).not.toHaveProperty(key);
+		}
+	});
+
+	it('is refused by the loader check, with any value, and a clean source passes it', () => {
+		const source = (extra: string) => [
+			{ path: 'SKILL.md', text: `---\nname: x\ndescription: y\n${extra}---\nbody\n` }
+		];
+		expect(() => assertSkillShape('x', source(''))).not.toThrow();
+		for (const value of ['true', 'false'])
+			expect(() => assertSkillShape('x', source(`disable-model-invocation: ${value}\n`))).toThrow(
+				/front matter key no flow skill may have/
+			);
+		expect(() => assertSkillShape('x', [])).toThrow(/has no SKILL\.md/);
+	});
+
+	it('refuses a skill that still ships a file the manifest lists as removed', () => {
+		const files = [
+			{ path: 'SKILL.md', text: '---\nname: x\ndescription: y\n---\nbody\n' },
+			{ path: 'old.md', text: 'old' }
+		];
+		expect(() => assertSkillShape('x', files, ['old.md'])).toThrow(/lists as removed/);
+		expect(() => assertSkillShape('x', files, ['other.md'])).not.toThrow();
+	});
+
+	it('is also refused in every other served file, which carries no front matter of its own', () => {
+		for (const [name, files] of Object.entries(sourceFiles()))
+			for (const file of files.filter((f) => f.path !== 'SKILL.md'))
+				expect(file.text, `${name}/${file.path}`).not.toMatch(/^disable-model-invocation:/m);
+	});
+});
+
+describe('the modules and the new skills keep their own rules', () => {
+	const sources = sourceFiles();
+	const skill = (name: string) => sources[name].find((f) => f.path === 'SKILL.md')!.text;
+
+	it('flow-commit does nothing unless the user typed /flow-commit or asked to commit, and never adds attribution', () => {
+		const text = skill('flow-commit');
+		expect(text).toContain(
+			"If the user's latest message did not type `/flow-commit` or ask to commit, stop and do nothing."
+		);
+		expect(text).toContain('Never add `Co-Authored-By:` lines');
+		expect(text).toContain('Push only on an explicit word.');
+	});
+
+	it('flow-decide adds no clinic-only wording and defers to /flow', () => {
+		const text = skill('flow-decide');
+		expect(text).not.toMatch(/\b(RLS|clinical|clinic|pharmacy|health data|Live Safety)\b/i);
+		expect(text).toContain('Where this skill and `/flow` differ, `/flow` wins');
+	});
+
+	it('each critic module names /flow-critic as its mandatory first read', () => {
+		for (const name of [
+			'flow-critic-plan',
+			'flow-critic-code',
+			'flow-critic-mockup',
+			'flow-critic-screen'
+		])
+			expect(skill(name), name).toContain('Shared rules first.');
+	});
+
+	it('flow-mockup never pastes another mockup or template as it is', () => {
+		const text = skill('flow-mockup');
+		expect(text).toContain('is never copy and paste');
+		expect(text).toContain('Remove every other screen, region, state, behaviour and text');
+		expect(text).toContain('Never paste another mockup or template as it is');
+	});
+
+	it('flow-update-skills writes through a temporary folder and keeps no backup', () => {
+		const text = skill('flow-update-skills');
+		expect(text).toContain('no `.bak` copy, no backup folder');
+		expect(text).toContain('outside** the skills folder');
 	});
 });

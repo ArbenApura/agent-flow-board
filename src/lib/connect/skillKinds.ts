@@ -63,6 +63,47 @@ export const SKILL_INFO: Record<string, SkillInfo> = {
 		icon: 'compass',
 		summary:
 			'Brings your rule files and your agent’s memory in line with the flow rules, backing every file up first.'
+	},
+	'flow-critic-plan': {
+		kind: 'Check',
+		icon: 'scan-search',
+		summary:
+			'Sends independent reviewers to attack the plan on the board before any code is written.'
+	},
+	'flow-critic-code': {
+		kind: 'Check',
+		icon: 'scan-search',
+		summary:
+			'Sends independent reviewers to critique the code after it is written, before you sign off a commit.'
+	},
+	'flow-critic-mockup': {
+		kind: 'Check',
+		icon: 'scan-search',
+		summary: 'Sends independent reviewers to attack a design mockup against the real product.'
+	},
+	'flow-critic-screen': {
+		kind: 'Check',
+		icon: 'scan-search',
+		summary:
+			'Gives every screen its own reviewer, judging real pictures at phone, tablet and desktop widths.'
+	},
+	'flow-decide': {
+		kind: 'Plan',
+		icon: 'route',
+		summary:
+			'Decides small choices itself from the code and the plan, records them and reports, and asks only what is yours.'
+	},
+	'flow-commit': {
+		kind: 'Plan',
+		icon: 'clipboard-list',
+		summary:
+			'Commits this session’s work with a conventional message that explains the problem, with or without a plan.'
+	},
+	'flow-update-skills': {
+		kind: 'Setup',
+		icon: 'compass',
+		summary:
+			'Checks, installs and updates these skills straight over the old files, and removes obsolete ones.'
 	}
 };
 
