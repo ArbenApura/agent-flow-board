@@ -3,14 +3,7 @@
 // IMPORTED TYPES
 import type { Ctx } from './ops/context';
 // IMPORTED ENVS
-import {
-	AFB_BASE_URL,
-	AFB_MASTER_KEY,
-	AFB_RUNNER_QUEUE_MINUTES,
-	BACKUP_KEY,
-	BETTER_AUTH_SECRET,
-	MOCKUP_ORIGIN
-} from '$app/env/private';
+import { AFB_BASE_URL, BACKUP_KEY, BETTER_AUTH_SECRET, MOCKUP_ORIGIN } from '$app/env/private';
 // IMPORTED MODULES
 import { getStorage } from './adapters/index';
 import { getMailer } from './auth/index';
@@ -28,8 +21,6 @@ export async function appServices(): Promise<NonNullable<Ctx['services']>> {
 		jobs: await getJobs(),
 		backups: Boolean(BACKUP_KEY),
 		backupStorage: BACKUP_KEY ? backupStorage() : undefined,
-		masterKey: AFB_MASTER_KEY,
-		runnerQueueMinutes: AFB_RUNNER_QUEUE_MINUTES,
 		mockupSecret: BETTER_AUTH_SECRET,
 		mockupOrigin: MOCKUP_ORIGIN
 	};

@@ -5,7 +5,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // IMPORTED MODULES
-import { approveToolConnection } from '../../src/lib/server/ops/environments';
+import { BRIDGE_CLIENT, approveToolConnection } from '../../src/lib/server/ops/deviceApproval';
 import {
 	REQUESTED_ORG_REFUSAL,
 	approveDevice,
@@ -172,18 +172,18 @@ describe('a tool that asks for an organisation', () => {
 	});
 
 	it('an agent approves a code asked for its own organisation, and a code with no request as before', async () => {
-		const asked = await start(slug, 'afb-checks');
+		const asked = await start(slug, BRIDGE_CLIENT);
 		await expect(
 			approveToolConnection(w.ctx('admin'), { userCode: asked.userCode, verifier: asked.verifier })
 		).resolves.toMatchObject({ ok: true });
-		const plain = await start(undefined, 'afb-checks');
+		const plain = await start(undefined, BRIDGE_CLIENT);
 		await expect(
 			approveToolConnection(w.ctx('admin'), { userCode: plain.userCode, verifier: plain.verifier })
 		).resolves.toMatchObject({ ok: true });
 	});
 
 	it("an agent on another organisation's connection is refused, told which connection to use, and the code stays pending", async () => {
-		const t = await start(otherSlug, 'afb-checks');
+		const t = await start(otherSlug, BRIDGE_CLIENT);
 		await expect(
 			approveToolConnection(w.ctx('admin'), { userCode: t.userCode, verifier: t.verifier })
 		).rejects.toMatchObject({

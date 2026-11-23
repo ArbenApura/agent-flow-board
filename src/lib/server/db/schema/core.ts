@@ -132,17 +132,11 @@ export const project = tenantTable(
 			.notNull()
 			.default(sql`'[]'::jsonb`),
 		rules: text('rules').notNull().default(''),
-		webApp: boolean('web_app').notNull().default(false),
 		themes: jsonb('themes')
 			.$type<ProjectThemes>()
 			.notNull()
 			.default(sql`'[]'::jsonb`),
 		staleDays: integer('stale_days').notNull().default(3),
-		/** Pages UI shots compare new screens with, as addresses inside the web app. */
-		referencePages: text('reference_pages')
-			.array()
-			.notNull()
-			.default(sql`'{}'::text[]`),
 		...stamps(),
 		version: version()
 	},
@@ -268,7 +262,6 @@ export const userPref = pgTable(
 			.references(() => user.id, { onDelete: 'cascade' }),
 		themeMode: text('theme_mode').notNull().default('system'),
 		accent: text('accent'),
-		checkTarget: text('check_target'),
 		notifications: jsonb('notifications')
 			.notNull()
 			.default(sql`'{}'::jsonb`),

@@ -38,9 +38,6 @@ const stepMark = z.object({
 	evidence: z
 		.object({
 			commit: z.string().optional(),
-			checkRunId: z.string().optional(),
-			runIds: z.array(z.string()).optional(),
-			target: z.enum(['dev', 'preview', 'deployed']).optional(),
 			note: z.string().optional()
 		})
 		.optional()
@@ -172,7 +169,6 @@ export function registerCompat({ tool }: ToolBuilder) {
 						.select({
 							itemId: step.itemId,
 							text: step.text,
-							requiredTarget: step.requiredTarget,
 							rules: project.rules
 						})
 						.from(step)
@@ -193,10 +189,7 @@ export function registerCompat({ tool }: ToolBuilder) {
 				for (const o of open) {
 					const rules = parsed.get(o.rules) ?? parsePlanRules(o.rules);
 					parsed.set(o.rules, rules);
-					for (const reason of planViolations(rules, {
-						texts: [o.text],
-						browser: !!o.requiredTarget
-					})) {
+					for (const reason of planViolations(rules, { texts: [o.text] })) {
 						const key = `${o.itemId}|${reason}`;
 						if (seen.has(key)) continue;
 						seen.add(key);

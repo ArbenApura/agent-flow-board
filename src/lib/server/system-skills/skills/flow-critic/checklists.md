@@ -97,7 +97,7 @@ code.
 - [ ] **Missing configuration refuses, never defaults.** A missing env var, master key, database
       URL, client secret or adapter must throw or deny. Look for an invented default that lets the
       call through, and an empty `catch {}` on an auth, token, tenant or secret path.
-      (example) `AFB_MASTER_KEY`; `requireMasterKey` in `secrets/vault.ts`; `if (key && ...)`, `?? true`, `catch { return allow }`.
+      (example) `BACKUP_KEY` checked in `backup/archive.ts`; `if (key && ...)`, `?? true`, `catch { return allow }`.
 - [ ] Errors surfaced to the person are actionable; server logs carry ids and the operation, never
       tokens, passwords, keys or secret values.
 
@@ -125,7 +125,7 @@ code.
       and screenshots read-only against a build preview, and cleans up child processes and temp
       folders when it stops or fails.
       Applies when the repo ships a runner.
-      (example) `packages/runner`: `runner/src/api.ts`, `signin.ts`, `checks.ts`, `shots.ts`, `supervisor.ts`.
+      (example) a runner package's api client, sign-in and supervisor files.
 - [ ] Git and hosting actions in the runner keep their approval step; nothing pushes or force-pushes
       on its own.
       Applies when the repo ships a runner.
@@ -191,11 +191,11 @@ code.
       and name, wrapped by the master key. No second encryption scheme, no plaintext copy in a row, a
       URL, a job payload or a runner config.
       Applies when the repo stores project secrets.
-      (example) `src/lib/server/secrets/vault.ts`, wrapped by `AFB_MASTER_KEY`.
+      (example) `src/lib/server/backup/archive.ts`, keyed by `BACKUP_KEY`.
 - [ ] Secrets in helper processes (token store, sign-in) live outside the repo and out of the logs; a
       screenshot or report never includes a field that held one.
       Applies when the repo ships a runner or bridge.
-      (example) `shots.ts`, `checks.ts`.
+      (example) the runner's or bridge's report and upload files.
 - [ ] Constant-time comparison or hashing for tokens and webhook signatures, never `===` on a secret.
       (example) `timingSafeEqual`.
 
@@ -393,7 +393,7 @@ code.
 - [ ] Nothing was pushed, committed, branched or given a Claude or Anthropic attribution line.
 - [ ] No change reaches anything live or non-local (a deployed site, a shared or production
       database, a real third-party org, a local server the user started) without the user
-      confirming first. A live site is not a target for browser checks.
+      confirming first. A live site is not a target for a browser test.
 
 ---
 
@@ -402,7 +402,7 @@ code.
 - [ ] New behaviour has a test that would fail without the change (check by reasoning about it, or by
       reverting mentally). A test that passes on the old code proves nothing.
 - [ ] The test lives in the folder the repo's layout expects for its kind.
-      (example) `tests/ops` (verbs and API), `tests/db` (schema, RLS, seed), `tests/auth`, `tests/mcp`, `tests/unit`, `tests/checks` (Playwright), `tests/runner`, `packages/*/src/*.test.ts`, `src/**/*.test.ts` next to pure code.
+      (example) `tests/ops` (verbs and API), `tests/db` (schema, RLS, seed), `tests/auth`, `tests/mcp`, `tests/unit`, `tests/checks` (Playwright), `packages/*/src/*.test.ts`, `src/**/*.test.ts` next to pure code.
 - [ ] **Isolation and access tests assert no side effect behind a refusal** (the row was not written,
       the job was not queued, the mail was not sent), not only the status or error code, and cover
       each role and a token with caps and project limits.
@@ -416,9 +416,9 @@ code.
 - [ ] Mocks do not replace the thing under test; database tests use a real database handle, and error
       paths are exercised.
       (example) `tests/support/db.ts` (embedded PostgreSQL).
-- [ ] Browser checks run against a build preview, sign in through the real page with the seeded
-      people, and wait on a condition, never an unconditional sleep.
-      Applies when the repo has browser checks.
+- [ ] Browser tests run against the target the repo rulebook names, sign in through the real page with
+      the seeded people, and wait on a condition, never an unconditional sleep.
+      Applies when the repo has browser tests.
       (example) `tests/checks/*.spec.ts`, `yarn test:checks`, `seed owner`, `seed admin`, `seed member`, `seed viewer`.
 - [ ] No invariant test was weakened to pass (see `SKILL.md` Step 3).
 

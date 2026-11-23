@@ -41,7 +41,7 @@ Interview the user about a plan so that what gets built is what they want. `/flo
 ## Step 1 - Find the item and read it
 
 1. Use the reference the user gives (or an old `FLOW-` or `FEAT-` id, which resolves as an alias). If they give none, take the newest PLANNED or IN PROGRESS item from `board_brief` and confirm it in your first round. `work_start` it.
-2. Read the item: `item_get` with `fields: ["steps","checks","decisions","sections"]`, then `item_doc` for the `spec`, `validation`, `references`, `resume-here` and `blockers` sections and for any decision you need in full.
+2. Read the item: `item_get` with `fields: ["steps","decisions","sections"]`, then `item_doc` for the `spec`, `validation`, `references`, `resume-here` and `blockers` sections and for any decision you need in full.
 3. Read the code, migrations and pages the plan says it will change, enough to know what exists today. Questions must rest on real current behaviour.
 
 ## Step 2 - Build the question list (not shown to the user)

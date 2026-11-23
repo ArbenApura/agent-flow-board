@@ -12,7 +12,6 @@ COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn/releases .yarn/releases
 COPY packages/bridge/package.json packages/bridge/package.json
 COPY packages/cli/package.json packages/cli/package.json
-COPY packages/runner/package.json packages/runner/package.json
 RUN yarn install --immutable
 COPY . .
 # The build checks the environment variables, so it gets placeholders. They stay in this stage and are never part of the image
@@ -26,7 +25,6 @@ COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn/releases .yarn/releases
 COPY packages/bridge/package.json packages/bridge/package.json
 COPY packages/cli/package.json packages/cli/package.json
-COPY packages/runner/package.json packages/runner/package.json
 # Only this app's production dependencies: no browser, no test tools
 RUN yarn workspaces focus --production
 

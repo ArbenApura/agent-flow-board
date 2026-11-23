@@ -7,9 +7,9 @@
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 // IMPORTED DEP-MODULES
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 // IMPORTED MODULES
-import { check, checkRun, item, phase, session, step } from '../db/schema';
+import { item, phase, session, step } from '../db/schema';
 import { notifyChange } from '../realtime/notify';
 import { OpError } from './context';
 
@@ -17,9 +17,6 @@ import { OpError } from './context';
 
 export type Evidence = {
 	commit?: string;
-	checkRunId?: string;
-	runIds?: string[];
-	target?: 'dev' | 'preview' | 'deployed';
 	note?: string;
 };
 type Closing = 'COMPLETED' | 'REMOVED';
@@ -50,7 +47,6 @@ export const BADGE_GRACE_MINUTES = 2;
 /** A second session of one person and tool takes over an item's claim, and a finished item shows idle, after this quiet time. */
 export const QUIET_RELEASE_MINUTES = 10;
 export const CLOSING_STATUSES: Closing[] = ['COMPLETED', 'REMOVED'];
-const TARGET_RANK = { dev: 1, preview: 2, deployed: 3 } as const;
 
 // -- FUNCTIONS -- //
 
@@ -273,66 +269,11 @@ export async function trackingNotes(
 	return notes;
 }
 
-const sameCommit = (sha: string, given: string) =>
-	given.length >= 7 && sha.toLowerCase().startsWith(given.toLowerCase());
-
-/**
- * Evidence is checked by the server, never taken on trust (L22). A commit is plain text and only has to look like a git hash. A check run
- * must exist on this item, have passed, match the commit, and be on a target at least as strong as the step requires.
- */
-export async function validateEvidence(
-	tx: Tx,
-	ctx: Ctx,
-	it: { id: string; ref: string; projectId: string },
-	stepRow: { key: string; requiredTarget: string | null },
-	evidence: Evidence | undefined
-): Promise<void> {
-	const fail = (message: string) => {
-		throw new OpError('INVALID', `Step ${stepRow.key}: ${message}`, {
+/** Evidence is checked by the server, never taken on trust (L22). A commit is plain text and only has to look like a git hash. */
+export function validateEvidence(stepKey: string, evidence: Evidence | undefined): void {
+	if (evidence?.commit && !/^[0-9a-fA-F]{7,40}$/.test(evidence.commit))
+		throw new OpError('INVALID', `Step ${stepKey}: the commit is not a git hash.`, {
 			reason: 'evidence',
-			step: stepRow.key
+			step: stepKey
 		});
-	};
-	const required = stepRow.requiredTarget as keyof typeof TARGET_RANK | null;
-	if (required && !evidence?.checkRunId)
-		fail(`it needs a passed check run on ${required}. Send checkRunId in the evidence.`);
-	if (!evidence) return;
-	const allRunIds = [
-		...(evidence.checkRunId ? [evidence.checkRunId] : []),
-		...(evidence.runIds ?? [])
-	].filter((v, i, arr) => arr.indexOf(v) === i);
-	if (evidence.target && !allRunIds.length)
-		fail('a target needs the checkRunId of the run that passed on it.');
-	let runCommit: string | null = null;
-	if (allRunIds.length) {
-		for (const rid of allRunIds) {
-			if (!/^[0-9a-f-]{36}$/i.test(rid)) fail('the check run id is not valid.');
-		}
-		const runs = await tx
-			.select({
-				id: checkRun.id,
-				result: checkRun.result,
-				target: checkRun.target,
-				commit: checkRun.commit,
-				itemId: check.itemId
-			})
-			.from(checkRun)
-			.innerJoin(check, eq(check.id, checkRun.checkId))
-			.where(and(inArray(checkRun.id, allRunIds), eq(checkRun.orgId, ctx.orgId)));
-		if (runs.length !== allRunIds.length) fail('no such check run in this organisation.');
-		for (const run of runs) {
-			if (run.itemId !== it.id) fail(`that check run belongs to another item, not ${it.ref}.`);
-			if (run.result !== 'pass') fail(`that check run did not pass (${run.result}).`);
-			if (evidence.target && evidence.target !== run.target)
-				fail(`that check run ran on ${run.target}, not ${evidence.target}.`);
-			if (required && TARGET_RANK[run.target as keyof typeof TARGET_RANK] < TARGET_RANK[required])
-				fail(`it needs a pass on ${required}, and that run was on ${run.target}.`);
-			runCommit = runCommit ?? run.commit;
-		}
-	}
-	if (evidence.commit) {
-		if (!/^[0-9a-fA-F]{7,40}$/.test(evidence.commit)) fail('the commit is not a git hash.');
-		if (runCommit && !sameCommit(runCommit, evidence.commit))
-			fail('the check run was made on a different commit than the one given.');
-	}
 }

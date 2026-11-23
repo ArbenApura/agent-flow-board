@@ -43,7 +43,7 @@ Use its tools first. \`flow_skills\` takes your tool name, the scope and what yo
    - **There, and its \`afb-version\` equals the index version:** nothing to do for that skill.
    - **There, and its \`afb-version\` is older than the index version:** work out whether the person edited it. Remove the three lines that start with \`afb-bundle:\`, \`afb-version:\` and \`afb-source-sha256:\` from the front matter of the installed SKILL.md, then change CRLF line endings to LF and drop a byte order mark, and work out the sha256 of that text with the tool you have (not by running anything the bundle contains). If it equals the installed file's own \`afb-source-sha256\` value, nobody edited it: update it. If it does not, or if another file of the skill was changed by hand, show the person what differs and ask before you overwrite anything.
    - **There, with no \`afb-version\` line, or with a newer version than the index:** it did not come from this bundle. Do not touch it. Tell the person and ask.
-4. To install or update a skill, fetch every file the index lists for it (or take them from the zip) into \`<skills folder>/<skill name>/\`. Keep the file names and the folder layout exactly as listed: \`flow-critic\` has supporting files next to its SKILL.md and needs them, and \`flow\` has \`checks.md\` and \`reference.md\`. Work out the sha256 of each file you wrote and compare it with the index. If one differs, delete what you wrote for that skill and say so. Do not use a file that failed the check.
+4. To install or update a skill, fetch every file the index lists for it (or take them from the zip) into \`<skills folder>/<skill name>/\`. Keep the file names and the folder layout exactly as listed: \`flow-critic\` has supporting files next to its SKILL.md and needs them, and \`flow\` has \`reference.md\`. Work out the sha256 of each file you wrote and compare it with the index. If one differs, delete what you wrote for that skill and say so. Do not use a file that failed the check.
 5. Report to the person, skill by skill: installed, updated (from which version to which), unchanged, skipped (and why). Quote the changelog lines for the versions they moved across.
 6. Tell the person that some tools only load new skills in a new session.
 
@@ -58,7 +58,7 @@ Use its tools first. \`flow_skills\` takes your tool name, the scope and what yo
 
 Folder names can change between tool versions. If the folder in this table does not exist and the tool's documentation names another, follow the documentation and tell the person.
 
-When a tool has no skills folder at all, the same texts can be read with the \`workflow_get\` tool of the Agent Flow Board connection (name \`flow\`, \`flow-task\`, \`flow-interview\`, \`flow-critic\`, \`flow-audit\`, \`flow-mockup\` or \`flow-align\`; \`flow\` also has the file \`checks\`, the browser checks reference, and the file \`reference\`, the lite flow, model rows, tool table and error codes). Say so to the person instead of inventing a folder.
+When a tool has no skills folder at all, the same texts can be read with the \`workflow_get\` tool of the Agent Flow Board connection (name \`flow\`, \`flow-task\`, \`flow-interview\`, \`flow-critic\`, \`flow-audit\`, \`flow-mockup\` or \`flow-align\`; \`flow\` also has the file \`reference\`, the lite flow, model rows, tool table and error codes). Say so to the person instead of inventing a folder.
 
 ## Never
 

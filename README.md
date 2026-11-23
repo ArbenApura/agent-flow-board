@@ -14,7 +14,6 @@ The live board is at https://afb.arbenger.com. This product is planned on itself
 | People  | Owners, admins, members, viewers and guests, per organisation and per project. Invitations by email. Sign in with email and password or Google.                                                                                                                                                                                                       |
 | Agents  | An MCP server at `/mcp`, a REST API at `/api/v1` (OpenAPI at `/api/v1/openapi.json`), personal access tokens, OAuth for tools that support it, a device code flow, and a local stdio bridge. Hooks for Claude Code, Antigravity and Gemini CLI keep a session bound to the item it works on.                                                          |
 | Live    | Every open page updates as items change. A change can be undone for 30 days.                                                                                                                                                                                                                                                                          |
-| Checks  | Browser checks that close a step only when they pass on the right target and show their screenshots, run on the bridge of your own computer (nobody else's).                                                                                                                                                                                          |
 | Notes   | A Notes area per project: Markdown notes in folders with versions, links to plans and tasks, and a Turn into a plan or tasks action. Agents read and search notes through the MCP tools `note_list`, `note_related` (the notes closest to an idea, ranked) and `note_get` (references `N-<n>`) and write one only when the user asks in that session. |
 | Backups | Encrypted nightly backups of every organisation, a restore command, and a backup status in Organisation settings that shows when one is late.                                                                                                                                                                                                         |
 
@@ -61,14 +60,14 @@ An imported plan takes the date and time of its HAPR Board id (the Board wrote i
 
 ## The gates
 
-| Command                                       | What it checks                                                                        |
-| --------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `yarn run check`                              | Types and Svelte warnings                                                             |
-| `yarn eslint .` and `yarn prettier --check .` | Lint and format                                                                       |
-| `yarn run check:packages`                     | The runner and scripts type check                                                     |
-| `yarn test`                                   | Unit and operations tests on an embedded real PostgreSQL                              |
-| `yarn run test:checks`                        | Browser checks on the build preview (never the dev server). Run on request, not in CI |
-| `yarn perf`                                   | First load JavaScript and response times against `tests/perf/budgets.json`            |
+| Command                                       | What it checks                                                                       |
+| --------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `yarn run check`                              | Types and Svelte warnings                                                            |
+| `yarn eslint .` and `yarn prettier --check .` | Lint and format                                                                      |
+| `yarn run check:packages`                     | The scripts type check                                                               |
+| `yarn test`                                   | Unit and operations tests on an embedded real PostgreSQL                             |
+| `yarn run test:checks`                        | Browser tests on the build preview (never the dev server). Run on request, not in CI |
+| `yarn perf`                                   | First load JavaScript and response times against `tests/perf/budgets.json`           |
 
 CI (`.github/workflows/ci.yml`) runs check, check:packages, lint, format check, test and build on every push to `main`.
 
@@ -78,7 +77,6 @@ CI (`.github/workflows/ci.yml`) runs check, check:packages, lint, format check, 
 | ------------------------------------------------- | ---------------------------------------------- |
 | A VPS with Docker, PostgreSQL and automatic HTTPS | [docs/self-hosting.md](docs/self-hosting.md)   |
 | Your coding tools connected                       | [docs/connect-tools.md](docs/connect-tools.md) |
-| Browser checks                                    | [docs/runners.md](docs/runners.md)             |
 
 ## System skills
 
@@ -98,10 +96,10 @@ To release a change to a skill:
 - PostgreSQL through Drizzle. Every tenant table has forced row level security, and the app connects as a role that does not own the tables. Live updates use `LISTEN` and `NOTIFY`, background jobs use pg-boss on the same database, and files live on disk or in any S3 compatible store.
 - One operations layer (`src/lib/server/ops/`). The pages, the REST API, the MCP server and the commands all call it, and each verb reads the caller's live role.
 - Better Auth for sign in, with the OAuth 2.1 and device flows for tools written beside it.
-- `packages/runner` (the retired browser check program, replaced by the bridge), `packages/bridge` (the MCP stdio bridge and the tool hooks), `DESIGN.md` (the brand and the size scale).
+- `packages/bridge` (the MCP stdio bridge and the tool hooks), `DESIGN.md` (the brand and the size scale).
 
 The plan, the decisions and the loophole register this was built from live in the HAPR Board item FLOW-20261014-1047. Current work is planned in the project AFB on the live board.
 
 ## Security in one paragraph
 
-Tenants are separated twice: every query filters by organisation and project, and PostgreSQL enforces it again with row level security set inside each transaction. A token's permissions are an upper limit, and the person's current role is read on every call. Secrets (test account passwords, tokens, keys) are never returned by any call and never written to a log; test account passwords are sealed with a per-organisation key wrapped by `AFB_MASTER_KEY`. Anything a guest writes reaches an agent marked as untrusted. Report a problem privately to the maintainers rather than in a public issue.
+Tenants are separated twice: every query filters by organisation and project, and PostgreSQL enforces it again with row level security set inside each transaction. A token's permissions are an upper limit, and the person's current role is read on every call. Secrets (passwords, tokens, keys) are never returned by any call and never written to a log. Anything a guest writes reaches an agent marked as untrusted. Report a problem privately to the maintainers rather than in a public issue.

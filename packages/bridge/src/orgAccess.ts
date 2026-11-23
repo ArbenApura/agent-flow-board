@@ -28,7 +28,7 @@ export async function checkOrgAccess(input: {
 			ok: false,
 			message: `Not signed in to ${org} on ${server}. Run: ${loginCommand(server, org)}`
 		};
-	// A runner token (afx_) belongs to the checks runner and is never accepted by /mcp, so it is not asked
+	// A runner token (afx_) belonged to the removed runner and is never accepted by /mcp, so it is not asked
 	if (token.startsWith('afx_')) return { ok: true };
 	let status: number;
 	try {

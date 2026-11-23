@@ -39,9 +39,6 @@ export type ApiDeps = {
 	baseUrl: string;
 	mailer?: Mailer;
 	jobs?: JobRunner;
-	/** Wraps the org data keys for test account secrets, and the wait for a runner. */
-	masterKey?: string;
-	runnerQueueMinutes?: number;
 	mockupSecret?: string;
 	mockupOrigin?: string;
 };
@@ -58,8 +55,8 @@ export async function handleApi(req: ApiRequest, deps: ApiDeps): Promise<ApiResp
 				body: buildOpenApi(deps.baseUrl),
 				headers: { 'cache-control': 'public, max-age=300' }
 			};
-		// A runner program has its own token and its own small set of calls
-		if (req.path.startsWith('/runner/')) return await handleRunnerApi(req, deps);
+		// The runner API was removed with the browser checks: an older bridge gets one plain sentence
+		if (req.path.startsWith('/runner/')) return await handleRunnerApi(req);
 		if (req.body.byteLength > MAX_BODY_BYTES)
 			return fail(413, 'INVALID', 'The request body is larger than 101 MB.');
 		// Who is calling: a bearer token, or the signed in person of the session cookie
@@ -182,8 +179,6 @@ export async function handleApi(req: ApiRequest, deps: ApiDeps): Promise<ApiResp
 				baseUrl: deps.baseUrl,
 				mailer: deps.mailer,
 				jobs: deps.jobs,
-				masterKey: deps.masterKey,
-				runnerQueueMinutes: deps.runnerQueueMinutes,
 				mockupSecret: deps.mockupSecret,
 				mockupOrigin: deps.mockupOrigin
 			},

@@ -23,7 +23,6 @@ const stepIn = z.object({
 		.regex(/^[0-9A-Za-z]+\.[0-9]+[a-z]?$/)
 		.optional(),
 	text: z.string().min(1).max(2000),
-	requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional(),
 	files: z.array(z.string().trim().min(1).max(300)).max(50).optional()
 });
 
@@ -42,12 +41,6 @@ export const addStepsInput = z.object({
 	item: z.string().min(1),
 	phase: z.string().min(1).max(12),
 	steps: z.array(stepIn).min(1).max(200),
-	expectVersion: z.number().int().optional()
-});
-// Read and ignored: see addManualChecks
-export const addChecksInput = z.object({
-	item: z.string().min(1),
-	checks: z.array(z.unknown()).max(100).optional(),
 	expectVersion: z.number().int().optional()
 });
 
@@ -80,8 +73,7 @@ export async function addPhase(ctx: Ctx, raw: z.input<typeof addPhaseInput>) {
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
 			await enforcePlanRules(tx, it.projectId, {
-				texts: [input.title, ...input.steps.map((x) => x.text)],
-				browser: input.steps.some((x) => !!x.requiredTarget)
+				texts: [input.title, ...input.steps.map((x) => x.text)]
 			});
 			const [dupe] = await tx
 				.select({ id: phase.id })
@@ -112,7 +104,6 @@ export async function addPhase(ctx: Ctx, raw: z.input<typeof addPhaseInput>) {
 					phaseId: ph.id,
 					key: s.key ?? `${input.key}.${++n}`,
 					text: s.text,
-					requiredTarget: s.requiredTarget ?? null,
 					files: s.files ?? [],
 					position: n || 1
 				});
@@ -142,10 +133,7 @@ export async function addSteps(ctx: Ctx, raw: z.input<typeof addStepsInput>) {
 			await requireCap(tx, ctx, 'write', it.projectId);
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
-			await enforcePlanRules(tx, it.projectId, {
-				texts: input.steps.map((x) => x.text),
-				browser: input.steps.some((x) => !!x.requiredTarget)
-			});
+			await enforcePlanRules(tx, it.projectId, { texts: input.steps.map((x) => x.text) });
 			const [ph] = await tx
 				.select()
 				.from(phase)
@@ -176,7 +164,6 @@ export async function addSteps(ctx: Ctx, raw: z.input<typeof addStepsInput>) {
 					phaseId: ph.id,
 					key,
 					text: s.text,
-					requiredTarget: s.requiredTarget ?? null,
 					files: s.files ?? [],
 					position
 				});
@@ -201,25 +188,6 @@ export async function addSteps(ctx: Ctx, raw: z.input<typeof addStepsInput>) {
 }
 
 /**
- * Manual checks no longer exist. This verb stays for one skill bundle so an agent on an older skill gets a clear notice instead
- * of an unknown-tool error. It writes nothing. Remove it in the bundle after this one.
- */
-export async function addManualChecks(ctx: Ctx, raw: z.input<typeof addChecksInput>) {
-	const input = addChecksInput.parse(raw);
-	return run(ctx, (tx) =>
-		idempotent(ctx, tx, async () => {
-			const it = await findItem(tx, ctx, input.item);
-			await requireCap(tx, ctx, 'write', it.projectId);
-			return {
-				keys: [] as string[],
-				notice:
-					'Manual checks no longer exist, so nothing was added. A browser check is saved with check_save.'
-			};
-		})
-	);
-}
-
-/**
  * Changes the wording of an open step, or takes an open step out of the plan. A step that is done, waived or superseded is
  * a record of work and stays as it is. A wording change can be undone; a removal cannot.
  */
@@ -232,7 +200,7 @@ export async function updateStep(ctx: Ctx, raw: z.input<typeof updateStepInput>)
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
 			if (input.text !== undefined)
-				await enforcePlanRules(tx, it.projectId, { texts: [input.text], browser: false });
+				await enforcePlanRules(tx, it.projectId, { texts: [input.text] });
 			const [st] = await tx
 				.select()
 				.from(step)

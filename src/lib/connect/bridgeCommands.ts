@@ -7,7 +7,7 @@ import { BRIDGE_PROGRAM } from './bridgeInstall';
 
 // -- TYPES -- //
 
-export type CommandKind = 'Sign in' | 'Hooks' | 'Stdio' | 'Held writes' | 'Checks' | 'Mockups';
+export type CommandKind = 'Sign in' | 'Hooks' | 'Stdio' | 'Held writes' | 'Mockups';
 export type BridgeCommand = { kind: CommandKind; command: string; text: string };
 
 // -- CONSTANTS -- //
@@ -17,7 +17,6 @@ export const COMMAND_KINDS: readonly CommandKind[] = [
 	'Hooks',
 	'Stdio',
 	'Held writes',
-	'Checks',
 	'Mockups'
 ];
 
@@ -67,73 +66,6 @@ const COMMANDS: { kind: CommandKind; args: string; text: string }[] = [
 	{ kind: 'Held writes', args: 'queue retry <id>', text: 'Send one held write again.' },
 	{ kind: 'Held writes', args: 'queue drop <id>', text: 'Throw one held write away.' },
 	{
-		kind: 'Checks',
-		args: 'check connect --server {server} --org {org} --json',
-		text: 'Let this computer run your browser checks. An agent approves the printed code.'
-	},
-	{
-		kind: 'Checks',
-		args: 'check run <item> <key> --server {server} --org {org}',
-		text: 'Run one check: build a private copy, preview it, run it in a sandbox and report. Exit 0 pass, 1 fail, 2 could not run.'
-	},
-	{
-		kind: 'Checks',
-		args: 'check pull <item> <key> --server {server} --org {org}',
-		text: 'Show the board copy of a check script as data.'
-	},
-	{
-		kind: 'Checks',
-		args: 'check watch --once',
-		text: 'Take runs started from the Run button of the board.'
-	},
-	{ kind: 'Checks', args: 'check status', text: 'What is connected, and what needs fixing.' },
-	{
-		kind: 'Checks',
-		args: 'check doctor',
-		text: 'A full report: the bridge, Node, the browser (it is started once to prove it works), free disk space and the worker. Each line says OK, Missing or Wrong and the command that fixes it.'
-	},
-	{
-		kind: 'Checks',
-		args: 'check doctor --fix --yes',
-		text: 'Repair what it can and clear old runs. If the browser is missing it downloads it (about 320 MB, once); --yes is your yes to that download.'
-	},
-	{ kind: 'Checks', args: 'check clear', text: 'Remove old runs.' },
-	{
-		kind: 'Checks',
-		args: 'check setup --yes',
-		text: 'Install the browser the checks use (about 320 MB, once). Without --yes it only tells you the size and downloads nothing.'
-	},
-	{
-		kind: 'Checks',
-		args: 'check project <NAME> --org {org} --repo <folder>',
-		text: 'Register a repo folder for a board project. It must sit inside an approved folder.'
-	},
-	{
-		kind: 'Checks',
-		args: 'check approve --request --action <roots|register|secrets|adopt-env|pictures> --target <target>',
-		text: "Ask the board for the owner's approval, with no terminal for the owner."
-	},
-	{
-		kind: 'Checks',
-		args: 'check login <NAME> --org {org} --approval <code>',
-		text: 'Open a window on your own computer and sign in once to the site under test.'
-	},
-	{
-		kind: 'Checks',
-		args: 'check roots list',
-		text: 'The approved parent folders. Also add and remove.'
-	},
-	{
-		kind: 'Checks',
-		args: 'check secrets list',
-		text: 'The names of the sealed test values. Also import and forget.'
-	},
-	{
-		kind: 'Checks',
-		args: 'check service status',
-		text: 'Windows: whether the worker starts when you sign in. Also install and uninstall.'
-	},
-	{
 		kind: 'Mockups',
 		args: 'mockup push <file.html> --server {server} --org {org} --item <ref>',
 		text: 'Publish one mockup page to the board.'
@@ -181,7 +113,7 @@ export function bridgeCommands(server: string, orgSlug: string): BridgeCommand[]
 	}));
 }
 
-/** The words right after the program that name the command, for example "check connect" or "queue retry", up to the first flag or placeholder. A test holds these against the bridge. */
+/** The words right after the program that name the command, for example "mockup push" or "queue retry", up to the first flag or placeholder. A test holds these against the bridge. */
 export function commandWords(c: BridgeCommand): string[] {
 	const words: string[] = [];
 	for (const w of c.command.slice(BRIDGE_PROGRAM.length + 1).split(' ')) {

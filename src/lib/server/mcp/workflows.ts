@@ -63,11 +63,11 @@ export type WorkflowFileName = (typeof WORKFLOW_FILE_NAMES)[number];
 /** The supporting files each workflow has next to its SKILL.md, read with workflow_get and file (AFB-20261116-1457). */
 export const WORKFLOW_FILES: Record<string, readonly string[]> = {
 	'flow-critic': WORKFLOW_FILE_NAMES,
-	flow: ['checks', 'reference']
+	flow: ['reference']
 };
 
 /** Every file name workflow_get accepts: a name is valid only for the workflows that have it. */
-export const WORKFLOW_FILE_ARGS = [...WORKFLOW_FILE_NAMES, 'checks', 'reference'] as const;
+export const WORKFLOW_FILE_ARGS = [...WORKFLOW_FILE_NAMES, 'reference'] as const;
 
 export const WORKFLOWS: Workflow[] = [
 	{
@@ -141,7 +141,7 @@ Start with session_start and pass its sessionId to every tracking and write tool
 
 export const workflowByName = (name: string) => WORKFLOWS.find((w) => w.name === name);
 
-/** A supporting file of a workflow: the critic's lens lists, checklists and subagent prompt templates, or the flow browser checks reference and the flow reference (lite flow, model tables, errors). */
+/** A supporting file of a workflow: the critic's lens lists, checklists and subagent prompt templates, or the flow reference (lite flow, model tables, errors). */
 export function workflowFile(name: string, file: string): string {
 	if (!(WORKFLOW_FILES[name] ?? []).includes(file))
 		throw new Error(`The ${name} workflow has no supporting file ${file}.`);

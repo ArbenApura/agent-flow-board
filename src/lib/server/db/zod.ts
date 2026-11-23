@@ -10,12 +10,9 @@ import { TAB_NAME } from '../../shared/tabName';
 import {
 	apiToken,
 	attachment,
-	check,
 	comment,
 	connectSetupMark,
 	decision,
-	devRegistration,
-	environment,
 	item,
 	member,
 	mockup,
@@ -183,30 +180,6 @@ export const noteUpdateInput = createUpdateSchema(note, { title: noteTitle, body
 	.partial();
 export const noteFolderInput = noteFolderInsert.pick({ name: true, parentId: true });
 export const noteLinkInput = noteLinkInsert.pick({ targetKind: true, targetId: true });
-export const checkInsert = createInsertSchema(check);
-export const devRegistrationSelect = createSelectSchema(devRegistration);
-export const devRegistrationInsert = createInsertSchema(devRegistration, {
-	name: (s) => s.trim().min(1).max(60),
-	devUrl: (s) => s.trim().min(1).max(300),
-	profiles: () => z.array(z.string().trim().min(1).max(40)).max(20)
-});
-export const devRegistrationUpdate = createUpdateSchema(devRegistration);
-export const devRegistrationInput = devRegistrationInsert
-	.pick({
-		name: true,
-		devUrl: true,
-		profiles: true,
-		activeProfile: true,
-		lastStatus: true,
-		lastReasonCode: true
-	})
-	.partial({
-		profiles: true,
-		activeProfile: true,
-		lastStatus: true,
-		lastReasonCode: true
-	});
-export const environmentInsert = createInsertSchema(environment, { url: (s) => s.url() });
 export const apiTokenInsert = createInsertSchema(apiToken);
 
 /** Pin or unpin a project. Only the project comes from the caller; the org and the person always come from the request. */

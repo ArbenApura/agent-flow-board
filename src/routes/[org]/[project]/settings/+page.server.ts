@@ -80,10 +80,8 @@ export const load: PageServerLoad = async ({ params, parent, locals, url, depend
 			logoV: project.logoV,
 			key: project.key,
 			name: project.name,
-			webApp: project.webApp,
 			streams: project.streams,
-			themes: project.themes,
-			referencePages: project.referencePages
+			themes: project.themes
 		},
 		// How many items sit under each stream and scope, as this person may see them (private and trashed items are not counted)
 		usage: summary.areas.map((a) => ({ stream: a.stream, scope: a.scope, n: a.n })),

@@ -5,7 +5,6 @@
 // IMPORTED TYPES
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
-import type { RunnerAuth } from './environments';
 // IMPORTED DEP-MODULES
 import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, ilike, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
@@ -14,21 +13,7 @@ import { z } from 'zod';
 import { extractMockupScreensFromHtml } from '../../shared/mockupScreens';
 import { appendEvent } from '../db/events';
 import { syncMockupsOfItem } from '../db/mockupSync';
-import {
-	item,
-	member,
-	mockup,
-	mockupPart,
-	mockupPin,
-	mockupVersion,
-	org,
-	project,
-	projectMember,
-	runner,
-	user
-} from '../db/schema';
-import { withTenant } from '../db/tenant';
-import { effectiveProjectRole } from '../orgs/roles';
+import { item, mockup, mockupPart, mockupPin, mockupVersion, project, user } from '../db/schema';
 import { KIT_MARKER, loadKit, wantsKit, type LoadedKit } from '../mockups/kitHead';
 import { mockupKey } from '../mockups/keys';
 import { lintMockupHooks, lintMockupHtml } from '../mockups/lint';
@@ -39,7 +24,7 @@ import { notesFromContract } from '../mockups/compose';
 import { contractProblems, parseContract, type MockupContract } from '../mockups/contract';
 import { segmentMockupHtml } from '../mockups/segments';
 import { MOCKUP_LINK_SECONDS, signMockupGrant } from '../mockups/serve';
-import { ORG_LOCKED_MESSAGE, OpError, idempotent, rateLimit, requireCap, run } from './context';
+import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields } from './items';
 import { planWorked, readStateOf, unreadLine } from './mockupReads';
 import { findItem, findProject } from './resolve';
@@ -1597,59 +1582,6 @@ export async function mintMockupUrl(
 			secret,
 			mockupOrigin: options.mockupOrigin ?? ctx.services?.mockupOrigin,
 			baseUrl: ctx.services?.baseUrl
-		});
-	});
-}
-
-/** Mints a short-lived signed mockup address for a non-hosted bridge runner serving that project. */
-export async function runnerMintMockupUrl(
-	handle: Parameters<typeof withTenant>[0],
-	runnerAuth: RunnerAuth,
-	id: string,
-	options: MintMockupUrlOptions & { baseUrl?: string } = {}
-): Promise<MintMockupUrlResult> {
-	if (!z.string().uuid().safeParse(id).success) throw new OpError('NOT_FOUND', 'No such mockup.');
-	const parsed = mintMockupUrlInput.parse(options);
-	if (!options.secret) throw new Error('Mockup URL signing secret is not configured.');
-	if (runnerAuth.kind === 'hosted')
-		throw new OpError('FORBIDDEN', 'Hosted runners cannot mint private mockup URLs.');
-	return withTenant(handle, { orgId: runnerAuth.orgId }, async (tx) => {
-		const [o] = await tx
-			.select({ deletedAt: org.deletedAt })
-			.from(org)
-			.where(eq(org.id, runnerAuth.orgId));
-		if (!o || o.deletedAt) throw new OpError('ORG_LOCKED', ORG_LOCKED_MESSAGE);
-		const [r] = await tx.select().from(runner).where(eq(runner.id, runnerAuth.runnerId));
-		if (!r) throw new OpError('FORBIDDEN', 'Runner token is no longer active.');
-		const [m] = await tx
-			.select()
-			.from(mockup)
-			.where(and(eq(mockup.id, id), eq(mockup.orgId, runnerAuth.orgId), isNull(mockup.trashedAt)));
-		if (!m || !runnerAuth.projectIds.includes(m.projectId))
-			throw new OpError('NOT_FOUND', 'No such mockup.');
-		const plan = m.itemId ? await planOf(tx, m.itemId) : null;
-		if (plan?.deletedAt) throw new OpError('NOT_FOUND', 'No such mockup.');
-		if (r.kind === 'tool') {
-			if (!r.ownerId) throw new OpError('FORBIDDEN', 'Tool runner has no owner.');
-			const [mem] = await tx
-				.select({ role: member.role })
-				.from(member)
-				.where(and(eq(member.orgId, runnerAuth.orgId), eq(member.userId, r.ownerId)));
-			const [pm] = await tx
-				.select({ role: projectMember.role })
-				.from(projectMember)
-				.where(and(eq(projectMember.projectId, m.projectId), eq(projectMember.userId, r.ownerId)));
-			const liveRole = effectiveProjectRole(mem?.role ?? null, pm?.role ?? null);
-			if (!liveRole) throw new OpError('NOT_FOUND', 'No such mockup.');
-			if (!canSeeMockup(m, r.ownerId, plan)) throw new OpError('NOT_FOUND', 'No such mockup.');
-		} else if (m.visibility === 'private' || plan?.visibility === 'private') {
-			throw new OpError('NOT_FOUND', 'No such mockup.');
-		}
-		return mintForMockupRow(tx, runnerAuth.orgId, m, plan, {
-			...parsed,
-			secret: options.secret,
-			mockupOrigin: options.mockupOrigin,
-			baseUrl: options.baseUrl
 		});
 	});
 }

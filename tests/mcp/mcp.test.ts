@@ -185,7 +185,6 @@ describe('MCP server', () => {
 			'skills_file',
 			'plan_add_phase',
 			'plan_add_steps',
-			'plan_add_checks',
 			'step_update',
 			'item_trash',
 			'item_restore',
@@ -193,15 +192,22 @@ describe('MCP server', () => {
 			'item_history',
 			'project_pin',
 			'project_unpin',
-			'check_save',
-			'check_delete',
-			'check_run',
-			'check_wait',
-			'runner_status',
-			'approval_list',
 			'tool_connection_approve'
 		])
 			expect(names).toContain(n);
+		// The browser check tools were removed (AFB-20261123-0936)
+		for (const gone of [
+			'plan_add_checks',
+			'check_save',
+			'check_get',
+			'check_delete',
+			'check_run',
+			'check_wait',
+			'check_status',
+			'runner_status',
+			'approval_list'
+		])
+			expect(names, gone).not.toContain(gone);
 		// No deciding verb exists over MCP: only the owner on the board decides
 		expect(
 			names.filter(
@@ -849,7 +855,7 @@ describe('MCP server', () => {
 		await client.close();
 	});
 
-	it('grows and edits a plan with plan_add_phase, plan_add_steps, plan_add_checks and step_update', async () => {
+	it('grows and edits a plan with plan_add_phase, plan_add_steps and step_update', async () => {
 		const client = await connect(deps, token);
 		const s = await call(client, 'session_start', { tool: 'claude-code' });
 		const made = await call(client, 'item_new', {
@@ -878,17 +884,8 @@ describe('MCP server', () => {
 			steps: [{ text: 'fifth' }]
 		});
 		expect(more.keys).toEqual(['2.3']);
-		const checks = await call(client, 'plan_add_checks', {
-			sessionId: sid,
-			item: made.ref,
-			checks: [{ key: 'M1', text: 'Look at it by hand' }]
-		});
-		// Retired no-op: a notice, no keys, nothing written
-		expect(checks.keys).toEqual([]);
-		expect(checks.notice).toContain('Manual checks no longer exist');
-		let got = await call(client, 'item_get', { item: made.ref, fields: ['steps', 'checks'] });
+		let got = await call(client, 'item_get', { item: made.ref, fields: ['steps'] });
 		expect(got.steps.map((x: any) => x.key)).toEqual(['1.1', '1.2', '2.1', '2.2', '2.3']);
-		expect(got.checks).toEqual([]);
 		// A wording change keeps the key and can be undone through the history
 		const edit = await call(client, 'step_update', {
 			sessionId: sid,
@@ -1027,7 +1024,6 @@ describe('MCP server', () => {
 		const attempts = [
 			['plan_add_steps', { phase: '1', steps: [{ text: 'sneaky' }] }],
 			['plan_add_phase', { key: '2', title: 'Sneaky' }],
-			['plan_add_checks', { checks: [{ key: 'M1', text: 'sneaky' }] }],
 			['step_update', { key: '1.1', text: 'sneaky' }],
 			['decision_delete', { kind: 'adr', number: 1 }],
 			['item_trash', { confirmed: true }],
@@ -1312,98 +1308,34 @@ describe('MCP server', () => {
 		expect(p95).toBeLessThan(150);
 		await client.close();
 	});
-	it('drives a check through the tools: save, run, wait and runner_status, with the code and fix on a run that cannot start', async () => {
-		await db.admin.exec(`update project set web_app = true where id = '${w.projectId}'`);
+	it('has no browser check tools, and step_done takes only a commit and a note as evidence', async () => {
 		const made = await createItem(w.ctx('member'), {
 			project: w.projectKey,
-			title: 'Check through MCP',
-			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Run it' }] }]
+			title: 'No check tools',
+			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Do it' }, { text: 'Then this' }] }]
 		});
 		const client = await connect(deps, token);
 		const { sessionId } = await call(client, 'session_start', { tool: 'claude-code' });
-		const saved = await call(client, 'check_save', {
+		await call(client, 'work_start', { sessionId, item: made.ref });
+		// An old check tool name is not found, the SDK's own answer
+		const gone = await client.callTool({
+			name: 'check_run',
+			arguments: { sessionId, item: made.ref, check: 'C1' }
+		});
+		expect(gone.isError).toBe(true);
+		const done = await call(client, 'step_done', {
 			sessionId,
 			item: made.ref,
-			check: 'M1',
-			script: 'export default async ({ page }) => { await page.goto("/"); };',
-			target: 'preview'
+			keys: ['1.1'],
+			evidence: { commit: 'abc1234', note: 'built' }
 		});
-		expect(saved).toMatchObject({ created: true, key: 'M1' });
-		// Nothing connected: the status says what to do, and the run says why it cannot start, at once
-		const status = await call(client, 'runner_status', { project: w.projectKey });
-		expect(status.projects[0]).toMatchObject({ online: false, kind: null });
-		expect(status.projects[0].hint).toMatch(/connect/);
-		const asked = await call(client, 'check_run', {
+		expect(done.error).toBeUndefined();
+		const bad = await call(client, 'step_done', {
 			sessionId,
 			item: made.ref,
-			check: 'M1',
-			target: 'preview',
-			wait: 5
+			keys: ['1.2'],
+			evidence: { commit: 'not a hash' }
 		});
-		expect(asked.unavailable).toBe(true);
-		expect(asked.finished).toBeUndefined();
-		expect(asked.run).toMatchObject({ result: 'unavailable', code: 'TOOL_OFFLINE' });
-		expect(asked.run.fix).toMatch(/runner_status/);
-		const waited = await call(client, 'check_wait', { run: asked.run.id, seconds: 5 });
-		expect(waited).toMatchObject({ finished: true });
-		expect(waited.run).toMatchObject({ code: 'TOOL_OFFLINE', key: 'M1', item: made.ref });
-		// A bad run id is refused as input, a missing one is not found, and a reader may wait but not save
-		expect((await call(client, 'check_wait', { run: 'nope' })).error).toBeDefined();
-		expect(
-			(await call(client, 'check_wait', { run: '00000000-0000-4000-8000-000000000000' })).error
-		).toMatchObject({ code: 'NOT_FOUND' });
-		const reader = await connect(deps, readOnlyToken, 'reader');
-		expect((await call(reader, 'check_wait', { run: asked.run.id, seconds: 0 })).finished).toBe(
-			true
-		);
-		expect(
-			(await call(reader, 'check_save', { item: made.ref, check: 'M1', script: 's' })).error
-		).toBeDefined();
-		// A busy item: check_status is short by default (the newest run of each check, no file lists), detail gives the rest
-		for (let i = 0; i < 5; i++)
-			await call(client, 'check_run', {
-				sessionId,
-				item: made.ref,
-				check: 'M1',
-				target: 'preview',
-				wait: 1
-			});
-		const short = await call(client, 'check_status', { item: made.ref });
-		const full = await call(client, 'check_status', { item: made.ref, detail: true });
-		expect(short.checks[0].runs).toHaveLength(1);
-		expect(short.checks[0].olderRuns).toBeGreaterThan(0);
-		expect(short.checks[0].runs[0]).toMatchObject({ code: 'TOOL_OFFLINE', files: 0 });
-		expect(short.checks[0].runs[0].evidence).toBeUndefined();
-		expect(full.checks[0].runs.length).toBeGreaterThan(1);
-		expect(JSON.stringify(short).length).toBeLessThan(JSON.stringify(full).length / 2);
-		// The saved script is read with check_get and fixed with one edit, with no resend of the whole script
-		const got = await call(client, 'check_get', { item: made.ref, check: 'M1' });
-		expect(got.script).toContain('page.goto("/")');
-		const edited = await call(client, 'check_save', {
-			sessionId,
-			item: made.ref,
-			check: 'M1',
-			edit: { old: 'goto("/")', new: 'goto("/settings")' }
-		});
-		expect(edited.error).toBeUndefined();
-		expect((await call(client, 'check_get', { item: made.ref, check: 'M1' })).script).toContain(
-			'/settings'
-		);
-		const refused = await call(client, 'check_save', {
-			sessionId,
-			item: made.ref,
-			check: 'M1',
-			edit: { old: 'nothing like this', new: 'x' }
-		});
-		expect(refused.error.code).toBe('INVALID');
-		const blocked = await call(client, 'check_save', {
-			sessionId,
-			item: made.ref,
-			check: 'M1',
-			script: 'await page.addInitScript(() => 1);'
-		});
-		expect(blocked.error.details.code).toBe('SCRIPT_BLOCKED');
-		const deleted = await call(client, 'check_delete', { sessionId, item: made.ref, check: 'M1' });
-		expect(deleted).toEqual({ deleted: true });
+		expect(bad.error?.code).toBe('INVALID');
 	});
 });

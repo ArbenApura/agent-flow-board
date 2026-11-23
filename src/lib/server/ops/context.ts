@@ -61,10 +61,6 @@ export type Ctx = {
 		backups?: boolean;
 		/** The storage the encrypted backups are kept in, so an admin can download or delete one. Missing while backups are off. */
 		backupStorage?: Storage;
-		/** Wraps the org data keys that seal project secrets (ADR-024). Missing means secrets are off. */
-		masterKey?: string;
-		/** Minutes a run waits for a runner before it is reported stuck. */
-		runnerQueueMinutes?: number;
 		/** Secret used for HKDF-derived mockup file URL signing (BETTER_AUTH_SECRET in appServices). */
 		mockupSecret?: string;
 		/** Optional isolated second origin (MOCKUP_ORIGIN) for hosted mockup URLs. */

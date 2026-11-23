@@ -11,14 +11,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // IMPORTED MODULES
-import { RunnerBoard } from '../../packages/bridge/src/checks/board.js';
 import { mintMockupUrlCli, pushMockup } from '../../packages/bridge/src/mockup.js';
 import { memoryStorage } from '../../src/lib/server/adapters/storage';
 import { bodyLimit, readBodyCapped } from '../../src/lib/server/api/body';
 import { handleApi, type ApiDeps } from '../../src/lib/server/api/dispatch';
-import { handleRunnerApi } from '../../src/lib/server/api/runner';
 import { serveMemberMockup } from '../../src/lib/server/mockups/serve';
-import { createRunner } from '../../src/lib/server/ops/environments';
 import { createItem } from '../../src/lib/server/ops/items';
 import { createProject } from '../../src/lib/server/ops/projects';
 import { createToken } from '../../src/lib/server/ops/tokens';
@@ -95,9 +92,7 @@ describe('mockup push over http', () => {
 				body: bytes,
 				session: null
 			};
-			const out = path.startsWith('/runner/')
-				? await handleRunnerApi(apiReq, deps())
-				: await handleApi(apiReq, deps());
+			const out = await handleApi(apiReq, deps());
 			res
 				.writeHead(out.status, { 'content-type': 'application/json' })
 				.end(JSON.stringify(out.body));
@@ -262,7 +257,7 @@ describe('mockup push over http', () => {
 		}
 	);
 
-	it('mints short-lived signed mockup URLs via API, CLI and runner API, respects MOCKUP_ORIGIN and public flag, and enforces access and trust split', async () => {
+	it('mints short-lived signed mockup URLs via API and CLI, respects MOCKUP_ORIGIN and public flag, and enforces access and trust split', async () => {
 		const pubItem = await createItem(as('member'), {
 			project: w.projectKey,
 			title: 'Mint target',
@@ -346,29 +341,28 @@ describe('mockup push over http', () => {
 		expect(isolatedRes.url.startsWith('https://mockups.example.test/mf/')).toBe(true);
 		expect(isolatedRes.url).toContain('/shot?');
 
-		// Local runner API mints signed URL for projects it covers, and only reveals isPublic after opt-in
-		const localRunner = await createRunner(as('owner'), {
-			name: 'local-mint-runner',
-			kind: 'local',
-			projects: [w.projectKey]
-		});
-		const runnerBoard = new RunnerBoard(base, localRunner.token, (u, i) => fetch(u, i));
-		const beforePub = await runnerBoard.mintMockupUrl(published.mockup.id);
+		// The personal token mints a signed URL and only reveals isPublic after opt-in
+		const mintOwn = (mockup: string) =>
+			mintMockupUrlCli({
+				server: base,
+				org: slug,
+				token: memberToken,
+				fetch: (u, i) => fetch(u, i),
+				mockup
+			});
+		const beforePub = await mintOwn(published.mockup.id);
 		expect(beforePub.isolatedOrigin).toBe(true);
 		expect(beforePub.url.startsWith('https://mockups.example.test/mf/')).toBe(true);
 		expect(beforePub.isPublic).toBe(false);
 
 		await setMockupPublicLink(as('admin'), published.mockup.id, true);
-		const afterPub = await runnerBoard.mintMockupUrl(published.mockup.id);
+		const afterPub = await mintOwn(published.mockup.id);
 		expect(afterPub.isPublic).toBe(true);
 		expect(afterPub.url.startsWith('https://mockups.example.test/mf/')).toBe(true);
 
 		// Private mockup stays refused to viewer, and never exposes publicUrl even if toggled
 		await expect(mintMockupUrl(as('viewer'), privMockup.mockup.id)).rejects.toMatchObject({
 			code: 'NOT_FOUND'
-		});
-		await expect(runnerBoard.mintMockupUrl(privMockup.mockup.id)).rejects.toMatchObject({
-			status: 404
 		});
 
 		// Scoped personal token on another project cannot mint for w.projectKey
@@ -388,26 +382,6 @@ describe('mockup push over http', () => {
 				mockup: published.mockup.id
 			})
 		).rejects.toThrow();
-
-		// Hosted runner is refused from runner mockup URL minting, and local runner scoped elsewhere is refused
-		const hostedRunner = await createRunner(as('owner'), {
-			name: 'hosted-mint-runner',
-			kind: 'hosted',
-			projects: [w.projectKey]
-		});
-		const hostedBoard = new RunnerBoard(base, hostedRunner.token, (u, i) => fetch(u, i));
-		await expect(hostedBoard.mintMockupUrl(published.mockup.id)).rejects.toMatchObject({
-			status: 403
-		});
-		const otherRunner = await createRunner(as('owner'), {
-			name: 'other-local-runner',
-			kind: 'local',
-			projects: [secondProject.key]
-		});
-		const otherBoard = new RunnerBoard(base, otherRunner.token, (u, i) => fetch(u, i));
-		await expect(otherBoard.mintMockupUrl(published.mockup.id)).rejects.toMatchObject({
-			status: 404
-		});
 
 		mockupOriginOverride = undefined;
 	});

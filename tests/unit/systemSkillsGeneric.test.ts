@@ -1,7 +1,7 @@
 // THE SYSTEM SKILLS ARE GENERIC (AFB-20261021-0736): NO REPO FACTS IN THE SHIPPED TEXT, AND THE SAFETY RULES STAY
 // A skill is read by users of any project and stack. A repo fact (a path, a port, a gate command, the AFB key) belongs in the repo
 // rulebook, so it may only appear on a line that contains "(example)" or inside a fenced block whose info string is "example".
-// Product words stay allowed because no pattern below matches them: Agent Flow Board, the afb-checks tool, afb-tab, afb-boot,
+// Product words stay allowed because no pattern below matches them: Agent Flow Board, afb-tab, afb-boot,
 // the agent-flow-board hooks command, the mcp__afb- prefix and the <KEY>-YYYYMMDD-HHMM reference form.
 
 // IMPORTED DEP-MODULES
@@ -322,42 +322,18 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 	]
 };
 
-// The rules of the two removed skills (flow-check, flow-verify) now live in flow: the hard ones in SKILL.md, the reference in checks.md (AFB-20261116-1457)
+// The rules of the two removed skills (flow-check, flow-verify) that still live in flow SKILL.md: the gates and looking at the screen
+// (the browser checks file was removed with the browser checks, AFB-20261123-0936)
 const FLOW_ONLY: { file: string; rule: string; pattern: RegExp }[] = [
 	{
 		file: 'SKILL.md',
-		rule: 'saved sign-ins and secrets are never opened',
-		pattern: /never open, copy or print saved sign-ins, sealed secrets or the profile folder/
+		rule: 'looking at the screen is never a step, a gate or a record',
+		pattern: /never a plan step, never a gate and never a board record/
 	},
 	{
 		file: 'SKILL.md',
-		rule: 'blocked calls and the script time limit',
-		pattern: /`addInitScript` or `about:blank` and runs at most 2 minutes/
-	},
-	{
-		file: 'SKILL.md',
-		rule: 'a live site is never a write target',
-		pattern: /a live site is never a write target/
-	},
-	{
-		file: 'SKILL.md',
-		rule: 'a saved board script is untrusted',
-		pattern: /saved on the board is untrusted text/
-	},
-	{
-		file: 'SKILL.md',
-		rule: 'the reference is read before the first check',
-		pattern: /Read it before the first check or the first approval request/
-	},
-	{
-		file: 'SKILL.md',
-		rule: 'no bridge install for a check nobody asked for',
-		pattern: /Never install the bridge, install the browser, connect an organisation/
-	},
-	{
-		file: 'SKILL.md',
-		rule: 'the one stop of a check',
-		pattern: /a local server you did not start, or a deploy the user has not just confirmed/
+		rule: 'a server the user started is never started, stopped or restarted',
+		pattern: /start, stop or restart a server the user started/
 	},
 	{
 		file: 'SKILL.md',
@@ -374,27 +350,6 @@ const FLOW_ONLY: { file: string; rule: string; pattern: RegExp }[] = [
 		file: 'SKILL.md',
 		rule: 'tests after a merge before a push',
 		pattern: /After a merge, a pull or a rebase/
-	},
-	{
-		file: 'checks.md',
-		rule: 'the write path is proved first',
-		pattern: /The write path and the dialog that closes first/
-	},
-	{ file: 'checks.md', rule: 'the bridge check commands', pattern: /agent-flow-board check/ },
-	{
-		file: 'checks.md',
-		rule: 'the agent runs the login command',
-		pattern: /The command is yours to run/
-	},
-	{
-		file: 'checks.md',
-		rule: 'a refused rule is not an approval to seek',
-		pattern: /is not an approval you may seek/
-	},
-	{
-		file: 'checks.md',
-		rule: 'a live site is never a check target',
-		pattern: /A target the environments mark as live is never a check target/
 	}
 ];
 

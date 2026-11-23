@@ -19,7 +19,3 @@ export const mockupKey = (
 	const suffix = kind === 'png' ? 'png' : kind === 'asset' ? (ext ?? 'bin') : 'html';
 	return `${MOCKUP_KEY_PREFIX}/${orgId}/${projectId}/${randomUUID()}.${suffix}`;
 };
-
-/** Reserved key for derived check/compare evidence assets stored via attachments so backup, purge and route isolation cover them. */
-export const mockupEvidenceKey = (orgId: string, projectId: string, cleanFilename: string) =>
-	`${MOCKUP_KEY_PREFIX}/${orgId}/${projectId}/${randomUUID()}-${cleanFilename}`;

@@ -400,7 +400,7 @@ describe('mockup tools', () => {
 		expect(unknown.error.message).toMatch(/no part screen:nope/);
 	});
 
-	it('refuses an agent the last step of a phase while the plan mockup is unread, and never a person or the runner', async () => {
+	it('refuses an agent the last step of a phase while the plan mockup is unread, and never a person or a call that opts out of the gate', async () => {
 		const made = await createItem(w.ctx('member'), {
 			project: w.projectKey,
 			title: 'Mockup gate',
@@ -522,7 +522,7 @@ describe('mockup tools', () => {
 		});
 		// A close may have released the claim, so the plan is claimed again for the calls below
 		await call(member, 'work_start', { sessionId: s.sessionId, item: plan });
-		// The runner's own tick after a passing check is never held
+		// A call that opts out of the gate (agentGate false) is never held
 		const byRunner = await record(
 			agentCtx,
 			{ item: plan, marks: [{ key: '1.2', mark: 'done' }] },

@@ -45,7 +45,6 @@ export const STATUSES = [
 ] as const;
 export const STEP_STATES = ['open', 'done', 'waived', 'superseded'] as const;
 export const VISIBILITIES = ['public', 'private'] as const;
-export const TARGETS = ['dev', 'preview', 'deployed'] as const;
 
 // -- FUNCTIONS -- //
 

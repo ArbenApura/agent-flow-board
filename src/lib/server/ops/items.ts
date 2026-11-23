@@ -6,19 +6,7 @@ import type { SQL } from 'drizzle-orm';
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 // IMPORTED DEP-MODULES
-import {
-	and,
-	asc,
-	desc,
-	eq,
-	gt,
-	inArray,
-	isNotNull,
-	isNull,
-	lt,
-	notInArray,
-	sql
-} from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // IMPORTED MODULES
 import { allocateItemNumber } from '../db/numbering';
@@ -26,19 +14,7 @@ import { RefSuffixesTaken, freeRefs, insertItemWithFreshRef } from '../db/flowId
 import { recalcItem } from '../db/calc';
 import { appendEvent } from '../db/events';
 import { syncMockupsOfItem } from '../db/mockupSync';
-import {
-	check,
-	checkRun,
-	decision,
-	item,
-	itemAlias,
-	member,
-	phase,
-	section,
-	step,
-	task,
-	user
-} from '../db/schema';
+import { decision, item, itemAlias, member, phase, section, step, task, user } from '../db/schema';
 import { tabNameSchema } from '../db/zod';
 import { tabNameFromTitle } from '../../shared/tabName';
 import { OpError, idempotent, rateLimit, requireCap, requireOrgMember, run } from './context';
@@ -68,7 +44,6 @@ const stepIn = z.object({
 		)
 		.optional(),
 	text: z.string().min(1).max(2000),
-	requiredTarget: z.enum(['dev', 'preview', 'deployed']).nullable().optional(),
 	files: z.array(z.string().trim().min(1).max(300)).max(50).optional()
 });
 const phaseIn = z.object({
@@ -92,8 +67,6 @@ export const createItemInput = z.object({
 	branchNote: z.string().max(500).nullish(),
 	assigneeId: z.string().nullish(),
 	phases: z.array(phaseIn).max(60).default([]),
-	// Manual checks no longer exist. An agent on an older skill may still send the field, so it is read and ignored, with a notice in the answer
-	manualChecks: z.array(z.unknown()).max(100).optional(),
 	aliases: z.array(z.string().min(2).max(80)).max(10).default([]),
 	sections: z
 		.array(
@@ -208,13 +181,12 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 			await rateLimit(tx, ctx, 'write');
 			await rateLimit(tx, ctx, 'create');
 			await requireOrgMember(tx, ctx, input.assigneeId);
-			// The project's own plan rules (forbidden wording, no browser steps) refuse the plan before anything is written
+			// The project's own plan rules (forbidden wording) refuse the plan before anything is written
 			await enforcePlanRules(tx, proj.id, {
 				texts: [
 					input.title,
 					...input.phases.flatMap((p) => [p.title, ...p.steps.map((x) => x.text)])
-				],
-				browser: input.phases.some((p) => p.steps.some((x) => !!x.requiredTarget))
+				]
 			});
 			// The window is measured on the real clock because created_at comes from the database, not from options.now.
 			// An agent that creates the same title again soon after is almost always retrying a write that failed, so it is refused.
@@ -294,7 +266,6 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 						phaseId: ph.id,
 						key: s.key ?? `${p.key}.${n}`,
 						text: s.text,
-						requiredTarget: s.requiredTarget ?? null,
 						files: s.files ?? [],
 						position: n
 					});
@@ -324,17 +295,7 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 				targetId: created.id,
 				after: { title: created.title, ref }
 			});
-			return {
-				item: calc.item,
-				ref,
-				id: created.id,
-				...(input.manualChecks?.length
-					? {
-							notice:
-								'Manual checks no longer exist, so manualChecks was ignored. A browser check is saved with check_save.'
-						}
-					: {})
-			};
+			return { item: calc.item, ref, id: created.id };
 		})
 	);
 }
@@ -366,37 +327,6 @@ async function loadDetail(tx: Tx, ctx: Ctx, it: ItemRow) {
 		.from(step)
 		.where(eq(step.itemId, it.id))
 		.orderBy(asc(step.position));
-	// The item's browser checks with the result of each one's newest run (null when it never ran)
-	const checkRows = await tx
-		.select({
-			id: check.id,
-			key: check.checkKey,
-			title: check.title,
-			requiredTarget: check.requiredTarget
-		})
-		.from(check)
-		.where(eq(check.itemId, it.id))
-		.orderBy(asc(check.checkKey));
-	const newestRuns = checkRows.length
-		? await tx
-				.select({ checkId: checkRun.checkId, result: checkRun.result })
-				.from(checkRun)
-				.where(
-					and(
-						inArray(
-							checkRun.checkId,
-							checkRows.map((c) => c.id)
-						),
-						// A run that is still waiting or going has no result yet, so it never hides an earlier finished one
-						notInArray(checkRun.result, ['queued', 'running'])
-					)
-				)
-				.orderBy(desc(checkRun.createdAt))
-		: [];
-	const checks = checkRows.map(({ id, ...c }) => ({
-		...c,
-		lastResult: newestRuns.find((r) => r.checkId === id)?.result ?? null
-	}));
 	const decisions = await tx
 		.select()
 		.from(decision)
@@ -413,7 +343,6 @@ async function loadDetail(tx: Tx, ctx: Ctx, it: ItemRow) {
 		/** Only the person who made the item may change who sees it, so the page asks the server and never compares ids. */
 		canSetVisibility: !!ctx.actor?.userId && it.createdBy === ctx.actor.userId,
 		phases: phases.map((p) => ({ ...p, steps: steps.filter((s) => s.phaseId === p.id) })),
-		checks,
 		decisions,
 		sections
 	};

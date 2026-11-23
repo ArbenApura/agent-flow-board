@@ -18,7 +18,6 @@ import {
 	project,
 	projectMember,
 	projectPin,
-	runner,
 	user,
 	userPictureV
 } from '../db/schema';
@@ -327,8 +326,6 @@ export async function removeMember(
 					sql`${apiToken.revokedAt} is null`
 				)
 			);
-		// A runner they made, and the token that comes with it, goes with them: they know the token, and it opens test accounts
-		await tx.delete(runner).where(and(eq(runner.orgId, orgId), eq(runner.ownerId, targetId)));
 		return { userId: targetId };
 	});
 }

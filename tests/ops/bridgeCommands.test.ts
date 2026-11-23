@@ -35,12 +35,10 @@ describe('the bridge commands of the Connect page', () => {
 			for (const word of commandWords(c)) expect(SAID, `${c.command}: ${word}`).toContain(word);
 	});
 
-	it('hold the commands a person was told about: checks, mockups, held writes, hooks and stdio', () => {
+	it('hold the commands a person was told about: mockups, held writes, hooks and stdio, and no browser check command', () => {
 		const joined = ALL.map((c) => c.command).join('\n');
+		expect(joined).not.toMatch(/agent-flow-board check /);
 		for (const expected of [
-			'check connect',
-			'check doctor --fix',
-			'check approve --request',
 			'mockup push',
 			'queue list',
 			'hooks print',
@@ -69,15 +67,14 @@ describe('the bridge commands of the Connect page', () => {
 	});
 	it('filters by kind and by a word, grouped in the usual order, and finds nothing for a word that is not there', () => {
 		expect(filterCommands(ALL, 'All', '').map((g) => g.kind)).toEqual([...COMMAND_KINDS]);
-		const checks = filterCommands(ALL, 'Checks', '');
-		expect(checks).toHaveLength(1);
-		expect(checks[0].rows.every((c) => c.kind === 'Checks')).toBe(true);
-		const doctor = filterCommands(ALL, 'All', 'DOCTOR');
-		expect(doctor.flatMap((g) => g.rows).map((c) => c.command)).toEqual([
-			'agent-flow-board check doctor',
-			'agent-flow-board check doctor --fix --yes'
+		const mockups = filterCommands(ALL, 'Mockups', '');
+		expect(mockups).toHaveLength(1);
+		expect(mockups[0].rows.every((c) => c.kind === 'Mockups')).toBe(true);
+		const pushes = filterCommands(ALL, 'All', 'PUSH');
+		expect(pushes.flatMap((g) => g.rows).map((c) => c.command)).toEqual([
+			'agent-flow-board mockup push <file.html> --server https://board.example.com --org acme --item <ref>'
 		]);
-		expect(filterCommands(ALL, 'Mockups', 'doctor')).toEqual([]);
+		expect(filterCommands(ALL, 'Hooks', 'push')).toEqual([]);
 		expect(filterCommands(ALL, 'All', 'no such word anywhere')).toEqual([]);
 	});
 });

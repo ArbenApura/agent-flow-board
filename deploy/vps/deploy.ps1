@@ -68,7 +68,7 @@ if (-not $Rollback) {
 	# deploy/vps/live/ is not sent: the server writes it for every rollout
 	$paths = @(
 		'build', 'cli', 'package.json', 'yarn.lock', '.yarnrc.yml', '.yarn/releases',
-		'packages/bridge/package.json', 'packages/cli/package.json', 'packages/runner/package.json',
+		'packages/bridge/package.json', 'packages/cli/package.json',
 		'src/lib/server/db/migrations', 'Dockerfile.prebuilt', 'Dockerfile.prebuilt.dockerignore',
 		'deploy/vps/compose.yaml', 'deploy/vps/compose.prebuilt.yaml', 'deploy/vps/Caddyfile',
 		'deploy/vps/postgres-init.sh', 'deploy/vps/.env.example'

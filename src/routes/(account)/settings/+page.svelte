@@ -15,7 +15,6 @@
 	import { daysUntil, formatUtcDate } from '#lib/board/when.js';
 	import IdentityHeader from '#lib/settings/IdentityHeader.svelte';
 	import ModePreview from '#lib/settings/ModePreview.svelte';
-	import MyComputers from '#lib/settings/MyComputers.svelte';
 	import Section from '#lib/settings/Section.svelte';
 	import SettingsRow from '#lib/settings/SettingsRow.svelte';
 	import { live, setLiveMode } from '#lib/theme/live.svelte.js';
@@ -167,7 +166,6 @@
 	/** The preferences are one row, so a section sends its own fields and the saved values of the others. */
 	const prefsFields = (own: Record<string, string>) => ({
 		themeMode: live.mode,
-		checkTarget: prefs.checkTarget,
 		...(prefs.notifications.backupAlerts ? { backupAlerts: 'on' } : {}),
 		...own
 	});
@@ -420,20 +418,8 @@
 			icon={Plug}
 			group="Security"
 			title="Tools and tokens"
-			text="Your computers that run your browser checks, and the sign-ins that act as you. Nobody else can use either."
+			text="The sign-ins that act as you. Nobody else can use them."
 		>
-			<!-- YOUR COMPUTERS -->
-			<div class="flex flex-col gap-2" data-testid="computers">
-				<div>
-					<h3 class="text-xs font-medium text-muted">Your computers</h3>
-					<p class="text-xs text-muted">
-						A computer of yours that runs browser checks for you, with the agent-flow-board bridge.
-						A colleague's computer never runs yours, and yours never runs theirs.
-					</p>
-				</div>
-				<MyComputers computers={data.computers} {logoOf} {paletteOf} />
-			</div>
-
 			<!-- SIGN-INS -->
 			<div class="flex flex-col gap-2" data-testid="signins">
 				<div>

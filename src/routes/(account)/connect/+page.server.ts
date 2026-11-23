@@ -8,7 +8,6 @@ import { AFB_BASE_URL } from '$app/env/private';
 import { fail, redirect } from '@sveltejs/kit';
 // IMPORTED MODULES
 import { agentSetupMarkdown } from '#lib/connect/agentSetup.js';
-import { checksSetupMarkdown } from '#lib/connect/checksSetup.js';
 import { editorSetupMarkdown } from '#lib/connect/editorSetup.js';
 import { skillsBriefMarkdown } from '#lib/connect/skillsBrief.js';
 import { snippets } from '#lib/connect/snippets.js';
@@ -16,7 +15,6 @@ import { orgMcpUrl, toolPrefix } from '#lib/shared/orgConnection.js';
 import { getDb } from '#lib/server/db/index.js';
 import { listConnections, revokeConnection } from '#lib/server/oauth/oauth.js';
 import { capsOf, OpError } from '#lib/server/ops/context.js';
-import { bridgeRunners } from '#lib/server/ops/bridgeRunners.js';
 import { bridgeSignIn } from '#lib/server/ops/editorStatus.js';
 import { createToken } from '#lib/server/ops/tokens.js';
 import { listMyOrgs } from '#lib/server/orgs/orgs.js';
@@ -93,8 +91,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		return {
 			tab,
 			editor: null,
-			runners: null,
-			checksBrief: '',
 			skills,
 			baseUrl: AFB_BASE_URL,
 			snippets: snippets(AFB_BASE_URL),
@@ -107,17 +103,12 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			caps: []
 		};
 	const org = got.orgs.find((o) => o.id === got.ctx.orgId)!;
-	// Independent reads run together. The bridge sign in and the person's own check runners are read on every tab: the tab cards say how they stand
-	const [connections, signIn, runners] = await Promise.all([
+	// Independent reads run together. The bridge sign in is read on every tab: the tab cards say how it stands
+	const [connections, signIn] = await Promise.all([
 		listConnections(got.ctx),
 		// A failed read is said on the Editor status tab, never a blank
 		bridgeSignIn(got.ctx).catch((e) => {
 			console.error('The bridge sign in of the person could not be read.', e);
-			return null;
-		}),
-		// A failed read of the runners leaves the Bridge tab saying none is connected, with the cause in the log
-		bridgeRunners(got.ctx).catch((e) => {
-			console.error('The computers of the person could not be read.', e);
 			return null;
 		})
 	]);
@@ -130,9 +121,6 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	return {
 		tab,
 		editor,
-		runners,
-		// The prompt of the Bridge tab is built only for that tab
-		checksBrief: tab === 'bridge' ? checksSetupMarkdown(AFB_BASE_URL, { slug: org.slug }) : '',
 		skills,
 		baseUrl: AFB_BASE_URL,
 		// The snippets and the brief use the org that was resolved above, never the raw ?org= value

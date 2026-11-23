@@ -12,7 +12,7 @@ import { memoryStorage } from '../../../src/lib/server/adapters/storage';
 import { handleMcp } from '../../../src/lib/server/mcp/handler';
 import { approveDevice, pollDevice, startDevice } from '../../../src/lib/server/oauth/oauth';
 import { createToken } from '../../../src/lib/server/ops/tokens';
-import { approveToolConnection } from '../../../src/lib/server/ops/environments';
+import { approveToolConnection } from '../../../src/lib/server/ops/deviceApproval';
 import { makePostgres, type TestDb } from '../../../tests/support/db';
 import { makeWorld, type World } from '../../../tests/support/ops';
 import { isNetworkError, runBridge } from './bridge';

@@ -80,7 +80,6 @@ services:
       # Backups are off while BACKUP_KEY is empty or missing in .env. A key turns the nightly backup on
       BACKUP_KEY: ${BACKUP_KEY:-}
       BACKUP_DIR: /data/backups
-      AFB_MASTER_KEY: ${AFB_MASTER_KEY:?Set AFB_MASTER_KEY in .env}
       AFB_STORAGE_DIR: /data/files
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-log}
       EMAIL_FROM: ${EMAIL_FROM:-agent-flow-board <board@localhost>}

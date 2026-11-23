@@ -39,8 +39,6 @@ const handler: RequestHandler = async ({ request, params, url, locals }) => {
 			baseUrl: services.baseUrl!,
 			mailer: services.mailer,
 			jobs: services.jobs,
-			masterKey: services.masterKey,
-			runnerQueueMinutes: services.runnerQueueMinutes,
 			mockupSecret: services.mockupSecret,
 			mockupOrigin: services.mockupOrigin
 		}

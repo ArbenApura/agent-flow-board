@@ -2,7 +2,7 @@
 
 // IMPORTED DEP-MODULES
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -175,21 +175,33 @@ describe('the server command', () => {
 		expect(missing.stderr).toMatch(/--email/);
 	});
 
-	it('rotates the master key only with both keys given, and says how many keys it re-wrapped', () => {
-		const old = 'the-old-master-key-with-plenty-of-characters-0123';
-		const next = 'the-new-master-key-with-plenty-of-characters-0123';
-		expect(run(['secrets', 'rotate-master-key'], { AFB_MASTER_KEY: old }).status).toBe(1);
-		const plan = run(['secrets', 'rotate-master-key'], {
-			AFB_MASTER_KEY: old,
-			AFB_NEW_MASTER_KEY: next
-		});
-		expect(plan.status).toBe(2);
+	it('purges the stored files of old browser checks only when confirmed, and keeps every other file', async () => {
+		const files = join(dir, 'files');
+		mkdirSync(join(files, 'mf'), { recursive: true });
+		writeFileSync(join(files, 'mf', 'evidence-1.png'), 'old check screenshot');
+		writeFileSync(join(files, 'keep-1.png'), 'a real attachment');
+		await db.admin.exec(
+			`INSERT INTO attachment (org_id, project_id, kind, caption, filename, mime, size, checksum, storage_key) VALUES
+			 ('${SEED.acme}', '${SEED.checkout}', 'check-evidence', 'shot', 'e.png', 'image/png', 1, 'x', 'mf/evidence-1.png'),
+			 ('${SEED.acme}', '${SEED.checkout}', 'file', 'keep', 'k.png', 'image/png', 1, 'y', 'keep-1.png')`
+		);
+		const plan = run(['attachments', 'purge-check-evidence']);
+		expect(plan.status, plan.stderr).toBe(2);
+		expect(plan.stdout).toContain('Delete 1 stored file');
 		expect(plan.stdout).toContain('Nothing was changed');
-		const done = run(['secrets', 'rotate-master-key', '--confirm', db.name, '--yes'], {
-			AFB_MASTER_KEY: old,
-			AFB_NEW_MASTER_KEY: next
-		});
+		expect(existsSync(join(files, 'mf', 'evidence-1.png'))).toBe(true);
+		const done = run(['attachments', 'purge-check-evidence', '--confirm', db.name, '--yes']);
 		expect(done.status, done.stderr).toBe(0);
-		expect(done.stdout).toMatch(/Re-wrapped \d+ organisation keys?/);
+		expect(done.stdout).toContain('Removed 1 file.');
+		expect(existsSync(join(files, 'mf', 'evidence-1.png'))).toBe(false);
+		expect(existsSync(join(files, 'keep-1.png'))).toBe(true);
+		const left = await db.admin.query<{ kind: string }>(
+			`select kind from attachment where storage_key in ('mf/evidence-1.png', 'keep-1.png')`
+		);
+		expect(left.map((r) => r.kind)).toEqual(['file']);
+		// A second run has nothing to do
+		const again = run(['attachments', 'purge-check-evidence', '--confirm', db.name, '--yes']);
+		expect(again.status, again.stderr).toBe(0);
+		expect(again.stdout).toContain('Removed 0 files.');
 	});
 });

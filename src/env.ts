@@ -124,28 +124,6 @@ export const variables = defineEnvVars({
 			return v;
 		}
 	},
-	AFB_MASTER_KEY: {
-		description:
-			"At least 32 characters. Wraps each organisation's secret key, which seals the test account passwords browser checks sign in with. Browser check secrets are off while this is unset. Keep it out of the database and out of backups.",
-		schema: (value) => {
-			const v = optional(value);
-			if (v !== undefined && v.length < 32)
-				throw new Error('AFB_MASTER_KEY must be at least 32 characters');
-			return v;
-		}
-	},
-	AFB_RUNNER_QUEUE_MINUTES: {
-		description:
-			'How long a browser check or UI shots run waits for a runner before it is reported as stuck. Default 10.',
-		schema: (value) => {
-			const v = optional(value);
-			if (v === undefined) return 10;
-			const n = Number(v);
-			if (!Number.isInteger(n) || n < 1 || n > 240)
-				throw new Error('AFB_RUNNER_QUEUE_MINUTES must be 1 to 240');
-			return n;
-		}
-	},
 	BACKUP_DIR: {
 		description:
 			'Folder for backups when no BACKUP_S3 settings are given. Keep it on a different disk from the data.',

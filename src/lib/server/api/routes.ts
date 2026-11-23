@@ -66,8 +66,6 @@ import {
 	updateProject
 } from '../ops/projects';
 import {
-	addChecksInput,
-	addManualChecks,
 	addPhase,
 	addPhaseInput,
 	addSteps,
@@ -103,36 +101,7 @@ import {
 	setOrgLogo,
 	updateOrgSettings
 } from '../ops/settings';
-import {
-	checkInput,
-	deleteCheck,
-	itemChecks,
-	listRuns,
-	requestRun,
-	requestRunInput,
-	saveCheck
-} from '../ops/checks';
-import {
-	accountInput,
-	deleteAccount,
-	deleteEnvironment,
-	environmentFields,
-	listAccounts,
-	listEnvironments,
-	approveToolConnection,
-	registerToolRunner,
-	saveAccount,
-	saveEnvironment,
-	toolApprovalInput,
-	toolRunnerInput
-} from '../ops/environments';
-import { listMyBridges, removeMyBridge, setMyBridgeProjects } from '../ops/bridgeRunners';
-import {
-	deleteDevRegistration,
-	devRegistrationApiBody,
-	listDevRegistrations,
-	saveDevRegistration
-} from '../ops/devRegistrations';
+import { approveToolConnection, toolApprovalInput } from '../ops/deviceApproval';
 import { mockupRoutes } from './mockupRoutes';
 import { noteRoutes } from './noteRoutes';
 import { noteVersionRoutes } from './noteVersionRoutes';
@@ -272,7 +241,7 @@ export const routes: Route[] = [
 		method: 'GET',
 		path: '/orgs/{org}/items/{item}',
 		summary:
-			'Read an item with phases, steps, checks, decisions and sections. The name may be an id, a reference or an old alias.',
+			'Read an item with phases, steps, decisions and sections. The name may be an id, a reference or an old alias.',
 		tag: 'Items',
 		handler: ({ ctx, params }) => getItem(ctx, params.item)
 	},
@@ -328,17 +297,8 @@ export const routes: Route[] = [
 	},
 	{
 		method: 'POST',
-		path: '/orgs/{org}/items/{item}/checks',
-		summary: 'Retired: manual checks no longer exist. Answers with a notice and writes nothing',
-		tag: 'Plan',
-		body: strip(addChecksInput, 'item'),
-		handler: ({ ctx, params, body }) =>
-			addManualChecks(ctx, { ...(body as object), item: params.item } as never)
-	},
-	{
-		method: 'POST',
 		path: '/orgs/{org}/items/{item}/record',
-		summary: 'Mark steps and checks. Moves the status automatically and returns the next steps.',
+		summary: 'Mark steps. Moves the status automatically and returns the next steps.',
 		tag: 'Progress',
 		body: strip(recordInput, 'item'),
 		handler: ({ ctx, params, body }) => recordSteps(ctx, { ...(body as object), item: params.item })
@@ -894,166 +854,15 @@ export const routes: Route[] = [
 		handler: ({ ctx, params }) => revokeInvite(ctx.handle, ctx.orgId, ctx.actor.userId, params.id)
 	},
 
-	// -- environments, test accounts and runners (browser checks and UI shots, SPEC 10) -- //
-	{
-		method: 'GET',
-		path: '/orgs/{org}/projects/{project}/environments',
-		summary: 'The environments browser checks and UI shots can run against',
-		tag: 'Browser checks',
-		handler: ({ ctx, params }) => listEnvironments(ctx, params.project)
-	},
-	{
-		method: 'PUT',
-		path: '/orgs/{org}/projects/{project}/environments',
-		summary: 'Add an environment, or change the one with the same name (admins and owners)',
-		tag: 'Browser checks',
-		body: strip(environmentFields, 'project'),
-		handler: ({ ctx, params, body }) =>
-			saveEnvironment(ctx, { ...(body as object), project: params.project } as never)
-	},
-	{
-		method: 'DELETE',
-		path: '/orgs/{org}/projects/{project}/environments/{name}',
-		summary: 'Remove an environment',
-		tag: 'Browser checks',
-		handler: ({ ctx, params }) => deleteEnvironment(ctx, params.project, params.name)
-	},
-	{
-		method: 'GET',
-		path: '/orgs/{org}/projects/{project}/dev-registrations',
-		summary: 'Advisory dev-server check registrations of a project',
-		tag: 'Browser checks',
-		handler: ({ ctx, params }) => listDevRegistrations(ctx, params.project)
-	},
-	{
-		method: 'PUT',
-		path: '/orgs/{org}/projects/{project}/dev-registrations',
-		summary:
-			'Save advisory dev-registration facts (managers only; local execution settings stay on the bridge)',
-		tag: 'Browser checks',
-		body: devRegistrationApiBody,
-		handler: ({ ctx, params, body }) =>
-			saveDevRegistration(ctx, { ...(body as object), project: params.project })
-	},
-	{
-		method: 'DELETE',
-		path: '/orgs/{org}/projects/{project}/dev-registrations/{name}',
-		summary: 'Remove an advisory dev registration',
-		tag: 'Browser checks',
-		handler: ({ ctx, params }) => deleteDevRegistration(ctx, params.project, params.name)
-	},
-	{
-		method: 'GET',
-		path: '/orgs/{org}/projects/{project}/accounts',
-		summary: 'The names of the test accounts runs sign in with. Never their passwords.',
-		tag: 'Browser checks',
-		handler: ({ ctx, params }) => listAccounts(ctx, params.project)
-	},
-	{
-		method: 'PUT',
-		path: '/orgs/{org}/projects/{project}/accounts',
-		summary: 'Save a test account, sealed. Only a signed in admin or owner.',
-		tag: 'Browser checks',
-		sessionOnly: true,
-		body: strip(accountInput, 'project'),
-		handler: ({ ctx, params, body }) =>
-			saveAccount(ctx, { ...(body as object), project: params.project } as never)
-	},
-	{
-		method: 'DELETE',
-		path: '/orgs/{org}/projects/{project}/accounts/{name}',
-		summary: 'Remove a test account',
-		tag: 'Browser checks',
-		sessionOnly: true,
-		handler: ({ ctx, params }) => deleteAccount(ctx, params.project, params.name)
-	},
-	{
-		method: 'GET',
-		path: '/orgs/{org}/my-bridges',
-		summary: 'Your own computers in this organisation, and the web apps you may choose for them',
-		tag: 'Browser checks',
-		handler: ({ ctx }) => listMyBridges(ctx)
-	},
-	{
-		method: 'POST',
-		path: '/orgs/{org}/runners/tool',
-		summary:
-			'Register the afb-checks bridge of this computer for you. A personal token that may write is enough. Its token is shown once.',
-		tag: 'Browser checks',
-		body: toolRunnerInput,
-		handler: ({ ctx, body }) => registerToolRunner(ctx, body as never)
-	},
+	// -- the bridge sign in -- //
 	{
 		method: 'POST',
 		path: '/orgs/{org}/runners/tool/approve',
 		summary:
-			'Approve the sign in code of the afb-checks tool that printed it, with the verifier it printed. The caller must hold the manage permission.',
-		tag: 'Browser checks',
+			'Approve the sign in code of the bridge that printed it, with the verifier it printed. The caller must hold the manage permission.',
+		tag: 'Tokens',
 		body: toolApprovalInput,
 		handler: ({ ctx, body }) => approveToolConnection(ctx, body as never)
-	},
-	{
-		method: 'PUT',
-		path: '/orgs/{org}/my-bridges/{id}/projects',
-		summary: 'Choose the web apps one of your own computers may check',
-		tag: 'Browser checks',
-		sessionOnly: true,
-		body: z.object({ projects: z.array(z.string().min(1)).max(50) }),
-		handler: ({ ctx, params, body }) =>
-			setMyBridgeProjects(ctx, {
-				id: params.id,
-				projects: (body as { projects: string[] }).projects
-			})
-	},
-	{
-		method: 'DELETE',
-		path: '/orgs/{org}/my-bridges/{id}',
-		summary: 'Remove one of your own computers. Its token stops working at once.',
-		tag: 'Browser checks',
-		sessionOnly: true,
-		handler: ({ ctx, params }) => removeMyBridge(ctx, params.id)
-	},
-
-	// -- browser checks -- //
-	{
-		method: 'GET',
-		path: '/orgs/{org}/items/{item}/browser-checks',
-		summary: 'The browser checks of an item, their newest runs and which targets can run now',
-		tag: 'Browser checks',
-		handler: ({ ctx, params }) => itemChecks(ctx, params.item)
-	},
-	{
-		method: 'PUT',
-		path: '/orgs/{org}/items/{item}/browser-checks',
-		summary: 'Save one browser check of an item',
-		tag: 'Browser checks',
-		body: strip(checkInput, 'item'),
-		handler: ({ ctx, params, body }) =>
-			saveCheck(ctx, { ...(body as object), item: params.item } as never)
-	},
-	{
-		method: 'DELETE',
-		path: '/orgs/{org}/items/{item}/browser-checks/{key}',
-		summary: 'Remove one browser check of an item',
-		tag: 'Browser checks',
-		handler: ({ ctx, params }) => deleteCheck(ctx, params.item, params.key)
-	},
-	{
-		method: 'POST',
-		path: '/orgs/{org}/items/{item}/browser-checks/runs',
-		summary:
-			'Ask for a run. An unavailable target is reported with the targets that can run, never swapped.',
-		tag: 'Browser checks',
-		body: strip(requestRunInput, 'item'),
-		handler: ({ ctx, params, body }) =>
-			requestRun(ctx, { ...(body as object), item: params.item } as never)
-	},
-	{
-		method: 'GET',
-		path: '/orgs/{org}/items/{item}/browser-checks/runs',
-		summary: 'The newest runs of an item',
-		tag: 'Browser checks',
-		handler: ({ ctx, params }) => listRuns(ctx, { item: params.item })
 	},
 
 	// -- tokens (a person signed in on the web, never a token) -- //

@@ -6,7 +6,7 @@
 //   yarn server restore org <file> [--replace] [--scratch-url <url>] --confirm <database> --yes
 //   yarn server restore full <dir> --confirm <database> --yes
 //   yarn server owner reset-password --org <slug> --email <address> [--password <new>] --confirm <database> --yes
-//   yarn server secrets rotate-master-key --confirm <database> --yes
+//   yarn server attachments purge-check-evidence --confirm <database> --yes   (one time: files of removed browser checks)
 //
 // A restore prints what it would do and stops unless --yes is given with --confirm naming the database it will change.
 // Settings come from the environment, the same names the app uses: DATABASE_URL (and DATABASE_OWNER_URL), DATABASE_BACKUP_URL
@@ -231,24 +231,38 @@ try {
 			newPassword: option('--password')
 		});
 		console.log(`New password for ${email}, shown once:\n${done.password}`);
-	} else if (group === 'secrets' && command === 'rotate-master-key') {
-		// The old key is AFB_MASTER_KEY, the new one AFB_NEW_MASTER_KEY. Neither is a command line argument, so neither is in a process list
-		const oldKey = env.AFB_MASTER_KEY ?? fail('AFB_MASTER_KEY (the key now in use) is required.');
-		const newKey =
-			env.AFB_NEW_MASTER_KEY ?? fail('AFB_NEW_MASTER_KEY (the key to change to) is required.');
+	} else if (group === 'attachments' && command === 'purge-check-evidence') {
+		// One time, after the browser checks were removed: the screenshots and result files of old check runs. Files first, rows second,
+		// so a stop in the middle leaves rows whose files are gone (a rerun finishes them) and never files nobody can find.
 		await open();
-		confirmed([
-			'Re-wrap every organisation secret key with the new master key.',
-			'Afterwards set AFB_MASTER_KEY to the new key and restart the app.'
-		]);
-		const { rotateMasterKey } = await import('../src/lib/server/secrets/vault');
-		const done = await rotateMasterKey(admin!, oldKey, newKey);
-		console.log(
-			`Re-wrapped ${done.rewrapped} organisation key${done.rewrapped === 1 ? '' : 's'}. Set AFB_MASTER_KEY to the new key now.`
+		const rows = await admin!.query<{ id: string; storage_key: string }>(
+			`select "id", "storage_key" from "attachment" where "kind" = 'check-evidence' order by "id"`
 		);
+		// The table of old UI shot runs is gone once the migration ran, and the query would not even plan without it
+		const [hasShots] = await admin!.query<{ here: boolean }>(
+			`select to_regclass('public.ui_shot_run') is not null as "here"`
+		);
+		const shotRows = hasShots?.here
+			? await admin!.query<{ id: string; storage_key: string }>(
+					`select "id", "storage_key" from "attachment"
+					 where "id"::text in (select jsonb_array_elements_text("image_attachment_ids") from "ui_shot_run")`
+				)
+			: [];
+		const all = [...new Map([...rows, ...shotRows].map((r) => [r.id, r])).values()];
+		confirmed([
+			`Delete ${all.length} stored file${all.length === 1 ? '' : 's'} of old browser check runs and their attachment rows.`,
+			'Nothing else is touched. Run it again if it stops; it finishes what is left.'
+		]);
+		let removed = 0;
+		for (const r of all) {
+			await files.delete(r.storage_key);
+			await admin!.query(`delete from "attachment" where "id" = $1`, [r.id]);
+			removed++;
+		}
+		console.log(`Removed ${removed} file${removed === 1 ? '' : 's'}.`);
 	} else {
 		console.error(
-			'Usage:\n  yarn server backup run | list | verify <file>\n  yarn server restore org <file> [--replace] [--scratch-url <url>] --confirm <database> --yes\n  yarn server restore full <dir> --confirm <database> --yes\n  yarn server owner reset-password --org <slug> --email <address> [--password <new>] --confirm <database> --yes\n  yarn server secrets rotate-master-key --confirm <database> --yes (old key in AFB_MASTER_KEY, new key in AFB_NEW_MASTER_KEY)'
+			'Usage:\n  yarn server backup run | list | verify <file>\n  yarn server restore org <file> [--replace] [--scratch-url <url>] --confirm <database> --yes\n  yarn server restore full <dir> --confirm <database> --yes\n  yarn server owner reset-password --org <slug> --email <address> [--password <new>] --confirm <database> --yes\n  yarn server attachments purge-check-evidence --confirm <database> --yes'
 		);
 		process.exitCode = 1;
 	}

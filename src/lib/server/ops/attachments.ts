@@ -4,12 +4,12 @@
 import type { Ctx } from './context';
 // IMPORTED DEP-MODULES
 import { createHash, randomUUID } from 'node:crypto';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // IMPORTED MODULES
 import { appendEvent } from '../db/events';
-import { attachment, checkRun, item, org, step } from '../db/schema';
-import { isMockupKey, mockupEvidenceKey } from '../mockups/keys';
+import { attachment, item, org } from '../db/schema';
+import { isMockupKey } from '../mockups/keys';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields, canSeeItem } from './items';
 import { findItem } from './resolve';
@@ -84,22 +84,8 @@ function storage(ctx: Ctx) {
 }
 
 /** Stores a file for an item. The type comes from the extension, never from what the sender claims. */
-export async function addAttachment(
-	ctx: Ctx,
-	raw: z.input<typeof attachInput>,
-	bytes: Uint8Array,
-	opts?: { allowEvidenceKind?: boolean }
-) {
+export async function addAttachment(ctx: Ctx, raw: z.input<typeof attachInput>, bytes: Uint8Array) {
 	const input = attachInput.parse(raw);
-	if (input.kind === 'check-evidence') {
-		if (!opts?.allowEvidenceKind)
-			throw new OpError(
-				'FORBIDDEN',
-				'Check evidence attachments may only be stored by a running browser check.'
-			);
-		if (input.visibility === 'public')
-			throw new OpError('FORBIDDEN', 'Check evidence cannot be made public.');
-	}
 	const ext = extOf(input.filename);
 	if (!ALLOWED.has(ext))
 		throw new OpError(
@@ -116,10 +102,7 @@ export async function addAttachment(
 			await requireCap(tx, ctx, 'write', it.projectId);
 			await rateLimit(tx, ctx, 'write');
 			const cleaned = clean(input.filename);
-			const key =
-				input.kind === 'check-evidence'
-					? mockupEvidenceKey(ctx.orgId, it.projectId, cleaned)
-					: `${ctx.orgId}/${it.projectId}/${randomUUID()}-${cleaned}`;
+			const key = `${ctx.orgId}/${it.projectId}/${randomUUID()}-${cleaned}`;
 			const checksum = createHash('sha256').update(bytes).digest('hex');
 			// Write object first; remove it immediately if the database insert or event write fails
 			await store.put(key, bytes, MIME[ext]);
@@ -244,14 +227,14 @@ export async function attachmentLink(ctx: Ctx, attachmentId: string) {
 	};
 }
 
-/** Builds the HTTP response for /[org]/attachment/[id], serving check-evidence and mockup-derived files directly with sandbox+nosniff headers. */
+/** Builds the HTTP response for /[org]/attachment/[id], serving mockup-derived files directly with sandbox+nosniff headers. */
 export async function serveAttachmentResponse(
 	ctx: Ctx,
 	attachmentId: string,
 	ifNoneMatch?: string | null
 ): Promise<Response> {
 	const meta = await readAttachmentMeta(ctx, attachmentId);
-	if (meta.kind === 'check-evidence' || isMockupKey(meta.storageKey)) {
+	if (isMockupKey(meta.storageKey)) {
 		const etag = `"${meta.checksum}"`;
 		const mime = meta.mime === 'text/html' ? 'text/plain; charset=utf-8' : meta.mime;
 		const headers = {
@@ -291,8 +274,6 @@ export async function setAttachmentVisibility(
 			await requireCap(tx, ctx, 'write', a.projectId);
 			// A file of an item this person cannot see answers like a file that does not exist
 			if (a.itemId) await findItem(tx, ctx, a.itemId, { includeTrashed: true });
-			if (a.kind === 'check-evidence' && visibility === 'public')
-				throw new OpError('FORBIDDEN', 'Check evidence cannot be made public.');
 			if (a.visibility === visibility) return { attachment: a, changed: false };
 			const [row] = await tx
 				.update(attachment)
@@ -365,42 +346,6 @@ export async function deleteAttachment(ctx: Ctx, attachmentId: string) {
 		await requireCap(tx, ctx, 'delete', a.projectId);
 		// A file of an item this person cannot see answers like a file that does not exist
 		if (a.itemId) await findItem(tx, ctx, a.itemId, { includeTrashed: true });
-		if (a.kind === 'check-evidence' && a.itemId) {
-			const pinnedRows = await tx
-				.select({ evidence: step.evidence })
-				.from(step)
-				.innerJoin(item, eq(item.id, step.itemId))
-				.where(
-					and(
-						eq(step.itemId, a.itemId),
-						sql`${item.deletedAt} is null`,
-						sql`(${step.evidence}->>'checkRunId' is not null or jsonb_array_length(coalesce(${step.evidence}->'runIds', '[]'::jsonb)) > 0)`
-					)
-				);
-			const pinnedIds = new Set<string>();
-			for (const row of pinnedRows) {
-				if (row.evidence?.checkRunId) pinnedIds.add(row.evidence.checkRunId);
-				for (const rid of row.evidence?.runIds ?? []) {
-					if (rid) pinnedIds.add(rid);
-				}
-			}
-			const pinnedEvidenceIds = new Set<string>();
-			if (pinnedIds.size) {
-				const pinnedRuns = await tx
-					.select({ evidence: checkRun.evidence })
-					.from(checkRun)
-					.where(inArray(checkRun.id, [...pinnedIds]));
-				for (const pr of pinnedRuns) {
-					for (const eid of pr.evidence) pinnedEvidenceIds.add(eid);
-				}
-			}
-			const refs = Array.isArray(a.refs) ? a.refs : [];
-			if (refs.some((r) => pinnedIds.has(r)) || pinnedEvidenceIds.has(a.id))
-				throw new OpError(
-					'CONFLICT',
-					'This evidence belongs to a run pinned by a plan step and cannot be deleted.'
-				);
-		}
 		await tx
 			.update(attachment)
 			.set({ deletedAt: sql`now()` })

@@ -1,4 +1,4 @@
-// SAMPLE DATA FOR LOCAL DEVELOPMENT, THE UI SHOTS AND THE LOAD TESTS (3.9)
+// SAMPLE DATA FOR LOCAL DEVELOPMENT, THE BROWSER TESTS AND THE LOAD TESTS (3.9)
 // Written as a superuser, which bypasses row level security. Never run against a real deployment.
 
 // IMPORTED TYPES
@@ -81,11 +81,11 @@ export async function seedDemo(
 	await db.exec(
 		`INSERT INTO member (org_id, user_id, role) VALUES ${SEED_USERS.map((u) => `('${orgId[u.org]}', '${u.id}', '${u.role}')`).join(', ')} ON CONFLICT DO NOTHING`
 	);
-	await db.exec(`INSERT INTO project (id, org_id, key, name, web_app) VALUES
-		('${SEED.checkout}', '${SEED.acme}', 'CKT', 'Checkout rebuild', true),
-		('${SEED.web}', '${SEED.acme}', 'WEB', 'Marketing site', true),
-		('${SEED.load}', '${SEED.acme}', 'LOAD', 'Load test project', false),
-		('${SEED.lumoraProject}', '${SEED.lumora}', 'LUM', 'Lumora launch', false)
+	await db.exec(`INSERT INTO project (id, org_id, key, name) VALUES
+		('${SEED.checkout}', '${SEED.acme}', 'CKT', 'Checkout rebuild'),
+		('${SEED.web}', '${SEED.acme}', 'WEB', 'Marketing site'),
+		('${SEED.load}', '${SEED.acme}', 'LOAD', 'Load test project'),
+		('${SEED.lumoraProject}', '${SEED.lumora}', 'LUM', 'Lumora launch')
 		ON CONFLICT DO NOTHING`);
 	// Named items with phases and steps, so every board page has something real to show
 	const named = [

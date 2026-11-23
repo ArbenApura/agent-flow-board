@@ -12,7 +12,7 @@ import { apiToken, org } from '../db/schema';
 import { MOD_PART, installPlan, servedModFile } from '../editor-status';
 import { pageText } from '../system-skills/plan';
 import { OpError, requireCap, run } from './context';
-import { BRIDGE_CLIENT } from './environments';
+import { BRIDGE_CLIENT } from './deviceApproval';
 
 // -- TYPES -- //
 

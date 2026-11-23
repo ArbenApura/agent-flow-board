@@ -10,7 +10,7 @@ import { orgContext } from '#lib/server/web/ctx.js';
 // -- FUNCTIONS -- //
 
 /**
- * Serves one attachment picture or evidence file. Check-evidence and mockup-derived assets are served directly with the same
+ * Serves one attachment picture or file. Mockup-derived assets are served directly with the same
  * sandbox and nosniff headers as /pictures instead of a redirect. Other files redirect through a short-lived signed link.
  */
 export const GET: RequestHandler = async ({ params, locals, url, request }) => {

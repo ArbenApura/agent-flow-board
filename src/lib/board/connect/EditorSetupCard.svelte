@@ -81,7 +81,7 @@
 					and asks you before it installs anything.
 				</p>
 				<p class="mt-3 text-sm text-muted">
-					The same bridge also runs browser checks, publishes mockups and has more commands.
+					The same bridge also publishes mockups and has more commands.
 					<a href={bridgeHref} class="font-medium text-accent-text hover:underline"
 						>See the Bridge tab</a
 					>.

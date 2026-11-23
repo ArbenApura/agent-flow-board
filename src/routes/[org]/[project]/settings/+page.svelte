@@ -27,7 +27,6 @@
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import ErrorState from '#lib/ui/ErrorState.svelte';
 	import Skeleton from '#lib/ui/Skeleton.svelte';
-	import Switch from '#lib/ui/Switch.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
@@ -45,7 +44,6 @@
 	// -- STATES -- //
 
 	let name = $state('');
-	let webApp = $state(false);
 	let streams = $state<StreamRow[]>([]);
 	let status = $state<Record<string, { saving: boolean; saved: boolean; error: string }>>({});
 	let retryingActivity = $state(false);
@@ -73,7 +71,7 @@
 	const dirty = $derived(
 		p
 			? {
-					general: name.trim() !== p.name || webApp !== p.webApp,
+					general: name.trim() !== p.name,
 					streams: canon(savedStreams(streams)) !== canon(p.streams)
 				}
 			: {
@@ -94,7 +92,6 @@
 	$effect(() => {
 		if (!p) return;
 		follow('name', p.name, (v) => (name = v));
-		follow('webApp', p.webApp, (v) => (webApp = v));
 		follow('streams', p.streams, (v) => (streams = withIds(v)));
 	});
 
@@ -190,7 +187,7 @@
 				saved={st('general').saved}
 				error={st('general').error}
 				readonly={!can}
-				onsave={() => patchProject('general', { name: name.trim(), webApp })}
+				onsave={() => patchProject('general', { name: name.trim() })}
 			>
 				<TextField
 					label="Project name"
@@ -219,13 +216,6 @@
 							{size}
 						/>{/snippet}
 				</PictureUpload>
-
-				<Switch
-					label="This project is a web app"
-					hint="Web apps can run browser checks and UI shots through the agent-flow-board bridge."
-					bind:checked={webApp}
-					disabled={!can}
-				/>
 			</Section>
 
 			<Section

@@ -36,9 +36,6 @@ export type ItemHealth = {
 };
 export type StepEvidence = {
 	commit?: string;
-	checkRunId?: string;
-	runIds?: string[];
-	target?: string;
 	note?: string;
 };
 
@@ -160,8 +157,6 @@ export const step = tenantTable(
 		key: text('key').notNull(),
 		text: text('text').notNull(),
 		state: text('state', { enum: STEP_STATES }).notNull().default('open'),
-		/** A pass counts only on this target (L25): dev, preview or deployed. */
-		requiredTarget: text('required_target'),
 		/** Files this step touches, kept as a note for related plans. */
 		files: jsonb('files')
 			.$type<string[]>()

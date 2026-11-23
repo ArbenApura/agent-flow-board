@@ -295,21 +295,16 @@ describe('tracking', () => {
 		expect(byPerson.statusChanges[0].to).toBe('COMPLETED');
 	});
 
-	it('evidence is checked by the server: a fake or empty commit, a wrong check run and a weak target are refused with the reason', async () => {
+	it('evidence is checked by the server: a commit that is not a git hash is refused with the reason, and a commit with a note is stored', async () => {
 		const it = await newItem('Evidence', {
 			phases: [
 				{
 					key: '1',
 					title: 'Build',
-					steps: [
-						{ text: 'Plain step' },
-						{ text: 'Needs a preview pass', requiredTarget: 'preview' },
-						{ text: 'Another' }
-					]
+					steps: [{ text: 'Plain step' }, { text: 'Second' }, { text: 'Another' }]
 				}
 			]
 		});
-		const other = await newItem('Other item');
 		const id = await newSession();
 		const ctx = () => agent('member', id);
 		const refused = async (marks: Parameters<typeof recordSteps>[1]['marks'], message: RegExp) =>
@@ -323,21 +318,6 @@ describe('tracking', () => {
 			[{ key: '1.1', mark: 'done', evidence: { commit: 'not-a-hash' } }],
 			/not a git hash/
 		);
-		await refused(
-			[{ key: '1.1', mark: 'done', evidence: { target: 'preview' } }],
-			/needs the checkRunId/
-		);
-		await refused([{ key: '1.2', mark: 'done' }], /needs a passed check run on preview/);
-		await refused(
-			[
-				{
-					key: '1.2',
-					mark: 'done',
-					evidence: { checkRunId: '00000000-0000-4000-8000-000000000099' }
-				}
-			],
-			/no such check run/
-		);
 		const ok = await recordSteps(ctx(), {
 			item: it.ref,
 			marks: [
@@ -349,67 +329,11 @@ describe('tracking', () => {
 			]
 		});
 		expect(ok.changed).toEqual([{ key: '1.1', from: 'open', to: 'done' }]);
-		// Check runs: set up a check on this item and one on another item
-		const check = async (
-			itemId: string,
-			key: string,
-			run: { target: string; result: string; commit?: string }
-		) => {
-			const rows = await db.admin.query<{ id: string }>(
-				`insert into "check" (org_id, project_id, item_id, check_key, script, required_target) values ('${w.orgId}', '${w.projectId}', '${itemId}', '${key}', 'x.mjs', 'preview') returning id`
-			);
-			const runRows = await db.admin.query<{ id: string }>(
-				`insert into check_run (org_id, project_id, check_id, target, result${run.commit ? ', "commit"' : ''}) values ('${w.orgId}', '${w.projectId}', '${rows[0].id}', '${run.target}', '${run.result}'${run.commit ? `, '${run.commit}'` : ''}) returning id`
-			);
-			return runRows[0].id;
-		};
-		const failedRun = await check(it.id, 'M1', { target: 'preview', result: 'fail' });
-		const devRun = await check(it.id, 'M2', { target: 'dev', result: 'pass' });
-		const foreignRun = await check(other.id, 'M1', { target: 'preview', result: 'pass' });
-		const goodRun = await check(it.id, 'M3', {
-			target: 'deployed',
-			result: 'pass',
-			commit: 'a'.repeat(40)
-		});
-		await refused(
-			[{ key: '1.2', mark: 'done', evidence: { checkRunId: failedRun } }],
-			/did not pass \(fail\)/
-		);
-		await refused(
-			[{ key: '1.2', mark: 'done', evidence: { checkRunId: devRun } }],
-			/needs a pass on preview, and that run was on dev/
-		);
-		await refused(
-			[{ key: '1.2', mark: 'done', evidence: { checkRunId: foreignRun } }],
-			/belongs to another item/
-		);
-		await refused(
-			[{ key: '1.2', mark: 'done', evidence: { checkRunId: goodRun, target: 'preview' } }],
-			/ran on deployed, not preview/
-		);
-		await refused(
-			[
-				{ key: '1.2', mark: 'done', evidence: { checkRunId: goodRun, commit: 'a'.repeat(7) + 'f' } }
-			],
-			/different commit/
-		);
-		// A pass on a stronger target satisfies the requirement, on the same commit
-		const good = await recordSteps(ctx(), {
-			item: it.ref,
-			marks: [
-				{
-					key: '1.2',
-					mark: 'done',
-					evidence: { checkRunId: goodRun, target: 'deployed', commit: 'a'.repeat(40) }
-				}
-			]
-		});
-		expect(good.changed[0].to).toBe('done');
 		const stored = await withTenant(db, { orgId: w.orgId }, async (tx) =>
-			(await tx.select().from(step).where(eq(step.itemId, it.id))).find((s) => s.key === '1.2')
+			(await tx.select().from(step).where(eq(step.itemId, it.id))).find((s) => s.key === '1.1')
 		);
-		expect(stored?.evidence).toMatchObject({ checkRunId: goodRun, target: 'deployed' });
-		// A step with no evidence and no required target needs none, and waiving needs none either
+		expect(stored?.evidence).toMatchObject({ commit: 'a'.repeat(10), note: 'Checked by hand' });
+		// A step with no evidence needs none
 		const plain = await recordSteps(ctx(), { item: it.ref, marks: [{ key: '1.3', mark: 'done' }] });
 		expect(plain.changed[0].to).toBe('done');
 	});

@@ -55,19 +55,14 @@ describe('workflow text', () => {
 			expect(workflowFile('flow-critic', f).length, f).toBeGreaterThan(500);
 	});
 
-	it('serves the flow browser checks reference as a file of flow, readable to the end in parts (AFB-20261116-1457)', () => {
-		expect(WORKFLOW_FILES.flow).toEqual(['checks', 'reference']);
-		const text = workflowFile('flow', 'checks');
-		expect(text.length).toBeGreaterThan(500);
-		let joined = '';
-		for (let off = 0; off < text.length; off += 12_000) joined += text.slice(off, off + 12_000);
-		expect(joined).toBe(text);
-		expect(text).toContain('How a run works');
-		expect(workflowByName('flow')!.body).toContain('file `checks`');
+	it('serves only the reference as a file of flow; the browser checks file was removed (AFB-20261123-0936)', () => {
+		expect(WORKFLOW_FILES.flow).toEqual(['reference']);
 		// A file belongs to its own workflow only
 		expect(() => workflowFile('flow', 'plan-lenses')).toThrow();
+		expect(() => workflowFile('flow', 'checks')).toThrow();
 		expect(() => workflowFile('flow-critic', 'checks')).toThrow();
 		expect(() => workflowFile('flow-audit', 'checks')).toThrow();
+		expect(workflowByName('flow')!.body).not.toMatch(/file `checks`|agent-flow-board check/);
 	});
 
 	it('serves the flow reference (lite flow, model rows, tools, errors) as a file of flow, readable to the end in parts (AFB-20261116-1551)', () => {

@@ -1,4 +1,4 @@
-// SIGN IN FOR THE SEEDED PEOPLE, SO UI SHOTS AND BROWSER CHECKS CAN SIGN IN AS AN OWNER, ADMIN, MEMBER OR VIEWER
+// SIGN IN FOR THE SEEDED PEOPLE, SO THE BROWSER TESTS CAN SIGN IN AS AN OWNER, ADMIN, MEMBER OR VIEWER
 // Local development and previews only. The password is public on purpose, so it must never reach a deployment.
 
 // IMPORTED TYPES

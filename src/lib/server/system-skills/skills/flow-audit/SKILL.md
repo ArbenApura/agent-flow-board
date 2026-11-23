@@ -24,7 +24,7 @@ Check that the item records everything that was built and claims nothing that wa
 
 ## Step 1 - Find the item
 
-Use the reference the user gives (the form `<KEY>-YYYYMMDD-HHMM`; an older id form resolves as an alias). Otherwise use the item this session was working on, or the newest IN PROGRESS item in `board_brief`. `work_start` it, then read it: `item_get` with `fields: ["steps","checks","decisions","sections"]`, `item_doc` for the `spec`, `validation`, `references`, `resume-here` and `blockers` sections, and `item_history` for what was changed and by whom. Note the base commit from the `references` section. Run `board_validate` for the item first and fix its errors before anything else.
+Use the reference the user gives (the form `<KEY>-YYYYMMDD-HHMM`; an older id form resolves as an alias). Otherwise use the item this session was working on, or the newest IN PROGRESS item in `board_brief`. `work_start` it, then read it: `item_get` with `fields: ["steps","decisions","sections"]`, `item_doc` for the `spec`, `validation`, `references`, `resume-here` and `blockers` sections, and `item_history` for what was changed and by whom. Note the base commit from the `references` section. Run `board_validate` for the item first and fix its errors before anything else.
 
 ## Step 2 - Collect what was built
 
@@ -45,7 +45,7 @@ Build the evidence list:
 - New database migrations, and any change to roles, grants or access rules. Find them through the repo's own layout (the rulebook or the folder the migration tool writes to). Check that each migration matches a schema change and that the `references` section says so. Never run SQL against a real database for this. (example) A repo using Drizzle keeps migrations in `src/lib/server/db/migrations/` next to `src/lib/server/db/schema/`.
 - New or changed environment variables (config templates, env schemas, deploy files; list names only, never values), background jobs or scheduled tasks, routes and API endpoints, tool or command definitions, CLI commands, and pages or screens. Find each kind through the repo's own layout. (example) In a SvelteKit repo, routes live under `src/routes/` and server logic under `src/lib/server/`.
 - Tests added and gate results from this session, if known. The gates are the ones the repo rulebook names (see the gates in `/flow`, section 3 step 5); if it names none, say "no gates found" and do not invent any.
-- Browser checks: every check marked automatic (a title that starts with `Auto`, `/flow` section 3 step 5a) and every step with a `requiredTarget` needs a passing run on the board (`item_get`, the run id in the step evidence). Only a run on the preview target (or a stronger one) counts: a run on the `dev` target is a phase peek and never counts. An `Auto` check has no step: a saved one with no passing run is a finding to report, not a step to reopen, and a skipped automatic check (said in the final message) is not a gap. A tick with no run, or a failed or unverified run, is `CLAIMED, NOT BUILT`: reopen the step.
+- Screens: looking at a changed screen in the integrated browser (`/flow` section 3 step 5a) leaves no board record, so a missing look is never a gap and never reopens a step. A visible step still needs its `Mockup inventory` and `Mockup read` line when the plan has a mockup.
 - Every place the build differs from the plan: a different file, approach, name, number or order, a step skipped or added.
 
 ## Step 3 - Compare both ways

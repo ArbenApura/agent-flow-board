@@ -18,8 +18,7 @@ const data = (over: Record<string, unknown> = {}) => ({
 	detail: {
 		item: { totalSteps: 12 },
 		decisions: [{}, {}, {}],
-		sections: [{}, {}],
-		project: { webApp: true }
+		sections: [{}, {}]
 	},
 	mockups: { list: [{}] },
 	...over
@@ -34,14 +33,12 @@ describe('itemTabsFrom', () => {
 		expect(got?.counts).toEqual({ plan: 12, decisions: 3, docs: 2, mockups: 1 });
 		expect(got?.active).toBe('docs');
 	});
-	it('leaves the Checks tab out for a project that is not a web app', () => {
-		const got = itemTabsFrom(
-			ITEM_ROUTE,
-			data({ detail: { item: { totalSteps: 1 }, project: { webApp: false } } }),
-			params()
-		);
+	it('has no Checks tab (browser checks were removed), and an old ?tab=checks link opens the plan', () => {
+		const got = itemTabsFrom(ITEM_ROUTE, data(), params('tab=checks'));
 		expect(got?.tabs).not.toContain('checks');
 		expect(got?.tabs).toContain('plan');
+		expect(got?.active).toBe('plan');
+		expect(parseItemTab('checks')).toBe('plan');
 	});
 	it('is null on any route that is not an item, even when the page returns a detail too', () => {
 		expect(itemTabsFrom('/[org]/[project]/mockups/[id]', data(), params())).toBeNull();

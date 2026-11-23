@@ -291,7 +291,7 @@
 		<EmptyState
 			kind="files"
 			title="No files attached"
-			text="Screenshots, documents and check results attached to this item appear here. Files are private by default."
+			text="Screenshots and documents attached to this item appear here. Files are private by default."
 		/>
 	{:else}
 		<TabCard role="region" aria-label="Attached files">

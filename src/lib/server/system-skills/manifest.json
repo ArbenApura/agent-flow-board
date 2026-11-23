@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.18.0",
-		"releasedAt": "2026-11-17"
+		"version": "1.19.0",
+		"releasedAt": "2026-11-23"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.9.0",
+			"version": "1.10.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -154,11 +154,15 @@
 				{
 					"version": "1.9.0",
 					"hash": "6caaf5b43ac7dccb89aef316d38a43ec2ccd3fc5b09365285ac3bd05e3d68e40"
+				},
+				{
+					"version": "1.10.0",
+					"hash": "f7d97a4d365c36332d4c70bbbfd61495c0c8b7fa595c52f151015ed130b8cc0b"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.3.4",
+			"version": "1.3.5",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -215,11 +219,15 @@
 				{
 					"version": "1.3.4",
 					"hash": "9ba5b4127838a276e238d0138fd15d3178cc480cf3514a669bf0befc9c5af1bb"
+				},
+				{
+					"version": "1.3.5",
+					"hash": "966cd3b3a7e8ddedc8299fccbb4502b9fe097748b8b193e2e1da743fd4d64d9d"
 				}
 			]
 		},
 		"flow-critic": {
-			"version": "1.5.5",
+			"version": "1.5.6",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -296,11 +304,15 @@
 				{
 					"version": "1.5.5",
 					"hash": "8bf7ff930fad2dfea3014ff57e0b884487d66ec46881aac0deb791ed3e3ac2a5"
+				},
+				{
+					"version": "1.5.6",
+					"hash": "3083cf199e62fecdef3ca6631e7a766a847398797269d46e2e57eba31f0fabd3"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.2.4",
+			"version": "1.2.5",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -361,11 +373,15 @@
 				{
 					"version": "1.2.4",
 					"hash": "99b517fb5dec3aa3f457b2cdcea51065fb7562674abb7ae9e93094226126b103"
+				},
+				{
+					"version": "1.2.5",
+					"hash": "7a6b5ba68459b5417e9f83cf373988ce8e5e9f8d4f3bf25495d783433d3cf10f"
 				}
 			]
 		},
 		"flow-mockup": {
-			"version": "1.8.2",
+			"version": "1.8.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -426,6 +442,10 @@
 				{
 					"version": "1.8.2",
 					"hash": "e3c34fdba39fdf6312d4d33c09b7d216559a5dfd9a97dfffddcf6217fe405e85"
+				},
+				{
+					"version": "1.8.3",
+					"hash": "99d6b97599af1d500ab34b0285cc24be1645eb8d4774ee3fc289b27437a9e20c"
 				}
 			]
 		},
@@ -459,7 +479,7 @@
 			]
 		},
 		"flow-align": {
-			"version": "1.4.0",
+			"version": "1.5.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -480,11 +500,32 @@
 				{
 					"version": "1.4.0",
 					"hash": "2801898046e93c6ba7d9727dc3dab21a2e6377283d5c995745cfb0bd8673f203"
+				},
+				{
+					"version": "1.5.0",
+					"hash": "f6bb4c9617e76b54488dc4f3e9b8cd69e47d5084c6f848e8d0c34ef21d157bdc"
 				}
 			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.19.0",
+			"date": "2026-11-23",
+			"notes": [
+				"Browser checks are removed from Agent Flow Board. The tools check_save, check_get, check_run, check_wait, check_status, check_delete, runner_status, approval_list and plan_add_checks no longer exist, steps carry no requiredTarget, items have no Checks tab, and flow no longer has checks.md, the Auto check, the phase peek or the set up checks hand-over line. Update the skills and the bridge; an older bundle that still calls those tools gets a plain removal message.",
+				"flow 1.10.0 section 3 step 5a is now Looking at the screen: when the harness has an integrated browser (Claude Browser and the like) the agent opens the running app with it after a visible change and looks at the changed screens as the repo rulebook allows; otherwise it says so in one line. It is never a step, a gate or a record. flow-align rules block 1.5.0 carries the same line. flow-critic, flow-audit, flow-interview and flow-mockup drop their check and compare lines."
+			],
+			"skills": {
+				"flow": "1.10.0",
+				"flow-audit": "1.3.5",
+				"flow-critic": "1.5.6",
+				"flow-interview": "1.2.5",
+				"flow-mockup": "1.8.3",
+				"flow-task": "1.1.3",
+				"flow-align": "1.5.0"
+			}
+		},
 		{
 			"version": "1.18.0",
 			"date": "2026-11-17",

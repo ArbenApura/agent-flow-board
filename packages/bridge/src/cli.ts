@@ -9,7 +9,7 @@
 // agent-flow-board hooks print claude|antigravity|gemini|codex [--org <slug>]   the settings to paste into the tool
 // agent-flow-board hooks setup codex|claude --org <slug> --server <url> [--dir <repo>] [--global]   write the hooks into the repo's .codex/hooks.json (--global: ~/.codex/hooks.json)
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
-// agent-flow-board check connect|run|pull|bind|watch|status|doctor|clear|setup|disconnect   browser checks on this machine (see check usage)
+// (the browser check commands were removed: agent-flow-board check ... prints one line and exits 1)
 // agent-flow-board mockup push <file.html> --server <url> --org <slug> --item <ref>   upload one mockup file (never queued)
 // agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key>   upload the project's kit (its built stylesheet and fonts)
 // agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug>   save a mockup's HTML to one new file outside any repo
@@ -58,10 +58,10 @@ const log = (s: string) => process.stderr.write(s + '\n');
 /**
  * Closes the browsers of this process's pool at the end of a one-shot command (rule R4): the renders of
  * a push share one browser and nothing is kept warm for a run that will not come. The watch worker, which
- * stays up, keeps the 15 second keep-alive instead. Loaded here, so the hooks never load the check code.
+ * stays up, keeps the 15 second keep-alive instead. Loaded here, so the hooks never load the browser code.
  */
 const closeBrowserPool = async () => {
-	const { closeAllBrowsers } = await import('./checks/browserpool.js');
+	const { closeAllBrowsers } = await import('./inspect/browserpool.js');
 	await closeAllBrowsers().catch(() => undefined);
 };
 
@@ -147,20 +147,11 @@ async function belongsToOrg(server: string, org: string, token: string): Promise
 
 async function main() {
 	if (cmd === 'check') {
-		// Loaded only here, so the hooks and the MCP forwarder never load the check code or Playwright
-		const { checkMain } = await import('./checks/command.js');
-		const code = await checkMain({
-			args: args.slice(1),
-			store,
-			fetch: fetchImpl,
-			personalToken: (server, org) => tokenFor(server.replace(/\/$/, ''), org, true),
-			log,
-			out: (line) => process.stdout.write(line + '\n')
-		});
-		// A browser or a preview may still hold a handle open: the exit code is what the caller reads, so end now
-		process.exitCode = code;
-		setTimeout(() => process.exit(code), 300).unref();
-		return;
+		// The browser check commands were removed from Agent Flow Board (AFB-20261123-0936): one plain line, never a usage list
+		log(
+			"Browser checks were removed from Agent Flow Board. Update the flow skills with the flow_skills tool and look at a changed screen in your tool's own browser."
+		);
+		process.exit(1);
 	}
 	if (cmd === 'hook') {
 		// A hook prints exactly one JSON object and always exits 0, so it can never break the tool that runs it
@@ -276,7 +267,7 @@ async function main() {
 				);
 				process.exit(1);
 			}
-			const { inspectMockupCli } = await import('./checks/inspect.js');
+			const { inspectMockupCli } = await import('./inspect/inspect.js');
 			try {
 				const dump = await inspectMockupCli({
 					server,
@@ -655,7 +646,7 @@ async function main() {
 	}
 	if (cmd !== 'mcp' && cmd !== 'login') {
 		log(
-			'Usage: agent-flow-board mcp|login|logout --server <url>, setup --org <slug>, queue list|retry <id>|drop <id>, mockup push <file.html>, or check connect|run|watch|status'
+			'Usage: agent-flow-board mcp|login|logout --server <url>, setup --org <slug>, queue list|retry <id>|drop <id>, or mockup push <file.html>'
 		);
 		process.exit(2);
 	}
@@ -714,8 +705,8 @@ async function main() {
 
 main().catch(async (e) => {
 	// An error message may name the signed address of a mockup page: it is redacted before it is printed (rule R1).
-	// Loaded here, so the hooks and the MCP forwarder never load the check code
-	const { redactSignedAddress } = await import('./checks/inspect.js');
+	// Loaded here, so the hooks and the MCP forwarder never load the browser code
+	const { redactSignedAddress } = await import('./inspect/inspect.js');
 	log(redactSignedAddress(String(e instanceof Error ? e.message : e)));
 	process.exit(1);
 });

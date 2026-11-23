@@ -372,6 +372,13 @@
       "when": 1794843951056,
       "tag": "0052_runner_tool_owner_name_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795428871636,
+      "tag": "0053_remove_browser_checks",
+      "breakpoints": true
     }
   ]
 }

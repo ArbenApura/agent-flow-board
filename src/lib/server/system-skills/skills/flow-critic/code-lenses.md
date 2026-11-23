@@ -18,7 +18,7 @@ Inspect the codebase for omitted logic and silent failure modes:
   (example) TypeScript strict: `any`, `@ts-ignore` without a reason.
 - [ ] **Missing Config Fails Loudly**
   On an auth, token, tenant or secret path, does a missing env var, database URL, client secret, adapter or lookup result throw or deny? Flag any invented default that lets the call through. (checklists Lane 1 "Fail loudly")
-  (example) `AFB_MASTER_KEY`, `?? true`, `if (key && ...)`, `catch { return allow }`.
+  (example) `BACKUP_KEY`, `?? true`, `if (key && ...)`, `catch { return allow }`.
 - [ ] **Silent Data Truncation**
   Are queries or API responses bounded by hardcoded limits that silently drop records without pagination or a count?
   (example) `limit(20)`.
@@ -93,7 +93,7 @@ Inspect operations, endpoints, tools and data mutations for security:
 - [ ] **Secrets Never Returned or Logged**
   Could a password, token, key, device code, master key, sealed value or hash leave through a response, an agent tool reply, a page load, an export or backup, a log line, an activity event or an error message? Are project secrets sealed only through the repo's one vault?
   Applies when the repo stores secrets.
-  (example) `src/lib/server/secrets/vault.ts`.
+  (example) `src/lib/server/backup/archive.ts`.
 - [ ] **Untrusted Guest Text Sanitised**
   Is all Markdown rendered via the repo's one sanitising renderer (no raw HTML, safe schemes, no images from guests)? Is guest text escaped for emails, external-service text, filenames and shell arguments? Any raw HTML insertion outside that renderer?
   Applies when the repo renders text written by guests or other untrusted people.
@@ -180,11 +180,11 @@ Inspect test coverage, error handling, and component resilience:
 
 ## Lens F - Design Fit Reviewer
 
-The user is often disappointed because a generated screen comes out bigger, busier or more confusing than the pages around it. If the repo rulebook says the user looks at every screen themselves and runs no UI shots, judge from the code and say plainly what you could not see. Read the repo's design rules if it has any (the rulebook's design list, a design document, a size scale, any design notes for the coding assistant) and the code of the sibling pages the new screen sits next to. Judge the screen the code builds, not only the diff. If the repo has no design rules, compare against the sibling pages only.
+The user is often disappointed because a generated screen comes out bigger, busier or more confusing than the pages around it. Judge from the code and say plainly what you could not see. Read the repo's design rules if it has any (the rulebook's design list, a design document, a size scale, any design notes for the coding assistant) and the code of the sibling pages the new screen sits next to. Judge the screen the code builds, not only the diff. If the repo has no design rules, compare against the sibling pages only.
 (example) the root `CLAUDE.md` "Design fit" list, `DESIGN.md`, `.claude/skills/coding-guidelines/design-fit.md`, `tests/ui-shots/scale.json`; the user checks screens on the local dev server at port 7173.
 
 - [ ] **Say what could not be seen, or refuse `APPROVED` if mockup evidence is missing**
-  When picture pairs (`{UI_SHOTS_DIR}`) or the compare measurements/diff JSON (`{COMPARE_DIFF_JSON}`) are given, inspect them. When none are given, name the screens the diff changes and say plainly that no picture was looked at because the user checks them.
+  Name the screens the diff changes and say plainly that no picture was looked at (a critic never drives a browser; the lead may have looked in the integrated browser of the harness and says what it saw under `{KNOWN_UNVERIFIED}`).
 - [ ] **Nothing larger than its neighbours**
   For each screen the diff changes, in the classes it sets for desktop and phone widths and for both modes: is any title, section heading, button, field, card, row, picture or icon larger than the same level on the sibling pages? Compare the style classes with the sibling page's at the same level; a larger one is a `HIGH` finding with both values, unless it is a different kind of control or a state the sibling does not have (say why). A size that existed before the change is not introduced by it.
 - [ ] **No new size or pattern where an existing one fits**
@@ -197,11 +197,11 @@ The user is often disappointed because a generated screen comes out bigger, busi
 - [ ] **Pictures stay small**
   An illustration larger than about 12% of the first screen on desktop, or one that pushes the first action down, is a `HIGH`.
 - [ ] **First screen density**
-  More elements in the first screen than the sibling pages (applies when UI shots are run: the run reports it) is a `HIGH`; well above is `MEDIUM`.
+  More elements in the first screen than the sibling pages (counted from the classes and markup of the code) is a `HIGH`; well above is `MEDIUM`.
 - [ ] **Phone**
   No sideways scrolling, text and controls readable, tap targets at least 44 px, nothing hidden that desktop shows without a way to reach it.
 - [ ] **Both modes**
   Every theme mode the repo has looks right too: colours from the tokens, nothing washed out, every text and surface pair readable (AA). The accent never carries a status.
   Applies when the repo has more than one theme mode.
 - [ ] **Taste is advisory**
-  Spacing or colour preferences with no measurement behind them are `MEDIUM` at most and never block. Only a measured size larger than its sibling, a missing run (when UI shots are required), a new pattern or a confusing label blocks.
+  Spacing or colour preferences with no measurement behind them are `MEDIUM` at most and never block. Only a measured size larger than its sibling, a new pattern or a confusing label blocks.

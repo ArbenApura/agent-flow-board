@@ -90,7 +90,7 @@ Whatever the topic, one subagent (usually Subagent 2, or whichever owns operatio
   Does the plan avoid commits and pushes without the user's word, avoid creating or switching branches unless told, follow the package manager the repo rulebook names, and never delete `node_modules`, `.git` or other tooling folders?
   (example) Yarn 4 only, no `package-lock.json` or `pnpm-lock.yaml`.
 - [ ] **The Gates Run Once, At The End**
-  Does the plan end with one counted step for the full gates the repo rulebook names (the whole-project type check or build and the full test suite)? A plan that repeats the whole-project gates in every phase, or lists each gate as its own step, is a `MEDIUM`: the fast gate (formatter, linter, related tests on the changed files) is part of each step's own work and is never a step, and an earlier full run is justified only after a shared type, schema or config change. Do browser checks run against a build preview, never the dev server, if the rulebook says so? If no rulebook names the gates, the plan says "no gates found" and asks instead of inventing commands.
+  Does the plan end with one counted step for the full gates the repo rulebook names (the whole-project type check or build and the full test suite)? A plan that repeats the whole-project gates in every phase, or lists each gate as its own step, is a `MEDIUM`: the fast gate (formatter, linter, related tests on the changed files) is part of each step's own work and is never a step, and an earlier full run is justified only after a shared type, schema or config change. Do browser tests run against the target the rulebook names, if it names one? If no rulebook names the gates, the plan says "no gates found" and asks instead of inventing commands.
   (example) `yarn check`, `yarn eslint`, `yarn prettier --check`, `yarn vitest run`, and the full `yarn test`; checks against `yarn build && yarn preview`.
 - [ ] **Protected Surfaces**
   Does the plan edit an applied migration, hand-patch generated security SQL, rename a technical id, or change a published protocol? Any such step needs the user's explicit instruction.
@@ -137,7 +137,7 @@ When the user requests 5 subagents, the critique is split across 5 dedicated ind
 Whatever the topic, when the plan adds or changes a screen, one subagent also checks:
 - [ ] **No UI changes table, no UI shots steps**
   Applies when the repo rulebook says the user looks at every screen themselves and wants no UI-changes table or browser-check steps. Then a plan that adds any of them is itself the finding (`MEDIUM`): remove them. If the rulebook does not say so, mark this item not applicable.
-  (example) the user looks at each screen on the local dev server, so `yarn ui-shots` steps are a finding.
+  (example) the user looks at each screen on the local dev server, so a screenshot step is a finding.
 - [ ] **Has a sourced design brief**
   Does the plan have a `design-brief` section (`/flow` section 2, step 4a) with the user's preferences, the brand identity, the similar components it copies, what is reused and new, and the rejected looks, and does every line name a source? A missing brief, or a visible choice with no source, is a `HIGH`, unless the spec states that the change restores the existing look.
 - [ ] **The inspiration is real**

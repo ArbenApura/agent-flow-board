@@ -55,7 +55,6 @@ function streamList() {
 export const projectInput = z.object({
 	key: z.string().regex(/^[A-Z][A-Z0-9]{1,9}$/, 'A project key is 2 to 10 capitals or digits'),
 	name: z.string().min(2).max(80),
-	webApp: z.boolean().default(false),
 	// Left out, a project starts with the standard set. An explicit empty list means none.
 	streams: streamList().default(() => standardStreams())
 });
@@ -64,21 +63,15 @@ export const projectUpdateInput = z.object({
 	project: z.string().min(1),
 	expectVersion: z.number().int().optional(),
 	name: z.string().min(2).max(80).optional(),
-	webApp: z.boolean().optional(),
 	rules: z.string().max(100_000).optional(),
 	streams: streamList().optional(),
 	themes: z
 		.array(z.object({ key: z.string().min(1).max(30), label: z.string().min(1).max(40) }))
 		.max(8)
-		.optional(),
-	/** Addresses inside the web app that UI shots compare new screens with. */
-	referencePages: z
-		.array(z.string().regex(/^\/[^\s]{0,198}$/, 'A reference page is an address starting with /'))
-		.max(50)
 		.optional()
 });
 
-const PATCH = ['name', 'webApp', 'rules', 'streams', 'themes', 'referencePages'] as const;
+const PATCH = ['name', 'rules', 'streams', 'themes'] as const;
 
 // -- FUNCTIONS -- //
 
@@ -132,7 +125,6 @@ export async function createProject(ctx: Ctx, raw: z.input<typeof projectInput>)
 				orgId: ctx.orgId,
 				key: input.key,
 				name: input.name,
-				webApp: input.webApp,
 				streams: input.streams
 			})
 			.returning({ ...projectCols, logoV: projectLogoV });

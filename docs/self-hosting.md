@@ -23,7 +23,6 @@ openssl rand -base64 48 | tr -d '/+=' | cut -c1-40
 | `AFB_RUNTIME_PASSWORD`                                              | 16 or more of letters, digits and `_ . ~ -`. The migration step gives the `app_runtime` role this password, and the app connects as that role.                                         |
 | `BETTER_AUTH_SECRET`                                                | At least 32 characters. Signs sessions. Changing it signs everyone out.                                                                                                                |
 | `BACKUP_KEY`                                                        | At least 32 characters. Encrypts every backup. **If you lose it, the backups cannot be read.** Keep a copy somewhere else.                                                             |
-| `AFB_MASTER_KEY`                                                    | At least 32 characters. Wraps the keys that seal test account passwords.                                                                                                               |
 | `EMAIL_PROVIDER` and its key                                        | `resend`, `postmark` or `smtp`. With `log`, mail is only kept in memory (and in the file named by `AFB_OUTBOX_FILE`, when set), so nobody receives a verification or invitation email. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                          | Optional Google sign in.                                                                                                                                                               |
 | `MOCKUP_ORIGIN`, `MOCKUP_DOMAIN`                                    | Optional, recommended. A second hostname that serves mockups (see "Mockup hostname" below). Leave both empty to serve mockups from the board host, for local development only.         |
@@ -57,8 +56,7 @@ The command prints the new password once, ends that Owner's sessions and clears 
 
 ## 4. Backups
 
-The app backs up every organisation each night (the hour is `AFB_BACKUP_HOUR`, UTC, 2 by default) into the `appdata` volume under `/data/backups`, as encrypted archives with the database rows and the files. It keeps the newest 7 good archives of each organisation, removes the older ones (and any archive file no record names) after each good run, and leaves out the drawn screenshots and rendered trees of mockups, which the bridge draws again. An organisation can pause its nightly backup with a switch in Organisation settings. Organisation settings shows when a backup is late or has failed, and an Owner gets an email. **Keep a copy of `AFB_MASTER_KEY` with the backups.** The archives hold the sealed test account passwords, and they cannot be opened without it.
-
+The app backs up every organisation each night (the hour is `AFB_BACKUP_HOUR`, UTC, 2 by default) into the `appdata` volume under `/data/backups`, as encrypted archives with the database rows and the files. It keeps the newest 7 good archives of each organisation, removes the older ones (and any archive file no record names) after each good run, and leaves out the drawn screenshots and rendered trees of mockups, which the bridge draws again. An organisation can pause its nightly backup with a switch in Organisation settings. Organisation settings shows when a backup is late or has failed, and an Owner gets an email.
 **Copy the archives off the machine.** A backup on the same disk is not a backup. For example, from your own computer:
 
 ```
@@ -113,20 +111,8 @@ If a deploy dies halfway (a dropped connection) the next deploy finds two app co
 
 ## 6. Changing a key
 
-- **`AFB_MASTER_KEY`.** Run the rotation with both keys, then set the new key in `.env`:
-
-  ```
-  docker compose exec -e AFB_NEW_MASTER_KEY=<the new key> app node cli/server.mjs secrets rotate-master-key --confirm afb --yes
-  ```
-
-  It re-wraps each organisation's key without touching the sealed passwords, then you put the new value in `AFB_MASTER_KEY` and restart.
-
 - **`BACKUP_KEY`.** A new key encrypts new archives. Keep the old key as long as you keep old archives.
 - **`BETTER_AUTH_SECRET`.** Change it and restart. Everyone signs in again.
-
-## 7. Browser checks
-
-The runner is a separate program (see [runners.md](runners.md)). Hosted runs use a supervisor that starts one throwaway container for each waiting run. Run it on a different machine from the board, on a network that cannot reach your private network.
 
 ## Mockup hostname
 

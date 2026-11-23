@@ -1,4 +1,4 @@
-// ONE SHARED READER OF THE COMMAND-LINE LIST FLAGS (rule R2, AFB-20261114-0611), USED BY cli.ts AND checks/command.ts
+// ONE SHARED READER OF THE COMMAND-LINE LIST FLAGS (rule R2, AFB-20261114-0611), USED BY cli.ts
 // The harmless lists (--widths, --render-states, --screens, --states) take a comma list ("408,1280"), one
 // quoted list ("408 1280" as one word) or separate words ("408 1280" as two words): PowerShell turns an
 // unquoted comma list into separate words, which used to keep only the first. The lists whose value

@@ -13,8 +13,8 @@ import { declaredMockupScreenKeys } from '../../../src/lib/shared/mockupScreens'
 
 // The browser step is faked: its failure may name the signed address, and the failed reason may not (rule R1)
 const { inspectUrl } = vi.hoisted(() => ({ inspectUrl: vi.fn() }));
-vi.mock('./checks/inspect.js', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('./checks/inspect.js')>();
+vi.mock('./inspect/inspect.js', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('./inspect/inspect.js')>();
 	return { ...actual, inspectUrl };
 });
 

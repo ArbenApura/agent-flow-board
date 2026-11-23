@@ -7,15 +7,15 @@
 import { createHash, randomBytes } from 'node:crypto';
 // IMPORTED TYPES
 import type { Fetch } from './device.js';
-import type { ResolvedMockupTarget } from './checks/mockupTarget.js';
+import type { ResolvedMockupTarget } from './inspect/mockupTarget.js';
 // IMPORTED MODULES
-import { inspectUrl, redactSignedAddress } from './checks/inspect.js';
+import { inspectUrl, redactSignedAddress } from './inspect/inspect.js';
 import {
 	rankQualityChecks,
 	summarizeQualityChecks,
 	type QualityCheck
-} from './checks/qualityChecks.js';
-import { resolveMockupTarget } from './checks/mockupTarget.js';
+} from './inspect/qualityChecks.js';
+import { resolveMockupTarget } from './inspect/mockupTarget.js';
 import { call, failure } from './mockup.js';
 
 // -- TYPES -- //

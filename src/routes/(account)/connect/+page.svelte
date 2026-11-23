@@ -14,11 +14,6 @@
 	// IMPORTED COMPONENTS
 	import AgentSetupCard from '#lib/board/connect/AgentSetupCard.svelte';
 	import BridgeCommandsCard from '#lib/board/connect/BridgeCommandsCard.svelte';
-	import BridgeHealthCard from '#lib/board/connect/BridgeHealthCard.svelte';
-	import BridgeProjectsCard from '#lib/board/connect/BridgeProjectsCard.svelte';
-	import BridgeRunnerCard from '#lib/board/connect/BridgeRunnerCard.svelte';
-	import ChecksApprovalsCard from '#lib/board/connect/ChecksApprovalsCard.svelte';
-	import ChecksSetupCard from '#lib/board/connect/ChecksSetupCard.svelte';
 	import ConnectedAppsCard from '#lib/board/connect/ConnectedAppsCard.svelte';
 	import ConnectTabs from '#lib/board/connect/ConnectTabs.svelte';
 	import EditorAboutCards from '#lib/board/connect/EditorAboutCards.svelte';
@@ -55,15 +50,12 @@
 	// Setting up the editor status has an agent sign a tool in, which needs the Manage permission
 	const canSetUp = $derived((data.caps as string[]).includes('manage'));
 	const org = $derived(data.org);
-	// The person's own check runners, newest first. A colleague's runner is never in this list
-	const mine = $derived(data.runners?.mine ?? []);
 	const status = $derived(
 		tabStatuses({
 			connections: data.connections.length,
 			skillsVersion: data.skills?.bundle.version ?? null,
 			canSetUp,
-			signIn: data.editor?.signIn ?? null,
-			runners: data.runners ? mine : null
+			signIn: data.editor?.signIn ?? null
 		})
 	);
 </script>
@@ -180,35 +172,11 @@
 			<div class="stagger flex min-w-0 flex-col gap-6"><EditorAboutCards /></div>
 		</div>
 	{:else if data.tab === 'bridge'}
-		<!-- BRIDGE: THE CHECK RUNNER, BROWSER CHECKS, WHO APPROVES WHAT AND EVERY COMMAND OF THE LOCAL BRIDGE -->
+		<!-- BRIDGE: EVERY COMMAND OF THE LOCAL BRIDGE -->
 		<div class="flex min-w-0 flex-col gap-6">
-			<!-- THE ROW STRETCHES, SO THE COMMANDS CARD FILLS THE LEFT COLUMN DOWN TO THE END OF THE RIGHT ONE -->
-			<div class="grid gap-6 lg:grid-cols-3">
-				<!-- IN THE ORDER A PERSON NEEDS IT, AND IN THE SAME ORDER FOR A KEYBOARD: WITH NO RUNNER THE CONNECT CARD COMES RIGHT AFTER THE LIVE LINE, WITH ONE WHAT IT CAN CHECK AND THE APPROVALS COME FIRST -->
-				<div class="stagger flex min-w-0 flex-col gap-6 lg:col-span-2">
-					<BridgeRunnerCard runner={mine[0] ?? null} orgName={org.name} />
-					{#if mine[0]}
-						<BridgeProjectsCard runner={mine[0]} />
-						<ChecksApprovalsCard />
-						<ChecksSetupCard
-							brief={data.checksBrief}
-							editorHref={connectHref(org.slug, 'editor')}
-						/>
-					{:else}
-						<ChecksSetupCard
-							brief={data.checksBrief}
-							editorHref={connectHref(org.slug, 'editor')}
-						/>
-						<ChecksApprovalsCard />
-					{/if}
-					<!-- AT LEAST 24REM TALL, OR AS TALL AS WHAT IS LEFT OF THE COLUMN BESIDE IT. FROM lg UP THE LIST SCROLLS INSIDE -->
-					<div class="lg:relative lg:min-h-96 lg:flex-1">
-						<BridgeCommandsCard server={data.baseUrl} orgSlug={org.slug} orgName={org.name} />
-					</div>
-				</div>
-				<div class="stagger flex min-w-0 flex-col gap-6">
-					<BridgeHealthCard server={data.baseUrl} orgSlug={org.slug} />
-				</div>
+			<!-- AT LEAST 24REM TALL. FROM lg UP THE LIST SCROLLS INSIDE -->
+			<div class="stagger lg:relative lg:min-h-96">
+				<BridgeCommandsCard server={data.baseUrl} orgSlug={org.slug} orgName={org.name} />
 			</div>
 		</div>
 	{:else}

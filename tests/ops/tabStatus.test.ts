@@ -5,8 +5,7 @@ const base: TabStatusInput = {
 	connections: 0,
 	skillsVersion: '1.15.0',
 	canSetUp: true,
-	signIn: { state: 'none' },
-	runners: []
+	signIn: { state: 'none' }
 };
 const of = (over: Partial<TabStatusInput>) => tabStatuses({ ...base, ...over });
 
@@ -47,17 +46,19 @@ describe('the status pills of the Connect tab cards', () => {
 			expect(['neutral', 'success', 'warning', 'danger']).toContain(of({ signIn: s }).editor.tone);
 	});
 
-	it('says whether the person has a computer that runs their browser checks and whether it is on', () => {
-		expect(of({ runners: [] }).bridge.text).toBe('No computer');
-		expect(of({ runners: null }).bridge.text).toBe('No computer');
-		expect(of({ runners: [{ online: true }] }).bridge).toEqual({
-			text: 'Online',
+	it('follows the bridge sign in for the Bridge pill', () => {
+		expect(of({ signIn: null }).bridge).toEqual({ text: 'Not read', tone: 'danger' });
+		expect(of({ signIn: { state: 'none' } }).bridge).toEqual({
+			text: 'Not signed in',
+			tone: 'neutral'
+		});
+		expect(of({ signIn: { state: 'signed-in' } }).bridge).toEqual({
+			text: 'Signed in',
 			tone: 'success'
 		});
-		expect(of({ runners: [{ online: false }] }).bridge).toEqual({
-			text: 'Offline',
+		expect(of({ signIn: { state: 'expired' } }).bridge).toEqual({
+			text: 'Expired',
 			tone: 'warning'
 		});
-		expect(of({ runners: [{ online: false }, { online: true }] }).bridge.text).toBe('Online');
 	});
 });

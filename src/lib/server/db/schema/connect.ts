@@ -8,16 +8,8 @@ import { id, oneOf, tenantTable } from './helpers';
 
 // -- CONSTANTS -- //
 
-/** The six tiles of the checklist, and `panel` for whether the person folded it. A key outside this list is refused by the table. */
-export const SETUP_KEYS = [
-	'tools',
-	'skills',
-	'bridge',
-	'editor',
-	'checks',
-	'token',
-	'panel'
-] as const;
+/** The five tiles of the checklist, and `panel` for whether the person folded it. A key outside this list is refused by the table. */
+export const SETUP_KEYS = ['tools', 'skills', 'bridge', 'editor', 'token', 'panel'] as const;
 /** done and skipped belong to a tile, open and closed to the panel. The verb keeps the two apart. */
 export const SETUP_STATES = ['done', 'skipped', 'open', 'closed'] as const;
 
@@ -26,7 +18,7 @@ export const SETUP_STATES = ['done', 'skipped', 'open', 'closed'] as const;
 /**
  * One row per person, organisation and tile. Personal: the row filter names the org and the person, and so does the check on a write,
  * so a person can neither read nor change another person's marks, and a row can never be moved to another organisation or person.
- * The things the board can know by itself (apps connected, the bridge sign in, a runner) are never stored here, only what the person said.
+ * The things the board can know by itself (apps connected, the bridge sign in) are never stored here, only what the person said.
  */
 export const connectSetupMark = tenantTable(
 	'connect_setup_mark',

@@ -12,8 +12,6 @@
 		| 'docs'
 		| 'discussion'
 		| 'decisions'
-		| 'checks'
-		| 'shots'
 		| 'trash'
 		| 'unplugged'
 		| 'repo'
@@ -499,118 +497,6 @@
 		/>
 		{@render spark(26, 68)}
 		{@render speck(140, 92)}
-	{:else if kind === 'checks'}
-		<!-- A BROWSER WINDOW WITH EMPTY CHECK ROWS AND A RUN BUTTON -->
-		<rect
-			x="25"
-			y="19"
-			width="116"
-			height="80"
-			rx="10"
-			fill="url(#{uid}-hatch)"
-			stroke="var(--line)"
-			stroke-width="1.5"
-		/>
-		<rect
-			x="20"
-			y="14"
-			width="116"
-			height="80"
-			rx="10"
-			fill="var(--surface)"
-			stroke="var(--line)"
-			stroke-width="2"
-		/>
-		<path d="M20 34h116" stroke="var(--line)" stroke-width="2" />
-		<circle cx="31" cy="24" r="2.5" fill="var(--raised)" />
-		<circle cx="40" cy="24" r="2.5" fill="var(--raised)" />
-		<circle cx="49" cy="24" r="2.5" fill="var(--raised)" />
-		<rect x="60" y="20" width="64" height="8" rx="4" fill="var(--raised)" />
-		<rect
-			x="30"
-			y="44"
-			width="10"
-			height="10"
-			rx="3"
-			fill="var(--bg)"
-			stroke="var(--line)"
-			stroke-width="1.5"
-			stroke-dasharray="3 2"
-		/>
-		{@render bar(48, 46, 56)}
-		<rect
-			x="30"
-			y="62"
-			width="10"
-			height="10"
-			rx="3"
-			fill="var(--bg)"
-			stroke="var(--line)"
-			stroke-width="1.5"
-			stroke-dasharray="3 2"
-		/>
-		{@render bar(48, 64, 40)}
-		<rect
-			x="30"
-			y="80"
-			width="10"
-			height="6"
-			rx="3"
-			fill="var(--bg)"
-			stroke="var(--line)"
-			stroke-width="1.5"
-			stroke-dasharray="3 2"
-		/>
-		<circle cx="124" cy="82" r="15" fill="var(--accent)" />
-		<path
-			d="M119 75l12 7-12 7z"
-			fill="var(--accent-ink)"
-			stroke="var(--accent-ink)"
-			stroke-width="1.5"
-			stroke-linejoin="round"
-		/>
-		{@render spark(148, 40)}
-		{@render speck(10, 98)}
-	{:else if kind === 'shots'}
-		<!-- A DESKTOP FRAME AND A PHONE FRAME WITH VIEWFINDER CORNERS -->
-		{@render sheet(18, 24, 82, 56)}
-		<path d="M18 38h82" stroke="var(--line)" stroke-width="2" />
-		<circle cx="27" cy="31" r="2" fill="var(--raised)" />
-		<circle cx="34" cy="31" r="2" fill="var(--raised)" />
-		<rect x="26" y="46" width="28" height="26" rx="4" fill="var(--raised)" />
-		<rect
-			x="60"
-			y="46"
-			width="32"
-			height="10"
-			rx="4"
-			fill="var(--accent-soft)"
-			stroke="var(--accent)"
-			stroke-width="1.2"
-		/>
-		{@render bar(60, 62, 30)}
-		{@render bar(60, 70, 20)}
-		<rect
-			x="108"
-			y="32"
-			width="34"
-			height="62"
-			rx="9"
-			fill="var(--surface)"
-			stroke="var(--line)"
-			stroke-width="2"
-		/>
-		<rect x="117" y="37" width="16" height="3" rx="1.5" fill="var(--raised)" />
-		<rect x="113" y="46" width="24" height="18" rx="4" fill="var(--raised)" />
-		{@render bar(113, 70, 24)}
-		{@render bar(113, 79, 16)}
-		<path
-			d="M10 40V28a8 8 0 018-8h12M140 100h6a8 8 0 008-8v-4M10 66v14"
-			stroke="var(--accent)"
-			stroke-width="3"
-			stroke-linecap="round"
-		/>
-		{@render spark(88, 98)}
 	{:else if kind === 'trash'}
 		<!-- AN EMPTY BIN AND A CLOCK FOR THE 30 DAYS ITEMS STAY -->
 		<path

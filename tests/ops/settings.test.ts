@@ -282,10 +282,9 @@ describe('settings', () => {
 		expect((await orgAuditLog(other, { limit: 200 })).events).toEqual([]);
 	});
 
-	it('project settings: the reference pages and the other fields are saved by the section that owns them', async () => {
+	it('project settings: the themes and the other fields are saved by the section that owns them', async () => {
 		const r = await updateProject(ctx(), {
 			project: w.projectKey,
-			referencePages: ['/settings', '/acme/CKT'],
 			themes: [
 				{ key: 'light', label: 'Light' },
 				{ key: 'dark', label: 'Dark' }
@@ -293,19 +292,19 @@ describe('settings', () => {
 		});
 		expect(r.changed).toBe(true);
 		expect(r.project).toMatchObject({
-			referencePages: ['/settings', '/acme/CKT']
+			themes: [
+				{ key: 'light', label: 'Light' },
+				{ key: 'dark', label: 'Dark' }
+			]
 		});
-		await expect(
-			updateProject(ctx(), { project: w.projectKey, referencePages: ['no-slash'] })
-		).rejects.toThrow();
-		await expect(
-			updateProject(ctx(), { project: w.projectKey, referencePages: ['/has space'] })
-		).rejects.toThrow();
 		// Only the sent field changes
 		const again = await updateProject(ctx(), { project: w.projectKey, name: 'Renamed project' });
 		expect(again.project).toMatchObject({
 			name: 'Renamed project',
-			referencePages: ['/settings', '/acme/CKT']
+			themes: [
+				{ key: 'light', label: 'Light' },
+				{ key: 'dark', label: 'Dark' }
+			]
 		});
 	});
 

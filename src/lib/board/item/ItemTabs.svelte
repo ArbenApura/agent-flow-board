@@ -11,7 +11,6 @@
 	import Gavel from '@lucide/svelte/icons/gavel';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import MessagesSquare from '@lucide/svelte/icons/messages-square';
-	import MonitorCheck from '@lucide/svelte/icons/monitor-check';
 	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
 	import Paperclip from '@lucide/svelte/icons/paperclip';
 
@@ -45,7 +44,6 @@
 		decisions: Gavel,
 		docs: FileText,
 		mockups: PanelsTopLeft,
-		checks: MonitorCheck,
 		activity: Activity,
 		files: Paperclip,
 		discussion: MessagesSquare

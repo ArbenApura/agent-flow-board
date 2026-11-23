@@ -26,8 +26,7 @@ export type RecordOptions = {
 	/**
 	 * True holds the last open step of a phase with MOCKUP_UNREAD while a mockup of the plan is not read to the end. Left
 	 * unset it follows the caller: an agent (a token, on the MCP or the API) is gated and a person is not. The agent entry
-	 * points set it true, and the runner's tick after a passing browser check sets it false: a passing check on the built
-	 * screen is evidence of its own.
+	 * points set it true.
 	 */
 	agentGate?: boolean;
 };
@@ -51,9 +50,6 @@ const markIn = z.object({
 	evidence: z
 		.object({
 			commit: z.string().max(80).optional(),
-			checkRunId: z.string().max(80).optional(),
-			runIds: z.array(z.string().max(80)).max(20).optional(),
-			target: z.enum(['dev', 'preview', 'deployed']).optional(),
 			note: z.string().max(500).optional()
 		})
 		.optional()
@@ -135,15 +131,7 @@ export async function recordSteps(
 					continue;
 				}
 				const storedEvidence: StepEvidence | null = m.evidence ? { ...m.evidence } : null;
-				if (m.mark === 'done' && (storedEvidence || row.requiredTarget)) {
-					const evForCheck = storedEvidence
-						? {
-								...storedEvidence,
-								target: storedEvidence.target as 'dev' | 'preview' | 'deployed' | undefined
-							}
-						: undefined;
-					await validateEvidence(tx, ctx, it, row, evForCheck);
-				}
+				if (m.mark === 'done' && storedEvidence) validateEvidence(m.key, storedEvidence);
 				const reason =
 					m.mark === 'waived'
 						? m.reason!
@@ -263,10 +251,9 @@ export async function recordSteps(
 				.filter((p) => touched.has(p.id) && !open.some((s) => s.phaseId === p.id))
 				.map((p) => p.key);
 			// THE MOCKUP GATE (AFB-20261110-2331): an agent may not close a phase while the plan's mockup is unread. A person's
-			// tick and the runner's own tick never pass agentGate, so they are never held. Reopening a step closes nothing
+			// tick never passes agentGate, so it is never held. Reopening a step closes nothing
 			let mockupNotice: string | null = null;
-			// Any agent is gated, wherever the call comes from (a token on the API is an agent too, AFB-20261111-0046). The
-			// runner's own tick after a passing browser check passes an explicit false
+			// Any agent is gated, wherever the call comes from (a token on the API is an agent too, AFB-20261111-0046)
 			if (options.agentGate ?? ctx.actor.kind === 'agent') {
 				// The cheap state is enough for the notice. The stored file is looked for only when a phase is about to close,
 				// so an ordinary step never pays for reading a file

@@ -25,36 +25,19 @@ describe('the pages say what the terminal says', () => {
 		expect(terminal).toMatch(/open \$\{d\.verification_uri\} and type this code/);
 	});
 
-	it('the commands on the Connect page are the ones the bridge usage lists, with the yes for the download', () => {
-		const usage = read('packages', 'bridge', 'src', 'checks', 'command.ts');
-		const list = bridgeCommands('https://board.test', 'acme').map((c) => c.command);
-		expect(list).toContain(`${BRIDGE_PROGRAM} check doctor`);
-		expect(list).toContain(`${BRIDGE_PROGRAM} check doctor --fix --yes`);
-		expect(list).toContain(`${BRIDGE_PROGRAM} check setup --yes`);
-		expect(usage).toContain('doctor [--fix] [--yes] [--json]');
-		expect(usage).toContain('setup [--yes]');
-	});
-
-	it('the Remove it card names only the bridge’s own folders and existing commands', () => {
-		const card = read('src', 'lib', 'board', 'connect', 'BridgeHealthCard.svelte');
-		expect(card).toContain('check disconnect --server');
-		expect(card).toContain('check service uninstall');
-		expect(card).toContain(`npm uninstall -g \${BRIDGE_PACKAGE}`);
-		expect(BRIDGE_PACKAGE).toBe('@agent-flow-board/bridge');
-		// No line may reach outside checks/browsers and checks/runtime
-		for (const line of card.split('\n').filter((l) => /Remove-Item|rm -rf/.test(l))) {
-			expect(line).toMatch(/checks[\\/]+(browsers|runtime)/);
-			expect(line).not.toMatch(/ms-playwright|\s\/\s|~\/\s|\$HOME\\"\s/);
+	it('every command on the Connect page starts with a word the bridge usage lists, and none is a removed check command', () => {
+		const usage = read('packages', 'bridge', 'src', 'cli.ts');
+		const list = bridgeCommands('https://board.test', 'acme');
+		expect(list.length).toBeGreaterThan(5);
+		for (const c of list) {
+			const first = c.command.slice(BRIDGE_PROGRAM.length + 1).split(' ')[0];
+			expect(usage, c.command).toContain(`agent-flow-board ${first}`);
+			expect(first, c.command).not.toBe('check');
 		}
-		const bridgeUsage = read('packages', 'bridge', 'src', 'checks', 'command.ts');
-		expect(bridgeUsage).toContain('disconnect --server <url> --org <slug>');
-		expect(bridgeUsage).toContain('service install|uninstall|status');
 	});
 
-	it('the browser download is described the same on the page, in the README and by the bridge', () => {
-		const browser = read('packages', 'bridge', 'src', 'checks', 'browser.ts');
-		const card = read('src', 'lib', 'board', 'connect', 'BridgeHealthCard.svelte');
-		const readme = read('packages', 'bridge', 'README.md');
-		for (const text of [browser, card, readme]) expect(text).toMatch(/320 MB/);
+	it('the bridge is installed by its npm package name', () => {
+		expect(BRIDGE_PACKAGE).toBe('@agent-flow-board/bridge');
+		expect(read('packages', 'bridge', 'README.md')).toContain(`npm install -g ${BRIDGE_PACKAGE}`);
 	});
 });

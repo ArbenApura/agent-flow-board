@@ -44,7 +44,7 @@
 		{ key: 'tools', label: 'Tools and tokens', sub: 'Apps and tokens', icon: Plug },
 		{ key: 'skills', label: 'Skills', sub: 'Install the flow skills', icon: Sparkles },
 		{ key: 'editor', label: 'Editor status', sub: 'Item in your editor', icon: Activity },
-		{ key: 'bridge', label: 'Bridge', sub: 'Checks and commands', icon: Terminal }
+		{ key: 'bridge', label: 'Bridge', sub: 'Install and commands', icon: Terminal }
 	];
 
 	// -- STATES -- //

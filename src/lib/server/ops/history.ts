@@ -3,14 +3,13 @@
 // IMPORTED TYPES
 import type { Ctx } from './context';
 // IMPORTED DEP-MODULES
-import { and, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // IMPORTED MODULES
 import { recalcItem } from '../db/calc';
 import { undoEvent, type UndoResult } from '../db/events';
 import {
 	attachment,
-	checkRun,
 	event,
 	item,
 	mockup,
@@ -18,7 +17,6 @@ import {
 	note,
 	noteFile,
 	noteFolder,
-	step,
 	task
 } from '../db/schema';
 import { mockupUnreadError, planWorked, unreadForGate } from './mockupReads';
@@ -458,103 +456,16 @@ async function purgeTrashRows(ctx: Ctx, days: number, checkRole: boolean) {
 	const cutoff = new Date(Date.now() - days * 86_400_000);
 	const removed = await run(ctx, async (tx) => {
 		if (checkRole) await requireCap(tx, ctx, 'manage');
-		// Runs referenced by any active or not-yet-purged trashed item step stay pinned (B.9), so restoring a recently trashed item preserves its evidence
-		const pinnedRunRows = await tx
-			.select({ evidence: step.evidence })
-			.from(step)
-			.innerJoin(item, eq(item.id, step.itemId))
-			.where(
-				and(
-					or(isNull(item.deletedAt), gte(item.deletedAt, cutoff)),
-					sql`(${step.evidence}->>'checkRunId' is not null or jsonb_array_length(coalesce(${step.evidence}->'runIds', '[]'::jsonb)) > 0)`
-				)
-			);
-		const pinnedRunIds = new Set<string>();
-		for (const row of pinnedRunRows) {
-			if (row.evidence?.checkRunId) pinnedRunIds.add(row.evidence.checkRunId);
-			for (const rid of row.evidence?.runIds ?? []) {
-				if (rid) pinnedRunIds.add(rid);
-			}
-		}
-		const pinnedEvidenceIds = new Set<string>();
-		// Also keep attachments referenced by any non-expired run (avoid cross-run deletion when an attachment is shared)
-		const survivingRuns = await tx
-			.select({ evidence: checkRun.evidence })
-			.from(checkRun)
-			.where(sql`coalesce(${checkRun.finishedAt}, ${checkRun.createdAt}) >= ${cutoff}`);
-		for (const sr of survivingRuns) {
-			for (const eid of sr.evidence) pinnedEvidenceIds.add(eid);
-		}
-		if (pinnedRunIds.size) {
-			const pinnedRuns = await tx
-				.select({ id: checkRun.id, evidence: checkRun.evidence })
-				.from(checkRun)
-				.where(inArray(checkRun.id, [...pinnedRunIds]));
-			for (const pr of pinnedRuns) {
-				for (const eid of pr.evidence) pinnedEvidenceIds.add(eid);
-			}
-			const pinnedTagged = await tx
-				.select({ id: attachment.id, refs: attachment.refs })
-				.from(attachment)
-				.where(eq(attachment.kind, 'check-evidence'));
-			for (const att of pinnedTagged) {
-				if ((att.refs ?? []).some((r) => pinnedRunIds.has(r))) pinnedEvidenceIds.add(att.id);
-			}
-		}
-		const trashedFiles = await tx
+		const files = await tx
 			.select({ id: attachment.id, key: attachment.storageKey })
 			.from(attachment)
 			.where(and(isNotNull(attachment.deletedAt), lt(attachment.deletedAt, cutoff)));
-		const files = trashedFiles.filter((f) => !pinnedEvidenceIds.has(f.id));
 		const itemFiles = await tx
 			.select({ id: attachment.id, key: attachment.storageKey })
 			.from(attachment)
 			.innerJoin(item, eq(item.id, attachment.itemId))
 			.where(and(isNotNull(item.deletedAt), lt(item.deletedAt, cutoff)));
-		const expiredRuns = await tx
-			.select({ id: checkRun.id, evidence: checkRun.evidence })
-			.from(checkRun)
-			.where(sql`coalesce(${checkRun.finishedAt}, ${checkRun.createdAt}) < ${cutoff}`);
-		const unpinnedRunIds = expiredRuns.map((r) => r.id).filter((id) => !pinnedRunIds.has(id));
-		let prunedRunFiles: { id: string; key: string }[] = [];
-		if (unpinnedRunIds.length) {
-			const unpinnedEvIds = [
-				...new Set(
-					expiredRuns
-						.filter((r) => !pinnedRunIds.has(r.id))
-						.flatMap((r) => r.evidence)
-						.filter((eid) => !pinnedEvidenceIds.has(eid))
-				)
-			];
-			const byEv = unpinnedEvIds.length
-				? await tx
-						.select({ id: attachment.id, key: attachment.storageKey })
-						.from(attachment)
-						.where(
-							and(inArray(attachment.id, unpinnedEvIds), eq(attachment.kind, 'check-evidence'))
-						)
-				: [];
-			const checkEvidenceRows = await tx
-				.select({ id: attachment.id, key: attachment.storageKey, refs: attachment.refs })
-				.from(attachment)
-				.where(eq(attachment.kind, 'check-evidence'));
-			const unpinnedSet = new Set(unpinnedRunIds);
-			const byRef = checkEvidenceRows
-				.filter(
-					(a) => !pinnedEvidenceIds.has(a.id) && (a.refs ?? []).some((r) => unpinnedSet.has(r))
-				)
-				.map((a) => ({ id: a.id, key: a.key }));
-			const seen = new Set<string>();
-			prunedRunFiles = [...byEv, ...byRef].filter((f) => {
-				if (seen.has(f.id)) return false;
-				seen.add(f.id);
-				return true;
-			});
-			const prunedIds = prunedRunFiles.map((f) => f.id);
-			if (prunedIds.length) await tx.delete(attachment).where(inArray(attachment.id, prunedIds));
-			await tx.delete(checkRun).where(inArray(checkRun.id, unpinnedRunIds));
-		}
-		const keys = [...files, ...itemFiles, ...prunedRunFiles];
+		const keys = [...files, ...itemFiles];
 		// A purged plan's mockups go to the mockup trash first (AFB-20261110-2338): the plan link is dropped with the row, and
 		// without this they would come back as standalone mockups. Their files stay until the mockup itself is purged
 		await tx

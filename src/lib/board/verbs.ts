@@ -12,9 +12,6 @@ const TEXT: Record<string, string> = {
 	'phase.create': 'added a phase',
 	'step.create': 'added a step',
 	'step.update': 'marked a step',
-	// Manual checks are gone, but their old history lines still read
-	'manual_check.create': 'added a manual check',
-	'manual_check.update': 'marked a manual check',
 	'decision.create': 'added a decision',
 	'decision.update': 'changed a decision',
 	'decision.delete': 'deleted a decision',
@@ -38,23 +35,7 @@ const TEXT: Record<string, string> = {
 	'publish.failed': 'could not publish',
 	'publish.refused': 'was refused by a public repository',
 	'publish.cancel': 'cancelled a publish',
-	'environment.save': 'saved an environment',
-	'environment.delete': 'removed an environment',
-	'secret.set': 'saved a test account',
-	'secret.delete': 'removed a test account',
-	'runner.create': 'registered a computer for browser checks',
-	'runner.approve': 'approved the sign in of a tool',
-	'runner.update': 'changed the web apps a computer may check',
-	'runner.delete': 'removed a computer from browser checks',
-	'check.save': 'saved a browser check',
-	'check.delete': 'removed a browser check',
-	'check_run.request': 'asked for a browser check run',
-	'check_run.finish': 'finished a browser check run',
-	'check_run.reopen': 'reopened work after a browser check failed',
-	'ui_change.save': 'pinned pages to the UI shots',
-	'ui_shots.request': 'asked for a UI shots run',
-	'ui_shots.finish': 'finished a UI shots run',
-	'ui_scale.measure': 'measured the design scale'
+	'runner.approve': 'approved the sign in of a tool'
 };
 
 // -- FUNCTIONS -- //

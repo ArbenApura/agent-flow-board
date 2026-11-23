@@ -609,11 +609,6 @@
 					{env}
 					mockups={data.mockups}
 				/>{/await}
-		{:else if tab === 'checks' && d.project.webApp}
-			{#await import('#lib/board/item/ChecksTab.svelte') then m}<m.default
-					detail={d}
-					{env}
-				/>{/await}
 		{:else}
 			<!-- Discussion, files and activity arrive after the first paint, so a skeleton holds their place -->
 			{#if extrasShown && extrasFor === d.item.id}

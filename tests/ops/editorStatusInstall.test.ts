@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { MOD_PART, installPlan, modFiles } from '../../src/lib/server/editor-status';
 import { isOAuthError, pollDevice, startDevice } from '../../src/lib/server/oauth/oauth';
 import { bridgeSignIn, editorStatusInstall } from '../../src/lib/server/ops/editorStatus';
-import { BRIDGE_CLIENT, approveToolConnection } from '../../src/lib/server/ops/environments';
+import { BRIDGE_CLIENT, approveToolConnection } from '../../src/lib/server/ops/deviceApproval';
 import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, type World } from '../support/ops';
 
@@ -224,10 +224,7 @@ describe('the editor status install tool', () => {
 			expect(Object.keys(mine).sort()).toEqual(['expiresAt', 'lastUsedAt', 'state']);
 		});
 
-		it('ignores a sign in of another tool, says expired when the bridge token ended, and none when it was revoked', async () => {
-			// An afb-checks sign in is not the bridge's
-			await bridgeSignsIn('owner', 'afb-checks');
-			expect((await sign('owner')).state).toBe('none');
+		it('says expired when the bridge token ended, and none when it was revoked', async () => {
 			await bridgeSignsIn('owner');
 			expect((await sign('owner')).state).toBe('signed-in');
 			await db.admin.exec(

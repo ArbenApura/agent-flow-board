@@ -12,7 +12,6 @@ export const ITEM_TABS = [
 	'decisions',
 	'docs',
 	'mockups',
-	'checks',
 	'activity',
 	'files',
 	'discussion'
@@ -28,7 +27,6 @@ export const ITEM_TAB_LABEL: Record<ItemTab, string> = {
 	decisions: 'Decisions',
 	docs: 'Documents',
 	mockups: 'Mockups',
-	checks: 'Checks',
 	activity: 'Activity',
 	files: 'Files',
 	discussion: 'Discussion'
@@ -65,11 +63,9 @@ export function itemTabsFrom(
 	const detail = data.detail;
 	const item = isRecord(detail.item) ? detail.item : null;
 	if (!item) return null;
-	const project = isRecord(detail.project) ? detail.project : null;
 	const mockups = isRecord(data.mockups) ? data.mockups : null;
 	return {
-		// The Checks tab is only for a project that is a web app
-		tabs: ITEM_TABS.filter((t) => t !== 'checks' || !!project?.webApp),
+		tabs: [...ITEM_TABS],
 		counts: {
 			plan: typeof item.totalSteps === 'number' ? item.totalSteps : 0,
 			decisions: length(detail.decisions),

@@ -11,17 +11,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@afb/runner@workspace:packages/runner":
-  version: 0.0.0-use.local
-  resolution: "@afb/runner@workspace:packages/runner"
-  dependencies:
-    "@playwright/test": "npm:^1.64.0"
-    tsx: "npm:^4.23.15"
-  bin:
-    afb-runner: src/cli.ts
-  languageName: unknown
-  linkType: soft
-
 "@agent-flow-board/bridge@workspace:packages/bridge":
   version: 0.0.0-use.local
   resolution: "@agent-flow-board/bridge@workspace:packages/bridge"
