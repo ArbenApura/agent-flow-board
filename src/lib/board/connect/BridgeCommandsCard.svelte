@@ -35,15 +35,13 @@
 <!-- EVERY BRIDGE COMMAND, FILLED IN FOR THIS ORGANISATION. SEARCH AND A FILTER BY KIND, KEPT IN THE PAGE -->
 <Card
 	padded={false}
-	class="lg:absolute lg:inset-0 lg:flex lg:flex-col"
-	bodyClass="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col"
 	data-testid="bridge-commands"
 	icon={SquareTerminal}
 	title="Every bridge command"
 	description={`Filled in for ${orgName}. Copy one and run it in a terminal.`}
 >
 	<div
-		class="flex shrink-0 flex-col gap-3 border-b border-line px-4 py-3 max-sm:px-3.5 sm:flex-row sm:items-center"
+		class="flex flex-col gap-3 border-b border-line px-4 py-3 max-sm:px-3.5 sm:flex-row sm:items-center"
 	>
 		<div class="sm:w-72">
 			<TextField
@@ -80,8 +78,8 @@
 			{/each}
 		</div>
 	</div>
-	<!-- THE LIST SCROLLS INSIDE THE CARD, SO THE CARD KEEPS THE HEIGHT OF THE COLUMN BESIDE IT -->
-	<div class="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+	<!-- THE LIST HAS NO HEIGHT LIMIT: EVERY COMMAND SHOWS AND THE PAGE SCROLLS -->
+	<div>
 		{#if groups.length === 0}
 			<div class="flex items-center gap-4 px-4 py-5 max-sm:px-3.5">
 				<span

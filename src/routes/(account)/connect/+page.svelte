@@ -174,8 +174,8 @@
 	{:else if data.tab === 'bridge'}
 		<!-- BRIDGE: EVERY COMMAND OF THE LOCAL BRIDGE -->
 		<div class="flex min-w-0 flex-col gap-6">
-			<!-- AT LEAST 24REM TALL. FROM lg UP THE LIST SCROLLS INSIDE -->
-			<div class="stagger lg:relative lg:min-h-96">
+			<!-- THE CARD GROWS WITH ITS LIST: NO HEIGHT LIMIT, THE PAGE SCROLLS -->
+			<div class="stagger">
 				<BridgeCommandsCard server={data.baseUrl} orgSlug={org.slug} orgName={org.name} />
 			</div>
 		</div>
