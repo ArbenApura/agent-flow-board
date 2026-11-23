@@ -379,6 +379,13 @@
       "when": 1795428871636,
       "tag": "0053_remove_browser_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1795437839403,
+      "tag": "0054_master_child",
+      "breakpoints": true
     }
   ]
 }

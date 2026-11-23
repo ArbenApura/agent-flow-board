@@ -225,7 +225,10 @@ export const routes: Route[] = [
 				order: (query.order as 'asc' | 'desc' | undefined) ?? 'desc',
 				sort: query.sort === 'activity' ? 'activity' : 'number',
 				limit: num(query.limit) ?? 50,
-				trashed: query.trashed === 'true'
+				trashed: query.trashed === 'true',
+				children: query.children === 'hide' ? 'hide' : 'show',
+				changedSince: query.changedSince || undefined,
+				family: query.family === 'true'
 			})
 	},
 	{

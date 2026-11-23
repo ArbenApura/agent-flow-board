@@ -59,6 +59,9 @@ export const LIST_COLS = {
 
 // -- FUNCTIONS -- //
 
+/** A status as a person reads it: `In progress`, never all lowercase. */
+export const statusLabel = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
+
 /** "just now", "5 min ago", "3 h ago", "2 d ago", then the date. */
 export function ago(value: string | Date, now = Date.now()): string {
 	const t = new Date(value).getTime();

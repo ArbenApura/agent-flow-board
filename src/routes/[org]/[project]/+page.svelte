@@ -3,7 +3,7 @@
 	import { untrack } from 'svelte';
 	// IMPORTED DEP-TYPES
 	import type { PageProps } from './$types';
-	import type { ApiItem, ItemRow, Running } from '#lib/board/rows.js';
+	import type { ApiFamily, ApiItem, ItemRow, Running } from '#lib/board/rows.js';
 	// IMPORTED ENVS
 	import { goto, invalidate } from '$app/navigation';
 	import { page } from '$app/state';
@@ -185,6 +185,9 @@
 	);
 	const toggleStream = (s: string) => go({ stream: data.filters.stream === s ? null : s });
 	const setScope = (v: string) => go({ by: v === 'all' ? null : v });
+	/** The List shows every plan unless told otherwise and the board and Areas fold child plans, so only the other choice is written in the address. */
+	const setChildren = (v: string) =>
+		go({ children: v === (data.view === 'list' ? 'show' : 'hide') ? null : v });
 	const togglePerson = (id: string) =>
 		go({
 			by:
@@ -218,6 +221,11 @@
 		return parts.join(' and ');
 	});
 	const boardTotal = $derived(data.columns.reduce((sum, c) => sum + c.total, 0));
+	/** Child plans are listed one by one and the board holds at least one master or child, so the line above says so. */
+	const showsFamily = $derived(
+		data.filters.children === 'show' &&
+			data.columns.some((c) => c.items.some((i) => i.parent || i.kids?.length))
+	);
 	const clearFilters = () => {
 		q = '';
 		// The scope switch stays where it is: it has its own control
@@ -280,13 +288,15 @@
 				if (data.filters.by) params.set('by', data.filters.by);
 				if (data.filters.assignee) params.set('assignee', data.filters.assignee);
 				if (data.filters.reviewer) params.set('reviewer', data.filters.reviewer);
-				const more: { items: ApiItem[]; nextCursor: number | null } = await api(
+				params.set('children', data.filters.children);
+				params.set('family', 'true');
+				const more: { items: ApiItem[]; nextCursor: number | null; family?: ApiFamily } = await api(
 					org,
 					`/projects/${key}/items?${params}`
 				);
 				// The filter changed while this page was coming: it belongs to the old list and is dropped
 				if (started !== generation) return;
-				listItems = [...listItems, ...more.items.map(slimItem)];
+				listItems = [...listItems, ...more.items.map((i) => slimItem(i, more.family))];
 				cursor = more.nextCursor;
 			}
 		} catch (e) {
@@ -559,7 +569,18 @@
 			onchange={setScope}
 			class="max-sm:order-last max-sm:w-full max-sm:[&>button]:flex-1"
 		/>
-		<span class="ml-auto flex flex-wrap items-center gap-3">
+		<!-- CHILD PLANS ARE FOLDED INTO THEIR MASTER, OR EVERY PLAN IS SHOWN ON ITS OWN. THE CHOICE LIVES IN THE ADDRESS -->
+		<SegmentedControl
+			label="Child plans"
+			value={data.filters.children === 'show' ? 'show' : 'hide'}
+			options={[
+				{ value: 'hide', label: 'Folded' },
+				{ value: 'show', label: 'Shown' }
+			]}
+			onchange={setChildren}
+			class="max-sm:w-full max-sm:[&>button]:flex-1"
+		/>
+		<span class="ml-auto flex flex-wrap items-center gap-3 max-sm:ml-0 max-sm:w-full">
 			<SegmentedControl
 				label="View"
 				value={data.view}
@@ -584,11 +605,14 @@
 		<!-- STATUS COLUMNS. DRAGGING A CARD TO ANOTHER COLUMN CHANGES ITS STATUS -->
 		<div class="mb-3 flex items-center justify-between gap-3">
 			<p class="text-xs text-muted">
-				{#if whyText}
+				{#if whyText || data.foldedChildren > 0 || showsFamily}
 					<span class="font-medium text-ink tabular-nums" data-testid="result-line"
 						>{boardTotal.toLocaleString('en')} {boardTotal === 1 ? 'plan' : 'plans'}</span
-					>
-					{whyText}.
+					>{whyText ? ` ${whyText}` : ''}{data.foldedChildren > 0
+						? `, with ${data.foldedChildren.toLocaleString('en')} child ${data.foldedChildren === 1 ? 'plan' : 'plans'} folded into their masters`
+						: showsFamily
+							? ', every child plan shown'
+							: ''}.
 				{/if}
 				{canWrite ? 'Drag a card to another column to change its status.' : ''}
 			</p>
@@ -637,10 +661,27 @@
 							dragEnabled={canWrite}
 						/>
 					{/each}
+					<!-- THE COMPLETED COLUMN KEEPS TO RECENT PLANS: THIS SHOWS THE REST IN THE SAME BOARD -->
+					{#if col.older > 0}
+						<button
+							type="button"
+							onclick={() => go({ older: '1' })}
+							class="min-h-9 cursor-pointer px-1 text-left text-sm text-accent-text hover:underline max-sm:min-h-11"
+							data-testid="show-older">Show older ({col.older.toLocaleString('en')})</button
+						>
+					{/if}
+					{#if data.filters.older && col.status === 'COMPLETED'}
+						<button
+							type="button"
+							onclick={() => go({ older: null })}
+							class="min-h-9 cursor-pointer px-1 text-left text-sm text-accent-text hover:underline max-sm:min-h-11"
+							data-testid="show-recent">Show recent only</button
+						>
+					{/if}
 					{#if col.total > col.items.length}
 						<a
-							class="min-h-9 px-1 text-sm text-accent-text hover:underline"
-							href={`${base}?view=list&status=${encodeURIComponent(col.status)}${personQuery ? '&' + personQuery : ''}`}
+							class="min-h-9 px-1 text-sm text-accent-text hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+							href={`${base}?view=list&status=${encodeURIComponent(col.status)}&children=${data.filters.children}${personQuery ? '&' + personQuery : ''}`}
 							>Show all {col.total}</a
 						>
 					{/if}
@@ -655,7 +696,7 @@
 						<span>{a.stream} <span class="text-muted">/</span> {a.scope}</span>
 						<a
 							class="text-sm font-normal text-accent-text hover:underline"
-							href={`${base}?view=list&stream=${encodeURIComponent(a.stream)}&scope=${encodeURIComponent(a.scope)}${personQuery ? '&' + personQuery : ''}`}
+							href={`${base}?view=list&stream=${encodeURIComponent(a.stream)}&scope=${encodeURIComponent(a.scope)}&children=${data.filters.children}${personQuery ? '&' + personQuery : ''}`}
 							>{a.total} items</a
 						>
 					</h2>

@@ -9,6 +9,7 @@ export const ITEM_ROUTE = '/[org]/[project]/[item]';
 
 export const ITEM_TABS = [
 	'plan',
+	'children',
 	'decisions',
 	'docs',
 	'mockups',
@@ -24,6 +25,7 @@ export type ItemTabsView = { tabs: ItemTab[]; counts: ItemTabCounts; active: Ite
 
 export const ITEM_TAB_LABEL: Record<ItemTab, string> = {
 	plan: 'Plan',
+	children: 'Children',
 	decisions: 'Decisions',
 	docs: 'Documents',
 	mockups: 'Mockups',
@@ -64,10 +66,16 @@ export function itemTabsFrom(
 	const item = isRecord(detail.item) ? detail.item : null;
 	if (!item) return null;
 	const mockups = isRecord(data.mockups) ? data.mockups : null;
+	// The Children tab belongs to a master only: it is the plan's own id that holds a list of child plans
+	const family = isRecord(detail.family) ? detail.family : null;
+	const kids =
+		family && isRecord(family.kids) && typeof item.id === 'string' ? family.kids[item.id] : null;
+	const kidCount = length(kids);
 	return {
-		tabs: [...ITEM_TABS],
+		tabs: ITEM_TABS.filter((t) => t !== 'children' || kidCount > 0),
 		counts: {
 			plan: typeof item.totalSteps === 'number' ? item.totalSteps : 0,
+			children: kidCount,
 			decisions: length(detail.decisions),
 			docs: length(detail.sections),
 			mockups: length(mockups?.list)

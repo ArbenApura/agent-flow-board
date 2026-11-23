@@ -273,6 +273,19 @@ export function summarize(d: ItemDetail, fields: string[] = []) {
 		createdBy: d.creator?.name ?? null,
 		createdAt: d.item.createdAt,
 		drift: d.item.health.drift,
+		// A child plan names its master; a master lists its child plans in order
+		...(d.family.parents[d.item.id] ? { parent: d.family.parents[d.item.id] } : {}),
+		...(d.family.kids[d.item.id]?.length
+			? {
+					children: d.family.kids[d.item.id].map((k) => ({
+						childNo: k.childNo,
+						ref: k.ref,
+						title: k.title,
+						status: k.status,
+						percent: k.percent
+					}))
+				}
+			: {}),
 		phases: d.phases.map((p) => ({
 			key: p.key,
 			title: p.title,
@@ -675,6 +688,12 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				.max(100)
 				.optional()
 				.describe('me or a user id: items in review that wait for them'),
+			children: z
+				.enum(['show', 'hide'])
+				.optional()
+				.describe(
+					'show (the default) lists every plan, child plans included; hide leaves out child plans so only masters and plans of their own remain'
+				),
 			cursor: z.number().int().optional(),
 			limit: z.number().int().min(1).max(100).optional()
 		},
@@ -686,18 +705,27 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				by: a.by,
 				assignee: a.assignee,
 				reviewer: a.reviewer,
+				children: a.children ?? 'show',
+				family: true,
 				cursor: a.cursor,
 				limit: a.limit ?? 25,
 				order: 'desc',
 				trashed: false
 			});
 			return {
-				items: page.items.map((i) => ({
-					ref: i.ref,
-					title: i.title,
-					status: i.status,
-					percent: i.percent
-				})),
+				items: page.items.map((i) => {
+					const parent = page.family?.parents[i.id];
+					const kids = page.family?.kids[i.id]?.length ?? 0;
+					return {
+						ref: i.ref,
+						title: i.title,
+						status: i.status,
+						percent: i.percent,
+						// A child plan names its master and its number; a master says how many child plans it has
+						...(parent ? { parent: parent.ref, childNo: parent.childNo } : {}),
+						...(kids ? { childPlans: kids } : {})
+					};
+				}),
 				nextCursor: page.nextCursor
 			};
 		}
@@ -957,6 +985,12 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			tabName: z.string().optional(),
 			stream: z.string().optional(),
 			scope: z.string().optional(),
+			parent: z
+				.string()
+				.optional()
+				.describe(
+					'The reference of the master plan this one is a child of. Plans nest one level only; use it for a piece that ships or is reviewed on its own, or runs in parallel with another, never for sequential work (those are phases of one plan).'
+				),
 			visibility: z.enum(['public', 'private']).optional(),
 			phases: z
 				.array(
@@ -1008,6 +1042,13 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			scope: z.string().optional(),
 			visibility: z.enum(['public', 'private']).optional(),
 			branchNote: z.string().nullable().optional(),
+			parent: z
+				.string()
+				.nullable()
+				.optional()
+				.describe(
+					'A master plan reference to make this plan its child (one level, same project), or null to make it a plan of its own again'
+				),
 			assigneeId: z.string().nullable().optional(),
 			sections: sectionsIn,
 			decisions: decisionsIn
@@ -1206,7 +1247,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'item_trash',
-		'Move an item to the trash for 30 days. Trashing an item other than the one you claimed asks first.',
+		'Move an item to the trash for 30 days. Trashing an item other than the one you claimed asks first. Trashing a master leaves its child plans on the board as plans of their own (the answer says how many in releasedChildren); restoring the master does not link them back.',
 		{ item: itemName, confirmed: z.boolean().optional(), expectVersion },
 		{ session: true },
 		async (a, { ctx }) => trashItem(ctx, a.item, a.expectVersion, a.confirmed)

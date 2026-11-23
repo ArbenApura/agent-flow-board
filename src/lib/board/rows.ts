@@ -10,6 +10,27 @@ export type WaitingBlocker = {
 	setAt: string;
 };
 
+/** A child plan of a master, as the master card and the Children tab show it. */
+export type KidRow = {
+	id: string;
+	ref: string;
+	title: string;
+	status: string;
+	percent: number;
+	doneSteps: number;
+	totalSteps: number;
+	childNo: number;
+};
+
+/** The master of a child plan, with this plan's number and how many children the master has. */
+export type ParentRow = { ref: string; title: string; childNo: number; childTotal: number };
+
+/** What loadFamily answers for a page of items. */
+export type ApiFamily = {
+	kids: Record<string, KidRow[]>;
+	parents: Record<string, ParentRow>;
+};
+
 export type ItemRow = {
 	id: string;
 	ref: string;
@@ -26,6 +47,10 @@ export type ItemRow = {
 	/** The person who made the plan, or null for an imported one. Names come from the project summary. */
 	createdBy: string | null;
 	lastActivityAt: string;
+	/** The master of this plan when it is a child the person can see the master of. */
+	parent?: ParentRow | null;
+	/** The child plans of this plan when it is a master, in order. */
+	kids?: KidRow[];
 };
 
 /** The columns of an item row that a list needs, as the API returns them (dates arrive as text from JSON). */
@@ -74,7 +99,9 @@ export type Running = {
 
 // -- FUNCTIONS -- //
 
-export const slimItem = (i: ApiItem): ItemRow => ({
+export const slimItem = (i: ApiItem, family?: ApiFamily): ItemRow => ({
+	parent: family?.parents[i.id] ?? null,
+	kids: family?.kids[i.id] ?? [],
 	id: i.id,
 	ref: i.ref,
 	number: i.number,

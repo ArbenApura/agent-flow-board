@@ -10,6 +10,7 @@
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Gavel from '@lucide/svelte/icons/gavel';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
+	import ListTree from '@lucide/svelte/icons/list-tree';
 	import MessagesSquare from '@lucide/svelte/icons/messages-square';
 	import PanelsTopLeft from '@lucide/svelte/icons/panels-top-left';
 	import Paperclip from '@lucide/svelte/icons/paperclip';
@@ -41,6 +42,7 @@
 		Component<{ size?: number; class?: string; 'aria-hidden'?: 'true' }>
 	> = {
 		plan: ListChecks,
+		children: ListTree,
 		decisions: Gavel,
 		docs: FileText,
 		mockups: PanelsTopLeft,

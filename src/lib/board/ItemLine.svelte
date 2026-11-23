@@ -3,12 +3,15 @@
 	import type { ItemRow, Running } from '#lib/board/rows.js';
 	// IMPORTED MODULES
 	import { draggable } from '#lib/actions/dnd.svelte.js';
-	import { LIST_COLS, STATUS_STYLE, ago } from '#lib/board/status.js';
+	import { childSummary, parentLine } from '#lib/board/family.js';
+	import { LIST_COLS, STATUS_STYLE, ago, statusLabel } from '#lib/board/status.js';
 	import { cn } from '#lib/ui/cn.js';
+	import MasterFoot from '#lib/board/MasterFoot.svelte';
 	import Progress from '#lib/ui/Progress.svelte';
 	import RunningBadge from '#lib/ui/RunningBadge.svelte';
 	import Avatar from '#lib/ui/Avatar.svelte';
 	// IMPORTED DEP-COMPONENTS
+	import CornerDownRight from '@lucide/svelte/icons/corner-down-right';
 	import Lock from '@lucide/svelte/icons/lock';
 	import Play from '@lucide/svelte/icons/play';
 	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -36,93 +39,139 @@
 		/** Given, a small button on a board card opens the Continue with dialog for this item. */
 		onContinue?: (row: ItemRow) => void;
 	} = $props();
+
+	// -- REACTIVE STATES -- //
+
+	/** A master is a plan with child plans: its card gets a foot that shows them. */
+	const isMaster = $derived((row.kids?.length ?? 0) > 0);
 </script>
+
+<!-- THE PARTS OF A BOARD CARD BELOW THE STATUS RAIL, SHARED BY A PLAIN CARD AND A MASTER CARD -->
+{#snippet cardBody()}
+	<!-- THE REFERENCE ON THE LEFT, MASTER, PRIVATE AND NEEDS ATTENTION TOGETHER ON THE RIGHT -->
+	<span class={cn('flex min-h-6 items-center gap-2 text-xs text-muted', onContinue && 'pr-10')}>
+		<span class="min-w-0 flex-1 font-mono [overflow-wrap:anywhere]">{row.ref}</span>
+		{#if isMaster || row.visibility === 'private' || row.flags > 0}
+			<span class="flex shrink-0 items-center gap-2">
+				{#if isMaster}
+					<span class="shrink-0 rounded-md bg-raised px-1.5 font-medium whitespace-nowrap"
+						>Master</span
+					>
+				{/if}
+				{#if row.visibility === 'private'}
+					<span
+						class="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2 text-badge font-semibold text-danger"
+						><Lock size={12} aria-hidden="true" />Private</span
+					>
+				{/if}
+				{#if row.flags > 0}<TriangleAlert
+						size={14}
+						class="shrink-0 text-warning"
+						aria-label="Needs attention"
+					/>{/if}
+			</span>
+		{/if}
+	</span>
+	<!-- A CHILD PLAN NAMES ITS MASTER AND ITS NUMBER UNDER IT -->
+	{#if row.parent}
+		<span class="flex min-w-0 items-center gap-1.5 text-xs text-muted" data-testid="parent-line">
+			<CornerDownRight size={14} class="shrink-0" aria-hidden="true" />
+			<span class="truncate">{parentLine(row.parent)}</span>
+		</span>
+	{/if}
+	<span class="line-clamp-2 text-sm leading-6 font-semibold text-ink">{row.title}</span>
+	<span class="flex items-center gap-2.5">
+		<Progress
+			value={row.percent}
+			label={`${row.ref} progress`}
+			fill={STATUS_STYLE[row.status].rail}
+		/>
+		<span
+			class="w-10 shrink-0 text-right text-xs font-semibold whitespace-nowrap text-ink tabular-nums"
+			>{row.percent}%</span
+		>
+	</span>
+	<span class="flex items-center justify-between gap-2.5 text-xs text-muted">
+		<span class="tabular-nums">
+			{row.doneSteps} of {row.totalSteps} steps
+		</span>
+		<span class="whitespace-nowrap">{ago(row.lastActivityAt)}</span>
+	</span>
+	<!-- THE FOOTER IS ONE LINE: WHO MADE IT ON THE LEFT, THE AREA ON THE RIGHT, NEVER WRAPPING -->
+	<span class="flex items-center justify-between gap-2.5 text-xs text-muted">
+		<!-- THE SAME AVATAR AS THE TOP BAR, AND THE NAME -->
+		{#if creator}
+			<span class="inline-flex min-w-0 items-center gap-2" data-testid="item-creator">
+				<Avatar name={creator.name} userId={creator.userId} v={creator.v} size={24} />
+				<span class="truncate font-medium text-ink">{creator.name}</span>
+			</span>
+		{:else}
+			<!-- KEEPS THE AREA CHIP ON THE RIGHT WHEN NO ONE IS SHOWN -->
+			<span aria-hidden="true"></span>
+		{/if}
+		<span class="shrink-0 rounded-md bg-raised px-1.5 font-medium whitespace-nowrap"
+			>{row.stream}/{row.scope}</span
+		>
+	</span>
+	<!-- EACH RUNNING SESSION IS ONE FULL-WIDTH STRIP UNDER THE FOOTER, STACKED -->
+	{#if running.length > 0}
+		<span class="flex flex-col gap-1.5" data-testid="item-running">
+			{#each running as r (r.sessionId)}<RunningBadge
+					block
+					tool={r.tool}
+					title={r.title}
+					phase={r.phase ?? undefined}
+					staleMinutes={r.staleMinutes}
+					mockupUnread={r.mockupUnread}
+					reviewIdle={r.reviewIdle}
+					waiting={r.waiting}
+				/>{/each}
+		</span>
+	{/if}
+{/snippet}
 
 <!-- ONE ITEM, AS A LIST ROW OR A BOARD CARD. REFERENCE, TITLE, STATUS, A PROGRESS RING AND WHO IS RUNNING IT -->
 {#if compact}
 	<!-- THE BUTTON IS A SIBLING OF THE LINK, NEVER INSIDE IT, SO A CLICK ON IT CANNOT OPEN THE ITEM OR START A DRAG -->
 	<div class="group relative">
-		<a
-			{href}
-			use:draggable={{ id: row.ref, disabled: !dragEnabled }}
-			data-testid="item-card"
-			class="group relative flex flex-col gap-2.5 overflow-hidden rounded-xl border border-line bg-surface py-3.5 pr-3.5 pl-4.5 transition-colors hover:border-muted"
-			data-card
-		>
-			<!-- STATUS RAIL -->
-			<span
-				class={cn('absolute inset-y-0 left-0 w-[3px]', STATUS_STYLE[row.status].rail)}
-				aria-hidden="true"
-			></span>
-			<!-- THE REFERENCE ON THE LEFT, PRIVATE AND NEEDS ATTENTION TOGETHER ON THE RIGHT -->
-			<span class={cn('flex min-h-6 items-center gap-2 text-xs text-muted', onContinue && 'pr-10')}>
-				<span class="min-w-0 flex-1 font-mono [overflow-wrap:anywhere]">{row.ref}</span>
-				{#if row.visibility === 'private' || row.flags > 0}
-					<span class="flex shrink-0 items-center gap-2">
-						{#if row.visibility === 'private'}
-							<span
-								class="inline-flex items-center gap-1 rounded-full bg-danger-soft px-2 text-badge font-semibold text-danger"
-								><Lock size={12} aria-hidden="true" />Private</span
-							>
-						{/if}
-						{#if row.flags > 0}<TriangleAlert
-								size={14}
-								class="shrink-0 text-warning"
-								aria-label="Needs attention"
-							/>{/if}
-					</span>
-				{/if}
-			</span>
-			<span class="line-clamp-2 text-sm leading-6 font-semibold text-ink">{row.title}</span>
-			<span class="flex items-center gap-2.5">
-				<Progress
-					value={row.percent}
-					label={`${row.ref} progress`}
-					fill={STATUS_STYLE[row.status].rail}
-				/>
+		{#if isMaster}
+			<!-- A MASTER IS ONE CARD: THE PLAN CARD, THEN A FOOT WITH ITS CHILD PLANS. THE FOOT IS NOT PART OF THE LINK -->
+			<div
+				class="relative overflow-hidden rounded-xl border border-line bg-surface transition-colors hover:border-muted"
+				data-testid="master-card"
+			>
+				<!-- STATUS RAIL -->
 				<span
-					class="w-10 shrink-0 text-right text-xs font-semibold whitespace-nowrap text-ink tabular-nums"
-					>{row.percent}%</span
+					class={cn('absolute inset-y-0 left-0 w-[3px]', STATUS_STYLE[row.status].rail)}
+					aria-hidden="true"
+				></span>
+				<a
+					{href}
+					use:draggable={{ id: row.ref, disabled: !dragEnabled }}
+					data-testid="item-card"
+					class="flex flex-col gap-2.5 py-3.5 pr-3.5 pl-4.5"
+					data-card
 				>
-			</span>
-			<span class="flex items-center justify-between gap-2.5 text-xs text-muted">
-				<span class="tabular-nums">
-					{row.doneSteps} of {row.totalSteps} steps
-				</span>
-				<span class="whitespace-nowrap">{ago(row.lastActivityAt)}</span>
-			</span>
-			<!-- THE FOOTER IS ONE LINE: WHO MADE IT ON THE LEFT, THE AREA ON THE RIGHT, NEVER WRAPPING -->
-			<span class="flex items-center justify-between gap-2.5 text-xs text-muted">
-				<!-- THE SAME AVATAR AS THE TOP BAR, AND THE NAME -->
-				{#if creator}
-					<span class="inline-flex min-w-0 items-center gap-2" data-testid="item-creator">
-						<Avatar name={creator.name} userId={creator.userId} v={creator.v} size={24} />
-						<span class="truncate font-medium text-ink">{creator.name}</span>
-					</span>
-				{:else}
-					<!-- KEEPS THE AREA CHIP ON THE RIGHT WHEN NO ONE IS SHOWN -->
-					<span aria-hidden="true"></span>
-				{/if}
-				<span class="shrink-0 rounded-md bg-raised px-1.5 font-medium whitespace-nowrap"
-					>{row.stream}/{row.scope}</span
-				>
-			</span>
-			<!-- EACH RUNNING SESSION IS ONE FULL-WIDTH STRIP UNDER THE FOOTER, STACKED -->
-			{#if running.length > 0}
-				<span class="flex flex-col gap-1.5" data-testid="item-running">
-					{#each running as r (r.sessionId)}<RunningBadge
-							block
-							tool={r.tool}
-							title={r.title}
-							phase={r.phase ?? undefined}
-							staleMinutes={r.staleMinutes}
-							mockupUnread={r.mockupUnread}
-							reviewIdle={r.reviewIdle}
-							waiting={r.waiting}
-						/>{/each}
-				</span>
-			{/if}
-		</a>
+					{@render cardBody()}
+				</a>
+				<MasterFoot {row} {href} />
+			</div>
+		{:else}
+			<a
+				{href}
+				use:draggable={{ id: row.ref, disabled: !dragEnabled }}
+				data-testid="item-card"
+				class="group relative flex flex-col gap-2.5 overflow-hidden rounded-xl border border-line bg-surface py-3.5 pr-3.5 pl-4.5 transition-colors hover:border-muted"
+				data-card
+			>
+				<!-- STATUS RAIL -->
+				<span
+					class={cn('absolute inset-y-0 left-0 w-[3px]', STATUS_STYLE[row.status].rail)}
+					aria-hidden="true"
+				></span>
+				{@render cardBody()}
+			</a>
+		{/if}
 		{#if onContinue}
 			<!-- JUST THE ICON, SMALL, AND ONLY WHEN THE POINTER IS ON THE CARD OR THE BUTTON HAS FOCUS. A TOUCH SCREEN HAS NO HOVER, SO IT IS ALWAYS THERE. THE HIT AREA IS 44 PX ON A PHONE -->
 			<button
@@ -167,6 +216,15 @@
 				<span class="tabular-nums">
 					{row.doneSteps} of {row.totalSteps} steps
 				</span>
+				<!-- A CHILD NAMES ITS MASTER, A MASTER SAYS HOW ITS CHILD PLANS STAND -->
+				{#if row.parent}
+					<span class="inline-flex min-w-0 items-center gap-1" data-testid="parent-line">
+						<CornerDownRight size={14} class="shrink-0" aria-hidden="true" />
+						<span class="truncate">{parentLine(row.parent)}</span>
+					</span>
+				{:else if isMaster}
+					<span class="tabular-nums" data-testid="master-line">{childSummary(row.kids ?? [])}</span>
+				{/if}
 				<!-- ON A PHONE THE MADE BY COLUMN IS HIDDEN, SO THE NAME SITS IN THIS LINE -->
 				{#if creator}
 					<span class="inline-flex items-center gap-1.5 md:hidden">
@@ -188,7 +246,7 @@
 		<span class={cn('flex items-center gap-2 text-xs font-medium text-ink', LIST_COLS.status)}>
 			<span class={cn('size-2 rounded-full', STATUS_STYLE[row.status].dot)} aria-hidden="true"
 			></span>
-			{row.status.toLowerCase()}
+			{statusLabel(row.status)}
 		</span>
 		<span class={cn('flex items-center gap-2.5', LIST_COLS.progress)}>
 			<Progress

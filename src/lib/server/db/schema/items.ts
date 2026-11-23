@@ -3,8 +3,10 @@
 // IMPORTED DEP-MODULES
 import { sql } from 'drizzle-orm';
 import {
+	type AnyPgColumn,
 	bigint,
 	boolean,
+	check,
 	index,
 	integer,
 	jsonb,
@@ -62,6 +64,10 @@ export const item = tenantTable(
 		branchNote: text('branch_note'),
 		assigneeId: text('assignee_id').references(() => user.id, { onDelete: 'set null' }),
 		reviewerId: text('reviewer_id').references(() => user.id, { onDelete: 'set null' }),
+		/** The master plan this plan is a child of, or null. One level only (a master has no parent) and the same project; the ops layer keeps both rules under the master's row lock. */
+		parentId: uuid('parent_id').references((): AnyPgColumn => item.id, { onDelete: 'set null' }),
+		/** This plan's number among the children of its master (1, 2, 3 and so on), null while it has no master. A number is kept while the child is trashed and given up when the plan is unlinked. */
+		childNo: integer('child_no'),
 		// Write-time calculated values (ADR-016)
 		percent: integer('percent').notNull().default(0),
 		doneSteps: integer('done_steps').notNull().default(0),
@@ -88,6 +94,10 @@ export const item = tenantTable(
 		index('item_project_status_idx').on(t.projectId, t.status),
 		index('item_project_activity_idx').on(t.projectId, t.lastActivityAt),
 		index('item_search_idx').using('gin', t.searchVector),
+		// The children of a master, in order. A child number is unique under its master (rows with no master hold null and never clash)
+		index('item_parent_idx').on(t.projectId, t.parentId),
+		uniqueIndex('item_parent_child_no_uq').on(t.parentId, t.childNo),
+		check('item_parent_self_chk', sql`${t.parentId} is distinct from ${t.id}`),
 		// Items are found by upper(ref), which the plain unique index on ref cannot serve
 		index('item_org_upper_ref_idx').on(t.orgId, sql`upper(${t.ref})`),
 		oneOf('item_status_chk', t.status, STATUSES),

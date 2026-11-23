@@ -5,7 +5,7 @@
 	import { navigating, page } from '$app/state';
 	// IMPORTED MODULES
 	import { itemTabsBar } from '#lib/board/item/itemTabsBar.svelte.js';
-	import { itemTabsFrom } from '#lib/board/item/itemTabs.js';
+	import { ITEM_ROUTE, itemTabsFrom } from '#lib/board/item/itemTabs.js';
 	import { projectTabs } from '#lib/board/projectTabs.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Button from '#lib/ui/Button.svelte';
@@ -31,6 +31,16 @@
 	// -- REQUIRED PROPS -- //
 
 	let { data, children: pageContent }: LayoutProps = $props();
+
+	// -- TYPES -- //
+
+	/** The part of an item page's data the breadcrumb reads: the item and, for a child plan, its master. */
+	type ItemCrumbData = {
+		detail: {
+			item: { id: string };
+			family?: { parents?: Record<string, { ref: string; title: string }> };
+		} | null;
+	};
 
 	// -- STATES -- //
 
@@ -70,11 +80,15 @@
 		const path = page.url.pathname;
 		if (current) {
 			const tab = tabs.find((t) => (t.exact ? path === t.href : path.startsWith(t.href)));
+			// A child plan's page names its master next, so the way back up is in the bar
+			const detail = page.route.id === ITEM_ROUTE ? (page.data as ItemCrumbData).detail : null;
+			const master = detail ? detail.family?.parents?.[detail.item.id] : undefined;
 			// The organisation comes first, so a project page never shows one lone word in the bar
 			return [
 				{ label: data.org.name, href: base },
 				{ label: current.name, href: `${base}/${current.key}` },
-				...(tab && !tab.exact ? [{ label: tab.label, href: tab.href }] : [])
+				...(tab && !tab.exact ? [{ label: tab.label, href: tab.href }] : []),
+				...(master ? [{ label: master.title, href: `${base}/${current.key}/${master.ref}` }] : [])
 			];
 		}
 		if (path === base) return [{ label: 'Projects', href: base }];

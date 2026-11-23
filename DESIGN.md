@@ -113,6 +113,20 @@ Free-form notes in folders, written in a rich editor that several people can typ
 - Only a person who can write sees it, and never on a COMPLETED or REMOVED item.
 - The prompt is only ever copied, never put into a shell command. See `src/lib/shared/continue.ts`.
 
+## Master and child plans
+
+A master is one card, its child plans are folded into it, and its page is a roadmap (AFB-20261123-1227; the approved mockup is on the plan's Mockups tab).
+
+- **The master card** is the plan card (`ItemLine`) plus a foot under a hairline (`border-t`, 14 px at the sides, 12 above and below, 18 on the rail side): the line `N child plans · X done · Y running` (`all done` when finished) in the small muted level, a 32 px chevron button (44 on a phone) and the segmented bar. A `Master` chip sits beside the reference, in the area chip's style. The chevron opens the child plans in place: rows at 36 px (44 on a phone) in the small level, number, title, a status dot and the percent, animating the row height over 200 ms (the chevron turns over 150 ms; reduced motion removes both). A closed list cannot be focused.
+- **The segmented bar** (`ChildBar`) is the progress bar's height (6 px) with one segment per child plan in child order and 2 px gaps. A segment takes its status rail token; a planned one is faint (40% opacity) so work done stands out. It is never the accent.
+- **The Child plans switch** (Folded, Shown) is a `SegmentedControl` in the registry toolbar between Whose plans and View, kept in the address as `children=`. The board and Areas fold child plans by default, the List shows every plan by default (it stays one flat virtual list: a child row shows its parent line, a master row its summary). Column counts and the line above the board count plans, and say how many child plans are folded.
+- **Completed** shows plans changed in the last 14 days and a `Show older (N)` text button (the `Show all` link style), kept in the address as `older=1`. A search or a filter always finds a plan whatever its age.
+- **The parent line** on a child card is a 14 px corner arrow and `Child N of M · master title` in the small muted level, under the reference.
+- **The Children tab** (only on a master, second in the tab bar) has two parts: the child plans in one card, grouped by status (IN PROGRESS, IN REVIEW, ON HOLD, PLANNED, then COMPLETED and REMOVED folded behind a chevron), each group headed like a board column (dot, uppercase name, count); a row is the number (20 px slot), the title with the reference in mono under it, a 224 px progress cell (bar, percent, `done of total`). There is no status pill, no updated column and no chevron on a row: the group is the status. On the right a 320 px roadmap card from `lg` (above the list on a phone) sticks 141 px from the top below `2xl`, where the tab bar sticks above it, and 89 px from `2xl`: `X of N plans done`, the bar, the counts by status, the steps and a Next up block (the first child plan that is planned or in progress) with its progress and an Open plan button, a plain button, never the primary one.
+- **The parent strip** opens the header band of a child plan's page: the corner arrow, `Child N of M ·` and the master as an accent link, and the child before and the child after as small secondary buttons (44 on a phone), left out at either end. The breadcrumb adds the master after the project.
+- **Status names** are written in sentence case wherever they are text (`In progress`); the uppercase names are the column and group heads only.
+- **New pixel values**: the 320 roadmap column, the 224 progress cell, the 20 px number slot, and the sticky offsets 141 and 89 (the 65 px bar plus the tab card plus 8, and the bar plus 24). No new colour, font or radius.
+
 ## Background mesh
 
 `src/lib/ui/MeshField.svelte` draws a full page square mesh on a canvas, mounted first inside `AuthShell`'s `<main>`.

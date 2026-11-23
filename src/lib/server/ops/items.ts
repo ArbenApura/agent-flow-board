@@ -6,7 +6,7 @@ import type { SQL } from 'drizzle-orm';
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 // IMPORTED DEP-MODULES
-import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // IMPORTED MODULES
 import { allocateItemNumber } from '../db/numbering';
@@ -66,6 +66,8 @@ export const createItemInput = z.object({
 	visibility: z.enum(['public', 'private']).default('public'),
 	branchNote: z.string().max(500).nullish(),
 	assigneeId: z.string().nullish(),
+	/** The reference of the master plan this one is a child of (one level only, same project). */
+	parent: z.string().min(1).max(80).nullish(),
 	phases: z.array(phaseIn).max(60).default([]),
 	aliases: z.array(z.string().min(2).max(80)).max(10).default([]),
 	sections: z
@@ -94,7 +96,9 @@ export const updateItemInput = z.object({
 	visibility: z.enum(['public', 'private']).optional(),
 	branchNote: z.string().max(500).nullable().optional(),
 	assigneeId: z.string().nullable().optional(),
-	reviewerId: z.string().nullable().optional()
+	reviewerId: z.string().nullable().optional(),
+	/** A master's reference to make this plan its child, or null to make it a plan of its own again. */
+	parent: z.string().min(1).max(80).nullable().optional()
 });
 
 const PATCHABLE = [
@@ -136,6 +140,52 @@ async function aliasClash(
 		.where(and(eq(item.orgId, orgId), inArray(sql`upper(${item.ref})`, upper)))
 		.limit(1);
 	return hit ? (aliases.find((a) => a.toUpperCase() === hit.ref.toUpperCase()) ?? hit.ref) : null;
+}
+
+/**
+ * Finds the master a plan is to become a child of, locks its row and gives the next child number under it. Plans nest one level
+ * only and inside one project: a child cannot be a master, a master cannot become a child, and a plan cannot be its own master.
+ * A master the caller cannot see answers NOT_FOUND from findItem like any hidden item. The master's row lock serialises two
+ * children being added at once, so the numbers never clash (the numbering counts trashed children too, so a number is never reused).
+ */
+async function linkToMaster(
+	tx: Tx,
+	ctx: Ctx,
+	projectId: string,
+	parentRef: string,
+	selfId: string | null
+) {
+	const master = await findItem(tx, ctx, parentRef, { lock: true });
+	if (master.projectId !== projectId)
+		throw new OpError(
+			'INVALID',
+			`${master.ref} is in another project, so it cannot be a master here.`
+		);
+	if (selfId && master.id === selfId)
+		throw new OpError('INVALID', 'A plan cannot be its own master.');
+	if (master.parentId)
+		throw new OpError(
+			'INVALID',
+			`${master.ref} is itself a child plan, so it cannot be a master. Plans nest one level only: use its own master instead.`
+		);
+	if (selfId) {
+		const [kid] = await tx
+			.select({ ref: item.ref })
+			.from(item)
+			// Trashed children count too: one that is restored later would otherwise sit under a master that is itself a child
+			.where(eq(item.parentId, selfId))
+			.limit(1);
+		if (kid)
+			throw new OpError(
+				'INVALID',
+				'This plan is a master with child plans of its own (a trashed one counts), so it cannot become a child. Move or release its children first.'
+			);
+	}
+	const [{ next }] = await tx
+		.select({ next: sql<number>`coalesce(max(${item.childNo}), 0)::int + 1` })
+		.from(item)
+		.where(eq(item.parentId, master.id));
+	return { master, childNo: next };
 }
 
 /** Everything an event needs to say who acted. */
@@ -213,6 +263,8 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 					`${twin.ref} already has this title and was created in the last ${DUPLICATE_TITLE_WINDOW_MS / 60_000} minutes. Continue that item, or give the new one a different title.`,
 					{ existingRef: twin.ref }
 				);
+			// The master is locked before anything is numbered, so two children made at once get two numbers
+			const link = input.parent ? await linkToMaster(tx, ctx, proj.id, input.parent, null) : null;
 			const { number } = await allocateItemNumber(tx, ctx.orgId, proj.id);
 			const candidates = await freeRefs(tx, ctx.orgId, proj.key, options.now ?? new Date());
 			if (!candidates.length) throw refsExhausted();
@@ -236,6 +288,8 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 					visibility: input.visibility,
 					branchNote: input.branchNote ?? null,
 					assigneeId: input.assigneeId ?? null,
+					parentId: link?.master.id ?? null,
+					childNo: link?.childNo ?? null,
 					createdBy: ctx.actor.userId
 				});
 			} catch (error) {
@@ -293,7 +347,7 @@ export async function createItem(ctx: Ctx, raw: CreateItemInput, options: { now?
 				verb: 'item.create',
 				targetType: 'item',
 				targetId: created.id,
-				after: { title: created.title, ref }
+				after: { title: created.title, ref, ...(link ? { parent: link.master.ref } : {}) }
 			});
 			return { item: calc.item, ref, id: created.id };
 		})
@@ -337,6 +391,7 @@ async function loadDetail(tx: Tx, ctx: Ctx, it: ItemRow) {
 		.from(section)
 		.where(eq(section.itemId, it.id))
 		.orderBy(asc(section.position));
+	const family = await loadFamily(tx, ctx, [it]);
 	return {
 		item: it,
 		creator: await loadCreator(tx, ctx.orgId, it),
@@ -344,7 +399,14 @@ async function loadDetail(tx: Tx, ctx: Ctx, it: ItemRow) {
 		canSetVisibility: !!ctx.actor?.userId && it.createdBy === ctx.actor.userId,
 		phases: phases.map((p) => ({ ...p, steps: steps.filter((s) => s.phaseId === p.id) })),
 		decisions,
-		sections
+		sections,
+		/** The child plans of this item when it is a master, and its master when it is a child. */
+		family,
+		/** The child plans of this item's master, in order, when it is a child: the page links to the one before and the one after. */
+		siblings:
+			it.parentId && family.parents[it.id]
+				? ((await loadKids(tx, ctx.actor.userId, [it.parentId]))[it.parentId] ?? [])
+				: []
 	};
 }
 
@@ -386,7 +448,13 @@ export const listItemsInput = z.object({
 	/** 'activity' puts the most recently touched first (newest only, the cursor is still the last item's number). */
 	sort: z.enum(['number', 'activity']).default('number'),
 	limit: z.number().int().min(1).max(200).default(50),
-	trashed: z.boolean().default(false)
+	trashed: z.boolean().default(false),
+	/** hide leaves out child plans whose master the caller can see (the board folds them into the master); show lists every plan. */
+	children: z.enum(['show', 'hide']).default('show'),
+	/** Only plans changed at or after this moment (the Completed column of the board shows recent plans first). */
+	changedSince: z.coerce.date().optional(),
+	/** Adds `family` to the answer: the child plans of each master on the page and the master of each child on it. */
+	family: z.boolean().default(false)
 });
 
 const escapeLike = (v: string) => v.replace(/[\\%_]/g, '\\$&');
@@ -435,6 +503,111 @@ export function personFilters(
 	];
 }
 
+/** A child plan of a master, as a master card and the Children tab show it. */
+export type KidSummary = {
+	id: string;
+	ref: string;
+	title: string;
+	status: string;
+	percent: number;
+	doneSteps: number;
+	totalSteps: number;
+	childNo: number;
+};
+/** The master of a child plan: its reference and title, this plan's number and how many children the master has. */
+export type ParentSummary = { ref: string; title: string; childNo: number; childTotal: number };
+// childTotal is the highest child number of the master, so it is never below this plan's own number
+export type Family = {
+	/** By master id: its visible child plans in order. */
+	kids: Record<string, KidSummary[]>;
+	/** By child id: its master, left out when the caller cannot see the master. */
+	parents: Record<string, ParentSummary>;
+};
+
+/** A plan that is a child of a master the caller can see. Children of a hidden or trashed master count as plans of their own. */
+const visibleChildSql = (userId: string) =>
+	sql`(${item.parentId} is not null and exists (select 1 from item p where p.id = ${item.parentId} and p.deleted_at is null and (p.visibility = 'public' or p.created_by = ${userId})))`;
+
+/** The visible, untrashed child plans of the given masters, by master id, in child order. One query. */
+export async function loadKids(
+	tx: Tx,
+	userId: string,
+	masterIds: string[]
+): Promise<Record<string, KidSummary[]>> {
+	const kids: Record<string, KidSummary[]> = {};
+	if (!masterIds.length) return kids;
+	const kidRows = await tx
+		.select({
+			id: item.id,
+			parentId: item.parentId,
+			ref: item.ref,
+			title: item.title,
+			status: item.status,
+			percent: item.percent,
+			doneSteps: item.doneSteps,
+			totalSteps: item.totalSteps,
+			childNo: item.childNo
+		})
+		.from(item)
+		.where(and(inArray(item.parentId, masterIds), isNull(item.deletedAt), visibleItemSql(userId)))
+		.orderBy(asc(item.childNo));
+	for (const k of kidRows) {
+		if (!k.parentId || k.childNo === null) continue;
+		(kids[k.parentId] ??= []).push({ ...k, childNo: k.childNo });
+	}
+	return kids;
+}
+
+/**
+ * The family of one page of items in three queries, whatever the page size (no query per row): the visible child plans of the
+ * masters on the page, the masters of the children on it, and how many children each of those masters has.
+ */
+export async function loadFamily(tx: Tx, ctx: Ctx, rows: ItemRow[]): Promise<Family> {
+	const userId = ctx.actor.userId;
+	const parents: Record<string, ParentSummary> = {};
+	if (!rows.length) return { kids: {}, parents };
+	const kids = await loadKids(
+		tx,
+		userId,
+		rows.map((r) => r.id)
+	);
+	const parentIds = [...new Set(rows.flatMap((r) => (r.parentId ? [r.parentId] : [])))];
+	if (!parentIds.length) return { kids, parents };
+	const masters = await tx
+		.select({ id: item.id, ref: item.ref, title: item.title })
+		.from(item)
+		.where(and(inArray(item.id, parentIds), isNull(item.deletedAt), visibleItemSql(userId)));
+	const totals = masters.length
+		? await tx
+				// The highest child number, not the count: a number is kept while its child is trashed, so "Child 3 of 3" never reads "of 2"
+				.select({ parentId: item.parentId, n: sql<number>`coalesce(max(${item.childNo}), 0)::int` })
+				.from(item)
+				.where(
+					and(
+						inArray(
+							item.parentId,
+							masters.map((m) => m.id)
+						),
+						isNull(item.deletedAt),
+						visibleItemSql(userId)
+					)
+				)
+				.groupBy(item.parentId)
+		: [];
+	const total = new Map(totals.map((t) => [t.parentId, t.n]));
+	for (const r of rows) {
+		const m = masters.find((x) => x.id === r.parentId);
+		if (m && r.childNo !== null)
+			parents[r.id] = {
+				ref: m.ref,
+				title: m.title,
+				childNo: r.childNo,
+				childTotal: total.get(m.id) ?? 1
+			};
+	}
+	return { kids, parents };
+}
+
 /** A page of items, newest first by default, by keyset. Items the caller may not see are left out. */
 export async function listItems(ctx: Ctx, raw: z.input<typeof listItemsInput>) {
 	const input = listItemsInput.parse(raw);
@@ -451,6 +624,8 @@ export async function listItems(ctx: Ctx, raw: z.input<typeof listItemsInput>) {
 				? sql`(${item.ref} ilike ${escapeLike(input.q.trim()) + '%'} or ${item.title} ilike ${'%' + escapeLike(input.q.trim()) + '%'} or exists (select 1 from item_alias a where a.item_id = ${item.id} and a.alias ilike ${escapeLike(input.q.trim()) + '%'}))`
 				: undefined,
 			...personFilters(input, ctx.actor.userId),
+			input.children === 'hide' ? sql`not ${visibleChildSql(ctx.actor.userId)}` : undefined,
+			input.changedSince ? gte(item.lastActivityAt, input.changedSince) : undefined,
 			visibleItemSql(ctx.actor.userId)
 		);
 		const where = and(
@@ -488,7 +663,8 @@ export async function listItems(ctx: Ctx, raw: z.input<typeof listItemsInput>) {
 		return {
 			items: page,
 			nextCursor: rows.length > input.limit ? page[page.length - 1].number : null,
-			...(total !== undefined ? { total } : {})
+			...(total !== undefined ? { total } : {}),
+			...(input.family ? { family: await loadFamily(tx, ctx, page) } : {})
 		};
 	});
 }
@@ -518,6 +694,28 @@ export async function updateItem(ctx: Ctx, raw: z.input<typeof updateItemInput>)
 				if (v !== undefined && v !== it[k]) {
 					before[k] = it[k];
 					after[k] = v;
+				}
+			}
+			// A new master (or none) for this plan. The master is locked and checked, and the plan gets the next number under it
+			let linkedTo: string | null | undefined;
+			if (input.parent !== undefined) {
+				if (input.parent === null) {
+					if (it.parentId) {
+						before.parentId = it.parentId;
+						before.childNo = it.childNo;
+						after.parentId = null;
+						after.childNo = null;
+						linkedTo = null;
+					}
+				} else {
+					const link = await linkToMaster(tx, ctx, it.projectId, input.parent, it.id);
+					if (link.master.id !== it.parentId) {
+						before.parentId = it.parentId;
+						before.childNo = it.childNo;
+						after.parentId = link.master.id;
+						after.childNo = link.childNo;
+						linkedTo = link.master.ref;
+					}
 				}
 			}
 			if (Object.keys(after).length === 0) return { item: it, changed: false };
@@ -550,7 +748,9 @@ export async function updateItem(ctx: Ctx, raw: z.input<typeof updateItemInput>)
 				targetType: 'item',
 				targetId: it.id,
 				before: before as never,
-				after: after as never
+				after: (linkedTo ? { ...after, parent: linkedTo } : after) as never,
+				// An undo would write the old master and number straight back without the checks above, so a link change is not undoable
+				...(linkedTo !== undefined ? { undoable: false } : {})
 			});
 			return { item: updated, changed: true };
 		})
@@ -572,6 +772,35 @@ export async function trashItem(
 			checkVersion(it, expectVersion);
 			// An agent trashing an item its session is not bound to is asked first, like a close
 			await requireCloseConfirmation(tx, ctx, it, confirmed);
+			// The child plans of a trashed master become plans of their own again (they stay, they are never trashed with it)
+			const released = await tx
+				.select({ id: item.id, projectId: item.projectId, childNo: item.childNo })
+				.from(item)
+				.where(eq(item.parentId, it.id))
+				.for('update');
+			if (released.length) {
+				await tx
+					.update(item)
+					.set({ parentId: null, childNo: null, version: sql`${item.version} + 1` })
+					.where(eq(item.parentId, it.id));
+				for (const k of released)
+					await appendEvent(tx, {
+						orgId: ctx.orgId,
+						projectId: k.projectId,
+						itemId: k.id,
+						...actorFields(ctx),
+						verb: 'item.update',
+						targetType: 'item',
+						targetId: k.id,
+						before: { parentId: it.id, childNo: k.childNo } as never,
+						after: {
+							parentId: null,
+							childNo: null,
+							note: `Its master ${it.ref} was trashed`
+						} as never,
+						undoable: false
+					});
+			}
 			await tx
 				.update(item)
 				.set({
@@ -595,7 +824,12 @@ export async function trashItem(
 				targetId: it.id,
 				before: { title: it.title }
 			});
-			return { id: it.id, ref: it.ref, trashed: true };
+			return {
+				id: it.id,
+				ref: it.ref,
+				trashed: true,
+				...(released.length ? { releasedChildren: released.length } : {})
+			};
 		})
 	);
 }
@@ -606,9 +840,23 @@ export async function restoreItem(ctx: Ctx, nameOrId: string) {
 			const it = await findItem(tx, ctx, nameOrId, { lock: true, includeTrashed: true });
 			await requireCap(tx, ctx, 'delete', it.projectId);
 			if (!it.deletedAt) return { id: it.id, ref: it.ref, restored: false };
+			// A child restored under a master that is trashed, or that has become a child itself, is a plan of its own again
+			let unlink = false;
+			if (it.parentId) {
+				const [master] = await tx
+					.select({ deletedAt: item.deletedAt, parentId: item.parentId })
+					.from(item)
+					.where(eq(item.id, it.parentId));
+				unlink = !master || master.deletedAt !== null || master.parentId !== null;
+			}
 			await tx
 				.update(item)
-				.set({ deletedAt: null, deletedBy: null, version: sql`${item.version} + 1` })
+				.set({
+					deletedAt: null,
+					deletedBy: null,
+					...(unlink ? { parentId: null, childNo: null } : {}),
+					version: sql`${item.version} + 1`
+				})
 				.where(eq(item.id, it.id));
 			await appendEvent(tx, {
 				orgId: ctx.orgId,

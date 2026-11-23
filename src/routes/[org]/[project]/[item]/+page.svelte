@@ -45,7 +45,10 @@
 	import Check from '@lucide/svelte/icons/check';
 	import CheckCheck from '@lucide/svelte/icons/check-check';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import Copy from '@lucide/svelte/icons/copy';
+	import CornerDownRight from '@lucide/svelte/icons/corner-down-right';
 	import CircleHelp from '@lucide/svelte/icons/circle-help';
 	import MessageCircle from '@lucide/svelte/icons/message-circle';
 	import Play from '@lucide/svelte/icons/play';
@@ -75,6 +78,14 @@
 	// -- REACTIVE STATES -- //
 
 	const d = $derived(data.detail as ItemView | null);
+	// A child plan names its master and its number, and links to the child before and after it. A master gets a Master tag and a Children tab
+	const parent = $derived(d ? (d.family.parents[d.item.id] ?? null) : null);
+	const isMaster = $derived(d ? (d.family.kids[d.item.id]?.length ?? 0) > 0 : false);
+	const siblingAt = $derived(d ? d.siblings.findIndex((s) => s.id === d.item.id) : -1);
+	const prevChild = $derived(d && siblingAt > 0 ? d.siblings[siblingAt - 1] : null);
+	const nextChild = $derived(
+		d && siblingAt >= 0 && siblingAt < d.siblings.length - 1 ? d.siblings[siblingAt + 1] : null
+	);
 	// "Continue with" hands the item to the person's coding tool as a prompt to copy. Not for a closed item.
 	const ACTION_ICON = {
 		resume: Play,
@@ -334,6 +345,36 @@
 				<circle cx="200" cy="40" r="80" />
 				<circle cx="200" cy="40" r="105" />
 			</svg>
+			<!-- A CHILD PLAN: ITS MASTER AND ITS NUMBER ON THE LEFT, THE CHILD BEFORE AND THE CHILD AFTER ON THE RIGHT -->
+			{#if parent}
+				<div
+					class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm"
+					data-testid="parent-strip"
+				>
+					<span class="inline-flex min-w-0 items-center gap-1.5 text-muted">
+						<CornerDownRight size={16} class="shrink-0" aria-hidden="true" />
+						<span class="shrink-0">Child {parent.childNo} of {parent.childTotal} ·</span>
+						<a
+							href={`/${org}/${d.project.key}/${parent.ref}`}
+							class="min-w-0 cursor-pointer truncate text-accent-text hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+							>{parent.title}</a
+						>
+					</span>
+					<span class="flex items-center gap-2 max-sm:w-full max-sm:[&>*]:flex-1">
+						{#if prevChild}
+							<Button size="sm" href={`/${org}/${d.project.key}/${prevChild.ref}`}>
+								<ChevronLeft size={16} aria-hidden="true" /> Child {prevChild.childNo}
+							</Button>
+						{/if}
+						{#if nextChild}
+							<Button size="sm" href={`/${org}/${d.project.key}/${nextChild.ref}`}>
+								Child {nextChild.childNo}
+								<ChevronRight size={16} aria-hidden="true" />
+							</Button>
+						{/if}
+					</span>
+				</div>
+			{/if}
 			<div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
 				<div class="min-w-0 flex-1 basis-72">
 					<!-- THE BREADCRUMB IN THE TOP BAR ALREADY NAMES THE PROJECT ON A WIDE SCREEN, SO THIS LINK IS FOR PHONES, WHERE THE BREADCRUMB IS HIDDEN -->
@@ -371,6 +412,10 @@
 							canChange={d.canSetVisibility}
 							onchange={setVisibility}
 						/>
+						{#if isMaster}<span
+								class="rounded-md border border-line px-1.5 py-0.5 leading-none"
+								data-testid="master-tag">Master</span
+							>{/if}
 						{#if d.item.tabName}<span
 								class="rounded-md border border-line px-1.5 py-0.5 leading-none"
 								title="The name this item gives a coding session">{d.item.tabName}</span
@@ -596,6 +641,8 @@
 				role={d.role}
 				canWrite={env.canWrite}
 			/>
+		{:else if tab === 'children'}
+			{#await import('#lib/board/item/ChildrenTab.svelte') then m}<m.default detail={d} />{/await}
 		{:else if tab === 'decisions'}
 			{#await import('#lib/board/item/DecisionsTab.svelte') then m}<m.default
 					detail={d}
