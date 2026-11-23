@@ -63,6 +63,12 @@ export type Ctx = {
 		backupStorage?: Storage;
 		/** Secret used for HKDF-derived mockup file URL signing (BETTER_AUTH_SECRET in appServices). */
 		mockupSecret?: string;
+		/** BETTER_AUTH_SECRET, the key the Google client secret is sealed with (AFB-20261123-1256). Missing means sign in settings are off. */
+		authSecret?: string;
+		/** The Google client from the environment, the fallback while nothing is stored. */
+		googleEnv?: { clientId?: string; clientSecret?: string };
+		/** Called after the sign in methods are saved, so the running auth is rebuilt without a restart. */
+		onAuthMethodsChanged?: () => void;
 		/** Optional isolated second origin (MOCKUP_ORIGIN) for hosted mockup URLs. */
 		mockupOrigin?: string;
 	};

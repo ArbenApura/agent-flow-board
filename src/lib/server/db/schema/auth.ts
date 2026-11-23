@@ -79,6 +79,23 @@ export const authRateLimit = pgTable('auth_rate_limit', {
 	lastRequest: bigint('last_request', { mode: 'number' }).notNull()
 });
 
+// -- SIGN IN METHODS (ONE ROW FOR THE WHOLE INSTANCE, NOT TENANT SCOPED: A SIGN IN HAPPENS BEFORE ANY ORG IS CHOSEN) -- //
+
+/**
+ * Which ways of signing in are on, and the Google client. The single row has the id `default`. With no row the environment
+ * decides (Google on when GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are set, email and password on).
+ */
+export const authMethodSetting = pgTable('auth_method_setting', {
+	id: text('id').primaryKey(),
+	passwordEnabled: boolean('password_enabled').notNull().default(true),
+	googleEnabled: boolean('google_enabled').notNull().default(false),
+	googleClientId: text('google_client_id'),
+	/** The client secret sealed with AES-256-GCM (see auth/methods.ts). Never returned by any API, tool or export. */
+	googleClientSecret: text('google_client_secret'),
+	updatedBy: text('updated_by').references(() => user.id, { onDelete: 'set null' }),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+});
+
 // -- LOCKOUT AND DEVICES -- //
 
 /** Failed sign in count per email, so repeated guesses lock the account for a while (L8 family, SPEC 6.1). */

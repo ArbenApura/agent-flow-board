@@ -19,6 +19,7 @@
 	import IdentityHeader from '#lib/settings/IdentityHeader.svelte';
 	import PalettePicker from '#lib/settings/PalettePicker.svelte';
 	import Section from '#lib/settings/Section.svelte';
+	import SignInMethods from '#lib/settings/SignInMethods.svelte';
 	import MembersSection from '#lib/settings/members/MembersSection.svelte';
 	import OrgTile from '#lib/board/OrgTile.svelte';
 	import OrgBackups from '#lib/board/settings/OrgBackups.svelte';
@@ -298,6 +299,11 @@
 		{#if can}
 			<!-- BACKUPS: THE SUMMARY, THE HISTORY AND ITS DOWNLOAD AND DELETE LIVE IN THEIR OWN COMPONENT -->
 			<OrgBackups backups={data.backups} {org} group="Delivery" />
+
+			<!-- SIGN IN METHODS: OWNERS ONLY, THE FIRST OF THE SAFETY GROUP -->
+			{#if data.authMethods}
+				<SignInMethods methods={data.authMethods} group="Safety" />
+			{/if}
 
 			<Section
 				id="limits"

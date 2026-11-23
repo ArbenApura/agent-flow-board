@@ -10,6 +10,7 @@ import { TAB_NAME } from '../../shared/tabName';
 import {
 	apiToken,
 	attachment,
+	authMethodSetting,
 	comment,
 	connectSetupMark,
 	decision,
@@ -98,6 +99,20 @@ export const connectSetupMarkInput = createInsertSchema(connectSetupMark, {
 			message: 'A tile is done or skipped, and only the panel is open or closed.'
 		}
 	);
+
+/** A change to the sign in methods. Only what is sent changes. The secret is write only: it is sealed on the server and never read back. */
+export const authMethodsInput = createUpdateSchema(authMethodSetting, {
+	googleClientId: (s) => s.trim().min(10, 'That client ID looks too short').max(200),
+	googleClientSecret: (s) => s.trim().min(8, 'That client secret looks too short').max(300)
+})
+	.pick({
+		passwordEnabled: true,
+		googleEnabled: true,
+		googleClientId: true,
+		googleClientSecret: true
+	})
+	// The secret cannot be cleared, only replaced
+	.extend({ googleClientSecret: z.string().trim().min(8).max(300).optional() });
 
 export const itemInsert = createInsertSchema(item, {
 	tabName: tabName.nullable().optional(),

@@ -28,6 +28,7 @@ const TEXT: Record<string, string> = {
 	'project.create': 'created the project',
 	'project.update': 'changed the project settings',
 	'org.settings': 'changed the organisation settings',
+	'auth.methods': 'changed how people sign in',
 	'github.link': 'connected a repository',
 	'github.unlink': 'disconnected the repository',
 	'github.settings': 'changed the publish settings',

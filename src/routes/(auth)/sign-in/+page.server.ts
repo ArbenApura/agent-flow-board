@@ -3,20 +3,32 @@ import type { Actions, PageServerLoad } from './$types';
 // IMPORTED DEP-MODULES
 import { fail, redirect } from '@sveltejs/kit';
 // IMPORTED MODULES
-import { getAuth, googleEnabled } from '#lib/server/auth/index.js';
+import { getAuth, getMethods } from '#lib/server/auth/index.js';
 import { safeNext } from '#lib/server/auth/next.js';
 import { resendVerification } from '#lib/server/auth/register.js';
 
+// -- CONSTANTS -- //
+
+const PASSWORD_OFF = 'Signing in with a password is switched off. Continue with Google.';
+
 // -- FUNCTIONS -- //
 
-export const load: PageServerLoad = ({ url }) => ({
-	next: safeNext(url.searchParams.get('next')),
-	google: googleEnabled(),
-	reset: url.searchParams.get('reset') === '1'
-});
+/** Which methods the page offers comes from the saved choice, so only a method that is on is drawn. */
+export const load: PageServerLoad = async ({ url }) => {
+	const methods = await getMethods();
+	return {
+		next: safeNext(url.searchParams.get('next')),
+		google: methods.google !== null,
+		password: methods.password,
+		reset: url.searchParams.get('reset') === '1'
+	};
+};
 
 export const actions: Actions = {
 	signIn: async ({ request }) => {
+		// A form posted by hand while the password is off is refused here too, not only hidden
+		if (!(await getMethods()).password)
+			return fail(403, { email: '', next: '/', code: 'PASSWORD_OFF', message: PASSWORD_OFF });
 		const data = await request.formData();
 		const email = String(data.get('email') ?? '').trim();
 		const password = String(data.get('password') ?? '');
@@ -56,6 +68,8 @@ export const actions: Actions = {
 		redirect(303, next);
 	},
 	resend: async ({ request }) => {
+		if (!(await getMethods()).password)
+			return fail(403, { email: '', next: '/', code: 'PASSWORD_OFF', message: PASSWORD_OFF });
 		const data = await request.formData();
 		const email = String(data.get('email') ?? '').trim();
 		const next = safeNext(data.get('next'));
@@ -74,6 +88,13 @@ export const actions: Actions = {
 	google: async ({ request }) => {
 		const data = await request.formData();
 		const next = safeNext(data.get('next'));
+		if (!(await getMethods()).google)
+			return fail(403, {
+				email: '',
+				next,
+				code: 'GOOGLE',
+				message: 'Google sign in is not available right now.'
+			});
 		const auth = await getAuth();
 		const res = await auth.api.signInSocial({
 			body: { provider: 'google', callbackURL: next },

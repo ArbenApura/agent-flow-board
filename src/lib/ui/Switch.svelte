@@ -1,4 +1,6 @@
 <script lang="ts">
+	// IMPORTED DEP-TYPES
+	import type { Snippet } from 'svelte';
 	// IMPORTED MODULES
 	import { cn } from '#lib/ui/cn.js';
 
@@ -6,6 +8,7 @@
 
 	let {
 		label,
+		lead,
 		hint,
 		checked = $bindable(false),
 		disabled = false,
@@ -14,6 +17,8 @@
 		'data-testid': testid
 	}: {
 		label: string;
+		/** A small icon or logo shown before the label, for a switch that stands for a named service. */
+		lead?: Snippet;
 		hint?: string;
 		checked?: boolean;
 		disabled?: boolean;
@@ -33,7 +38,9 @@
 
 <div class={cn('flex items-center justify-between gap-3 py-3', extra)}>
 	<span class="flex min-w-0 flex-col">
-		<span class="text-sm font-medium text-ink">{label}</span>
+		<span class="flex items-center gap-2 text-sm font-medium text-ink">
+			{#if lead}{@render lead()}{/if}{label}
+		</span>
 		{#if hint}<span class="text-xs text-muted">{hint}</span>{/if}
 	</span>
 	<!-- THE BUTTON IS THE 44 PX TOUCH TARGET, THE TRACK INSIDE IT IS THE DRAWN SWITCH -->

@@ -98,7 +98,11 @@ describe('migration 0053_remove_browser_checks', () => {
 	});
 
 	it('drops the check tables and columns, keeps everything else, and clears the rows that would block it', async () => {
+		// The security statements of the current code name every table, so a table that a later migration creates (0055 auth_method_setting) is
+		// stood in for while the old database is built, and removed again before the real run creates it
+		await owner.query(`CREATE TABLE IF NOT EXISTS auth_method_setting (id text PRIMARY KEY)`);
 		await run(oldDir);
+		await owner.query(`DROP TABLE auth_method_setting`);
 		const org = '00000000-0000-4000-8000-000000000001';
 		const proj = '00000000-0000-4000-8000-000000000011';
 		await admin.query(
@@ -121,7 +125,12 @@ describe('migration 0053_remove_browser_checks', () => {
 		);
 
 		const applied = await run(MIGRATIONS_DIR);
-		expect(applied).toEqual(['0053_remove_browser_checks']);
+		// 0054 (the parent link of master and child plans) and 0055 (the sign in methods table) come after it and apply on the same run
+		expect(applied).toEqual([
+			'0053_remove_browser_checks',
+			'0054_master_child',
+			'0055_auth_method_setting'
+		]);
 
 		const tables = await admin.query<{ table_name: string }>(
 			`select table_name from information_schema.tables where table_schema = 'public'`

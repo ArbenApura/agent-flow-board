@@ -4,20 +4,35 @@ import type { Actions, PageServerLoad } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 // IMPORTED MODULES
 import { MIN_PASSWORD } from '#lib/server/auth/auth.js';
-import { getAuth, googleEnabled } from '#lib/server/auth/index.js';
+import { getAuth, getMethods } from '#lib/server/auth/index.js';
 import { safeNext } from '#lib/server/auth/next.js';
 import { registerAccount } from '#lib/server/auth/register.js';
 
 // -- FUNCTIONS -- //
 
-export const load: PageServerLoad = ({ url }) => ({
-	next: safeNext(url.searchParams.get('next')),
-	google: googleEnabled(),
-	minPassword: MIN_PASSWORD
-});
+/** Which methods the page offers comes from the saved choice, so only a method that is on is drawn. */
+export const load: PageServerLoad = async ({ url }) => {
+	const methods = await getMethods();
+	return {
+		next: safeNext(url.searchParams.get('next')),
+		google: methods.google !== null,
+		password: methods.password,
+		minPassword: MIN_PASSWORD
+	};
+};
 
 export const actions: Actions = {
 	register: async ({ request }) => {
+		// A form posted by hand while the password is off is refused here too, not only hidden
+		if (!(await getMethods()).password)
+			return fail(403, {
+				name: '',
+				email: '',
+				next: '/',
+				field: 'none',
+				code: 'PASSWORD_OFF',
+				message: 'Creating an account with a password is switched off. Continue with Google.'
+			});
 		const data = await request.formData();
 		const name = String(data.get('name') ?? '').trim();
 		const email = String(data.get('email') ?? '').trim();
@@ -71,6 +86,8 @@ export const actions: Actions = {
 	google: async ({ request }) => {
 		const data = await request.formData();
 		const next = safeNext(data.get('next'));
+		if (!(await getMethods()).google)
+			return fail(500, { next, message: 'Google sign in is not available right now.' });
 		const res = await (
 			await getAuth()
 		).api.signInSocial({

@@ -6,7 +6,7 @@ import type { Ctx } from './ops/context';
 import { AFB_BASE_URL, BACKUP_KEY, BETTER_AUTH_SECRET, MOCKUP_ORIGIN } from '$app/env/private';
 // IMPORTED MODULES
 import { getStorage } from './adapters/index';
-import { getMailer } from './auth/index';
+import { getMailer, googleEnv, resetAuth } from './auth/index';
 import { backupStorage } from './backup/index';
 import { getJobs } from './jobs/index';
 
@@ -22,6 +22,9 @@ export async function appServices(): Promise<NonNullable<Ctx['services']>> {
 		backups: Boolean(BACKUP_KEY),
 		backupStorage: BACKUP_KEY ? backupStorage() : undefined,
 		mockupSecret: BETTER_AUTH_SECRET,
-		mockupOrigin: MOCKUP_ORIGIN
+		mockupOrigin: MOCKUP_ORIGIN,
+		authSecret: BETTER_AUTH_SECRET,
+		googleEnv: googleEnv(),
+		onAuthMethodsChanged: resetAuth
 	};
 }

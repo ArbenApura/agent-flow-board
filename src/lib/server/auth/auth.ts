@@ -1,4 +1,4 @@
-// BETTER AUTH SETUP: EMAIL WITH PASSWORD AND GOOGLE ONLY, NO TWO STEP VERIFICATION (ADR-007)
+// BETTER AUTH SETUP: EMAIL WITH PASSWORD AND GOOGLE ONLY, NO TWO STEP VERIFICATION (ADR-007). EACH METHOD IS SWITCHED ON OR OFF BY THE OWNER (AFB-20261123-1256)
 
 // IMPORTED TYPES
 import type { DbHandle } from '../db/client';
@@ -22,6 +22,8 @@ export type AuthConfig = {
 	secret: string;
 	baseUrl: string;
 	google?: { clientId: string; clientSecret: string };
+	/** False turns email and password sign in off (a Google only server). Defaults to on. */
+	passwordEnabled?: boolean;
 	/** Checks new passwords against the Have I Been Pwned range API. Only 5 characters of a hash leave the server. */
 	checkBreachedPasswords: boolean;
 	/** Extra plugins, for example the SvelteKit cookie bridge, supplied by the app and not needed in tests. */
@@ -69,7 +71,7 @@ export function createAuth(deps: { handle: DbHandle; mailer: Mailer; config: Aut
 			}
 		}),
 		emailAndPassword: {
-			enabled: true,
+			enabled: config.passwordEnabled ?? true,
 			requireEmailVerification: true,
 			minPasswordLength: MIN_PASSWORD,
 			maxPasswordLength: MAX_PASSWORD,

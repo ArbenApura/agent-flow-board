@@ -20,6 +20,7 @@ const PLAIN_TABLES = [
 	'auth_account',
 	'auth_verification',
 	'auth_lockout',
+	'auth_method_setting',
 	'auth_rate_limit',
 	'auth_device'
 ];
