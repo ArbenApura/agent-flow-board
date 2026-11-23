@@ -228,7 +228,6 @@ describe('MCP server', () => {
 			'flow',
 			'flow-task',
 			'flow-interview',
-			'flow-critic',
 			'flow-critic-plan',
 			'flow-critic-code',
 			'flow-critic-mockup',
@@ -251,9 +250,18 @@ describe('MCP server', () => {
 		expect(brief.name).toBe('flow-critic-screen/critic-brief');
 		const wf = await call(client, 'workflow_get', { name: 'flow-critic-plan' });
 		expect(String(wf.text).toLowerCase()).toContain('design fit');
-		// flow-critic is the router: it has no supporting file, its modules do
-		const router = await call(client, 'workflow_get', { name: 'flow-critic', file: 'plan-lenses' });
-		expect(router.error ?? router.code).toBeTruthy();
+		// flow-critic is retired: it is no workflow name any more, and its reviews carry the shared rules
+		const retired = await client
+			.callTool({ name: 'workflow_get', arguments: { name: 'flow-critic' } })
+			.then((r) => (r.isError === true ? JSON.stringify(r.content) : ''))
+			.catch((e: unknown) => String(e));
+		// The enum rejects the name and says which name it rejected
+		expect(retired).toContain('flow-critic');
+		const rules = await call(client, 'workflow_get', {
+			name: 'flow-critic-code',
+			file: 'critic-rules'
+		});
+		expect(rules.name).toBe('flow-critic-code/critic-rules');
 		// A supporting file of a critic module is readable, and a file on another workflow is refused
 		const lenses = await call(client, 'workflow_get', {
 			name: 'flow-critic-plan',
@@ -281,18 +289,13 @@ describe('MCP server', () => {
 			index.skills.map(() => 'install')
 		);
 		expect(fresh.rules.join(' ')).toContain('Never run');
-		// The files flow-critic stopped shipping come from the manifest, for that skill only
+		// flow-critic is retired, so an installed copy of it is offered for deletion by name from the manifest
+		expect(fresh.retiredNames).toContain('flow-critic');
+		expect(fresh.skills.map((s: { name: string }) => s.name)).not.toContain('flow-critic');
+		// No skill lists a removed file today, and the field is there for the next time
 		const gone = Object.fromEntries(
 			fresh.skills.map((s: { name: string; removedFiles: string[] }) => [s.name, s.removedFiles])
 		);
-		expect([...gone['flow-critic']].sort()).toEqual([
-			'checklists.md',
-			'code-lenses.md',
-			'code-template.md',
-			'mockup-lenses.md',
-			'plan-lenses.md',
-			'plan-template.md'
-		]);
 		expect(gone.flow).toEqual([]);
 		expect(fresh.rules.join(' ')).toContain('removedFiles');
 		// One call carries the procedure, so an agent with no skill installed still knows what to do

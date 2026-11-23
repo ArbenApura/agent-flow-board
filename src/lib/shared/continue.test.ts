@@ -32,7 +32,7 @@ describe('every item prompt is the slash command of the /flow skills', () => {
 	it('uses the /flow skills in the same shape as the HAPR Board', () => {
 		expect(prompt('resume')).toBe('/flow resume HAPR-2');
 		expect(prompt('audit')).toBe('/flow-audit HAPR-2');
-		expect(prompt('critic')).toBe('/flow-critic HAPR-2');
+		expect(prompt('critic')).toBe('/flow-critic-code HAPR-2');
 		expect(prompt('interview')).toBe('/flow-interview HAPR-2');
 		expect(prompt('ask')).toBe('/flow HAPR-2: ');
 	});

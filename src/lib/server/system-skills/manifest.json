@@ -161,7 +161,7 @@
 				},
 				{
 					"version": "1.11.0",
-					"hash": "f15f2f5740be4748423fec8ece86844cf9e8e87e3d33753e607b5de132c3821c"
+					"hash": "01742d84085ba1487ebbc698ddcaaa7092b1d2e1316b10fb79fba6657bcfb9e6"
 				}
 			]
 		},
@@ -226,96 +226,7 @@
 				},
 				{
 					"version": "1.3.5",
-					"hash": "966cd3b3a7e8ddedc8299fccbb4502b9fe097748b8b193e2e1da743fd4d64d9d"
-				}
-			]
-		},
-		"flow-critic": {
-			"version": "2.0.0",
-			"history": [
-				{
-					"version": "1.0.0",
-					"hash": "8848aaf3607efeced4c09e34cec097477d56cb595fd94aff93ec555a92235cfa"
-				},
-				{
-					"version": "1.0.1",
-					"hash": "c9e0b138676bfa81241a0268d312329753af7272a46ea304966eecdc6bd672b2"
-				},
-				{
-					"version": "1.1.0",
-					"hash": "fbc6a7da77757e3368ee307659e25617e8dbb8ce07c8c5e0c996d8529dbf3274"
-				},
-				{
-					"version": "1.1.1",
-					"hash": "346309b84199d9e4fd6e447bb3683f3ffdc6ec3b0d4fdeb561497bcd3a4356e0"
-				},
-				{
-					"version": "1.1.2",
-					"hash": "0375ce893f358eb0bbda672566d7111b5e3568ab86b5f02995b06e57b03abac5"
-				},
-				{
-					"version": "1.1.3",
-					"hash": "ba04330256819d53550c42942010d49257cb47fcfeaa20b47c7df0434d053a78"
-				},
-				{
-					"version": "1.1.4",
-					"hash": "7f562183e8759bfa25fd3d8d767e688a954004fd86ff91ba94519b7d64097438"
-				},
-				{
-					"version": "1.1.5",
-					"hash": "6d3509c1685186d24c04bc049fe96ad3011dc3c8428cfa22a3102d5a9204d01a"
-				},
-				{
-					"version": "1.2.0",
-					"hash": "35748257d2a3632b29e739d4fdda8139e45611bd50e4e4bd77c550344b72abda"
-				},
-				{
-					"version": "1.2.1",
-					"hash": "8ab7a565c4baf65fecdaf1df73a2a619ebd21de89bc96a876a2ae3817ee5b658"
-				},
-				{
-					"version": "1.3.0",
-					"hash": "ee87f7dfa3969d81a8bdb00d15b932d47b14e9a1f54f9bbfef5ffffe6a08a5fb"
-				},
-				{
-					"version": "1.4.0",
-					"hash": "b46845c9a219d9317c6ca691d594ee6ec8a8ff901f3b554b9709bdd0f7ebcef5"
-				},
-				{
-					"version": "1.4.1",
-					"hash": "15ecf343746fc7b602759ba8bc6318bab6013a363bbac79a413ff020a5deb11b"
-				},
-				{
-					"version": "1.5.0",
-					"hash": "3f5dcfce89048cfa3a8f4f21213ad375f8749bd150d6be234de1f209ad544db8"
-				},
-				{
-					"version": "1.5.1",
-					"hash": "dbbec54744bb22fc96b5bc913fe38590b843e6ebc643bf7aa917be7122ef8f12"
-				},
-				{
-					"version": "1.5.2",
-					"hash": "6302b4139bf2adea3c03ed4f740f825b8d295529ada9d2c09d2c7a88d63a03af"
-				},
-				{
-					"version": "1.5.3",
-					"hash": "f8b785d6ea65d473fce9f0ce2c68711cca1171826e9c8d9d3aa789e473309b18"
-				},
-				{
-					"version": "1.5.4",
-					"hash": "c64c804647d5485717b120759fe912c7ebb67f5aa719a08b17791b0a51351ee9"
-				},
-				{
-					"version": "1.5.5",
-					"hash": "8bf7ff930fad2dfea3014ff57e0b884487d66ec46881aac0deb791ed3e3ac2a5"
-				},
-				{
-					"version": "1.5.6",
-					"hash": "3083cf199e62fecdef3ca6631e7a766a847398797269d46e2e57eba31f0fabd3"
-				},
-				{
-					"version": "2.0.0",
-					"hash": "7d614876574eed1ec10a9249f0841fa61a7ed7fb387227220be6b065ab1f9798"
+					"hash": "2e5fe04a457807c3f8fe5c5312caa88ff0a41ef3968a5323fb609f8840562e67"
 				}
 			]
 		},
@@ -384,7 +295,7 @@
 				},
 				{
 					"version": "1.2.5",
-					"hash": "7a6b5ba68459b5417e9f83cf373988ce8e5e9f8d4f3bf25495d783433d3cf10f"
+					"hash": "28fc42bf6e582726fd3d476717d617c7c51e5e0053c967e74bcbbd4743de04b5"
 				}
 			]
 		},
@@ -457,7 +368,7 @@
 				},
 				{
 					"version": "1.8.4",
-					"hash": "df85be463d096914b0e048bd22a37b6d03983fee3db560348632e70ac88c3514"
+					"hash": "17e90682a8409b8e20c91044634c6204fbe2d854cd85657de8babbf8ad59a880"
 				}
 			]
 		},
@@ -519,7 +430,7 @@
 				},
 				{
 					"version": "1.6.0",
-					"hash": "50d983f6b68ed88404f2b0fd3d479d1628b7c2e5dd47f534b1c6759c44168286"
+					"hash": "661031b5b864ef4ab43ddc791cd09556d3c4ec30bf557a1f66a267aaffc6664b"
 				}
 			]
 		},
@@ -537,7 +448,7 @@
 			"history": [
 				{
 					"version": "1.0.0",
-					"hash": "330e189e94318ef4f08db45c3eebe0cb77c4a254d305a06c1daaf9fda9e9c7c9"
+					"hash": "7f61398429a1c715e6747c3352f0c01a9f896769ca5b77e23ebd65f0031d24ee"
 				}
 			]
 		},
@@ -546,7 +457,7 @@
 			"history": [
 				{
 					"version": "1.0.0",
-					"hash": "28cdffeed9a484c06a9f5ae04b3a036a2c93ad16554c5c410090b1f35b6471e5"
+					"hash": "823ea81077d207c586483d3934fc83ec86fc01ebaf7c59855a003d3f6f55b2fc"
 				}
 			]
 		},
@@ -555,7 +466,7 @@
 			"history": [
 				{
 					"version": "1.0.0",
-					"hash": "3b338d0342528861dc93bc8e9477c3a0122b144e34a792d4586282676ee55fff"
+					"hash": "6cf7ea0781d24c3bdfe25cd2c4daa29ab18bcebb53fcc78093a764e42b013fe3"
 				}
 			]
 		},
@@ -564,7 +475,7 @@
 			"history": [
 				{
 					"version": "1.0.0",
-					"hash": "8585eebeefb7dfc5f5e8c5670d1aee0a9f7df8465d90fb531d526bfb9bb82ca6"
+					"hash": "2b72549759529b8ac9aca5b036fccb6f09183d8eaedbcaa753def462a136d32a"
 				}
 			]
 		},
@@ -592,16 +503,15 @@
 			"version": "1.20.0",
 			"date": "2026-11-23",
 			"notes": [
-				"Seven new skills. /flow-decide decides small choices from the evidence and defers to the flow stop list. /flow-commit writes conventional commits with or without a plan, only when the user types it or asks to commit, and never pushes or adds attribution without being told. /flow-update-skills checks, installs and updates these skills straight over the old files through a temporary folder (no backups), and deletes obsolete skills and files that are no longer shipped; it replaces the long install instruction of the MCP server text, which keeps one pointer line. /flow-critic-screen judges every screen of a mockup or the app from real pictures at phone, tablet and desktop widths with one critic for each screen.",
-				"flow-critic 2.0.0 is the router and keeps the mode choice and the shared rules; its plan, code and mockup work moved word for word into the modules /flow-critic-plan, /flow-critic-code and /flow-critic-mockup (the old lens and template files of flow-critic are removed from installed copies by /flow-update-skills).",
-				"flow 1.11.0 step 5a now holds the browser protocol: the agent drives the harness browser like Playwright, takes pictures at the repo's widths (else 1440, 820 and 390; a mockup at 408, 820, 1280 and 1600) and asks the person once to sign in in that window when a screen needs it. flow-mockup 1.8.4 and the critic modules point to it. flow-align 1.6.0 adds the same two lines to its rules block (1.6.0) and removes a disable-model-invocation line from installed flow skills.",
+				"Seven new skills. /flow-decide decides small choices from the evidence and defers to the flow stop list. /flow-commit writes conventional commits with or without a plan, only when the user types it or asks to commit, and never pushes or adds attribution without being told. /flow-update-skills checks, installs and updates these skills straight over the old files through a temporary folder (no backups), and deletes obsolete skills; it replaces the long install instruction of the MCP server text, which keeps one pointer line. /flow-critic-screen judges every screen of a mockup or the built app from real pictures at phone, tablet and desktop widths with one critic for each screen.",
+				"flow-critic is removed: the review is now four stand-alone skills, /flow-critic-plan, /flow-critic-code, /flow-critic-mockup and /flow-critic-screen, each with its own copy of the shared rules in critic-rules.md. Their plan, code and mockup work moved word for word out of the old flow-critic. /flow-update-skills deletes an installed flow-critic folder, and /flow now names the module in every place it said /flow-critic.",
+				"flow 1.11.0 step 5a now holds the browser protocol: the agent drives the harness browser like Playwright, takes pictures at the repo's widths (else 1440, 820 and 390; a mockup at 408, 820, 1280 and 1600) and asks the person once to sign in in that window when a screen needs it. flow-mockup 1.8.4 and the critic skills point to it, and flow-mockup never pastes another mockup as it is. flow-align 1.6.0 adds the same two lines to its rules block (1.6.0) and removes a disable-model-invocation line from installed flow skills.",
 				"No flow skill may carry disable-model-invocation: the bundle refuses it, flow tells agents never to add it, and flow-align repairs copies that have it.",
-				"Master and child plans: items can have a parent (item_new and item_update take parent, item_get answers parent or children, item_list takes children show or hide). flow section 2 step 3a says when to use them: work one agent does in order is one plan with phases, a child plan is only for a piece that ships or is reviewed on its own or runs in parallel, and a plan with more than five children says so in the hand-over."
+				"Master and child plans: items can have a parent (item_new and item_update take parent, item_get answers parent or children, item_list takes children show or hide). flow section 2 step 3a says when to use them (work one agent does in order is one plan with phases, a child plan is only for a piece that ships or is reviewed on its own or runs in parallel, more than five children is said in the hand-over) and its reference.md has the procedure under Master and child plans: the master first, each child with parent, linking a plan that already exists, reading, claiming one child at a time and what a go covers."
 			],
 			"skills": {
 				"flow": "1.11.0",
 				"flow-audit": "1.3.5",
-				"flow-critic": "2.0.0",
 				"flow-interview": "1.2.5",
 				"flow-mockup": "1.8.4",
 				"flow-task": "1.1.3",
@@ -1469,16 +1379,7 @@
 	],
 	"retired": [
 		"flow-check",
-		"flow-verify"
-	],
-	"removedFiles": {
-		"flow-critic": [
-			"checklists.md",
-			"code-lenses.md",
-			"code-template.md",
-			"mockup-lenses.md",
-			"plan-lenses.md",
-			"plan-template.md"
-		]
-	}
+		"flow-verify",
+		"flow-critic"
+	]
 }

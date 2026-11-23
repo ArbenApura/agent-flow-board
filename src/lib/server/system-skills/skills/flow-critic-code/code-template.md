@@ -151,4 +151,4 @@ What you could not assess from source (runtime behaviour, a real database's actu
 
 (Illustrative: the shape of a finding, not a real defect; the line numbers are not real.)
 
-After the critics report, follow `SKILL.md` section 5 (Verify, triage and resolve): **verify every BLOCKER and HIGH yourself before acting on it.**
+After the critics report, follow `critic-rules.md` section 5 (Verify, triage and resolve): **verify every BLOCKER and HIGH yourself before acting on it.**

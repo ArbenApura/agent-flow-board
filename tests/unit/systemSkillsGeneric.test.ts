@@ -156,11 +156,11 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		},
 		{
 			rule: 'only the card options that say go are a go',
-			pattern: /"Go" and "`\/flow-critic` then go" are a go/
+			pattern: /"Go" and "`\/flow-critic-plan` then go" are a go/
 		},
 		{
 			rule: 'just the critic is not a go',
-			pattern: /"just `\/flow-critic`" runs the critic and ends at the hand-over again/
+			pattern: /"just `\/flow-critic-plan`" runs the critic and ends at the hand-over again/
 		},
 		{
 			rule: 'no open question goes in the card',
@@ -219,27 +219,7 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			pattern: /unlinked from the plan or moved to the trash while the build ran/
 		}
 	],
-	'flow-critic': [
-		{ rule: 'no commit or push', pattern: /Never commit or push as part of a review/ },
-		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
-		{
-			rule: 'mockup and screen mode run only on the user word',
-			pattern: /run only on the user's word/
-		},
-		// AFB-20261123-1205: the shared rules stay in the router, the work is in the modules below
-		{
-			rule: 'the router names every module',
-			pattern:
-				/flow-critic-plan[\s\S]*flow-critic-code[\s\S]*flow-critic-mockup[\s\S]*flow-critic-screen/
-		},
-		// AFB-20261110-2305: no size gate, three subagents by default
-		{
-			rule: 'no review is skipped for being small',
-			pattern: /No review is skipped for being small/
-		},
-		{ rule: 'three subagents by default', pattern: /\*\*3 subagents by default\*\*/ }
-	],
-	// AFB-20261123-1205: the moved rules of the critic modules, each pinned where it now lives
+	// AFB-20261123-1205: flow-critic is gone; the rules every critic review shares are CRITIC_SHARED, pinned in each of the four, and the rules that moved with the work are pinned where they now live
 	'flow-critic-plan': [
 		{ rule: 'checks the design brief', pattern: /Has a sourced design brief/ },
 		{ rule: 'reads the shared rules first', pattern: /Shared rules first\./ }
@@ -423,12 +403,30 @@ describe('the shipped skills carry no repo facts', () => {
 	}
 });
 
+// The shared rules of the four critic reviews (critic-rules.md), each of which must read them whole
+const CRITIC_SHARED: { rule: string; pattern: RegExp }[] = [
+	{ rule: 'no commit or push', pattern: /Never commit or push as part of a review/ },
+	{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
+	{
+		rule: 'mockup and screen reviews run only on the user word',
+		pattern: /run only on the user's word/
+	},
+	// AFB-20261110-2305: no size gate, three subagents by default
+	{
+		rule: 'no review is skipped for being small',
+		pattern: /No review is skipped for being small/
+	},
+	{ rule: 'three subagents by default', pattern: /\*\*3 subagents by default\*\*/ },
+	{ rule: 'a critic never touches the board', pattern: /Critic subagents never touch the board/ }
+];
+
 describe('the shipped skills keep their safety rules', () => {
 	const sources = sourceFiles();
 	for (const [name, rules] of Object.entries(RETAINED)) {
 		it(`${name} still states every retained rule`, () => {
 			const text = sources[name].map((f) => f.text).join('\n');
-			const missing = rules.filter((r) => !r.pattern.test(text)).map((r) => r.rule);
+			const all = [...rules, ...(name.startsWith('flow-critic-') ? CRITIC_SHARED : [])];
+			const missing = all.filter((r) => !r.pattern.test(text)).map((r) => r.rule);
 			expect(missing, name).toEqual([]);
 		});
 	}
@@ -563,14 +561,18 @@ describe('the modules and the new skills keep their own rules', () => {
 		expect(text).toContain('Where this skill and `/flow` differ, `/flow` wins');
 	});
 
-	it('each critic module names /flow-critic as its mandatory first read', () => {
+	it('each critic review names its critic-rules.md as its mandatory first read, and names no flow-critic skill', () => {
 		for (const name of [
 			'flow-critic-plan',
 			'flow-critic-code',
 			'flow-critic-mockup',
 			'flow-critic-screen'
-		])
+		]) {
 			expect(skill(name), name).toContain('Shared rules first.');
+			expect(skill(name), name).toContain('`critic-rules.md`');
+			for (const f of sources[name])
+				expect(f.text, `${name}/${f.path}`).not.toMatch(/\/flow-critic([^-]|$)/);
+		}
 	});
 
 	it('flow-mockup never pastes another mockup or template as it is', () => {

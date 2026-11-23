@@ -1,14 +1,15 @@
 ---
 name: flow-critic-mockup
-description: Use only when the user asks for it, to have independent critic subagents attack a design mockup made by /flow-mockup against the real product on Agent Flow Board (mockup mode of /flow-critic), where the lead takes pictures of the mockup and the nearest real screen, measures both, and 3 read-only critics judge them; fixes go out as a new version of the same mockup. Loaded through /flow-critic; also usable when the user types /flow-critic-mockup.
+description: Use only when the user asks for it, to have independent critic subagents attack a design mockup made by /flow-mockup against the real product on Agent Flow Board (the mockup review), where the lead takes pictures of the mockup and the nearest real screen, measures both, and 3 read-only critics judge them; fixes go out as a new version of the same mockup. Usable when the user types /flow-critic-mockup or asks for this review.
 ---
 
 # Flow Critic: mockup mode
 
-> **Shared rules first.** This module is one half of `/flow-critic`. Before you dispatch anything, read `/flow-critic` (in a tool with no skills: `workflow_get` name `flow-critic`) for the session and project key, the repo rulebook, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 2, 5 and 6 named below refer to that file; any other section number (for example 4a) refers to this module.
+> **Shared rules first.** This skill is one of the four critic reviews. Before you dispatch anything, read `critic-rules.md` next to this file (in a tool with no skills: `workflow_get` name `flow-critic-mockup` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this skill.
 
 Files in this skill:
 
+- `critic-rules.md`: the rules every critic review shares.
 - `SKILL.md` (this file): mockup mode, its steps and its report.
 - `mockup-lenses.md`: the mockup mode subagent prompt and its 6 lenses (M1 to M6).
 

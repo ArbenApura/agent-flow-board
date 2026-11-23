@@ -37,7 +37,6 @@ const NAMES = [
 	'flow-align',
 	'flow-audit',
 	'flow-commit',
-	'flow-critic',
 	'flow-critic-code',
 	'flow-critic-mockup',
 	'flow-critic-plan',
@@ -72,18 +71,15 @@ describe('the system skills manifest', () => {
 		for (const rule of rules) expect(flow, rule).toContain(rule);
 	});
 
-	it('lists the fourteen flow skills, each with a semver version, and the retired ones apart (AFB-20261116-1457)', () => {
+	it('lists the thirteen flow skills, each with a semver version, and the retired ones apart (AFB-20261116-1457)', () => {
 		expect(Object.keys(MANIFEST.skills).sort()).toEqual(NAMES);
-		// Files flow-critic used to ship are listed as removed, and no skill still ships a file its entry lists as removed (AFB-20261123-1205)
-		expect([...(MANIFEST.removedFiles?.['flow-critic'] ?? [])].sort()).toEqual([
-			'checklists.md',
-			'code-lenses.md',
-			'code-template.md',
-			'mockup-lenses.md',
-			'plan-lenses.md',
-			'plan-template.md'
+		// flow-critic is gone for good: its four reviews stand alone, and an installed copy is deleted by /flow-update-skills (AFB-20261123-1205)
+		expect([...(MANIFEST.retired ?? [])].sort()).toEqual([
+			'flow-check',
+			'flow-critic',
+			'flow-verify'
 		]);
-		expect([...(MANIFEST.retired ?? [])].sort()).toEqual(['flow-check', 'flow-verify']);
+		expect(MANIFEST.removedFiles ?? {}).toEqual({});
 		for (const gone of MANIFEST.retired ?? []) expect(MANIFEST.skills[gone], gone).toBeUndefined();
 		expect(MANIFEST.bundle.version).toMatch(/^\d+\.\d+\.\d+$/);
 		for (const [name, entry] of Object.entries(MANIFEST.skills))
@@ -178,7 +174,7 @@ describe('workflow_get and the bundle', () => {
 		expect(stripFrontMatter('---\nname: a\n---\n\n# A\n')).toBe('# A\n');
 	});
 
-	it('read each critic module supporting file from the bundle files, and flow-critic itself has none (AFB-20261123-1205)', () => {
+	it('read each critic review supporting file from the bundle files, and critic-rules is the same file in all four (AFB-20261123-1205)', () => {
 		for (const [name, names] of Object.entries(WORKFLOW_FILES).filter(([n]) =>
 			n.startsWith('flow-critic')
 		)) {
@@ -195,17 +191,20 @@ describe('workflow_get and the bundle', () => {
 					.sort()
 			]);
 		}
-		expect(
+		expect(systemSkills().find((s) => s.name === 'flow-critic')).toBeUndefined();
+		// The shared rules are one text in four places, so a review never reads a different copy from its sibling
+		const rules = ['plan', 'code', 'mockup', 'screen'].map((m) =>
 			systemSkills()
-				.find((s) => s.name === 'flow-critic')!
-				.files.map((f) => f.path)
-		).toEqual(['SKILL.md']);
-		// Every supporting file name is owned by exactly one module
+				.find((s) => s.name === `flow-critic-${m}`)!
+				.files.find((f) => f.path === 'critic-rules.md')!
+		);
+		expect(rules.every((r) => r.text === rules[0].text && r.sha256 === rules[0].sha256)).toBe(true);
+		// Every supporting file name is owned by a review, and only critic-rules by all four
 		const owned = Object.entries(WORKFLOW_FILES)
 			.filter(([n]) => n.startsWith('flow-critic'))
-			.flatMap(([, names]) => [...names])
-			.sort();
-		expect(owned).toEqual([...WORKFLOW_FILE_NAMES].sort());
+			.flatMap(([, names]) => [...names]);
+		expect([...new Set(owned)].sort()).toEqual([...WORKFLOW_FILE_NAMES].sort());
+		expect(owned.filter((n) => n === 'critic-rules')).toHaveLength(4);
 	});
 });
 

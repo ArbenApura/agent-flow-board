@@ -40,7 +40,8 @@ const WORKFLOW: Record<ContinueAction, string> = {
 	resume: 'flow',
 	ask: 'flow',
 	audit: 'flow-audit',
-	critic: 'flow-critic',
+	// The Review button runs the code review; the plan review is typed as /flow-critic-plan
+	critic: 'flow-critic-code',
 	interview: 'flow-interview'
 };
 /** The longest idea the create prompt carries. */
@@ -62,7 +63,7 @@ const NOTE_IDEA = /^from note N-[1-9][0-9]{0,8}$/;
 export const isRef = isItemRef;
 
 /**
- * The slash command of the /flow skills: `/flow resume REF`, `/flow-audit REF`, `/flow-critic REF`, `/flow-interview REF` and
+ * The slash command of the /flow skills: `/flow resume REF`, `/flow-audit REF`, `/flow-critic-code REF`, `/flow-interview REF` and
  * `/flow REF: ` for a question. Null for a reference the app would not write.
  */
 export function slashCommand(action: ContinueAction, ref: string): string | null {

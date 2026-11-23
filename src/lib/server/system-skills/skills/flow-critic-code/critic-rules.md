@@ -1,13 +1,8 @@
----
-name: flow-critic
-description: Use to have independent critic subagents attack a /flow plan before it is built, review code after it is written, or, when the user asks for it, attack a design mockup (mockup mode) or judge each screen from real pictures (screen mode), on Agent Flow Board. It is the router and holds the shared rules; the work is in the modules flow-critic-plan, -code, -mockup and -screen. Picks the mode from the session, plan (the item's steps or spec written or changed on the board, nothing built) or code (implementation done, a phase finished, before commit sign-off, or after any change to server code, an endpoint, a migration, auth, a background worker or a screen), says which and why, and never asks, it picks code mode when the tree has code changes and plan mode otherwise and says which. Always dispatches, whatever the size of the plan or diff: 3 subagents by default, or the number the user asks for, with lenses chosen for what the work touches, runs pass 2 only after a BLOCKER, and verifies every finding before acting. Code mode applies to any code change, not only /flow items.
----
+# Critic rules: shared by the four critic reviews
 
-# Flow Critic - Multi-Agent Adversarial Review
+These are the rules every critic review follows, whichever one you run (`/flow-critic-plan`, `/flow-critic-code`, `/flow-critic-mockup` or `/flow-critic-screen`). Each of those skills carries an identical copy of this file next to its `SKILL.md`, reads it first, and says what is different for its own review. The section numbers 1, 2, 5 and 6 are this file's; any other number named in a review skill is that skill's own.
 
-One review skill for both halves of the `/flow` workflow, now split into modules. In **plan mode** (`/flow-critic-plan`) it stress-tests the plan on the board (its steps, spec and decisions) before any code is written. In **code mode** (`/flow-critic-code`) it critiques the implemented changes before commit sign-off. Both modes dispatch independent critic subagents that run concurrently in read-only mode, and both follow the same convergence and verification rules, which stay in this file. A third mode, **mockup mode** (`/flow-critic-mockup`), runs only when the user asks for it: it attacks a design mockup made by `/flow-mockup` against the real product. A fourth, **screen mode** (`/flow-critic-screen`), runs only when the user asks for it: one critic for each screen, judging real pictures at phone, tablet and desktop widths.
-
-**Where things live.** The code is the repo you are in. The plans live on Agent Flow Board, in the project whose key you resolve below, and are read and written through the **agent-flow-board MCP** only (tools are named `mcp__afb-<org-slug>__<tool>`). An item is read with `item_get` (`fields`: steps, decisions, sections) and `item_doc` (`section:<slug>`, `phase:<key>`, `decision:<adr or settled>-<n>`); its documents are the sections `spec`, `validation`, `references`, `resume-here`, `blockers` and its decisions. Start the run as `/flow` section 0 says: `session_start` (keep the `sessionId`), `project_rules` for the project key; skip `workflow_get` for `flow-critic` when this skill is installed and current (a harness without the skill calls it), then apply this skill on top. `work_start` the item under review before you write to it, and name it on every write. Reviews are written back with `item_update` (one decision or one section per call, with a `requestId`, read back with `item_get`) and `record` (a log line of at most 500 characters).
+**Where things live.** The code is the repo you are in. The plans live on Agent Flow Board, in the project whose key you resolve below, and are read and written through the **agent-flow-board MCP** only (tools are named `mcp__afb-<org-slug>__<tool>`). An item is read with `item_get` (`fields`: steps, decisions, sections) and `item_doc` (`section:<slug>`, `phase:<key>`, `decision:<adr or settled>-<n>`); its documents are the sections `spec`, `validation`, `references`, `resume-here`, `blockers` and its decisions. Start the run as `/flow` section 0 says: `session_start` (keep the `sessionId`), `project_rules` for the project key; skip `workflow_get` for your review skill when it is installed and current (a harness without the skill calls it), then apply that skill on top of these rules. `work_start` the item under review before you write to it, and name it on every write. Reviews are written back with `item_update` (one decision or one section per call, with a `requestId`, read back with `item_get`) and `record` (a log line of at most 500 characters).
 
 **Project key.** Resolve it in this order: (1) the key the user names, (2) a key in the repo rulebook, (3) `board_brief`: if it shows one project use it, if several ask which, (4) none found: stop and ask. Never guess a key.
 
@@ -17,49 +12,25 @@ One review skill for both halves of the `/flow` workflow, now split into modules
 
 **Every project has a characteristic failure: plausible output silently missing something.** A permission or tenant check that is never made, a role check a verb skips, a secret that leaks into a log, a list that truncates, a migration that never ran, an error that was swallowed, a plan step that never says what happens on failure. None of these look wrong line by line. Every review must also ask **"what should be here and is not?"** Read the repo rulebook for the failures this repo names.
 
-Files in this skill and its modules:
-
-- `SKILL.md` (this file): mode choice, the shared rules (subagent count, convergence, dispatch), verify and triage, red flags.
-- `/flow-critic-plan` (skill `flow-critic-plan`): plan mode, with `plan-template.md` and `plan-lenses.md`.
-- `/flow-critic-code` (skill `flow-critic-code`): code mode, with `code-template.md`, `code-lenses.md` and `checklists.md`.
-- `/flow-critic-mockup` (skill `flow-critic-mockup`): mockup mode, with `mockup-lenses.md`.
-- `/flow-critic-screen` (skill `flow-critic-screen`): per-screen visual critique with one critic for each screen, with `critic-brief.md`.
-
-Read the module of the mode you picked (the skill, or `workflow_get` with its name in a tool with no skills) and follow it; it holds the steps, the lens files and the subagent prompt. The modules read this file back for the shared rules.
-
 Fill the templates; do not paraphrase them. Never paste your conversation history into a subagent prompt; the critic judges the work, not your reasoning.
 
 **Never commit or push as part of a review**; the other safety rules are in `/flow` section 5 point 4 and section 6.
 
 ---
 
-## 1. Pick the Mode
+## 1. How a review starts and ends
 
-Decide before anything else, in this order:
+Say which review you run and why, in one line, before dispatching, for example: "Code review: Phase 3 was just built, 14 files changed (4 untracked)." The user can correct it, but you do not wait for them.
 
-1. **The user said which.** "Critique the plan", an item reference, or "review the code / the build / the diff" settles it. **"Critique the mockup", a mockup id or link, or `/flow-critic` named together with `/flow-mockup` is mockup mode** (`/flow-critic-mockup`). **"One critic for each screen", "check desktop, tablet and mobile" or "render the pictures, do not just read the code" is screen mode** (`/flow-critic-screen`). Mockup mode and screen mode are never picked from the signals below: they run only on the user's word. When the user names `/flow-critic` with both `/flow` and `/flow-mockup`, the mockup is reviewed in mockup mode right after it is published and the plan in plan mode, as two separate reviews, both before the hand-over of `/flow` step 7 (the user named them, so they are not asked again); the turn then ends at that hand-over, with no question in the text (the hand-over choice card of `/flow` step 7, where the harness has one, is the only question tool), or goes on into the build when the message held an explicit build instruction. A critic the user ran directly after the plan or the code, outside an Execution turn, ends with its report and the same options (the card of `/flow` step 7 where the harness has one, else plain text), never with a question in the text and never with the start of a build; the end-of-build review inside a running build is followed by the audit and the release of the claim.
-2. **Otherwise read the session and the tree.**
-
-| Signal | Mode |
-|---|---|
-| This session wrote or changed the item's steps or spec on the board and no code in the repo | Plan |
-| The item is PLANNED, or the plan is not approved or not yet built | Plan |
-| `/flow` planning mode or `/flow-interview` just ran | Plan |
-| This session implemented or edited code (source, packages, scripts, tests), or finished a `/flow` phase | Code |
-| `git status` shows code changes that belong to the active item, not yet reviewed (no critic log line on the item) | Code |
-| The user is about to sign off a commit | Code |
-| Only the item's board records changed | Plan (no code review is needed for doc-only work) |
-
-3. **Both apply** (the plan changed mid-build and code changed too): run code mode on the code. If the plan change is material (data, access, tenancy, phases), run plan mode on it afterwards as a separate review. Never mix plan and code findings in one subagent.
-4. **Still unclear**: do not ask. Pick code mode if `git status` shows code changes in the tree, else plan mode, and say which.
-
-Say the mode and the reason in one line before dispatching, for example: "Code mode: Phase 3 was just built, 14 files changed (4 untracked)." The user can correct it, but you do not wait for them.
-
-**No review is skipped for being small.** Plan mode runs on an item of any number of phases or steps, and code mode runs after every build, a lite item included. `/flow` never starts a plan-mode review itself: it runs when the user asks for it.
+- **Which review.** The user's words settle it: "critique the plan" or an item reference is `/flow-critic-plan`; "review the code / the build / the diff" is `/flow-critic-code`. A plan the session wrote or changed on the board with no code in the repo, a PLANNED item or a plan that is not approved yet is a plan review; code changes of the active item that have not been reviewed, a finished `/flow` phase or a commit about to be signed off is a code review. When both apply (the plan changed mid-build and code changed too), review the code first and review the plan afterwards as a separate review if the plan change is material (data, access, tenancy, phases), and never mix plan and code findings in one subagent. Work where only the item's board records changed needs the plan review and no code review, a session in which `/flow` planning mode or `/flow-interview` just ran is a plan review, and code changes of the active item with no critic log line on the item yet are a code review. When it is unclear, do not ask: pick the code review if `git status` shows code changes in the tree, else the plan review, and say which.
+- **Mockup and screen reviews run only on the user's word.** "Critique the mockup", a mockup id or link, or `/flow-critic-mockup` named together with `/flow-mockup` is the mockup review; "one critic for each screen", "check desktop, tablet and mobile" or "render the pictures, do not just read the code" is the screen review. They are never picked from the signals above: they run only on the user's word.
+- **Named together with `/flow`.** When the user names a critic review with `/flow` (and `/flow-mockup`), the mockup is reviewed right after it is published and the plan after it, as two separate reviews, both before the hand-over of `/flow` step 7 (the user named them, so they are not asked again); the turn then ends at that hand-over, with no question in the text (the hand-over choice card of `/flow` step 7, where the harness has one, is the only question tool), or goes on into the build when the message held an explicit build instruction.
+- **How it ends.** A review the user ran directly after the plan or the code, outside an Execution turn, ends with its report and the same options (the card of `/flow` step 7 where the harness has one, else plain text), never with a question in the text and never with the start of a build. The end-of-build review inside a running build is followed by the audit and the release of the claim.
+- **No review is skipped for being small.** A plan review runs on an item of any number of phases or steps, and a code review runs after every build, a lite item included. `/flow` never starts a plan review itself: it runs when the user asks for it.
 
 ---
 
-## 2. Shared Rules (both modes)
+## 2. Shared Rules (every review)
 
 ### Subagent count (no size gate)
 - **3 subagents by default**, in plan, code and mockup mode (screen mode takes one critic for each screen, see `/flow-critic-screen`), whatever the size of the plan or the diff. For a small plan or diff, split by lens as in the examples below, with lane 5 in at least one prompt; a subagent whose lens has nothing to check answers "no findings" after one read.
@@ -78,7 +49,8 @@ Say the mode and the reason in one line before dispatching, for example: "Code m
 Invoke all subagents in a single message, one `Agent` tool call each (`subagent_type: "general-purpose"`), so they run in parallel. Pass no `model`: the critics use the session's own model, and a person who wants a specific one sets it in their private settings. Each runs independently in read-only mode: it must not edit files, commit, push, deploy, run SQL against any remote database, or start a dev server or a browser. Wait quietly for all of them without polling.
 
 ---
-## 5. Verify, Triage and Resolve (both modes)
+
+## 5. Verify, Triage and Resolve (every review)
 
 Critic output is a set of claims, not facts. Once all subagents report back:
 

@@ -30,7 +30,8 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 			d.project.key,
 			d.item.ref,
 			url.searchParams.get('tab') === 'mockups',
-			url.searchParams.get('m')
+			url.searchParams.get('m'),
+			url.searchParams.get('v')
 		);
 		// Discussion, files and activity are not on the first tab, so they stream in after the page is sent
 		const extras = itemExtras(ctx, d.item).then((x) => ({

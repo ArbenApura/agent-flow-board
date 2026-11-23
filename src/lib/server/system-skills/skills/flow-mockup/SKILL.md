@@ -113,7 +113,7 @@ Fix what differs and look again until nothing is left. **Write the evidence, not
 - **A revision is a new version of the same mockup** (`--mockup <id>`), never a second mockup. A plan gets a second one only when the user asks (`--another`).
 - **Write the notes, completely.** A build treats the page's structure, layout order, text, states and interactions as binding, with or without notes. Colours, spacing, sizes and type that follow the project's tokens, and a real component standing in for a drawn one, are always free. *Free*: everything else a build may change (an invented component, a placeholder text, a part drawn only to fill the page). What is not listed there is built as drawn, so leave nothing out. *Keep*: what matters most to preserve, as a pointer for the builder; it never makes the rest optional. Be concrete: "the filter sits above the table and stays sticky" is a note; "looks nice" is not.
 - Tell the person the link and which version it is. They look at it on the board, comment with pins and may switch the public link on. There is no approval and no pick between versions: say what changed and carry on.
-- **A deep review is `/flow-critic` in mockup mode**, when the user asks for it ("critique the mockup", or `/flow-critic` named with `/flow-mockup`). Its confirmed findings are fixed and published as a new version of the same mockup, without a question.
+- **A deep review is `/flow-critic-mockup`**, when the user asks for it ("critique the mockup", or `/flow-critic-mockup` named with `/flow-mockup`). Its confirmed findings are fixed and published as a new version of the same mockup, without a question.
 
 ## 6. Using a mockup in a build (inspect)
 

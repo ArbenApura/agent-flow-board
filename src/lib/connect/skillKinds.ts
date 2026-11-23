@@ -40,12 +40,6 @@ export const SKILL_INFO: Record<string, SkillInfo> = {
 		summary:
 			'Asks you plain multiple-choice questions until every gap in a plan is settled, then writes your answers back.'
 	},
-	'flow-critic': {
-		kind: 'Check',
-		icon: 'scan-search',
-		summary:
-			'Sends independent reviewers to attack a plan, the code or a mockup, and verifies every finding before acting.'
-	},
 	'flow-audit': {
 		kind: 'Check',
 		icon: 'clipboard-list',

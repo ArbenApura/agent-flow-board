@@ -50,7 +50,7 @@ describe('workflow text', () => {
 		expect(workflowByName('flow-audit')!.body).not.toContain('## Short rules');
 	});
 
-	it('has the critic supporting files readable by name, each in its own module, and none in the router (AFB-20261123-1205)', () => {
+	it('has the critic supporting files readable by name, each in its own review, and no flow-critic workflow any more (AFB-20261123-1205)', () => {
 		const modules = Object.entries(WORKFLOW_FILES).filter(([n]) => n.startsWith('flow-critic'));
 		expect(modules.map(([n]) => n).sort()).toEqual([
 			'flow-critic-code',
@@ -62,9 +62,10 @@ describe('workflow text', () => {
 			for (const f of files)
 				expect(workflowFile(name, f).length, `${name}/${f}`).toBeGreaterThan(500);
 		expect(WORKFLOW_FILES['flow-critic']).toBeUndefined();
+		expect(workflowByName('flow-critic')).toBeUndefined();
 		expect(() => workflowFile('flow-critic', 'plan-lenses')).toThrow();
 		expect(() => workflowFile('flow-critic-plan', 'code-lenses')).toThrow();
-		expect([...WORKFLOW_FILE_NAMES].length).toBe(7);
+		expect([...WORKFLOW_FILE_NAMES].length).toBe(8);
 	});
 
 	it('serves the new skills as workflows, and the install instruction points at flow-update-skills (AFB-20261123-1205)', () => {
@@ -122,10 +123,10 @@ describe('workflow text', () => {
 
 	it('tells each critic module to read the shared rules and its supporting files first, in parts, before any subagent', () => {
 		const modules = {
-			'flow-critic-plan': ['plan-template', 'plan-lenses'],
-			'flow-critic-code': ['code-template', 'code-lenses', 'checklists'],
-			'flow-critic-mockup': ['mockup-lenses'],
-			'flow-critic-screen': ['critic-brief']
+			'flow-critic-plan': ['critic-rules', 'plan-template', 'plan-lenses'],
+			'flow-critic-code': ['critic-rules', 'code-template', 'code-lenses', 'checklists'],
+			'flow-critic-mockup': ['critic-rules', 'mockup-lenses'],
+			'flow-critic-screen': ['critic-rules', 'critic-brief']
 		};
 		for (const [name, files] of Object.entries(modules)) {
 			const body = workflowByName(name)!.body;
@@ -135,7 +136,7 @@ describe('workflow text', () => {
 			expect(note, name).toBeLessThan(body.indexOf('# Flow Critic'));
 			for (const f of files) expect(body, `${name}/${f}`).toContain(f);
 			expect(body, name).toContain(`workflow_get name ${name} and file`);
-			expect(body, name).toContain('workflow_get name flow-critic');
+			expect(body, name).toContain('read critic-rules first');
 			expect(body, name).toContain('offset');
 			expect(body, name).toContain(
 				'Do not dispatch any subagent until the files of this module are read'
@@ -143,17 +144,15 @@ describe('workflow text', () => {
 			// The note must send the model to workflow_get, never to a tool that no longer exists
 			expect(body.slice(note, body.indexOf('# Flow Critic'))).not.toContain('skill_get');
 		}
-		// AFB-20261110-2305: the critic has no size gate, three subagents by default; the router keeps that rule
-		const router = workflowByName('flow-critic')!.body;
-		expect(router).not.toContain('small diff, 3 otherwise');
-		expect(router).toContain('3 subagents by default');
-		expect(router).not.toContain('First action');
+		// AFB-20261110-2305: the critic has no size gate, three subagents by default; the shared rules file keeps that rule
+		const rules = workflowFile('flow-critic-plan', 'critic-rules');
+		expect(rules).not.toContain('small diff, 3 otherwise');
+		expect(rules).toContain('3 subagents by default');
 	});
 
 	it('names no model for the critic subagents, so it fits every harness', () => {
 		// A person sets a model preference in their own private CLAUDE.md; "sonnet" is only a Claude Code alias
 		const texts = [
-			workflowByName('flow-critic')!.body,
 			...Object.entries(WORKFLOW_FILES)
 				.filter(([n]) => n.startsWith('flow-critic'))
 				.flatMap(([n, files]) => [workflowByName(n)!.body, ...files.map((f) => workflowFile(n, f))])

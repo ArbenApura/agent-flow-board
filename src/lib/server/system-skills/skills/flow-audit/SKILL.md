@@ -1,6 +1,6 @@
 ---
 name: flow-audit
-description: Use when implementation of a /flow item or phase on Agent Flow Board is finished, before asking the user for commit sign-off, alongside /flow-critic, or when the user asks whether everything done is recorded in the plan. Compares what was actually built (the working tree, untracked files, commits since the plan's base, database migrations) against the item on Agent Flow Board (steps, decisions, sections, history) in both directions, then fixes the board so it tells the truth. Board only; never changes code or ticks anything unverified.
+description: Use when implementation of a /flow item or phase on Agent Flow Board is finished, before asking the user for commit sign-off, alongside /flow-critic-code, or when the user asks whether everything done is recorded in the plan. Compares what was actually built (the working tree, untracked files, commits since the plan's base, database migrations) against the item on Agent Flow Board (steps, decisions, sections, history) in both directions, then fixes the board so it tells the truth. Board only; never changes code or ticks anything unverified.
 ---
 
 # Progress Audit
@@ -11,7 +11,7 @@ Plans live on Agent Flow Board and are read and written through the **agent-flow
 
 **Repo rulebook.** Read `CLAUDE.md`, `AGENTS.md`, the README and the package scripts (`package.json`, `Makefile` or the repo's equivalent). The repo rulebook overrides project facts and optional steps here. It never overrides the safety rules of the `/flow` safety rules (section 5 point 4 and section 6) or the method of this skill. Anything it says about branch, base commit, ports, databases or visibility applies to this run.
 
-Check that the item records everything that was built and claims nothing that was not. `/flow-critic` asks "is the code right?". This skill asks "do the plan and progress records match the code?". A later session resumes from the `resume-here` note and the steps, so any gap here is work that gets lost, repeated or shipped unchecked.
+Check that the item records everything that was built and claims nothing that was not. `/flow-critic-code` asks "is the code right?". This skill asks "do the plan and progress records match the code?". A later session resumes from the `resume-here` note and the steps, so any gap here is work that gets lost, repeated or shipped unchecked.
 
 ## Hard rules
 
@@ -99,4 +99,4 @@ Keep it short and plain:
 5. **Unclear owner**: changed files that may belong to another session, left out of the record.
 6. **Rule files that drifted** (only when you met one): a line of the repo rulebook or a saved memory that contradicts the flow rules is named in one line, with the note that `/flow-align` fixes it. The audit never edits a rule file or a memory.
 
-Run `/flow-critic` separately if the code itself has not been reviewed. This audit does not judge code quality.
+Run `/flow-critic-code` separately if the code itself has not been reviewed. This audit does not judge code quality.

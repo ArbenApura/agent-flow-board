@@ -26,10 +26,20 @@ export type ItemMockups = {
 	/** The newest mockup of the plan with its preview address and notes, only when the tab is open. */
 	open: {
 		id: string;
+		/** The version on show: the one the address asked for, otherwise the newest. */
 		version: number;
 		src: string;
 		screens: string[];
 		notes: { author: string | null; keep: string; free: string } | null;
+		/** Every version, newest first, for the History drawer. */
+		versions: {
+			number: number;
+			size: number;
+			createdAt: Date | string;
+			restoredFrom: number | null;
+			hasScreenshot: boolean;
+		}[];
+		canWrite: boolean;
 	} | null;
 };
 
@@ -41,7 +51,9 @@ export async function itemMockups(
 	itemRef: string,
 	withPreview: boolean,
 	/** The mockup the address asked for (?m=). A wrong or foreign id shows the newest one. */
-	chosen: string | null = null
+	chosen: string | null = null,
+	/** The version the address asked for (?v=). A number the mockup does not have shows the newest. */
+	chosenVersion: string | null = null
 ): Promise<ItemMockups> {
 	const { mockups } = await listMockups(ctx, { project: projectKey, item: itemRef });
 	const list = mockups.map((m) => ({
@@ -57,20 +69,37 @@ export async function itemMockups(
 	if (!withPreview || list.length === 0) return { list, open: null };
 	// Only a mockup of this plan can be chosen: the id is looked up in the plan's own list
 	const shown = list.find((m) => m.id === chosen) ?? list[0];
+	const first = await getMockup(ctx, shown.id);
+	const asked = Number(chosenVersion);
+	const version =
+		chosenVersion !== null &&
+		Number.isInteger(asked) &&
+		first.versions.some((v) => v.number === asked)
+			? asked
+			: shown.currentVersion;
+	// The notes belong to the version on show, so an older version reads its own
 	const [detail, grant] = await Promise.all([
-		getMockup(ctx, shown.id),
-		mockupFileGrant(ctx, shown.id)
+		version === shown.currentVersion ? first : getMockup(ctx, shown.id, version),
+		mockupFileGrant(ctx, shown.id, { version })
 	]);
 	return {
 		list,
 		open: {
 			id: shown.id,
-			version: shown.currentVersion,
+			version,
 			src: memberMockupUrl(grant),
 			screens: ALL_SCREENS,
 			notes: detail.notes
 				? { author: detail.notes.author, keep: detail.notes.keep, free: detail.notes.free }
-				: null
+				: null,
+			versions: first.versions.map((v) => ({
+				number: v.number,
+				size: v.size,
+				createdAt: v.createdAt,
+				restoredFrom: v.restoredFrom,
+				hasScreenshot: v.hasScreenshot
+			})),
+			canWrite: first.canWrite
 		}
 	};
 }

@@ -9,7 +9,7 @@ This file is the reference text of the `flow` skill. The rules are in `SKILL.md`
 The choice rule and the first sentence stay in `SKILL.md`: use the lite flow when the plan has 1 to 3 counted steps, or when the user says "lite" or "quick". The lite flow changes how many calls the plan costs, never a rule:
 
 - **Same as the full flow:** section 0 (session, rules, skills notice, `work_start` before any edit), the approval gate (section 2 step 7: a plan of 1 to 3 steps ends with the same hand-over (the choice card where the harness has a GUI question tool, otherwise plain text), no question in the text, and waits for a go unless the user's own words already say build), `step_done` after each step, the lessons before the last step, `work_stop` at the end, every safety rule of sections 5 and 6, the untrusted-text rules, the mockup rule of section 3 step 3a when the plan has a mockup, and the design-brief rule of section 2 step 4a when the change is one a person sees (write it as a `design-brief` section in the spec; a visible change with no source is written as an open line in the hand-over).
-- **Skipped:** `related_plans` and the `learned-from` section, `board_validate` after creating (the server validated the plan), the separate `item_update` calls for sections and decisions, and `/flow-critic` or `/flow-interview` unless the user asks.
+- **Skipped:** `related_plans` and the `learned-from` section, `board_validate` after creating (the server validated the plan), the separate `item_update` calls for sections and decisions, and `/flow-critic-plan` or `/flow-interview` unless the user asks.
 - **Calls:** `lite_new` (title, `tabName`, 1 to 3 `steps`, the `spec`, optional `validation` and `references`, and every settled decision with its source) creates the item with its sections and decisions in one call. Then the hand-over and the end of the turn; after the user's go, `work_start`, `step_done` for each step as it finishes, and `lite_close` with the `lessons`, the last step keys and one `log` line: it writes the lessons first, marks the steps and releases the claim in one call.
 - A lite item that turns out larger is extended with `plan_add_steps` and goes on as a full item, under the rule for added steps (section 3 step 7).
 
@@ -24,6 +24,18 @@ These sentences were part of the first bullet of step 3a ("Read all of it"). The
 - A harness with no `mockup_get` loads the tool, or reads the HTML through the board's API with its session id; a page fetched from the mockup's link on the board is not a recorded read.
 
 ---
+
+## Master and child plans (section 2 step 3a)
+
+How to split a big job and keep the pieces linked. When to split is the rule of section 2 step 3a of `SKILL.md`; this is the procedure.
+
+1. **The master first.** `item_new` for the master. Its `spec` says it is a master, gives the goal, the decisions every child shares and the planned children (a title and one line each). Its own steps are only the joining work (the final check across the children, a hand-over), never the children's work.
+2. **Each child second.** `item_new` with `parent` set to the master's reference. A child is a whole plan of its own: spec, phases, steps, a `design-brief` when it has a screen. Its title does not repeat the master's name, and its `spec` opens with one line naming the master. Create the children in the order they should be built, because the board numbers them 1, 2, 3 in the order they are linked (the number is kept while a child is trashed and given up when it is unlinked).
+3. **A plan that already exists** joins a master with `item_update` (`item` the child, `parent` the master's reference), and `parent: null` makes it a plan of its own again. The rules the server enforces: plans nest one level only (a child cannot be a master, a plan that has children cannot become a child), both are in one project, and the master must be visible to the caller. A refusal says which rule it was.
+4. **Reading.** `item_get` of a master lists its `children` (number, reference, title, status, percent) and `item_get` of a child names its `parent`. `item_list` with `children: hide` lists the masters and the plans of their own only, which is what the board shows by default; `item_list` answers `parent`, `childNo` and `childPlans` for the rows that have them.
+5. **Building.** Claim one child at a time with `work_start` on the child (the claim is never on the master for a child's work), record its steps there, `work_stop` when it is done, then take the next. Another agent may claim another child at the same time. A master's percent and status come from its own steps: finishing every child does not finish the master, so read the children with `item_get` and close the master's own steps and status as the user decides.
+6. **The hand-over of a master** lists the children in one short line each and says how many there are; above five it says which could be phases of one plan instead (a statement, not a question). A go for "the master and its children" covers every child listed in the hand-over; a go for one child covers that child. The mockup line of step 7 applies to each child that has a visible change.
+7. **Trash.** Trashing a master leaves its children on the board as plans of their own and the answer says how many (`releasedChildren`); restoring the master does not link them back, so link them again with `item_update` when that is wanted.
 
 ## 4. The model table (field lists, key formats, states)
 
@@ -45,8 +57,8 @@ The two rows that carry a permission rule (talk and files, notes) stay in `SKILL
 | For | Tool |
 |---|---|
 | Session and claim | `session_start`, `work_start`, `work_stop`, `work_waiting` |
-| Read | `board_brief`, `item_list`, `item_get` (`fields`: steps, decisions, sections), `item_doc` (`section:<slug>`, `phase:<key>`, `decision:<adr or settled>-<n>`), `item_history`, `search`, `related_plans` (earlier plans close to an idea, as digests), `project_rules`, `workflow_get` |
-| Plan | `item_new`, `item_update` (fields, sections, decisions), `plan_add_phase`, `plan_add_steps`, `step_update`, `decision_delete` |
+| Read | `board_brief`, `item_list` (`children`: show or hide child plans), `item_get` (`fields`: steps, decisions, sections; a child plan answers its `parent`, a master its `children`), `item_doc` (`section:<slug>`, `phase:<key>`, `decision:<adr or settled>-<n>`), `item_history`, `search`, `related_plans` (earlier plans close to an idea, as digests), `project_rules`, `workflow_get` |
+| Plan | `item_new` (`parent`: the master's reference, section 2 step 3a), `item_update` (fields, `parent`, sections, decisions), `plan_add_phase`, `plan_add_steps`, `step_update`, `decision_delete` |
 | Progress | `step_done`, `record`, `item_status`, `item_trash`, `item_restore`, `undo` |
 | Lite flow | `lite_new` (plan of 1 to 3 steps, spec and settled decisions in one call), `lite_close` (lessons, last steps and release in one call) |
 | Diagnose | `slow_calls` (admins: the slowest MCP calls of a project and the median, 90th percentile and maximum per tool) |

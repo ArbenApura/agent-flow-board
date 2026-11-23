@@ -823,13 +823,16 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'workflow_get',
-		'Read a workflow by name: flow, flow-task, flow-interview, flow-critic and its modules (flow-critic-plan, -code, -mockup, -screen), flow-audit, flow-mockup, flow-align, flow-decide, flow-commit, flow-update-skills. Files: flow has reference, the critic modules their lenses. Long texts come in parts: pass next as offset.',
+		'Read a workflow by name: flow, flow-task, flow-interview, flow-critic-plan, -code, -mockup, -screen, flow-audit, flow-mockup, flow-align, flow-decide, flow-commit, flow-update-skills. Files: flow has reference, the critic reviews their rules and lenses. Long texts come in parts: pass next as offset.',
 		{
 			name: z.enum([
 				'flow',
 				'flow-task',
 				'flow-interview',
-				'flow-critic',
+				'flow-critic-plan',
+				'flow-critic-code',
+				'flow-critic-mockup',
+				'flow-critic-screen',
 				'flow-audit',
 				'flow-mockup',
 				'flow-align',
@@ -846,7 +849,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			if (a.file && !(WORKFLOW_FILES[a.name] ?? []).includes(a.file))
 				throw new OpError(
 					'INVALID',
-					'Only the critic modules (flow-critic-plan, flow-critic-code, flow-critic-mockup and flow-critic-screen: their lens, template and brief files) and flow (reference) have supporting files.'
+					'Only the critic reviews (flow-critic-plan, flow-critic-code, flow-critic-mockup and flow-critic-screen: their rules, lens, template and brief files) and flow (reference) have supporting files.'
 				);
 			const full = a.file ? workflowFile(a.name, a.file) : w.body;
 			const off = a.offset ?? 0;
@@ -861,10 +864,6 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 	);
 
 	// -- installing the skills -- //
-				'flow-critic-plan',
-				'flow-critic-code',
-				'flow-critic-mockup',
-				'flow-critic-screen',
 
 	tool(
 		'flow_skills',
@@ -985,13 +984,13 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			tabName: z.string().optional(),
 			stream: z.string().optional(),
 			scope: z.string().optional(),
+			visibility: z.enum(['public', 'private']).optional(),
 			parent: z
 				.string()
 				.optional()
 				.describe(
 					'The reference of the master plan this one is a child of. Plans nest one level only; use it for a piece that ships or is reviewed on its own, or runs in parallel with another, never for sequential work (those are phases of one plan).'
 				),
-			visibility: z.enum(['public', 'private']).optional(),
 			phases: z
 				.array(
 					z.object({
@@ -1042,6 +1041,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			scope: z.string().optional(),
 			visibility: z.enum(['public', 'private']).optional(),
 			branchNote: z.string().nullable().optional(),
+			assigneeId: z.string().nullable().optional(),
 			parent: z
 				.string()
 				.nullable()
@@ -1049,7 +1049,6 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				.describe(
 					'A master plan reference to make this plan its child (one level, same project), or null to make it a plan of its own again'
 				),
-			assigneeId: z.string().nullable().optional(),
 			sections: sectionsIn,
 			decisions: decisionsIn
 		},

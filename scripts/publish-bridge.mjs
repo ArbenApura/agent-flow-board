@@ -78,8 +78,8 @@ const files = [...packed.stdout.matchAll(/YN0000: (\S+)\s*$/gm)]
 	.filter((f) => !/^Done$/.test(f));
 const stray = files.filter((f) => !ALLOWED.test(f));
 if (stray.length) fail(`The package would include files it should not:\n${stray.join('\n')}`);
-if (!files.some((f) => f === 'dist/cli.js') || !files.some((f) => f.endsWith('mailguard-hook.cjs')))
-	fail('The package is missing dist/cli.js or the mail guard hook. Build again.');
+if (!files.some((f) => f === 'dist/cli.js') || !files.some((f) => f === 'dist/inspect/inspect.js'))
+	fail('The package is missing dist/cli.js or dist/inspect/inspect.js. Build again.');
 say(`The package holds ${files.length} files (dist, README, LICENSE, package.json).`);
 
 // -- 5. PUBLISH: INTERACTIVE, SO NPM CAN ASK FOR YOUR PASSKEY -- //
