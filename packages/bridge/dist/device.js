@@ -1,0 +1,67 @@
+// DEVICE CODE SIGN IN FOR THE BRIDGE (RFC 8628). THE PERSON TYPES THE CODE ON THE SERVER'S /device PAGE; NOTHING IS PRE FILLED.
+// IMPORTED DEP-MODULES
+import { createHash, randomBytes } from 'node:crypto';
+// -- FUNCTIONS -- //
+/** How long one sign in call may take. The wait between polls is separate. */
+export const DEVICE_CALL_TIMEOUT_MS = 30_000;
+export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+export async function deviceLogin(server, fetchImpl, log, options = {}) {
+    const wait = options.wait ?? sleep;
+    const verifier = options.pkce ? randomBytes(32).toString('base64url') : null;
+    const start = await fetchImpl(`${server}/oauth/device/code`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+            client_name: options.name ?? 'agent-flow-board bridge',
+            ...(options.org ? { org: options.org } : {}),
+            ...(verifier
+                ? {
+                    code_challenge: createHash('sha256').update(verifier).digest('base64url'),
+                    code_challenge_method: 'S256'
+                }
+                : {})
+        }),
+        signal: AbortSignal.timeout(DEVICE_CALL_TIMEOUT_MS)
+    });
+    if (!start.ok) {
+        // A 400 carries the reason (for example a malformed organisation), which is more useful than the number
+        const why = (await start.json().catch(() => null));
+        throw new Error(why?.error_description ?? `The server refused the sign in (${start.status}).`);
+    }
+    const d = (await start.json());
+    options.onCode?.({
+        userCode: d.user_code,
+        verifier,
+        verificationUri: d.verification_uri,
+        expiresInSeconds: d.expires_in
+    });
+    log(`To sign in, open ${d.verification_uri} and type this code: ${d.user_code}`);
+    if (options.org)
+        log(`The approval page shows only the organisation ${options.org}. Sign in there with an account that is in it.`);
+    log(`The code works for ${Math.floor(d.expires_in / 60)} minutes. Waiting for you to approve it...`);
+    let interval = d.interval * 1000;
+    const deadline = Date.now() + d.expires_in * 1000;
+    while (Date.now() < deadline) {
+        await wait(interval);
+        const res = await fetchImpl(`${server}/oauth/token`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+                device_code: d.device_code
+            }).toString(),
+            signal: AbortSignal.timeout(DEVICE_CALL_TIMEOUT_MS)
+        });
+        const body = (await res.json());
+        if (body.access_token)
+            return { token: body.access_token, expiresInSeconds: body.expires_in ?? 0 };
+        if (body.error === 'authorization_pending')
+            continue;
+        if (body.error === 'slow_down') {
+            interval += 5000;
+            continue;
+        }
+        throw new Error(body.error_description ?? body.error ?? 'The sign in failed.');
+    }
+    throw new Error('The code expired before it was approved. Run the command again.');
+}
