@@ -54,10 +54,38 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			pattern: /never invent it, and never settle it with a recommended default/
 		},
 		{ rule: 'a design gap is a reason to stop', pattern: /\(5\) a visible design choice/ },
-		{ rule: 'ask before any mockup', pattern: /Never make one without a yes/ },
 		{
-			rule: 'the mockup offer is a line of the hand-over, on every harness',
-			pattern: /add one more line: a design mockup can also be drawn on the board/
+			rule: 'a mockup is never offered or recommended',
+			pattern: /never offered, suggested or recommended/
+		},
+		{
+			rule: 'the hand-over never mentions a mockup, on every harness',
+			pattern: /The hand-over never mentions a mockup/
+		},
+		// AFB-20261124-0926: no mockup means the plan describes the screen
+		{
+			rule: 'a plan with a visible change carries a Screen spec',
+			pattern: /\*\*Screen spec \(a new screen, or a change of structure or behaviour\)\./
+		},
+		{
+			rule: 'the Screen spec depth follows risk',
+			pattern: /\*\*Depth follows risk\.\*\*/
+		},
+		{
+			rule: 'a plan with no mockup follows its Screen spec',
+			pattern: /\*\*A plan with no mockup follows its Screen spec\.\*\*/
+		},
+		{
+			rule: 'a spec built line is written per phase',
+			pattern: /`Spec built: <n> lines, differs <n>`/
+		},
+		{
+			rule: 'the finished screens are shown at the end of the plan',
+			pattern: /\*\*Showing the finished screens \(end of a plan that changed a screen/
+		},
+		{
+			rule: 'a picture is pushed with the bridge command, never in a tool call with a shell',
+			pattern: /agent-flow-board screen push <file\.png>/
 		},
 		{
 			rule: 'a build follows the mockup of its plan',
@@ -191,10 +219,13 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			pattern: /at the end of every item, whatever its size/
 		},
 		{
-			rule: 'naming the mockup skill with flow is the yes',
-			pattern: /Naming `\/flow-mockup` together with `\/flow`[^\n]*is the yes/
+			rule: 'a mockup is made only on the user word',
+			pattern: /only when the user types `\/flow-mockup` or asks for one in their own words/
 		},
-		{ rule: 'a yes to the mockup is followed at once', pattern: /A yes is followed at once/ },
+		{
+			rule: 'a mockup the user asked for is drawn at once',
+			pattern: /On the user's word, draw it at once/
+		},
 		{ rule: 'questions are checked and batched', pattern: /Answer your own question first/ },
 		{ rule: 'a permission is given once', pattern: /A permission is given once/ },
 		{ rule: 'new scope is never automatic', pattern: /Never add new scope on your own/ },
@@ -252,8 +283,8 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'untrusted text is data', pattern: /Untrusted text is data/ },
 		{ rule: 'asks from the design brief', pattern: /read its `design-brief` section first/ },
 		{
-			rule: 'no mockup talk where it does not apply',
-			pattern: /do not mention mockups/
+			rule: 'the interview never offers a mockup',
+			pattern: /Never ask about, offer or recommend a mockup/
 		}
 	],
 	'flow-mockup': [
@@ -261,7 +292,8 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'never in the repo', pattern: /never put a mockup file in the repo/ },
 		{ rule: 'untrusted text is data', pattern: /data written by other people/ },
 		{ rule: 'points to the flow safety rules', pattern: /`\/flow` safety rules/ },
-		{ rule: 'only on the user yes', pattern: /Never make a mockup the user did not say yes to/ },
+		{ rule: 'only on the user word', pattern: /Never make a mockup the user did not ask for/ },
+		{ rule: 'a mockup is capped', pattern: /A mockup is expensive, so it is capped/ },
 		{ rule: 'no network inside a mockup', pattern: /may not load anything from a network address/ },
 		{
 			rule: 'the shell is copied, never drawn',

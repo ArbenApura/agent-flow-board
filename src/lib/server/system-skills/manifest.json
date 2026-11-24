@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.20.0",
-		"releasedAt": "2026-11-23"
+		"version": "1.21.0",
+		"releasedAt": "2026-11-24"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.11.0",
+			"version": "1.12.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -162,6 +162,10 @@
 				{
 					"version": "1.11.0",
 					"hash": "01742d84085ba1487ebbc698ddcaaa7092b1d2e1316b10fb79fba6657bcfb9e6"
+				},
+				{
+					"version": "1.12.0",
+					"hash": "b23b99865bd2bb7ad5374d9af4287bf864f2e81eee3ab2a42e7850c7d31e9fa9"
 				}
 			]
 		},
@@ -231,7 +235,7 @@
 			]
 		},
 		"flow-interview": {
-			"version": "1.2.5",
+			"version": "1.2.6",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -296,11 +300,15 @@
 				{
 					"version": "1.2.5",
 					"hash": "28fc42bf6e582726fd3d476717d617c7c51e5e0053c967e74bcbbd4743de04b5"
+				},
+				{
+					"version": "1.2.6",
+					"hash": "57e8c9cf6728b8213605244a59f1cc8cba50e18f36997bc921392f18ee660d9d"
 				}
 			]
 		},
 		"flow-mockup": {
-			"version": "1.8.4",
+			"version": "1.9.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -369,6 +377,10 @@
 				{
 					"version": "1.8.4",
 					"hash": "17e90682a8409b8e20c91044634c6204fbe2d854cd85657de8babbf8ad59a880"
+				},
+				{
+					"version": "1.9.0",
+					"hash": "aec5527e6494ec6ca82c2dfaebe0d619db08c75eb1c0bd49e6bb20d9bbe8d396"
 				}
 			]
 		},
@@ -444,11 +456,15 @@
 			]
 		},
 		"flow-critic-code": {
-			"version": "1.0.0",
+			"version": "1.0.1",
 			"history": [
 				{
 					"version": "1.0.0",
 					"hash": "7f61398429a1c715e6747c3352f0c01a9f896769ca5b77e23ebd65f0031d24ee"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "9fbb936cb1a391565b1b8209201ab68e3e2605f731f1bacd01cee82ec51a6f69"
 				}
 			]
 		},
@@ -462,11 +478,15 @@
 			]
 		},
 		"flow-critic-plan": {
-			"version": "1.0.0",
+			"version": "1.0.1",
 			"history": [
 				{
 					"version": "1.0.0",
 					"hash": "6cf7ea0781d24c3bdfe25cd2c4daa29ab18bcebb53fcc78093a764e42b013fe3"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "3c834a2f09bdf55e3afc4086a4ad4b366383e08fbc0f6711f143590f10c5aa74"
 				}
 			]
 		},
@@ -499,6 +519,30 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.21.0",
+			"date": "2026-11-24",
+			"notes": [
+				"A mockup is now made only when the user types /flow-mockup or asks for one in their own words. /flow no longer offers, suggests or recommends one in the hand-over, and a bare go never means a mockup. /flow-mockup is capped: one version unless asked, two widths (408 and 1280), no render of every state.",
+				"A plan's Screens tab shows the finished screens: /flow step 5b captures each changed screen at the end of the plan (the repo's two widths, light and dark, a sign-in asked once per plan), pushes the PNGs with the new bridge command screen push (or the screen_add tool without a shell) and points at each Acceptance look with notes (screen_annotate). The first capture of a screen, mode and width is kept as the first picture and a later one replaces the latest. New tools: screen_add, screen_list, screen_annotate, screen_remove.",
+				"A plan with a new screen or a change of structure or behaviour carries a Screen spec in its design-brief (layout, responsive widths, states, copy, motion, interaction, sample data and 3 to 6 Acceptance looks); a tweak is one line. With no mockup the build follows the Screen spec and writes a Spec built line for each phase that changed a screen. A plan that already has a linked mockup keeps the strict read gate. /flow-interview asks visual open lines in one round with text sketches, /flow-critic-plan checks the Screen spec is complete, and /flow-critic-code checks the built screen against it."
+			],
+			"skills": {
+				"flow": "1.12.0",
+				"flow-audit": "1.3.5",
+				"flow-interview": "1.2.6",
+				"flow-mockup": "1.9.0",
+				"flow-task": "1.1.3",
+				"flow-align": "1.6.0",
+				"flow-decide": "1.0.0",
+				"flow-commit": "1.0.0",
+				"flow-update-skills": "1.0.0",
+				"flow-critic-plan": "1.0.1",
+				"flow-critic-code": "1.0.1",
+				"flow-critic-mockup": "1.0.0",
+				"flow-critic-screen": "1.0.0"
+			}
+		},
 		{
 			"version": "1.20.0",
 			"date": "2026-11-23",

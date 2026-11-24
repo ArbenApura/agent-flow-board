@@ -132,7 +132,7 @@
 			<EmptyState
 				kind="files"
 				title="No mockup for this plan"
-				text="Say yes to the mockup offer when your tool asks, or ask it for one. The mockup shows here and on the Mockups page."
+				text="Ask your coding tool for a mockup when you want one. The mockup shows here and on the Mockups page."
 			>
 				{#snippet action()}
 					{#if env.canWrite}
