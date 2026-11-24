@@ -125,6 +125,100 @@ describe('the setup plan', () => {
 	});
 });
 
+describe('a hook the shared settings file already runs', () => {
+	const bridge = `agent-flow-board hook claude --server ${SERVER} --org arbenger`;
+	// The shared file runs the bridge next to another hook in one entry, and with the broad PostToolUse matcher
+	const sharedText = (command = bridge) =>
+		JSON.stringify({
+			hooks: {
+				SessionStart: [
+					{
+						hooks: [
+							{ type: 'command', command: 'node ./t.mjs' },
+							{ type: 'command', command }
+						]
+					}
+				],
+				UserPromptSubmit: [{ hooks: [{ type: 'command', command }] }],
+				PostToolUse: [{ matcher: '.*', hooks: [{ type: 'command', command }] }],
+				Stop: [{ hooks: [{ type: 'command', command }] }],
+				SessionEnd: [{ hooks: [{ type: 'command', command }] }]
+			}
+		});
+
+	it('is not written again, and the entries already in the local file are removed', () => {
+		// A local file with the bridge's own entries (the double registration) and another hook of its own
+		const withBridge = planSetup(
+			JSON.stringify({ hooks: { Stop: [{ hooks: [OTHER_HOOK] }] } }),
+			SERVER,
+			'arbenger'
+		);
+		if (!withBridge.ok) throw new Error(withBridge.error);
+		const plan = planSetup(withBridge.text, SERVER, 'arbenger', 'claude', sharedText());
+		if (!plan.ok) throw new Error(plan.error);
+		const settings = JSON.parse(plan.text) as Parsed;
+		// Five of the six entries are the shared file's now; the PreToolUse closing check is not, so it stays here
+		expect(plan.covered).toBe(5);
+		expect(Object.keys(settings.hooks).sort()).toEqual(['PreToolUse', 'Stop']);
+		expect(commands(settings, 'Stop')).toEqual([OTHER_HOOK.command]);
+		expect(commands(settings, 'PreToolUse')).toEqual([bridge]);
+	});
+
+	it('a second run changes nothing and keeps the order of the other entries', () => {
+		const first = planSetup('{"model":"opus"}', SERVER, 'arbenger', 'claude', sharedText());
+		if (!first.ok) throw new Error(first.error);
+		const second = planSetup(first.text, SERVER, 'arbenger', 'claude', sharedText());
+		if (!second.ok) throw new Error(second.error);
+		expect(first.covered).toBe(5);
+		expect(second.changed).toBe(false);
+		expect(second.text).toBe(first.text);
+	});
+
+	it('does not count another organisation, a stale matcher or an unreadable shared file as covering it', () => {
+		const other = planSetup(
+			null,
+			SERVER,
+			'arbenger',
+			'claude',
+			sharedText('agent-flow-board hook claude --server https://x.example.com --org zeta')
+		);
+		if (!other.ok) throw new Error(other.error);
+		expect(other.covered).toBe(0);
+		expect(other.added).toBe(6);
+		const stale = JSON.stringify({
+			hooks: { PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: bridge }] }] }
+		});
+		const withStale = planSetup(null, SERVER, 'arbenger', 'claude', stale);
+		if (!withStale.ok) throw new Error(withStale.error);
+		expect(withStale.covered).toBe(0);
+		const broken = planSetup(null, SERVER, 'arbenger', 'claude', '{ not json');
+		if (!broken.ok) throw new Error(broken.error);
+		expect(broken.covered).toBe(0);
+	});
+
+	it('runSetup tells the person which entries the shared file already runs', () => {
+		const root = mkdtempSync(join(tmpdir(), 'afb-shared-'));
+		try {
+			mkdirSync(join(root, '.claude'), { recursive: true });
+			writeFileSync(join(root, '.claude', 'settings.json'), sharedText());
+			const result = runSetup({
+				repo: root,
+				server: SERVER,
+				org: 'arbenger',
+				configDir: join(root, 'home')
+			});
+			if (!result.ok) throw new Error(result.error);
+			expect(result.warnings.join(' ')).toContain('already runs 5');
+			const local = JSON.parse(
+				readFileSync(join(root, '.claude', 'settings.local.json'), 'utf8')
+			) as Parsed;
+			expect(Object.keys(local.hooks)).toEqual(['PreToolUse']);
+		} finally {
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
+});
+
 describe('the setup command on a repo folder', () => {
 	let root: string;
 	let home: string;

@@ -25,6 +25,12 @@ const ENDED = '.ended';
 const TEMP = '.tmp';
 /** A rename over a file another process holds can fail for a moment on Windows (antivirus, a parallel hook). */
 const RENAME_TRIES = 4;
+const READ_MARK = '.read';
+/**
+ * A plain read (Read, Grep, Glob) changes nothing on the board; it only keeps the session alive. The board renews a session at most once
+ * a minute and shows Not recorded after 10 quiet minutes, so one read every few minutes is the whole heartbeat a read-only stretch needs.
+ */
+export const READ_EVERY_MS = 5 * 60 * 1000;
 
 // -- FUNCTIONS -- //
 
@@ -75,6 +81,31 @@ function askedAtOf(dir: string, name: string): number {
 	}
 }
 
+/**
+ * Whether a plain read of this conversation is worth a request now: true for the first read and again once READ_EVERY_MS has passed
+ * since the last one that was sent. It records the time itself, never throws, and says true when it cannot tell, so a failing file
+ * only costs a request and never the heartbeat.
+ */
+export function readDue(dir: string, externalId: string, now = Date.now()): boolean {
+	try {
+		const name = statusName(externalId);
+		if (!name) return true;
+		const file = join(dir, `${name}${READ_MARK}`);
+		let last: number | null = null;
+		try {
+			last = Number(readFileSync(file, 'utf8')) || null;
+		} catch {
+			/* No mark yet: the first read is sent */
+		}
+		if (last !== null && last <= now && now - last < READ_EVERY_MS) return false;
+		mkdirSync(dir, { recursive: true, mode: 0o700 });
+		writeFileSync(file, String(now), { mode: 0o600 });
+		return true;
+	} catch {
+		return true;
+	}
+}
+
 /** Removes the files nobody asked for in two days: finished conversations, crashed ones and leftovers of a failed write. */
 export function purgeStatus(dir: string, now = Date.now()) {
 	try {
@@ -108,6 +139,7 @@ export function applyStatusFile(
 		if (event.event === 'end') {
 			// A last hook of the same conversation may still be on its way: the marker keeps it from writing the file again
 			rmSync(join(dir, `${name}.json`), { force: true });
+			rmSync(join(dir, `${name}${READ_MARK}`), { force: true });
 			mkdirSync(dir, { recursive: true, mode: 0o700 });
 			writeFileSync(join(dir, `${name}${ENDED}`), String(now), { mode: 0o600 });
 			return;

@@ -1,15 +1,62 @@
 // CALLING THE SERVER FROM A HOOK. A HOOK MUST BE QUICK AND MUST NEVER BREAK THE TOOL, SO EVERY FAILURE BECOMES AN EMPTY ANSWER.
 // IMPORTED DEP-MODULES
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { configDir } from '../tokenStore.js';
 import { installedModVersion } from './modVersion.js';
+import { purgeStatus, statusName } from './statusFile.js';
 // -- CONSTANTS -- //
 const TIMEOUT_MS = 4000;
 /** The whole budget of an end event (the organisation lookup and the post), inside the 3 seconds Codex allows a SessionEnd hook. */
 const END_TIMEOUT_MS = 2000;
 // -- FUNCTIONS -- //
+/** An outage older than this is not worth a line any more. */
+const OUTAGE_FRESH_MS = 6 * 60 * 60 * 1000;
+const OUTAGE_DIR = 'outage';
+/** Remembers, for this conversation only, that the board could not be reached. Only a fixed code and the host are kept, never the address. */
+function noteOutage(server, event, reason) {
+    try {
+        // A conversation that is ending has no later answer to carry the line
+        if (event.event === 'end')
+            return;
+        const name = statusName(event.externalId);
+        if (!name)
+            return;
+        const dir = join(configDir(), OUTAGE_DIR);
+        mkdirSync(dir, { recursive: true, mode: 0o700 });
+        const temp = join(dir, `${name}.${process.pid}.tmp`);
+        writeFileSync(temp, JSON.stringify({ reason, host: new URL(server).host, at: Date.now() }), {
+            mode: 0o600
+        });
+        renameSync(temp, join(dir, `${name}.json`));
+    }
+    catch {
+        /* A note that cannot be written never fails a hook */
+    }
+}
+/** The one line for an earlier outage of this conversation, taken (renamed away) so it is shown once, or null. */
+function takeOutage(event) {
+    try {
+        const name = statusName(event.externalId);
+        if (!name)
+            return null;
+        const dir = join(configDir(), OUTAGE_DIR);
+        const file = join(dir, `${name}.json`);
+        const taken = join(dir, `${name}.${process.pid}.taken`);
+        renameSync(file, taken);
+        const note = JSON.parse(readFileSync(taken, 'utf8'));
+        rmSync(taken, { force: true });
+        if (typeof note.at !== 'number' || Date.now() - note.at > OUTAGE_FRESH_MS)
+            return null;
+        const reason = /^[a-z0-9-]{1,24}$/.test(note.reason ?? '') ? note.reason : 'unreachable';
+        const host = /^[A-Za-z0-9.:-]{1,100}$/.test(note.host ?? '') ? note.host : 'the board';
+        return `Agent Flow Board could not be reached earlier in this conversation (${host}, ${reason}), so some progress may not have been reported.`;
+    }
+    catch {
+        return null;
+    }
+}
 /** The slug of the org the token belongs to, remembered in the bridge's folder so each hook costs one request. */
 async function orgOf(server, token, fetchImpl, deadline) {
     // Named by the token too, so signing in again as another organisation does not keep sending to the old one
@@ -73,12 +120,24 @@ export async function callHook(o, event) {
             body: JSON.stringify(modVersion ? { ...event, modVersion } : event),
             signal: deadline ?? AbortSignal.timeout(TIMEOUT_MS)
         });
-        if (!res.ok)
+        if (!res.ok) {
             warnOnce(`the server answered ${res.status} to a hook event.`);
-        return res.ok ? (await res.json()) : null;
+            noteOutage(o.server, event, `status-${Math.trunc(res.status)}`);
+            return null;
+        }
+        const answer = (await res.json());
+        // The board is back: say once that it was not, in the answer this event's output carries
+        // Taken only where the output can show it: Claude Code at a start, a prompt or a tool call (a closing check, a stop that waits or
+        // blocks and the other tools' adapters would drop it), so the line is never consumed unseen
+        if (event.event === 'start')
+            purgeStatus(join(configDir(), OUTAGE_DIR));
+        const shown = event.tool === 'claude-code' && ['start', 'prompt', 'tool'].includes(event.event);
+        const outage = shown ? takeOutage(event) : null;
+        return outage ? { ...answer, outage } : answer;
     }
     catch {
         warnOnce(`the server ${o.server} could not be reached, so the board is not told about this session.`);
+        noteOutage(o.server, event, 'unreachable');
         return null;
     }
 }

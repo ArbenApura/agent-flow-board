@@ -18,11 +18,34 @@ const BRIDGE_HOOK = {
 const isBridge = (entry, tool) => Array.isArray(entry.hooks) &&
     entry.hooks.length > 0 &&
     entry.hooks.every((h) => typeof h.command === 'string' && BRIDGE_HOOK[tool].test(h.command));
+/** The hooks of a settings file's text, or none when it is missing or not plain JSON. */
+function hooksOf(text) {
+    if (!text || text.trim() === '')
+        return {};
+    try {
+        const parsed = JSON.parse(text.replace(/^\uFEFF/, ''));
+        const hooks = parsed && typeof parsed === 'object' ? parsed.hooks : undefined;
+        return hooks && typeof hooks === 'object' && !Array.isArray(hooks) ? hooks : {};
+    }
+    catch {
+        return {};
+    }
+}
+/** Whether the shared file already runs every command of this entry, for the same matcher, so a local copy would run it twice. */
+function coveredBy(shared, entry) {
+    if (!Array.isArray(shared) || !entry.hooks?.length)
+        return false;
+    return entry.hooks.every((h) => shared.some((s) => (s.matcher ?? '') === (entry.matcher ?? '') &&
+        Array.isArray(s.hooks) &&
+        s.hooks.some((x) => x.command === h.command)));
+}
 /**
  * What the settings file should hold after setup. `existing` is the file's text, or null when there is none. Hooks of the bridge are
  * replaced (so a run with another organisation changes them, and a second run changes nothing); every other hook, key and entry stays.
+ * `shared` is the text of the repo's shared settings.json when this file is the local one: an entry it already runs (same command, same
+ * matcher) is not written here again, and a copy already here is removed, because both files are read and the hook would run twice.
  */
-export function planSetup(existing, server, org, tool = 'claude') {
+export function planSetup(existing, server, org, tool = 'claude', shared = null) {
     const name = tool === 'codex' ? 'Codex' : 'Claude Code';
     // The address goes into a command that runs on every event, so it must be a plain http(s) address
     const checked = validServer(server);
@@ -58,7 +81,12 @@ export function planSetup(existing, server, org, tool = 'claude') {
     let added = 0;
     let replaced = 0;
     let kept = 0;
-    for (const [event, entries] of Object.entries(wanted)) {
+    let covered = 0;
+    const sharedHooks = hooksOf(shared);
+    for (const [event, all] of Object.entries(wanted)) {
+        // What the shared file already runs is left to it
+        const entries = all.filter((e) => !coveredBy(sharedHooks[event], e));
+        covered += all.length - entries.length;
         const current = Array.isArray(hooks[event]) ? hooks[event] : [];
         const others = current.filter((e) => !isBridge(e, tool));
         const ours = current.filter((e) => isBridge(e, tool));
@@ -77,7 +105,11 @@ export function planSetup(existing, server, org, tool = 'claude') {
         }
         if (!placed)
             merged.push(...entries);
-        hooks[event] = merged;
+        // An event left with nothing is dropped, so the file holds no empty list
+        if (merged.length > 0)
+            hooks[event] = merged;
+        else
+            delete hooks[event];
         const same = JSON.stringify(ours) === JSON.stringify(entries);
         if (ours.length === 0)
             added += entries.length;
@@ -97,6 +129,7 @@ export function planSetup(existing, server, org, tool = 'claude') {
         added,
         replaced,
         kept,
+        covered,
         changed
     };
 }
@@ -143,9 +176,16 @@ export function runSetup(options) {
         else if (lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink())
             target = resolve(dirname(file), readlinkSync(file));
         const existing = existsSync(target) ? readFileSync(target, 'utf8') : null;
-        const plan = planSetup(existing, options.server, options.org, tool);
+        // The local Claude file is read next to the shared one, so a hook the shared file runs is not written here again
+        const sharedFile = join(options.repo, '.claude', 'settings.json');
+        const shared = tool === 'claude' && !options.shared && existsSync(sharedFile)
+            ? readFileSync(sharedFile, 'utf8')
+            : null;
+        const plan = planSetup(existing, options.server, options.org, tool, shared);
         if (!plan.ok)
             return { ok: false, error: `${file}: ${plan.error}` };
+        if (plan.covered > 0)
+            warnings.push(`${sharedFile} already runs ${plan.covered} of these hook entries, so they are not repeated in ${file} (a hook in both files runs twice).`);
         if (!plan.changed)
             return {
                 ok: true,

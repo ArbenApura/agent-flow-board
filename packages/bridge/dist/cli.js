@@ -28,7 +28,7 @@ import { callHook } from './hooks/call.js';
 import { checkCommit, installGitHook, lastCommitMessage, uninstallGitHook } from './hooks/gitHook.js';
 import { hookSettings, validServer } from './hooks/settings.js';
 import { runSetup } from './hooks/setup.js';
-import { applyStatusFile } from './hooks/statusFile.js';
+import { applyStatusFile, readDue } from './hooks/statusFile.js';
 import { deviceLogin } from './device.js';
 import { checkOrgAccess } from './orgAccess.js';
 import { listParts, pullParts, pushBundle, pushShell } from './bundle.js';
@@ -141,9 +141,15 @@ async function main() {
         try {
             const adapter = ADAPTERS[args[1] ?? ''];
             const server = (flag('--server') ?? process.env.AFB_SERVER ?? '').replace(/\/$/, '');
-            if (adapter && server) {
+            // An address with sign in details in it is never used or echoed by a hook
+            if (adapter && server && validServer(server)) {
                 const token = tokenFor(server, orgFlag(false));
                 out = await runHook(adapter, args[2] ?? '', await readStdin(), async (event) => {
+                    // A plain read only keeps the session alive: one request every few minutes is enough, the rest cost nothing
+                    if (event.event === 'tool' &&
+                        event.action?.kind === 'read' &&
+                        !readDue(join(configDir(), 'status'), event.externalId))
+                        return null;
                     const asked = Date.now();
                     const answer = await callHook({ server, token, fetch: fetchImpl }, event);
                     // The status goes to this conversation's file, never to the tool. A failed write never fails the hook.

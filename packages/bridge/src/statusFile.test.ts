@@ -18,7 +18,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // IMPORTED MODULES
 import { antigravity, claude, gemini } from './hooks/adapters.js';
 import type { HookEvent } from './hooks/call.js';
-import { PURGE_AFTER_MS, applyStatusFile, statusName } from './hooks/statusFile.js';
+import {
+	PURGE_AFTER_MS,
+	READ_EVERY_MS,
+	applyStatusFile,
+	readDue,
+	statusName
+} from './hooks/statusFile.js';
 
 // -- CONSTANTS -- //
 
@@ -65,6 +71,45 @@ describe('which hook events ask for the status', () => {
 			antigravity.toEvent('PreInvocation', { conversationId: 'conv-0001-abcd', invocationNum: 0 })
 				?.status
 		).toBeUndefined();
+	});
+});
+
+describe('the heartbeat of a read-only stretch', () => {
+	let root: string;
+	beforeAll(() => {
+		root = mkdtempSync(join(tmpdir(), 'afb-reads-'));
+	});
+	afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+	it('sends the first read, holds back the next ones for five minutes, then sends again', () => {
+		const dir = join(root, 'a');
+		expect(readDue(dir, ID, 1_000_000)).toBe(true);
+		expect(readDue(dir, ID, 1_000_000 + 1_000)).toBe(false);
+		expect(readDue(dir, ID, 1_000_000 + READ_EVERY_MS - 1)).toBe(false);
+		expect(readDue(dir, ID, 1_000_000 + READ_EVERY_MS)).toBe(true);
+		// The time of the one that was sent is the new start
+		expect(readDue(dir, ID, 1_000_000 + READ_EVERY_MS + 1_000)).toBe(false);
+	});
+
+	it('keeps each conversation apart, and a clock that went back sends again', () => {
+		const dir = join(root, 'b');
+		expect(readDue(dir, ID, 5_000_000)).toBe(true);
+		expect(readDue(dir, 'claude-session-0002', 5_000_001)).toBe(true);
+		expect(readDue(dir, ID, 1_000)).toBe(true);
+	});
+
+	it('says yes when it cannot tell, so a failing file never costs the heartbeat', () => {
+		// An id that is not plain, and a folder that cannot be made (a file stands where it should be)
+		expect(readDue(join(root, 'c'), '../x', 1)).toBe(true);
+		writeFileSync(join(root, 'blocker'), 'x');
+		expect(readDue(join(root, 'blocker', 'inner'), ID, 1)).toBe(true);
+	});
+
+	it('forgets the mark when the conversation ends', () => {
+		const dir = join(root, 'd');
+		readDue(dir, ID, 10);
+		applyStatusFile(dir, event({ event: 'end' }), null, 1, 20);
+		expect(readDue(dir, ID, 30)).toBe(true);
 	});
 });
 

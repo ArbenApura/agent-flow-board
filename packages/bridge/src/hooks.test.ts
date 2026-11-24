@@ -624,6 +624,119 @@ describe('calling the server from a hook', () => {
 	});
 });
 
+describe('an outage is said once, when the board is back', () => {
+	let home: string;
+	beforeAll(() => {
+		home = mkdtempSync(join(tmpdir(), 'afb-outage-'));
+		process.env.AFB_BRIDGE_HOME = home;
+	});
+	afterAll(() => {
+		delete process.env.AFB_BRIDGE_HOME;
+		rmSync(home, { recursive: true, force: true });
+	});
+	const event = (id: string): HookEvent => ({ tool: 'claude-code', event: 'tool', externalId: id });
+	const down = async () => {
+		throw new Error('offline');
+	};
+	const up = async (url: string) =>
+		url.endsWith('/api/v1/me')
+			? new Response(JSON.stringify({ orgs: [{ slug: 'acme' }] }))
+			: new Response(JSON.stringify({}));
+	const base = { server: 'https://user:secret@board.example.com', token: 't' };
+
+	it('keeps a fixed code and the host, never the address, and shows the line once', async () => {
+		const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+		try {
+			expect(await callHook({ ...base, fetch: down }, event('conversation-aaaa'))).toBeNull();
+		} finally {
+			stderr.mockRestore();
+		}
+		const written = readFileSync(join(home, 'outage', 'conversation-aaaa.json'), 'utf8');
+		expect(written).toContain('board.example.com');
+		// Negative control: the sign in details of the address are not in the file
+		expect(written).not.toMatch(/secret|user:/);
+		const first = await callHook({ ...base, fetch: up }, event('conversation-aaaa'));
+		expect(first?.outage).toContain('board.example.com');
+		expect(first?.outage).not.toMatch(/secret/);
+		// Shown once: the next answer has none, and the file is gone
+		expect(
+			(await callHook({ ...base, fetch: up }, event('conversation-aaaa')))?.outage
+		).toBeUndefined();
+		expect(existsSync(join(home, 'outage', 'conversation-aaaa.json'))).toBe(false);
+	});
+
+	it('is for the conversation that met the outage, not another one', async () => {
+		const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+		try {
+			await callHook({ ...base, fetch: down }, event('conversation-bbbb'));
+		} finally {
+			stderr.mockRestore();
+		}
+		expect(
+			(await callHook({ ...base, fetch: up }, event('conversation-cccc')))?.outage
+		).toBeUndefined();
+		expect(
+			(await callHook({ ...base, fetch: up }, event('conversation-bbbb')))?.outage
+		).toBeDefined();
+	});
+
+	it('is not consumed by an event whose output cannot show it (a closing check, a stop, another tool)', async () => {
+		const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+		try {
+			await callHook({ ...base, fetch: down }, event('conversation-dddd'));
+		} finally {
+			stderr.mockRestore();
+		}
+		const file = join(home, 'outage', 'conversation-dddd.json');
+		for (const e of ['closing', 'stop'] as const)
+			expect(
+				(await callHook({ ...base, fetch: up }, { ...event('conversation-dddd'), event: e }))
+					?.outage
+			).toBeUndefined();
+		expect(
+			(await callHook({ ...base, fetch: up }, { ...event('conversation-dddd'), tool: 'codex' }))
+				?.outage
+		).toBeUndefined();
+		expect(existsSync(file)).toBe(true);
+		// The next prompt of the conversation still gets it, once
+		expect(
+			(await callHook({ ...base, fetch: up }, { ...event('conversation-dddd'), event: 'prompt' }))
+				?.outage
+		).toBeDefined();
+		expect(existsSync(file)).toBe(false);
+	});
+
+	it('writes no note for the end of a conversation', async () => {
+		const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+		try {
+			await callHook({ ...base, fetch: down }, { ...event('conversation-eeee'), event: 'end' });
+		} finally {
+			stderr.mockRestore();
+		}
+		expect(existsSync(join(home, 'outage', 'conversation-eeee.json'))).toBe(false);
+	});
+
+	it('is read by the agent on a prompt, a tool call and by the person at a stop', () => {
+		const a = { outage: 'The board was out of reach.' };
+		expect(claude.toOutput('prompt', a)).toEqual({
+			hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: a.outage }
+		});
+		// The mod notice of the server stays a line for the start of a conversation only
+		expect(claude.toOutput('prompt', { notice: 'A newer mod' })).toEqual({});
+		expect(claude.toOutput('tool', { ...a, nudge: 'Record steps.' })).toEqual({
+			hookSpecificOutput: {
+				hookEventName: 'PostToolUse',
+				additionalContext: 'Record steps.\nThe board was out of reach.'
+			}
+		});
+		expect(claude.toOutput('stop', a)).toEqual({ systemMessage: a.outage });
+		// Negative control: a nudge alone is still passed on exactly as before
+		expect(claude.toOutput('tool', { nudge: 'Record steps.' })).toEqual({
+			hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: 'Record steps.' }
+		});
+	});
+});
+
 describe('a hook that cannot reach the board', () => {
 	it('still answers null but says why once on stderr', async () => {
 		const event: HookEvent = {

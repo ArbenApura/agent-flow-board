@@ -77,20 +77,24 @@ export const claude = {
                     ...(a.title ? { sessionTitle: a.title } : {})
                 },
                 // The one line for the person (an older editor status mod), shown once as the conversation starts
-                ...(a.notice ? { systemMessage: a.notice } : {})
+                // (and, from the bridge itself, that the board could not be reached earlier)
+                ...(a.notice || a.outage
+                    ? { systemMessage: [a.notice, a.outage].filter(Boolean).join(' ') }
+                    : {})
             };
-        if (event === 'prompt' && (a.title || a.nudge))
+        // The reminder to record unrecorded steps and a line about an earlier outage, read by the agent with the person's prompt
+        const said = [a.nudge, a.outage].filter(Boolean).join('\n');
+        if (event === 'prompt' && (a.title || said))
             return {
                 hookSpecificOutput: {
                     hookEventName: 'UserPromptSubmit',
                     ...(a.title ? { sessionTitle: a.title } : {}),
-                    // The reminder to record unrecorded steps, read by the agent with the person's prompt
-                    ...(a.nudge ? { additionalContext: a.nudge } : {})
+                    ...(said ? { additionalContext: said } : {})
                 }
             };
         // The nudge rides back from PostToolUse as context the agent reads before its next step
-        if (event === 'tool' && a.nudge)
-            return { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: a.nudge } };
+        if (event === 'tool' && said)
+            return { hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: said } };
         if (event === 'closing' && a.ask)
             return {
                 hookSpecificOutput: {
@@ -103,6 +107,9 @@ export const claude = {
             return { systemMessage: a.waiting };
         if (event === 'stop' && a.block)
             return { decision: 'block', reason: a.block };
+        // Nothing else to say at a stop: the person still hears that the board was out of reach
+        if (event === 'stop' && a.outage)
+            return { systemMessage: a.outage };
         return {};
     }
 };
