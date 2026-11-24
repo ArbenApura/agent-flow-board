@@ -17,6 +17,7 @@ import {
 	note,
 	noteFile,
 	noteFolder,
+	screen,
 	task
 } from '../db/schema';
 import { mockupUnreadError, planWorked, unreadForGate } from './mockupReads';
@@ -477,6 +478,16 @@ async function purgeTrashRows(ctx: Ctx, days: number, checkRole: boolean) {
 					sql`${mockup.itemId} in (select ${item.id} from ${item} where ${item.deletedAt} is not null and ${item.deletedAt} < ${cutoff})`
 				)
 			);
+		// The screenshots of a plan go with the plan (cascade), so their files are collected before the rows go
+		// (AFB-20261124-0926): the rows are the only way to find the files
+		const screenKeys = (
+			await tx
+				.select({ key: screen.storageKey })
+				.from(screen)
+				.where(
+					sql`${screen.itemId} in (select ${item.id} from ${item} where ${item.deletedAt} is not null and ${item.deletedAt} < ${cutoff})`
+				)
+		).map((s) => s.key);
 		const delItems = await tx
 			.delete(item)
 			.where(and(isNotNull(item.deletedAt), lt(item.deletedAt, cutoff)))
@@ -555,7 +566,7 @@ async function purgeTrashRows(ctx: Ctx, days: number, checkRole: boolean) {
 			items: delItems.length,
 			tasks: delTasks.length,
 			notes: oldNotes.length,
-			keys: [...keys.map((k) => k.key), ...mockupKeys, ...noteKeys]
+			keys: [...keys.map((k) => k.key), ...mockupKeys, ...noteKeys, ...screenKeys]
 		};
 	});
 	// Files go after the rows, so a failure leaves a stray file and never a row pointing at nothing

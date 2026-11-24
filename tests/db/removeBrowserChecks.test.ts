@@ -101,8 +101,15 @@ describe('migration 0053_remove_browser_checks', () => {
 		// The security statements of the current code name every table, so a table that a later migration creates (0055 auth_method_setting) is
 		// stood in for while the old database is built, and removed again before the real run creates it
 		await owner.query(`CREATE TABLE IF NOT EXISTS auth_method_setting (id text PRIMARY KEY)`);
+		// The same for the screenshot tables of 0056 (AFB-20261124-0926): tenant tables, so they carry the org and project columns
+		for (const t of ['screen', 'screen_annotation'])
+			await owner.query(
+				`CREATE TABLE IF NOT EXISTS ${t} (id text PRIMARY KEY, org_id uuid, project_id uuid)`
+			);
 		await run(oldDir);
 		await owner.query(`DROP TABLE auth_method_setting`);
+		await owner.query(`DROP TABLE screen_annotation`);
+		await owner.query(`DROP TABLE screen`);
 		const org = '00000000-0000-4000-8000-000000000001';
 		const proj = '00000000-0000-4000-8000-000000000011';
 		await admin.query(
@@ -125,11 +132,12 @@ describe('migration 0053_remove_browser_checks', () => {
 		);
 
 		const applied = await run(MIGRATIONS_DIR);
-		// 0054 (the parent link of master and child plans) and 0055 (the sign in methods table) come after it and apply on the same run
+		// 0054 (the parent link of master and child plans), 0055 (the sign in methods table) and 0056 (the screenshots) come after it and apply on the same run
 		expect(applied).toEqual([
 			'0053_remove_browser_checks',
 			'0054_master_child',
-			'0055_auth_method_setting'
+			'0055_auth_method_setting',
+			'0056_screens'
 		]);
 
 		const tables = await admin.query<{ table_name: string }>(

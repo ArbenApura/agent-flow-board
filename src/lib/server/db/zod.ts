@@ -34,6 +34,8 @@ import {
 	phase,
 	project,
 	projectPin,
+	screen,
+	screenAnnotation,
 	SETUP_KEYS,
 	SETUP_STATES,
 	section,
@@ -78,6 +80,47 @@ export const mockupTemplateSelect = createSelectSchema(mockupTemplate);
 export const mockupKitSelect = createSelectSchema(mockupKit);
 export const mockupKitAssetSelect = createSelectSchema(mockupKitAsset);
 export const mockupPartSelect = createSelectSchema(mockupPart);
+export const screenSelect = createSelectSchema(screen);
+export const screenAnnotationSelect = createSelectSchema(screenAnnotation);
+
+// -- SCREENS (AFB-20261124-0926): THE ONE INPUT SCHEMA OF THE UI, /api/v1, MCP AND THE BRIDGE -- //
+
+/** A short slug that names a screen across captures. */
+export const SCREEN_SLUG = /^[a-z0-9][a-z0-9._-]{0,59}$/;
+export const screenAddInput = createInsertSchema(screen, {
+	screenKey: (s) =>
+		s.regex(SCREEN_SLUG, 'Use a short slug of lowercase letters, digits, dots, dashes'),
+	width: (s) => s.int().min(200).max(4000),
+	caption: (s) => s.max(200).optional(),
+	note: (s) => s.max(1000).optional(),
+	phaseKey: (s) => s.max(40).nullish()
+})
+	.pick({ screenKey: true, mode: true, width: true, caption: true, note: true, phaseKey: true })
+	.extend({ item: z.string().min(1) });
+export const screenAnnotationInput = createInsertSchema(screenAnnotation, {
+	x: (s) => s.min(0).max(1),
+	y: (s) => s.min(0).max(1),
+	w: (s) => s.min(-1).max(1).nullish(),
+	h: (s) => s.min(-1).max(1).nullish(),
+	body: (s) => s.min(1).max(1000)
+})
+	.pick({ kind: true, x: true, y: true, w: true, h: true, body: true })
+	.extend({ screen: z.string().uuid() })
+	.superRefine((a, ctx) => {
+		const end = (v: number, d: number | null | undefined) => v + (d ?? 0);
+		if (a.kind === 'pin' && (a.w != null || a.h != null))
+			ctx.addIssue({ code: 'custom', message: 'A pin has no size.' });
+		if (a.kind !== 'pin' && (a.w == null || a.h == null))
+			ctx.addIssue({ code: 'custom', message: 'A box or an arrow needs a width and a height.' });
+		if (a.kind === 'box' && ((a.w ?? 0) <= 0 || (a.h ?? 0) <= 0))
+			ctx.addIssue({ code: 'custom', message: 'A box has a positive width and height.' });
+		if (a.kind !== 'pin') {
+			const ex = end(a.x, a.w);
+			const ey = end(a.y, a.h);
+			if (ex < 0 || ex > 1 || ey < 0 || ey > 1)
+				ctx.addIssue({ code: 'custom', message: 'The shape must stay inside the picture.' });
+		}
+	});
 export const noteSelect = createSelectSchema(note);
 export const noteFolderSelect = createSelectSchema(noteFolder);
 export const noteVersionSelect = createSelectSchema(noteVersion);

@@ -13,6 +13,7 @@ export const ITEM_TABS = [
 	'decisions',
 	'docs',
 	'mockups',
+	'screens',
 	'activity',
 	'files',
 	'discussion'
@@ -29,6 +30,7 @@ export const ITEM_TAB_LABEL: Record<ItemTab, string> = {
 	decisions: 'Decisions',
 	docs: 'Documents',
 	mockups: 'Mockups',
+	screens: 'Screens',
 	activity: 'Activity',
 	files: 'Files',
 	discussion: 'Discussion'
@@ -66,6 +68,7 @@ export function itemTabsFrom(
 	const item = isRecord(detail.item) ? detail.item : null;
 	if (!item) return null;
 	const mockups = isRecord(data.mockups) ? data.mockups : null;
+	const screens = isRecord(data.screens) ? data.screens : null;
 	// The Children tab belongs to a master only: it is the plan's own id that holds a list of child plans
 	const family = isRecord(detail.family) ? detail.family : null;
 	const kids =
@@ -78,7 +81,8 @@ export function itemTabsFrom(
 			children: kidCount,
 			decisions: length(detail.decisions),
 			docs: length(detail.sections),
-			mockups: length(mockups?.list)
+			mockups: length(mockups?.list),
+			screens: typeof screens?.count === 'number' ? screens.count : 0
 		},
 		active: parseItemTab(params.get('tab'))
 	};

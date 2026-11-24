@@ -3,6 +3,7 @@
 // IMPORTED MODULES
 import { NOTE_LIMITS } from '../../shared/notes';
 import { MAX_MOCKUP_BYTES, MAX_SCREENSHOT_BYTES } from '../ops/mockups';
+import { MAX_SCREEN_BYTES } from '../ops/screens';
 import { MAX_BODY_BYTES } from './dispatch';
 
 // -- CONSTANTS -- //
@@ -26,6 +27,9 @@ export function bodyLimit(method: string, path: string): number {
 	if (/^\/orgs\/[^/]+\/projects\/[^/]+\/notes\/[^/]+\/live\//.test(path)) return LIVE_JSON_BYTES;
 	if (/^\/orgs\/[^/]+\/mockups\/?$/.test(path) && method === 'POST')
 		return MAX_MOCKUP_BYTES + SLACK;
+	// A screenshot of a plan goes up as the raw PNG; the cap is read while it streams in (AFB-20261124-0926)
+	if (/^\/orgs\/[^/]+\/screens\/?$/.test(path) && method === 'POST')
+		return MAX_SCREEN_BYTES + SLACK;
 	// A bundle is JSON that holds the parts as strings, so escaping makes it a little bigger than the page it makes
 	if (/^\/orgs\/[^/]+\/mockups\/bundle\/?$/.test(path) && method === 'POST')
 		return MAX_MOCKUP_BYTES * 2 + SLACK;

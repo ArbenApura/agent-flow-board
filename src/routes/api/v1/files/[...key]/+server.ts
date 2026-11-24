@@ -4,6 +4,8 @@ import type { RequestHandler } from './$types';
 import { error } from '@sveltejs/kit';
 // IMPORTED ENVS
 import { BETTER_AUTH_SECRET } from '$app/env/private';
+// IMPORTED CONSTANTS
+import { SCREEN_KEY_PREFIX } from '#lib/server/db/schema/screens.js';
 // IMPORTED MODULES
 import { getStorage } from '#lib/server/adapters/index.js';
 import { verifySignedFile } from '#lib/server/adapters/storage.js';
@@ -15,7 +17,8 @@ import { isMockupKey } from '#lib/server/mockups/keys.js';
 export const GET: RequestHandler = async ({ params, url }) => {
 	const store = getStorage();
 	// Mockup files are served only by the mockup routes, which send the isolating headers
-	if (isMockupKey(params.key)) error(404, 'Not found');
+	if (isMockupKey(params.key) || params.key.split('/')[0] === SCREEN_KEY_PREFIX)
+		error(404, 'Not found');
 	const exp = Number(url.searchParams.get('exp'));
 	const sig = url.searchParams.get('sig') ?? '';
 	if (!store || !verifySignedFile(fileSecret(), params.key, exp, sig)) error(404, 'Not found');

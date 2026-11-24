@@ -3,7 +3,7 @@
 // goes through the MCP forwarder and changes nothing in the bridge protocol: a failed push says so and the agent runs it again.
 
 // IMPORTED DEP-MODULES
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
 	existsSync,
 	lstatSync,
@@ -124,6 +124,8 @@ export type MintUrlResult = {
 /** The server's own cap for one version (50 MB). The server checks it again, this only stops a hopeless upload early. */
 export const MAX_MOCKUP_BYTES = 50 * 1024 * 1024;
 export const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
+/** A screenshot of a plan's screen (AFB-20261124-0926): the same cap as the board's MAX_SCREEN_BYTES, 10 MB. */
+export const MAX_SCREEN_PUSH_BYTES = 10 * 1024 * 1024;
 const TRIES = 3;
 /** The characters one pull call asks for: the most the board serves in one part. */
 const PULL_PART_CHARS = 200_000;
@@ -392,6 +394,62 @@ export async function pushMockup(o: PushOptions): Promise<PushResult> {
 		screenshot,
 		warnings
 	};
+}
+
+export type ScreenPushOptions = {
+	server: string;
+	org: string;
+	token: string;
+	fetch: Fetch;
+	/** The PNG to upload. It is read by path, so the picture never passes through a model's output. */
+	file: string;
+	/** The plan the picture belongs to (a reference). */
+	item: string;
+	/** A short slug that names the screen across captures. */
+	screen: string;
+	mode: 'light' | 'dark';
+	width: number;
+	caption?: string;
+	note?: string;
+	phase?: string;
+	log: (line: string) => void;
+	wait?: (ms: number) => Promise<unknown>;
+};
+export type ScreenPushResult = { id: string; role: 'before' | 'after'; image: string };
+
+/** Uploads one screenshot of a changed screen by path (AFB-20261124-0926). Never queued: a failure is said out loud and run again. */
+export async function pushScreen(o: ScreenPushOptions): Promise<ScreenPushResult> {
+	if (!o.token)
+		throw new Error('Not signed in. Run: agent-flow-board login --server <url> --org <slug>');
+	if (!o.item) throw new Error('Name the plan (--item).');
+	const png = readFileChecked(o.file, ['.png'], MAX_SCREEN_PUSH_BYTES, 'screenshot');
+	const q = new URLSearchParams({
+		item: o.item,
+		screen: o.screen,
+		mode: o.mode,
+		width: String(o.width)
+	});
+	for (const [k, v] of [
+		['caption', o.caption],
+		['note', o.note],
+		['phase', o.phase]
+	] as const)
+		if (v) q.set(k, v);
+	// The same file again is the same request, so a retry after a lost answer never stores two pictures
+	const key = createHash('sha256').update(png).digest('hex').slice(0, 24);
+	const res = await call(
+		o,
+		'POST',
+		`/orgs/${encodeURIComponent(o.org)}/screens?${q}`,
+		png as BodyInit,
+		{ 'content-type': 'image/png' },
+		`screen-push-${o.item}-${o.screen}-${o.mode}-${o.width}-${key}`.slice(0, 80)
+	);
+	if (!res.ok) throw new Error(await failure(res));
+	const made = (await res.json()) as {
+		screen: { id: string; role: 'before' | 'after'; image: string };
+	};
+	return { id: made.screen.id, role: made.screen.role, image: `${o.server}${made.screen.image}` };
 }
 
 /** Uploads the project's kit file (its built stylesheet and fonts) by path, the same way. The warnings are printed and never change the exit code. */

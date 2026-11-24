@@ -8,6 +8,7 @@ import { itemCore, itemExtras } from '#lib/server/ops/board.js';
 import { OpError } from '#lib/server/ops/context.js';
 import { childContext, pageError } from '#lib/server/web/ctx.js';
 import { itemMockups } from '#lib/server/web/itemMockups.js';
+import { itemScreens } from '#lib/server/web/itemScreens.js';
 
 // -- FUNCTIONS -- //
 
@@ -15,7 +16,7 @@ import { itemMockups } from '#lib/server/web/itemMockups.js';
 export const load: PageServerLoad = async ({ params, parent, locals, depends, url }) => {
 	depends('afb:project');
 	const { org, summary } = await parent();
-	if (!summary) return { detail: null, extras: null, denied: null, mockups: null };
+	if (!summary) return { detail: null, extras: null, denied: null, mockups: null, screens: null };
 	const ctx = await childContext(locals, org.id);
 	try {
 		const d = await itemCore(ctx, params.item);
@@ -33,6 +34,8 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 			url.searchParams.get('m'),
 			url.searchParams.get('v')
 		);
+		// The screenshots of this plan: a count always, the list when their tab is open
+		const screens = await itemScreens(ctx, d.item.ref, url.searchParams.get('tab') === 'screens');
 		// Discussion, files and activity are not on the first tab, so they stream in after the page is sent
 		const extras = itemExtras(ctx, d.item).then((x) => ({
 			...x,
@@ -46,6 +49,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 		return {
 			denied: null,
 			mockups,
+			screens,
 			extras,
 			detail: {
 				...d,
@@ -65,7 +69,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 	} catch (e) {
 		if (e instanceof OpError) {
 			if (e.code === 'NOT_FOUND') error(404, 'Not found');
-			return { detail: null, extras: null, mockups: null, ...pageError(e) };
+			return { detail: null, extras: null, mockups: null, screens: null, ...pageError(e) };
 		}
 		throw e;
 	}

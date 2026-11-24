@@ -9,6 +9,7 @@
 	import Activity from '@lucide/svelte/icons/activity';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Gavel from '@lucide/svelte/icons/gavel';
+	import GalleryThumbnails from '@lucide/svelte/icons/gallery-thumbnails';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import ListTree from '@lucide/svelte/icons/list-tree';
 	import MessagesSquare from '@lucide/svelte/icons/messages-square';
@@ -46,6 +47,7 @@
 		decisions: Gavel,
 		docs: FileText,
 		mockups: PanelsTopLeft,
+		screens: GalleryThumbnails,
 		activity: Activity,
 		files: Paperclip,
 		discussion: MessagesSquare

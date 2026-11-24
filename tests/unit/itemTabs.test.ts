@@ -31,7 +31,14 @@ describe('itemTabsFrom', () => {
 		const got = itemTabsFrom(ITEM_ROUTE, data(), params('tab=docs'));
 		// The Children tab belongs to a master, and this item has no child plans
 		expect(got?.tabs).toEqual(ITEM_TABS.filter((t) => t !== 'children'));
-		expect(got?.counts).toEqual({ plan: 12, children: 0, decisions: 3, docs: 2, mockups: 1 });
+		expect(got?.counts).toEqual({
+			plan: 12,
+			children: 0,
+			decisions: 3,
+			docs: 2,
+			mockups: 1,
+			screens: 0
+		});
 		expect(got?.active).toBe('docs');
 	});
 	it('has no Checks tab (browser checks were removed), and an old ?tab=checks link opens the plan', () => {
@@ -62,7 +69,14 @@ describe('itemTabsFrom', () => {
 	});
 	it('counts what is missing as zero', () => {
 		const got = itemTabsFrom(ITEM_ROUTE, { detail: { item: {} }, mockups: null }, params());
-		expect(got?.counts).toEqual({ plan: 0, children: 0, decisions: 0, docs: 0, mockups: 0 });
+		expect(got?.counts).toEqual({
+			plan: 0,
+			children: 0,
+			decisions: 0,
+			docs: 0,
+			mockups: 0,
+			screens: 0
+		});
 	});
 });
 

@@ -3,8 +3,10 @@ import type { RequestHandler } from './$types';
 // IMPORTED DEP-MODULES
 import { error } from '@sveltejs/kit';
 // IMPORTED MODULES
+import { getStorage } from '#lib/server/adapters/index.js';
 import { getDb } from '#lib/server/db/index.js';
 import { readProjectPicture, readUserPicture } from '#lib/server/ops/pictures.js';
+import { readScreenImage } from '#lib/server/ops/screens.js';
 
 // -- CONSTANTS -- //
 
@@ -19,6 +21,26 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const GET: RequestHandler = async ({ params, url, locals, request }) => {
 	if (!locals.user) error(401, 'Sign in first');
 	const handle = await getDb();
+	// A plan's screenshot (AFB-20261124-0926): a PNG read through the plan's own visibility, with the isolating headers
+	if (params.kind === 'screen') {
+		const store = getStorage();
+		if (!store || !UUID.test(params.id)) error(404, 'Not found');
+		const shot = await readScreenImage(handle, store, locals.user.id, params.id);
+		if (!shot) error(404, 'Not found');
+		const tag = `"${shot.checksum}"`;
+		const shotHeaders = {
+			etag: tag,
+			'content-type': 'image/png',
+			'x-content-type-options': 'nosniff',
+			'content-security-policy': "default-src 'none'; img-src 'self' data:; sandbox",
+			// Every request is checked again; the ETag makes an unchanged picture a cheap 304
+			'cache-control': 'private, no-cache',
+			vary: 'cookie'
+		};
+		if (request.headers.get('if-none-match') === tag)
+			return new Response(null, { status: 304, headers: shotHeaders });
+		return new Response(shot.bytes as BodyInit, { status: 200, headers: shotHeaders });
+	}
 	let picture = null;
 	if (params.kind === 'user' && /^[A-Za-z0-9_-]{1,64}$/.test(params.id))
 		picture = await readUserPicture(handle, locals.user.id, params.id);

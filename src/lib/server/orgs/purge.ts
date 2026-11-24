@@ -18,7 +18,8 @@ import {
 	mockupVersion,
 	noteFile,
 	org,
-	orgDeletionLog
+	orgDeletionLog,
+	screen
 } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { ORG_DELETE_GRACE_DAYS, purgeAt } from './deletion';
@@ -95,6 +96,8 @@ export async function purgeOrg(
 			.from(mockupVersion);
 		// The pictures of notes
 		const pictures = await tx.select({ key: noteFile.storageKey }).from(noteFile);
+		// The screenshots of plans (AFB-20261124-0926): the nightly backup keeps their rows only, so purge is where the files go
+		const screenFiles = await tx.select({ key: screen.storageKey }).from(screen);
 		const archives = await tx
 			.select({ key: backupRun.location })
 			.from(backupRun)
@@ -111,7 +114,8 @@ export async function purgeOrg(
 						.map((s) => s.storageKey)
 						.filter((k): k is string => typeof k === 'string')
 				),
-				...pictures.map((f) => f.key)
+				...pictures.map((f) => f.key),
+				...screenFiles.map((f) => f.key)
 			],
 			archives: archives.map((a) => a.key!).filter(Boolean)
 		};

@@ -104,6 +104,7 @@ import {
 import { approveToolConnection, toolApprovalInput } from '../ops/deviceApproval';
 import { mockupRoutes } from './mockupRoutes';
 import { noteRoutes } from './noteRoutes';
+import { screenRoutes } from './screenRoutes';
 import { noteVersionRoutes } from './noteVersionRoutes';
 import { noteSyncRoutes } from './noteSyncRoutes';
 import { handleHook, hookInput } from '../ops/hooks';
@@ -898,6 +899,7 @@ export const routes: Route[] = [
 	// -- mockups (their own file) -- //
 	...mockupRoutes,
 	...noteRoutes,
+	...screenRoutes,
 	...noteVersionRoutes,
 	...noteSyncRoutes
 ];
