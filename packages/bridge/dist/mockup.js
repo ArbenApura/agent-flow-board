@@ -2,7 +2,7 @@
 // It reads the file by path from the agent's own folder, so the HTML never passes through a model's output. It is never queued, never
 // goes through the MCP forwarder and changes nothing in the bridge protocol: a failed push says so and the agent runs it again.
 // IMPORTED DEP-MODULES
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { compileTailwind, injectGeneratedStyle } from './tailwind.js';
@@ -10,6 +10,8 @@ import { compileTailwind, injectGeneratedStyle } from './tailwind.js';
 /** The server's own cap for one version (50 MB). The server checks it again, this only stops a hopeless upload early. */
 export const MAX_MOCKUP_BYTES = 50 * 1024 * 1024;
 export const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
+/** A screenshot of a plan's screen (AFB-20261124-0926): the same cap as the board's MAX_SCREEN_BYTES, 10 MB. */
+export const MAX_SCREEN_PUSH_BYTES = 10 * 1024 * 1024;
 const TRIES = 3;
 /** The characters one pull call asks for: the most the board serves in one part. */
 const PULL_PART_CHARS = 200_000;
@@ -243,6 +245,34 @@ export async function pushMockup(o) {
         screenshot,
         warnings
     };
+}
+/** Uploads one screenshot of a changed screen by path (AFB-20261124-0926). Never queued: a failure is said out loud and run again. */
+export async function pushScreen(o) {
+    if (!o.token)
+        throw new Error('Not signed in. Run: agent-flow-board login --server <url> --org <slug>');
+    if (!o.item)
+        throw new Error('Name the plan (--item).');
+    const png = readFileChecked(o.file, ['.png'], MAX_SCREEN_PUSH_BYTES, 'screenshot');
+    const q = new URLSearchParams({
+        item: o.item,
+        screen: o.screen,
+        mode: o.mode,
+        width: String(o.width)
+    });
+    for (const [k, v] of [
+        ['caption', o.caption],
+        ['note', o.note],
+        ['phase', o.phase]
+    ])
+        if (v)
+            q.set(k, v);
+    // The same file again is the same request, so a retry after a lost answer never stores two pictures
+    const key = createHash('sha256').update(png).digest('hex').slice(0, 24);
+    const res = await call(o, 'POST', `/orgs/${encodeURIComponent(o.org)}/screens?${q}`, png, { 'content-type': 'image/png' }, `screen-push-${o.item}-${o.screen}-${o.mode}-${o.width}-${key}`.slice(0, 80));
+    if (!res.ok)
+        throw new Error(await failure(res));
+    const made = (await res.json());
+    return { id: made.screen.id, role: made.screen.role, image: `${o.server}${made.screen.image}` };
 }
 /** Uploads the project's kit file (its built stylesheet and fonts) by path, the same way. The warnings are printed and never change the exit code. */
 export async function pushKit(o) {

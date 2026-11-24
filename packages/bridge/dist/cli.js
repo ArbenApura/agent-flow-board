@@ -10,6 +10,7 @@
 // agent-flow-board hooks setup codex|claude --org <slug> --server <url> [--dir <repo>] [--global]   write the hooks into the repo's .codex/hooks.json (--global: ~/.codex/hooks.json)
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
 // (the browser check commands were removed: agent-flow-board check ... prints one line and exits 1)
+// agent-flow-board screen push <file.png> --server <url> --org <slug> --item <ref> --screen <slug> --mode light|dark --width <px>   upload one screenshot of a changed screen (never queued)
 // agent-flow-board mockup push <file.html> --server <url> --org <slug> --item <ref>   upload one mockup file (never queued)
 // agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key>   upload the project's kit (its built stylesheet and fonts)
 // agent-flow-board mockup pull <mockup id> --out <file.html> --server <url> --org <slug>   save a mockup's HTML to one new file outside any repo
@@ -31,7 +32,7 @@ import { applyStatusFile } from './hooks/statusFile.js';
 import { deviceLogin } from './device.js';
 import { checkOrgAccess } from './orgAccess.js';
 import { listParts, pullParts, pushBundle, pushShell } from './bundle.js';
-import { mintMockupUrlCli, pullMockup, pushKit, pushMockup } from './mockup.js';
+import { mintMockupUrlCli, pullMockup, pushKit, pushMockup, pushScreen } from './mockup.js';
 import { Queue } from './queue.js';
 import { captureRenders, DEFAULT_RENDER_WIDTHS, screensOfPage } from './renders.js';
 import { accountKey, configDir, pickStore } from './tokenStore.js';
@@ -190,6 +191,55 @@ async function main() {
             log('Usage: agent-flow-board git-hook install|uninstall|check [--dir <repo>]');
             process.exit(2);
         }
+        return;
+    }
+    if (cmd === 'screen') {
+        // One screenshot of a changed screen goes up as a raw PNG over /api/v1, never queued (AFB-20261124-0926)
+        if (args[1] !== 'push' || !args[2] || args[2].startsWith('--')) {
+            log('Usage: agent-flow-board screen push <file.png> --server <url> --org <slug> --item <ref> --screen <slug> --mode light|dark --width <px> [--caption <text>] [--note <text>] [--phase <key>]');
+            process.exit(2);
+        }
+        const server = serverUrl();
+        const org = orgFlag();
+        if (!org) {
+            log('Say which organisation: --org <slug>.');
+            process.exit(2);
+        }
+        const item = flag('--item');
+        const screen = flag('--screen');
+        const mode = flag('--mode');
+        const width = Number(flag('--width'));
+        if (!item || !screen || (mode !== 'light' && mode !== 'dark') || !Number.isInteger(width)) {
+            log('Say --item <ref>, --screen <slug>, --mode light|dark and --width <pixels>.');
+            process.exit(2);
+        }
+        const access = await checkOrgAccess({
+            server,
+            org,
+            token: tokenFor(server, org, true),
+            fetch: fetchImpl,
+            fromEnv: Boolean(process.env.AFB_TOKEN)
+        });
+        if (!access.ok) {
+            log(access.message);
+            process.exit(1);
+        }
+        const pushed = await pushScreen({
+            server,
+            org,
+            token: tokenFor(server, org, true) ?? '',
+            fetch: fetchImpl,
+            file: args[2],
+            item,
+            screen,
+            mode,
+            width,
+            caption: flag('--caption'),
+            note: flag('--note'),
+            phase: flag('--phase'),
+            log
+        });
+        process.stdout.write(JSON.stringify(pushed) + '\n');
         return;
     }
     if (cmd === 'mockup') {
