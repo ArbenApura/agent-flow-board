@@ -1,12 +1,12 @@
 # Flow reference: the lite flow, the model and the tools
 
-This file is the reference text of the `flow` skill. The rules are in `SKILL.md`; the text below was moved here word for word and in its order, so `SKILL.md` stays short. Read it when you take the lite flow, when you need a field, key format, status, tool or error name, or when you read several mockups (the `flow` text, section 3 step 3a). A harness with no skills folder reads it with `workflow_get` name `flow` and file `reference`.
+The reference text of the `flow` skill; the rules are in `SKILL.md`. Read it when you take the lite flow, split a plan into a master and children, need a field, key format, status, tool or error name, or read several mockups. A harness with no skills folder reads it with `workflow_get` name `flow` and file `reference`.
 
 ---
 
 ## Lite flow (a plan of 1 to 3 steps)
 
-The choice rule and the first sentence stay in `SKILL.md`: use the lite flow when the plan has 1 to 3 counted steps, or when the user says "lite" or "quick". The lite flow changes how many calls the plan costs, never a rule:
+Use the lite flow when the plan has 1 to 3 counted steps, or when the user says "lite" or "quick". It changes how many calls the plan costs, never a rule:
 
 - **Same as the full flow:** section 0 (session, rules, skills notice, `work_start` before any edit), the approval gate (section 2 step 7: a plan of 1 to 3 steps ends with the same hand-over (the choice card where the harness has a GUI question tool, otherwise plain text), no question in the text, and waits for a go unless the user's own words already say build), `step_done` after each step, the lessons before the last step, `work_stop` at the end, every safety rule of sections 5 and 6, the untrusted-text rules, the mockup rule of section 3 step 3a when the plan has a mockup, and the design-brief rule of section 2 step 4a when the change is one a person sees (write it as a `design-brief` section in the spec; a visible change with no source is written as an open line in the hand-over).
 - **Skipped:** `related_plans` and the `learned-from` section, `board_validate` after creating (the server validated the plan), the separate `item_update` calls for sections and decisions, and `/flow-critic-plan` or `/flow-interview` unless the user asks.
@@ -17,8 +17,6 @@ The choice rule and the first sentence stay in `SKILL.md`: use the lite flow whe
 
 ## Reading several mockups (section 3, step 3a)
 
-These sentences were part of the first bullet of step 3a ("Read all of it"). The rules of that bullet stay in `SKILL.md`.
-
 - When the plan has several mockups, read every one of them once (the server holds the last step of any phase while one is unread), write one `Mockup read` line for each that covers a screen of the phase, and call `mockup_list` with the item when `work_start` says `moreMockups` or `mockupsUnavailable`.
 - The server records what was read (`readChars` and `unreadChars` in a `mockup_get` reply count your own session; `mockup_list` with the item shows the count for the plan, over every session).
 - A harness with no `mockup_get` loads the tool, or reads the HTML through the board's API with its session id; a page fetched from the mockup's link on the board is not a recorded read.
@@ -27,7 +25,7 @@ These sentences were part of the first bullet of step 3a ("Read all of it"). The
 
 ## Master and child plans (section 2 step 3a)
 
-How to split a big job and keep the pieces linked. When to split is the rule of section 2 step 3a of `SKILL.md`; this is the procedure.
+When to split is the rule of section 2 step 3a of `SKILL.md`; this is the procedure.
 
 1. **The master first.** `item_new` for the master. Its `spec` says it is a master, gives the goal, the decisions every child shares and the planned children (a title and one line each). Its own steps are only the joining work (the final check across the children, a hand-over), never the children's work.
 2. **Each child second.** `item_new` with `parent` set to the master's reference. A child is a whole plan of its own: spec, phases, steps, a `design-brief` when it has a screen. Its title does not repeat the master's name, and its `spec` opens with one line naming the master. Create the children in the order they should be built, because the board numbers them 1, 2, 3 in the order they are linked (the number is kept while a child is trashed and given up when it is unlinked).
@@ -39,7 +37,7 @@ How to split a big job and keep the pieces linked. When to split is the rule of 
 
 ## 4. The model table (field lists, key formats, states)
 
-These rows of the model table are reference only. The rows that carry a rule (closing another item, retries, versions, the notes the board reads, percent and status) stay in `SKILL.md`.
+Reference only; the rows that carry a rule (percent and status, closing another item, retries, versions, notes) are in `SKILL.md` section 4.
 
 | Topic | Rule |
 |---|---|
@@ -52,7 +50,7 @@ These rows of the model table are reference only. The rows that carry a rule (cl
 
 ### The tools
 
-The two rows that carry a permission rule (talk and files, notes) stay in `SKILL.md` with that rule; the rest of the table is here.
+The two rows that carry a permission rule (talk and files, notes) are in `SKILL.md` section 4.
 
 | For | Tool |
 |---|---|
@@ -64,6 +62,10 @@ The two rows that carry a permission rule (talk and files, notes) stay in `SKILL
 | Screens | `screen_add` (a PNG as base64, only for a harness with no shell; with a shell use the bridge command `agent-flow-board screen push <file.png> --item <ref> --screen <slug> --mode light\|dark --width <px>`), `screen_list` (the screenshots of a plan with their annotations, untrusted text), `screen_annotate` (a pin, box or arrow in fractions of the picture from 0 to 1, or resolve or remove one), `screen_remove` |
 | Diagnose | `slow_calls` (admins: the slowest MCP calls of a project and the median, 90th percentile and maximum per tool) |
 | Check | `board_validate` |
+
+### Hooks and nudges (section 3, step 6b)
+
+Register the hooks with `agent-flow-board hooks print claude|antigravity|gemini|codex`; `agent-flow-board hooks setup <tool>` writes the file for Claude Code and Codex. Gaps: Antigravity gets only the board reply line; only Claude Code and Codex release their claim on SessionEnd (Codex gives that hook 3 seconds at most, so it is best effort), so elsewhere the claim clears by `work_stop` or after the 120 minute running limit; Codex runs no hook until the person has reviewed it once in its `/hooks` screen; a bridge that is not signed in returns `{}` on every hook.
 
 ### Errors
 

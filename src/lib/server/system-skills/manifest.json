@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.21.0",
+		"version": "1.22.0",
 		"releasedAt": "2026-11-24"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.12.0",
+			"version": "1.13.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -166,11 +166,15 @@
 				{
 					"version": "1.12.0",
 					"hash": "b23b99865bd2bb7ad5374d9af4287bf864f2e81eee3ab2a42e7850c7d31e9fa9"
+				},
+				{
+					"version": "1.13.0",
+					"hash": "493480b8b8bcc5ef53509c7c88f5ff6ff6787d4554a4280079e0c080d1f43479"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.3.5",
+			"version": "1.3.6",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -231,11 +235,15 @@
 				{
 					"version": "1.3.5",
 					"hash": "2e5fe04a457807c3f8fe5c5312caa88ff0a41ef3968a5323fb609f8840562e67"
+				},
+				{
+					"version": "1.3.6",
+					"hash": "c8a8063450cfd9721d497e390802f27a79a92896186f13ab5f6ee3a8ccc9f7d6"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.2.6",
+			"version": "1.2.7",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -304,11 +312,15 @@
 				{
 					"version": "1.2.6",
 					"hash": "57e8c9cf6728b8213605244a59f1cc8cba50e18f36997bc921392f18ee660d9d"
+				},
+				{
+					"version": "1.2.7",
+					"hash": "b3d8ba7c480e3d79279489eb7a562f92c250c69fb18fbcb1fc3a97f980b2adfe"
 				}
 			]
 		},
 		"flow-mockup": {
-			"version": "1.9.0",
+			"version": "1.9.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -381,11 +393,15 @@
 				{
 					"version": "1.9.0",
 					"hash": "aec5527e6494ec6ca82c2dfaebe0d619db08c75eb1c0bd49e6bb20d9bbe8d396"
+				},
+				{
+					"version": "1.9.1",
+					"hash": "b69b3524e9861c77cd92f4e518e7abf2cbf58fd125169ce3b2cff9cef5fd7b20"
 				}
 			]
 		},
 		"flow-task": {
-			"version": "1.1.3",
+			"version": "1.1.4",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -410,11 +426,15 @@
 				{
 					"version": "1.1.3",
 					"hash": "81869a78e05bcd2c41a988592ef246102e44e0998c3842795e8ad09983e0fb79"
+				},
+				{
+					"version": "1.1.4",
+					"hash": "bd47c70843ae46c601e8a80f66f030521e9f5c1808b6545b62808191767b0c31"
 				}
 			]
 		},
 		"flow-align": {
-			"version": "1.6.0",
+			"version": "1.6.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -443,20 +463,28 @@
 				{
 					"version": "1.6.0",
 					"hash": "661031b5b864ef4ab43ddc791cd09556d3c4ec30bf557a1f66a267aaffc6664b"
+				},
+				{
+					"version": "1.6.1",
+					"hash": "3ec101934af15185daeea7f34ea056ea16320198d950dea1b17e7108814be5da"
 				}
 			]
 		},
 		"flow-commit": {
-			"version": "1.0.0",
+			"version": "1.0.1",
 			"history": [
 				{
 					"version": "1.0.0",
 					"hash": "e8d21b6193798483ec4b2f4063743eefd07914b8c66d7ec0fe3b7fee784c42f3"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "e9224ce0a65fcfe209f63155c3f74b084c7c5f9a90ef9a173b4df839671e8a23"
 				}
 			]
 		},
 		"flow-critic-code": {
-			"version": "1.0.1",
+			"version": "1.0.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -465,20 +493,28 @@
 				{
 					"version": "1.0.1",
 					"hash": "9fbb936cb1a391565b1b8209201ab68e3e2605f731f1bacd01cee82ec51a6f69"
+				},
+				{
+					"version": "1.0.2",
+					"hash": "82fb4bddb43ba38e05cfad69797bdae95a42c3d0452183aa8221fc74e2b4ea54"
 				}
 			]
 		},
 		"flow-critic-mockup": {
-			"version": "1.0.0",
+			"version": "1.0.1",
 			"history": [
 				{
 					"version": "1.0.0",
 					"hash": "823ea81077d207c586483d3934fc83ec86fc01ebaf7c59855a003d3f6f55b2fc"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "a8685cf7d2c2339bf5ebd910eb1b293704450d4a854c2ca4d1c402c651fe6971"
 				}
 			]
 		},
 		"flow-critic-plan": {
-			"version": "1.0.1",
+			"version": "1.0.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -487,38 +523,77 @@
 				{
 					"version": "1.0.1",
 					"hash": "3c834a2f09bdf55e3afc4086a4ad4b366383e08fbc0f6711f143590f10c5aa74"
+				},
+				{
+					"version": "1.0.2",
+					"hash": "0e6f9cb196ae7a939c71c446376c1db00f24a1f2e2d73fe1289b1c44f491d6e5"
 				}
 			]
 		},
 		"flow-critic-screen": {
-			"version": "1.0.0",
+			"version": "1.0.1",
 			"history": [
 				{
 					"version": "1.0.0",
 					"hash": "2b72549759529b8ac9aca5b036fccb6f09183d8eaedbcaa753def462a136d32a"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "9caf7c92eb086bad6f47b6b02f5bab847e163980c6355def04c8b051d4d0a310"
 				}
 			]
 		},
 		"flow-decide": {
-			"version": "1.0.0",
+			"version": "1.0.1",
 			"history": [
 				{
 					"version": "1.0.0",
 					"hash": "87e0e674c4b3025beafeedd1a53479d5d59ee36c9a4fa25b72c4b6069f6ec9e9"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "6fc00d2b4020730d30fd8f2db349be0425d768c6ad6df22da1408e5f395560e7"
 				}
 			]
 		},
 		"flow-update-skills": {
-			"version": "1.0.0",
+			"version": "1.0.1",
 			"history": [
 				{
 					"version": "1.0.0",
 					"hash": "e84a1c0b609f5c03f67cbd17cc2baa1bf4a50b09e36659c8f0bb11968ee38d03"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "f00ab371789d5ee9605b5d83310ec40513d651a060b56fd9725d48cd50e32d45"
 				}
 			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.22.0",
+			"date": "2026-11-24",
+			"notes": [
+				"The flow skills are more compact (AFB-20261124-1254). The always-loaded flow SKILL.md is about 28 percent smaller: every stop, refusal and safety rule stays in it, and the detail moved to three files read only when needed: design (the design brief and the Screen spec), mockup-read (reading and checking a plan mockup) and screens (the browser protocol and showing the finished screens). The reference file gained a hooks and nudges section.",
+				"The critic reviews, flow-mockup, flow-interview, flow-audit, flow-align, flow-commit, flow-decide, flow-task and flow-update-skills lost repeated wording, rationale and extra examples; no rule or check was removed. The shared critic rules are shorter and the four copies are still identical."
+			],
+			"skills": {
+				"flow": "1.13.0",
+				"flow-audit": "1.3.6",
+				"flow-interview": "1.2.7",
+				"flow-mockup": "1.9.1",
+				"flow-task": "1.1.4",
+				"flow-align": "1.6.1",
+				"flow-commit": "1.0.1",
+				"flow-critic-code": "1.0.2",
+				"flow-critic-mockup": "1.0.1",
+				"flow-critic-plan": "1.0.2",
+				"flow-critic-screen": "1.0.1",
+				"flow-decide": "1.0.1",
+				"flow-update-skills": "1.0.1"
+			}
+		},
 		{
 			"version": "1.21.0",
 			"date": "2026-11-24",

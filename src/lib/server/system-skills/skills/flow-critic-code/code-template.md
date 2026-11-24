@@ -2,7 +2,7 @@
 
 Fill every placeholder and pass the result as the prompt for each critic subagent (3 by default, or the user-requested count) during post-implementation review. Use an `Agent` call with `subagent_type: "general-purpose"` and a `description` like `"Code Critic - Security & Tenancy"`, all in the same message.
 
-Do not paraphrase the template. Do not paste your conversation history into it; the critic judges the work product, not your reasoning about it.
+Do not paraphrase the template. Do not paste your conversation history into it; the critic judges the work product, not your reasoning.
 
 ---
 
@@ -10,20 +10,20 @@ Do not paraphrase the template. Do not paste your conversation history into it; 
 
 | Placeholder | Description |
 |---|---|
-| `{PROJECT_DESCRIPTION}` | One paragraph on what the repo is and its stack, filled by the lead from the repo rulebook (`CLAUDE.md`, `AGENTS.md`) or the README: what the product does, the languages and frameworks, the layers and packages that matter, the package manager. Never invent facts the repo does not state |
-| `{DESCRIPTION}` | 2-5 sentences explaining what was implemented and why |
+| `{PROJECT_DESCRIPTION}` | One paragraph on what the repo is and its stack, from the repo rulebook (`CLAUDE.md`, `AGENTS.md`) or the README: what the product does, languages and frameworks, the layers and packages that matter, the package manager. Never invent facts the repo does not state |
+| `{DESCRIPTION}` | 2-5 sentences on what was implemented and why |
 | `{REQUIREMENTS}` | The item's `spec` section, the phase's steps, the decisions the change relies on and the `validation` section, pasted as text from the board (`item_get`, `item_doc`); or the user's request quoted verbatim |
 | `{PASS_NUMBER}` | `Pass 1 (Discovery)` or `Pass 2 (Verification)` |
-| `{SCOPE}` | Review scope description (e.g. Working tree vs HEAD plus untracked files) |
+| `{SCOPE}` | Review scope (e.g. Working tree vs HEAD plus untracked files) |
 | `{DIFF_COMMANDS}` | Commands to inspect changes (e.g. `git diff HEAD -- <paths>`). Exclude lockfiles |
-| `{UNTRACKED_FILES}` | List of untracked files to be read in full, one per line (`none` if none) |
+| `{UNTRACKED_FILES}` | Untracked files to read in full, one per line (`none` if none) |
 | `{RENAMES}` | Renamed or renumbered files, e.g. `0005_x.sql -> 0006_x.sql (body identical)` (or `none`) |
 | `{LANE_FILES}` | The files this subagent owns. When the diff is too small to split, all of them |
-| `{GATE_RESULTS}` | Outcomes of the gates the repo rulebook names (type check, linter, formatter check, invariant tests, related tests), e.g. `type check: 0 errors; isolation and access tests pass; full test run: not run (mid-iteration)`. Write `no gates found` if the repo names none |
+| `{GATE_RESULTS}` | Outcomes of the gates the repo rulebook names (type check, linter, formatter check, invariant tests, related tests), e.g. `type check: 0 errors; isolation and access tests pass; full test run: not run (mid-iteration)`. `no gates found` if the repo names none |
 | `{KNOWN_UNVERIFIED}` | What the implementer did not or could not verify (screen never opened in a browser, migration never run on a real database, etc.). `none` only if genuinely none |
-| `{LENS_NAME}` | Specific assigned lens name (e.g. Lens A - Completeness & Silent Omissions Auditor), or combined names when lenses are merged |
-| `{LENS_CHECKLIST}` | Verbatim checklist items for this lens extracted from `code-lenses.md` |
-| `{LANE_CHECKLISTS}` | The matching lanes from `checklists.md`, pasted verbatim (see the lens to lane table in `SKILL.md` section 4). Lane 5 goes to at least one subagent every time |
+| `{LENS_NAME}` | Assigned lens name (e.g. Lens A - Completeness & Silent Omissions Auditor), or combined names when merged |
+| `{LENS_CHECKLIST}` | Verbatim items for this lens from `code-lenses.md` |
+| `{LANE_CHECKLISTS}` | The matching lanes from `checklists.md`, verbatim (lens to lane table in `SKILL.md` section 4). Lane 5 goes to at least one subagent every time |
 
 ---
 
@@ -139,16 +139,14 @@ What you could not assess from source (runtime behaviour, a real database's actu
 
 ---
 
-## Example Finding (well-formed)
+## Example Finding (well-formed, illustrative: the line numbers are not real)
 
 ```markdown
 #### 1. [BLOCKER] Operation reads a private item before checking the caller's live role
 - **File & Line**: `<path to the operation>:212` (illustrative)
-- **Mechanism of Failure**: `getItem(ctx, id)` loads the row and its comments on line 212; the role check `requireCapability(ctx, 'read')` is on line 230. A viewer whose membership was just removed calls the REST endpoint for the item with a still valid token -> the comments are read and queued into the activity feed, then the request is refused.
+- **Mechanism of Failure**: `getItem(ctx, id)` loads the row and its comments on line 212; the role check `requireCapability(ctx, 'read')` is on line 230. A viewer whose membership was just removed calls the REST endpoint with a still valid token -> the comments are read and queued into the activity feed, then the request is refused.
 - **Concrete Impact**: Read before check on a private item; a side effect (activity write) happens behind a refusal. Lane 1 "the check runs BEFORE the first side effect".
 - **Recommended Fix**: Move the live role check to the top of the operation's transaction, before any read; add a case in the access tests asserting no event row is written when the check refuses.
 ```
-
-(Illustrative: the shape of a finding, not a real defect; the line numbers are not real.)
 
 After the critics report, follow `critic-rules.md` section 5 (Verify, triage and resolve): **verify every BLOCKER and HIGH yourself before acting on it.**

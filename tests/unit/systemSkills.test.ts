@@ -203,7 +203,11 @@ describe('workflow_get and the bundle', () => {
 		const owned = Object.entries(WORKFLOW_FILES)
 			.filter(([n]) => n.startsWith('flow-critic'))
 			.flatMap(([, names]) => [...names]);
-		expect([...new Set(owned)].sort()).toEqual([...WORKFLOW_FILE_NAMES].sort());
+		// The flow detail files (design, mockup-read, screens) belong to flow, not to a critic review (AFB-20261124-1254)
+		const flowOwn = WORKFLOW_FILES.flow;
+		expect([...new Set(owned)].sort()).toEqual(
+			[...WORKFLOW_FILE_NAMES].filter((n) => !flowOwn.includes(n)).sort()
+		);
 		expect(owned.filter((n) => n === 'critic-rules')).toHaveLength(4);
 	});
 });

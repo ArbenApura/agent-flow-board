@@ -823,7 +823,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'workflow_get',
-		'Read a workflow by name: flow, flow-task, flow-interview, flow-critic-plan, -code, -mockup, -screen, flow-audit, flow-mockup, flow-align, flow-decide, flow-commit, flow-update-skills. Files: flow has reference, the critic reviews their rules and lenses. Long texts come in parts: pass next as offset.',
+		'Read a workflow by name: flow, flow-task, flow-interview, flow-critic-plan, -code, -mockup, -screen, flow-audit, flow-mockup, flow-align, flow-decide, flow-commit, flow-update-skills. Files: flow has design, mockup-read, reference and screens, the critic reviews their rules and lenses. Long texts come in parts: pass next as offset.',
 		{
 			name: z.enum([
 				'flow',
@@ -849,7 +849,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			if (a.file && !(WORKFLOW_FILES[a.name] ?? []).includes(a.file))
 				throw new OpError(
 					'INVALID',
-					'Only the critic reviews (flow-critic-plan, flow-critic-code, flow-critic-mockup and flow-critic-screen: their rules, lens, template and brief files) and flow (reference) have supporting files.'
+					'Only the critic reviews (flow-critic-plan, flow-critic-code, flow-critic-mockup and flow-critic-screen: their rules, lens, template and brief files) and flow (design, mockup-read, reference and screens) have supporting files.'
 				);
 			const full = a.file ? workflowFile(a.name, a.file) : w.body;
 			const off = a.offset ?? 0;

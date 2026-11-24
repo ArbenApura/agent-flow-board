@@ -66,9 +66,12 @@ export const WORKFLOW_FILE_NAMES = [
 	'code-template',
 	'critic-brief',
 	'critic-rules',
+	'design',
 	'mockup-lenses',
+	'mockup-read',
 	'plan-lenses',
-	'plan-template'
+	'plan-template',
+	'screens'
 ] as const;
 
 export type WorkflowFileName = (typeof WORKFLOW_FILE_NAMES)[number];
@@ -79,7 +82,8 @@ export const WORKFLOW_FILES: Record<string, readonly string[]> = {
 	'flow-critic-code': ['checklists', 'code-lenses', 'code-template', 'critic-rules'],
 	'flow-critic-mockup': ['critic-rules', 'mockup-lenses'],
 	'flow-critic-screen': ['critic-brief', 'critic-rules'],
-	flow: ['reference']
+	// The core SKILL.md of flow carries every stop and safety rule; these files hold detail read only when needed (AFB-20261124-1254)
+	flow: ['design', 'mockup-read', 'reference', 'screens']
 };
 
 /** Every file name workflow_get accepts: a name is valid only for the workflows that have it. */

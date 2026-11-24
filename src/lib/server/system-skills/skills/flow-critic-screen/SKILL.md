@@ -7,7 +7,7 @@ description: Use only when the user asks for a per-screen visual critique of a d
 
 > **Shared rules first.** This skill is one of the four critic reviews. Before you dispatch anything, read `critic-rules.md` next to this file (in a tool with no skills: `workflow_get` name `flow-critic-screen` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this skill. **One exception to its section 2: the subagent count is one critic for each screen, not 3.**
 
-`/flow-critic-mockup` reviews a mockup with 3 critics split by lens. This module is the **per-screen** variant: every screen (with its sheets) gets its own critic, and each critic judges **rendered pictures** at phone, tablet and desktop and the **consistency between them**. A critic never drives a browser: **the lead takes the pictures, the critics look at the files.**
+`/flow-critic-mockup` reviews a mockup with 3 critics split by lens. This is the **per-screen** variant: every screen (with its sheets) gets its own critic, and each judges **rendered pictures** at phone, tablet and desktop and the **consistency between them**. A critic never drives a browser: **the lead takes the pictures, the critics look at the files.**
 
 Files in this skill:
 
@@ -18,19 +18,19 @@ Files in this skill:
 ## 0. Before you start
 
 1. Say the mode in one line ("Per-screen visual critique of <mockup or app>, N screens, 3 widths").
-2. Find what is being reviewed: a published mockup (`mockup_list`, then read its HTML with `mockup_get` to the end, or with the bridge `agent-flow-board mockup pull <id> --out <file>`), a local mockup file, or the running app as the repo rulebook allows (never start, stop or restart a server the user started, though opening the address the repo rulebook names for it is allowed, and never a database they keep). Read the plan's `design-brief` and the real sibling screens the mockup copies.
-3. Settle the **screen list**: one entry per screen. A page and the sheets, dialogs and popovers that open from it are ONE screen (they share a critic). Navigation and shell (sidebar, rail, tab bar, top bar) are their own entry. Documents that live outside the app shell (a print page, a public page, an email, a display) are each their own entry. Do not merge unrelated screens.
+2. Find what is reviewed: a published mockup (`mockup_list`, then its HTML with `mockup_get` to the end, or the bridge `agent-flow-board mockup pull <id> --out <file>`), a local mockup file, or the running app as the repo rulebook allows (never start, stop or restart a server the user started, though opening the address the repo rulebook names for it is allowed, and never a database they keep). Read the plan's `design-brief` and the real sibling screens the mockup copies.
+3. Settle the **screen list**, one entry per screen. A page and the sheets, dialogs and popovers that open from it are ONE screen (one critic). Navigation and shell (sidebar, rail, tab bar, top bar) are their own entry. Documents outside the app shell (a print page, a public page, an email, a display) are each their own entry. Never merge unrelated screens.
 
 ## 1. Take the pictures (the lead does this)
 
-Use the browser protocol of `/flow` section 3 step 5a (the harness browser: open the page, set the width, scroll, click through states, sign-in handoff, resetting the viewport at the end). Widths are phone, tablet and desktop: the repo rulebook's widths for the app (else 390, 820 and 1440), the board's device widths for a mockup (408, 820 and 1280).
+Use the browser protocol of `/flow` section 3 step 5a (open the page, set the width, scroll, click through states, sign-in handoff, reset the viewport at the end). Widths are phone, tablet and desktop: the repo rulebook's widths for the app (else 390, 820 and 1440), the board's device widths for a mockup (408, 820 and 1280).
 
 1. Work in a temporary folder **outside the repo** (the session scratch folder). For a mockup, make the local copy with the kit head in place of the marker as `/flow-mockup` says, and add a "still" style (`*{animation:none!important;transition:none!important}` and any reveal or stroke-draw reset) so the pictures show the final state. Count-up numbers and similar script animations can still be caught half way: list them as known artefacts for the critics.
-2. Take one picture of every screen at each width with a tall viewport so the whole page shows; sheets and dialogs with a normal-height viewport. Also take the other states the plan names (loading, empty, error, no access, each variant) at the phone and the desktop width. Name each file `<screen>-<state>-<width>.png`.
+2. Take one picture of every screen at each width with a tall viewport so the whole page shows; sheets and dialogs with a normal-height viewport. Also take the other states the plan names (loading, empty, error, no access, each variant) at phone and desktop width. Name each file `<screen>-<state>-<width>.png`.
 3. **Phone pictures can lie.** A headless browser can lay a page out wider than the phone width and crop the right edge. Check the right edge of every phone picture; when one is cropped, confirm the layout in the harness browser at that width and tell the critics which picture to distrust.
-4. **Look at two or three pictures yourself** before dispatching. If they are blank, half-animated or the wrong screen, fix the render first: a critique of bad pictures is worthless.
+4. **Look at two or three pictures yourself** before dispatching. If blank, half-animated or the wrong screen, fix the render first.
 
-**When the harness browser cannot be driven**, use a headless Chromium from the command line, one call for each picture (the address of a local file or a local web page; the window size is `<width>,<height>`):
+**When the harness browser cannot be driven**, use a headless Chromium from the command line, one call per picture (the address of a local file or local web page; window size `<width>,<height>`):
 
 - Windows (PowerShell): `& "$env:ProgramFiles\Google\Chrome\Application\chrome.exe" --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=1 --virtual-time-budget=4000 --window-size=408,1900 --screenshot=<out.png> <url>` (or `msedge.exe`, or the `chrome-headless-shell` that Playwright installs under `%LOCALAPPDATA%\ms-playwright`).
 - macOS: the same flags with `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`.
@@ -40,15 +40,15 @@ Use the browser protocol of `/flow` section 3 step 5a (the harness browser: open
 
 ## 2. Dispatch one critic for each screen
 
-1. Copy `critic-brief.md` into the scratch folder and fill the three placeholders at its top (pictures folder, source files, known artefacts). The brief holds the standing rules and the output format, so each prompt stays short.
-2. Send the critics in one message, **one `Agent` call each, at most 8 per message** (the rest in a second message), `subagent_type: "general-purpose"`, no `model`. Each prompt names: the brief path, the screen, the **exact picture file names** (all widths, the sheets, the states), 3 to 5 sibling pictures for consistency, the real source files to compare with, and 3 to 6 things to look at hardest for that screen. A critic opens the pictures with the Read tool.
+1. Copy `critic-brief.md` into the scratch folder and fill the three placeholders at its top (pictures folder, source files, known artefacts).
+2. Send the critics in one message, **one `Agent` call each, at most 8 per message** (the rest in a second), `subagent_type: "general-purpose"`, no `model`. Each prompt names: the brief path, the screen, the **exact picture file names** (all widths, sheets, states), 3 to 5 sibling pictures for consistency, the real source files to compare with, and 3 to 6 things to look at hardest for that screen. A critic opens the pictures with the Read tool.
 3. Do not give a critic your own conclusions. Wait quietly; the notifications arrive by themselves.
 
 ## 3. Verify, triage, fix
 
 1. Open the picture a `HIGH` cites and confirm it. Refute what the pictures or the real source do not show. A finding that the mockup differs from the real product usually means: fix the mockup, or record an open line when the repo rules and the real screen disagree (say which you followed).
 2. Collect all findings first, then fix in one batch. Typical cross-screen fixes: one column template for table rows, equal state cards, one pattern for a repeated element, one header system, tap targets of at least 44 px, one set of labels at every width.
-3. Take **all** the pictures again, look at the ones that changed, check that nothing scrolls sideways at the phone and tablet widths and that no tap target is under 44 px on every screen and state, then publish as a NEW VERSION of the same mockup (`/flow-mockup`; never a second mockup) and refresh its `Fidelity:` note with what was measured and the critic count. A built app is fixed in the code as the plan allows.
+3. Take **all** the pictures again, look at the changed ones, check that nothing scrolls sideways at phone and tablet widths and no tap target is under 44 px on every screen and state, then publish as a NEW VERSION of the same mockup (`/flow-mockup`; never a second mockup) and refresh its `Fidelity:` note with what was measured and the critic count. A built app is fixed in the code as the plan allows.
 4. `record` one log line on the plan when the work belongs to one. Do not commit or push. Delete the pictures and reset any viewport you emulated.
 
 ## 4. Report (short)

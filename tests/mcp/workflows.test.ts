@@ -65,7 +65,8 @@ describe('workflow text', () => {
 		expect(workflowByName('flow-critic')).toBeUndefined();
 		expect(() => workflowFile('flow-critic', 'plan-lenses')).toThrow();
 		expect(() => workflowFile('flow-critic-plan', 'code-lenses')).toThrow();
-		expect([...WORKFLOW_FILE_NAMES].length).toBe(8);
+		// Eight critic files plus the three flow detail files (design, mockup-read, screens; AFB-20261124-1254)
+		expect([...WORKFLOW_FILE_NAMES].length).toBe(11);
 	});
 
 	it('serves the new skills as workflows, and the install instruction points at flow-update-skills (AFB-20261123-1205)', () => {
@@ -89,14 +90,27 @@ describe('workflow text', () => {
 			);
 	});
 
-	it('serves only the reference as a file of flow; the browser checks file was removed (AFB-20261123-0936)', () => {
-		expect(WORKFLOW_FILES.flow).toEqual(['reference']);
+	it('serves the flow detail files (design, mockup-read, reference, screens) and no browser checks file (AFB-20261123-0936, AFB-20261124-1254)', () => {
+		expect(WORKFLOW_FILES.flow).toEqual(['design', 'mockup-read', 'reference', 'screens']);
 		// A file belongs to its own workflow only
 		expect(() => workflowFile('flow', 'plan-lenses')).toThrow();
 		expect(() => workflowFile('flow', 'checks')).toThrow();
 		expect(() => workflowFile('flow-critic', 'checks')).toThrow();
 		expect(() => workflowFile('flow-audit', 'checks')).toThrow();
 		expect(workflowByName('flow')!.body).not.toMatch(/file `checks`|agent-flow-board check/);
+	});
+
+	it('names each flow detail file in the core, and every file it names is served, readable to the end in parts (AFB-20261124-1254)', () => {
+		const core = workflowByName('flow')!.body;
+		for (const file of WORKFLOW_FILES.flow) {
+			// The core points to the file by name for a harness with no skills folder
+			expect(core, file).toContain(`file \`${file}\``);
+			const text = workflowFile('flow', file);
+			expect(text.length, file).toBeGreaterThan(500);
+			let joined = '';
+			for (let off = 0; off < text.length; off += 12_000) joined += text.slice(off, off + 12_000);
+			expect(joined, file).toBe(text);
+		}
 	});
 
 	it('serves the flow reference (lite flow, model rows, tools, errors) as a file of flow, readable to the end in parts (AFB-20261116-1551)', () => {
