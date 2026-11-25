@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.27.0",
+		"version": "1.28.0",
 		"releasedAt": "2026-11-25"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.17.0",
+			"version": "1.18.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -186,6 +186,10 @@
 				{
 					"version": "1.17.0",
 					"hash": "3e489b859b49887469ec14d43b32fb49f00316e927c3f2c791a7f0625362a639"
+				},
+				{
+					"version": "1.18.0",
+					"hash": "5f2862b022bb3f9c4fea1981229839d6c5caf8c9fc692f11ef9155076958b332"
 				}
 			]
 		},
@@ -657,6 +661,30 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.28.0",
+			"date": "2026-11-25",
+			"notes": [
+				"flow 1.18.0 (AFB-20261125-0906): the Screens refusal on COMPLETED is for agents only, a person moving a plan by hand at the board is never refused for it. A master plan's status change now carries to its child plans (completed, on hold, in review, resume); an agent's cascade checks Screens and QA per child and needs a confirmation before children close."
+			],
+			"skills": {
+				"flow": "1.18.0",
+				"flow-audit": "1.3.8",
+				"flow-interview": "1.2.7",
+				"flow-mockup": "1.10.1",
+				"flow-qa": "1.0.1",
+				"flow-screens": "1.0.0",
+				"flow-task": "1.1.4",
+				"flow-align": "1.6.3",
+				"flow-commit": "1.0.1",
+				"flow-critic-code": "1.0.3",
+				"flow-critic-mockup": "1.1.2",
+				"flow-critic-plan": "1.0.3",
+				"flow-critic-screens": "1.1.0",
+				"flow-decide": "1.0.1",
+				"flow-update-skills": "1.0.1"
+			}
+		},
 		{
 			"version": "1.27.0",
 			"date": "2026-11-25",
