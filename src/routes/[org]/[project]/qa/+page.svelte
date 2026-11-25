@@ -30,11 +30,11 @@
 	import Bug from '@lucide/svelte/icons/bug';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
 	import CircleDot from '@lucide/svelte/icons/circle-dot';
+	import ClipboardCopy from '@lucide/svelte/icons/clipboard-copy';
 	import Copy from '@lucide/svelte/icons/copy';
 	import List from '@lucide/svelte/icons/list';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import MapIcon from '@lucide/svelte/icons/map';
-	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import Search from '@lucide/svelte/icons/search';
 	// IMPORTED COMPONENTS
 	import QaHealthBar from '#lib/board/qa/QaHealthBar.svelte';
@@ -49,6 +49,7 @@
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
+	import Tooltip from '#lib/ui/Tooltip.svelte';
 
 	// -- REQUIRED PROPS -- //
 
@@ -56,6 +57,8 @@
 
 	// -- CONSTANTS -- //
 
+	// A middle dot with a space each side. Written as a constant because Svelte trims the space next to an if block
+	const SEP = ' · ';
 	const CHIP =
 		'group flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-pressed:border-accent/40 aria-pressed:bg-accent-soft aria-pressed:text-accent-text max-sm:h-11 max-sm:flex-1 max-sm:justify-center';
 	const COUNT =
@@ -381,25 +384,33 @@
 												</span>
 												<span
 													class="w-40 shrink-0 text-xs text-muted max-sm:ml-auto max-sm:w-auto sm:text-right"
-													>{f.lastTestedAt ? ago(f.lastTestedAt) : 'Never tested'}{#if f.lastCommit}
-														<span class="block font-mono sm:inline">
-															· {f.lastCommit.slice(0, 7)}</span
+													>{f.lastTestedAt
+														? ago(f.lastTestedAt)
+														: 'Never tested'}{#if f.lastCommit}<span class="block sm:inline"
+															><span class="max-sm:hidden">{SEP}</span><span class="font-mono"
+																>{f.lastCommit.slice(0, 7)}</span
+															></span
 														>{/if}</span
 												>
 											</span>
 										</a>
 										<!-- THE RETEST BUTTON IS A SIBLING OF THE LINK. HOVER OR FOCUS ON A FINE POINTER, ALWAYS ON TOUCH -->
-										<Button
-											variant="subtle"
-											iconOnly
-											class="mx-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none max-sm:absolute max-sm:top-1 max-sm:right-1 max-sm:opacity-100 [@media(hover:none)]:opacity-100"
-											aria-label={`Copy the retest command for ${f.name}`}
-											title="Copy the retest command"
-											onclick={() => copyCommand(f.key)}
-											data-testid="qa-retest"
-										>
-											<RotateCcw size={16} />
-										</Button>
+										<Tooltip text="Copy the retest command">
+											{#snippet children({ props })}
+												<Button
+													{...props}
+													variant="secondary"
+													size="sm"
+													iconOnly
+													class="mr-3 ml-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none max-sm:absolute max-sm:top-1 max-sm:right-1 max-sm:mr-0 max-sm:opacity-100 [@media(hover:none)]:opacity-100"
+													aria-label={`Copy the retest command for ${f.name}`}
+													onclick={() => copyCommand(f.key)}
+													data-testid="qa-retest"
+												>
+													<ClipboardCopy size={16} />
+												</Button>
+											{/snippet}
+										</Tooltip>
 									</li>
 								{/each}
 							</ul>

@@ -46,6 +46,8 @@
 
 	// -- CONSTANTS -- //
 
+	// A middle dot with a space each side. Written as a constant because Svelte trims the space next to an if block
+	const SEP = ' · ';
 	const linkClass =
 		'cursor-pointer text-sm text-accent-text hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center';
 
@@ -83,8 +85,10 @@
 					<p class="text-sm text-muted">
 						{counts.works} of {total}
 						{qaPlural(total, 'feature')}
-						{counts.works === 1 && total === 1 ? 'works' : 'work'}{#if attention > 0}
-							· {attention} {attention === 1 ? 'needs' : 'need'} attention first{/if}
+						{counts.works === 1 && total === 1
+							? 'works'
+							: 'work'}{#if attention > 0}{SEP}{attention}
+							{attention === 1 ? 'needs' : 'need'} attention first{/if}
 					</p>
 				</div>
 			{/if}
@@ -104,8 +108,8 @@
 						{/if}
 					</p>
 					<p class="text-xs text-muted">
-						{#if lastRun.commit}<span class="font-mono">{lastRun.commit.slice(0, 7)}</span> ·
-						{/if}{ago(lastRun.createdAt)}
+						{#if lastRun.commit}<span class="font-mono">{lastRun.commit.slice(0, 7)}</span
+							>{SEP}{/if}{ago(lastRun.createdAt)}
 					</p>
 				{:else}
 					<p class="text-sm text-ink">No run yet</p>
