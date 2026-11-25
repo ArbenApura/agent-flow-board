@@ -78,7 +78,17 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		},
 		{
 			rule: 'the finished screens are shown at the end of the plan',
-			pattern: /\*\*Showing the finished screens \(end of a plan that changed a screen/
+			// Strengthened in AFB-20261125-0625: the capture is now required for every plan that changes anything a person sees
+			pattern:
+				/\*\*Showing the finished screens \(REQUIRED for every plan that changes anything a person sees/
+		},
+		{
+			rule: 'the only way out of the screens duty is a screens-waiver, and the final message has a Screens line',
+			pattern: /`screens-waiver` section[\s\S]*`Screens: <n> pushed \(<slugs>\)`/
+		},
+		{
+			rule: 'a design-brief ends with a Screens to capture line',
+			pattern: /ends with a `Screens to capture` line/
 		},
 		{
 			rule: 'a picture is pushed with the bridge command, never in a tool call with a shell',

@@ -28,6 +28,7 @@ import {
 import { addAttachment } from '../ops/attachments';
 import { closeLiteItem, createLiteItem, liteInput } from '../ops/lite';
 import { claimMockups } from '../ops/mockups';
+import { screensMissing } from '../ops/screens';
 import { recordCallTiming } from './timing';
 import { slowCallsInput, slowestCalls } from '../ops/timing';
 import { OpError, fingerprintOf, run, runCall, subRequest } from '../ops/context';
@@ -537,9 +538,29 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		'Release the claim on the item you are working on.',
 		{},
 		{ session: true },
-		async (a, { ctx }) => {
+		async (a, { ctx, claimed }) => {
+			// A plan in review that changes what a person sees and has no screens yet is said out loud before the claim goes
+			let screensNotice: string | undefined;
+			if (claimed) {
+				// A failed look never keeps the claim from being released
+				const missing = await run(ctx, async (tx) => {
+					const [row] = await tx
+						.select({ id: item.id, ref: item.ref, status: item.status })
+						.from(item)
+						.where(
+							and(eq(item.orgId, ctx.orgId), eq(item.id, claimed), sql`${item.deletedAt} is null`)
+						);
+					return row?.status === 'IN REVIEW' && (await screensMissing(tx, row.id)) ? row.ref : null;
+				}).catch(() => null);
+				if (missing)
+					screensNotice = `${missing} changes what a person sees but its Screens tab is empty: capture the finished screens (flow step 5b) or record a screens-waiver section before you end.`;
+			}
 			const c = await claim(ctx, ctx.actor.sessionId ?? a.sessionId!, null);
-			return { released: true, displayTitle: c.displayTitle };
+			return {
+				released: true,
+				displayTitle: c.displayTitle,
+				...(screensNotice ? { screensNotice } : {})
+			};
 		}
 	);
 

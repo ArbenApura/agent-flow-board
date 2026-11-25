@@ -284,7 +284,6 @@
 								<ScreenViewer
 									image={r.screen.image}
 									alt={`What the agent saw for ${c.input || c.key}, ${r.width} pixels wide, ${r.mode} mode`}
-									annotations={r.screen.annotations}
 									class="max-w-[560px]"
 								/>
 							{/if}

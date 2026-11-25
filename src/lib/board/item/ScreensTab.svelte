@@ -6,29 +6,29 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	// IMPORTED DEP-MODULES
-	import { untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
 	import { ago } from '#lib/board/status.js';
-	import TabCard from '#lib/board/item/TabCard.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import Notice from '#lib/ui/Notice.svelte';
+	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
-	import TextArea from '#lib/ui/TextArea.svelte';
 	import { askConfirm } from '#lib/ui/confirm.svelte.js';
 	import { cn } from '#lib/ui/cn.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// IMPORTED DEP-COMPONENTS
-	import Check from '@lucide/svelte/icons/check';
-	import MoveUpRight from '@lucide/svelte/icons/move-up-right';
-	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
-	import Square from '@lucide/svelte/icons/square';
+	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import ImageOff from '@lucide/svelte/icons/image-off';
+	import Maximize from '@lucide/svelte/icons/maximize';
+	import PanelRight from '@lucide/svelte/icons/panel-right';
+	import Columns2 from '@lucide/svelte/icons/columns-2';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
-	import X from '@lucide/svelte/icons/x';
-	import MapPin from '@lucide/svelte/icons/map-pin';
+	import ZoomIn from '@lucide/svelte/icons/zoom-in';
+	import ZoomOut from '@lucide/svelte/icons/zoom-out';
 
 	// -- REQUIRED PROPS -- //
 
@@ -37,8 +37,6 @@
 
 	// -- TYPES -- //
 
-	type Note = ScreenView['annotations'][number];
-	type Kind = 'pin' | 'box' | 'arrow';
 	type Slot = {
 		key: string;
 		screen: string;
@@ -47,30 +45,39 @@
 		before?: ScreenView;
 		after?: ScreenView;
 	};
-	/** A shape being drawn: fractions of the picture, 0 to 1. A box has a positive size, an arrow's size is where it ends. */
-	type Draft = { kind: Kind; x: number; y: number; w: number; h: number };
 
 	// -- CONSTANTS -- //
 
-	const KINDS: { value: Kind; label: string; icon: typeof MapPin }[] = [
-		{ value: 'pin', label: 'Pin', icon: MapPin },
-		{ value: 'box', label: 'Box', icon: Square },
-		{ value: 'arrow', label: 'Arrow', icon: MoveUpRight }
-	];
-	const MIN_BOX = 0.01;
+	// A very tall full-page capture still fits at this floor
+	const MIN_ZOOM = 0.02;
+	const MAX_ZOOM = 8;
+	// Room kept around the picture when it is fitted: a margin, and the floating toolbar at the bottom
+	const FIT_MARGIN = 48;
+	const FIT_TOOLBAR = 112;
+	const PAN_STEP = 60;
 
 	// -- STATES -- //
 
 	let role = $state<'before' | 'after'>('after');
-	let tool = $state<Kind | null>(null);
-	let draft = $state<Draft | null>(null);
-	let start = $state<{ x: number; y: number } | null>(null);
-	let text = $state('');
-	let busy = $state(false);
-	let activeNote = $state<string | null>(null);
 	let failed = $state<Record<string, boolean>>({});
-	let overlay = $state<HTMLElement>();
-	let prevSelected = '';
+	// The slot stays here while the modal closes, so its content does not flash blank (the out transition)
+	let held = $state<Slot | null>(null);
+	let viewport = $state<HTMLElement>();
+	let zoom = $state(1);
+	let panX = $state(0);
+	let panY = $state(0);
+	let natural = $state({ w: 900, h: 562 });
+	let compare = $state(false);
+	let split = $state(0.5);
+	let info = $state(true);
+	let hint = $state(true);
+	// True while a confirmation is open on top of the modal, so the keys do not move the viewer behind it
+	let removing = $state(false);
+	let prevKey = '';
+	// Set when the slot changes, so the next picture that loads is fitted once and a later First or Latest switch keeps the zoom
+	let needsFit = false;
+	const pointers = new SvelteMap<number, { x: number; y: number }>();
+	let pinch = 0;
 
 	// -- REACTIVE STATES -- //
 
@@ -87,243 +94,261 @@
 		}
 		return [...byKey.values()];
 	});
-	const groups = $derived.by(() => {
-		const byScreen = new SvelteMap<string, Slot[]>();
-		for (const s of slots) byScreen.set(s.screen, [...(byScreen.get(s.screen) ?? []), s]);
-		return [...byScreen.entries()].map(([screen, items]) => ({ screen, items }));
-	});
 	const selected = $derived(slots.find((s) => s.key === page.url.searchParams.get('s')) ?? null);
+	const slot = $derived(selected ?? held);
+	const index = $derived(slot ? slots.findIndex((s) => s.key === slot.key) : -1);
+	const both = $derived(Boolean(slot?.before && slot.after));
+	const comparing = $derived(compare && both);
 	// The picture on show: the latest, or the first one when the person asks for it or there is only that
 	const shown = $derived(
-		selected
-			? role === 'before' && selected.before
-				? selected.before
-				: (selected.after ?? selected.before ?? null)
+		slot
+			? role === 'before' && slot.before
+				? slot.before
+				: (slot.after ?? slot.before ?? null)
 			: null
 	);
-	const notes = $derived(shown?.annotations ?? []);
-	const canWrite = $derived(env.canWrite);
+	const percent = $derived(Math.round(zoom * 100));
 
 	// -- REACTIVE STATEMENTS -- //
 
-	// A new screen on show starts with its latest picture and no half drawn note
+	// A new screen on show starts with its latest picture, fitted, with the details open on a wide screen
 	$effect(() => {
-		const key = selected?.key ?? '';
-		if (key === prevSelected) return;
-		prevSelected = key;
-		untrack(() => {
-			role = 'after';
-			cancel();
-			activeNote = null;
-		});
+		const s = selected;
+		if (!s) {
+			// Closed: the same screen opened again starts fresh
+			prevKey = '';
+			return;
+		}
+		held = s;
+		if (s.key === prevKey) return;
+		prevKey = s.key;
+		needsFit = true;
+		role = 'after';
+		compare = false;
+		split = 0.5;
+		hint = true;
+		info = window.innerWidth >= 1024;
+	});
+
+	// The wheel zooms around the pointer. The listener is not passive, so the page behind never scrolls with it
+	$effect(() => {
+		const el = viewport;
+		if (!el) return;
+		const onWheel = (e: WheelEvent) => {
+			e.preventDefault();
+			const r = el.getBoundingClientRect();
+			zoomAt(
+				Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)),
+				e.clientX - r.left,
+				e.clientY - r.top
+			);
+		};
+		el.addEventListener('wheel', onWheel, { passive: false });
+		return () => {
+			el.removeEventListener('wheel', onWheel);
+			// The viewer went away mid gesture, so no finger is left counted
+			pointers.clear();
+			pinch = 0;
+		};
 	});
 
 	// -- FUNCTIONS -- //
 
 	const hrefOf = (key: string | null) =>
 		key ? `${page.url.pathname}?tab=screens&s=${key}` : `${page.url.pathname}?tab=screens`;
-	const openCount = (s: Slot) =>
-		[s.before, s.after].reduce(
-			(n, v) => n + (v?.annotations.filter((a) => !a.resolved).length ?? 0),
-			0
-		);
-	const clamp = (n: number, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, n));
+	const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 	const message = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
+	const modeLabel = (m: 'light' | 'dark') => (m === 'dark' ? 'Dark mode' : 'Light mode');
 
-	/** Keeps a shape inside the picture, whatever moved or grew. */
-	function fit(d: Draft): Draft {
-		if (d.kind === 'pin') return { ...d, x: clamp(d.x), y: clamp(d.y), w: 0, h: 0 };
-		if (d.kind === 'box') {
-			const w = clamp(d.w, MIN_BOX, 1);
-			const h = clamp(d.h, MIN_BOX, 1);
-			return { ...d, w, h, x: clamp(d.x, 0, 1 - w), y: clamp(d.y, 0, 1 - h) };
+	/** The picture fitted inside the viewer, centred, with room for the toolbar. */
+	function fit() {
+		if (!viewport) return;
+		const r = viewport.getBoundingClientRect();
+		if (!r.width) return;
+		const aw = r.width - FIT_MARGIN;
+		const ah = r.height - FIT_TOOLBAR;
+		zoom = clamp(Math.min(aw / natural.w, ah / natural.h), MIN_ZOOM, MAX_ZOOM);
+		panX = (r.width - natural.w * zoom) / 2;
+		panY = FIT_MARGIN / 2 + (ah - natural.h * zoom) / 2;
+	}
+
+	/** Zooms by a factor and keeps the point under (cx, cy) where it is. */
+	function zoomAt(factor: number, cx: number, cy: number) {
+		const next = clamp(zoom * factor, MIN_ZOOM, MAX_ZOOM);
+		panX = cx - ((cx - panX) * next) / zoom;
+		panY = cy - ((cy - panY) * next) / zoom;
+		zoom = next;
+		hint = false;
+	}
+
+	function zoomCentre(factor: number) {
+		const r = viewport?.getBoundingClientRect();
+		if (r) zoomAt(factor, r.width / 2, r.height / 2);
+	}
+
+	function actualSize() {
+		zoomCentre(1 / zoom);
+	}
+
+	function toggleInfo() {
+		info = !info;
+		// The viewer changed width, so the picture is fitted again once the panel has moved
+		queueMicrotask(fit);
+	}
+
+	function onImageLoad(e: Event) {
+		const img = e.currentTarget as HTMLImageElement;
+		const same =
+			!img.naturalWidth || (natural.w === img.naturalWidth && natural.h === img.naturalHeight);
+		if (!same) natural = { w: img.naturalWidth, h: img.naturalHeight };
+		// Fitted for a new screen or a new picture size only, so switching First and Latest keeps the person's zoom and place
+		if (needsFit || !same) {
+			needsFit = false;
+			queueMicrotask(fit);
 		}
-		const w = clamp(d.w, -1, 1);
-		const h = clamp(d.h, -1, 1);
-		return {
-			...d,
-			w,
-			h,
-			x: clamp(d.x, Math.max(0, -w), Math.min(1, 1 - w)),
-			y: clamp(d.y, Math.max(0, -h), Math.min(1, 1 - h))
-		};
-	}
-
-	/** Where a pointer is on the rendered picture, as fractions of it. The overlay is exactly as big as the picture. */
-	function at(e: PointerEvent) {
-		const r = overlay!.getBoundingClientRect();
-		return { x: clamp((e.clientX - r.left) / r.width), y: clamp((e.clientY - r.top) / r.height) };
-	}
-
-	function cancel() {
-		draft = null;
-		tool = null;
-		start = null;
-		text = '';
 	}
 
 	function pointerDown(e: PointerEvent) {
-		if (!tool || !canWrite || busy) return;
-		e.preventDefault();
-		const p = at(e);
-		if (tool === 'pin') {
-			draft = { kind: 'pin', x: p.x, y: p.y, w: 0, h: 0 };
-			tool = null;
-			return;
+		if ((e.target as HTMLElement).closest('[data-viewer-ui]')) return;
+		// Only the main button drags: a right click opens a menu and may never send its pointer up
+		if (e.pointerType === 'mouse' && e.button !== 0) return;
+		viewport?.setPointerCapture(e.pointerId);
+		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+		hint = false;
+		if (pointers.size === 2) {
+			const [a, b] = [...pointers.values()];
+			pinch = Math.hypot(a.x - b.x, a.y - b.y);
 		}
-		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-		start = p;
-		draft = { kind: tool, x: p.x, y: p.y, w: 0, h: 0 };
 	}
 
 	function pointerMove(e: PointerEvent) {
-		if (!start || !draft) return;
-		const p = at(e);
-		draft =
-			draft.kind === 'box'
-				? {
-						kind: 'box',
-						x: Math.min(start.x, p.x),
-						y: Math.min(start.y, p.y),
-						w: Math.abs(p.x - start.x),
-						h: Math.abs(p.y - start.y)
-					}
-				: { kind: 'arrow', x: start.x, y: start.y, w: p.x - start.x, h: p.y - start.y };
+		const prev = pointers.get(e.pointerId);
+		if (!prev || !viewport) return;
+		const r = viewport.getBoundingClientRect();
+		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+		if (pointers.size === 2) {
+			const [a, b] = [...pointers.values()];
+			const d = Math.hypot(a.x - b.x, a.y - b.y);
+			if (pinch) zoomAt(d / pinch, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+			pinch = d;
+			return;
+		}
+		panX += e.clientX - prev.x;
+		panY += e.clientY - prev.y;
 	}
 
-	function pointerUp() {
-		if (!start || !draft) return;
-		start = null;
-		tool = null;
-		// A click with no drag draws nothing
-		if (
-			(draft.kind === 'box' && (draft.w < MIN_BOX || draft.h < MIN_BOX)) ||
-			(draft.kind === 'arrow' && Math.hypot(draft.w, draft.h) < MIN_BOX)
-		)
-			draft = null;
+	function pointerUp(e: PointerEvent) {
+		pointers.delete(e.pointerId);
+		pinch = 0;
 	}
 
-	/** The way in without a mouse: a shape at the middle of the picture, moved and sized with the arrow keys. */
-	function placeAtCentre() {
-		const kind = tool ?? 'pin';
-		draft =
-			kind === 'pin'
-				? { kind, x: 0.5, y: 0.5, w: 0, h: 0 }
-				: kind === 'box'
-					? { kind, x: 0.4, y: 0.4, w: 0.2, h: 0.2 }
-					: { kind, x: 0.3, y: 0.5, w: 0.4, h: 0 };
-		tool = null;
-	}
-
-	/** Arrow keys move the shape, Alt with an arrow key changes its size, Shift takes bigger steps. */
-	function draftKey(e: KeyboardEvent) {
-		if (!draft) return;
-		const step = e.shiftKey ? 0.05 : 0.01;
-		const move: Record<string, [number, number]> = {
-			ArrowLeft: [-step, 0],
-			ArrowRight: [step, 0],
-			ArrowUp: [0, -step],
-			ArrowDown: [0, step]
-		};
-		const m = move[e.key];
-		if (!m) return;
-		e.preventDefault();
-		draft = fit(
-			e.altKey && draft.kind !== 'pin'
-				? { ...draft, w: draft.w + m[0], h: draft.h + m[1] }
-				: { ...draft, x: draft.x + m[0], y: draft.y + m[1] }
+	/** Double click toggles between fitted and actual size at the pointer. */
+	function doubleClick(e: MouseEvent) {
+		if ((e.target as HTMLElement).closest('[data-viewer-ui]') || !viewport) return;
+		const r = viewport.getBoundingClientRect();
+		const fitted = clamp(
+			Math.min((r.width - FIT_MARGIN) / natural.w, (r.height - FIT_TOOLBAR) / natural.h),
+			MIN_ZOOM,
+			MAX_ZOOM
 		);
+		if (Math.abs(zoom - fitted) < 0.02) zoomAt(1 / zoom, e.clientX - r.left, e.clientY - r.top);
+		else fit();
 	}
 
-	async function saveNote() {
-		if (!draft || !shown || !text.trim() || busy) return;
-		busy = true;
-		try {
-			await api(env.org, '/screen-annotations', {
-				method: 'POST',
-				key: newKey(),
-				body: {
-					screen: shown.id,
-					kind: draft.kind,
-					x: draft.x,
-					y: draft.y,
-					...(draft.kind === 'pin' ? {} : { w: draft.w, h: draft.h }),
-					body: text.trim()
-				}
-			});
-			cancel();
-			await env.onchanged();
-		} catch (e) {
-			toast.error(message(e, 'The note was not saved.'));
-		} finally {
-			busy = false;
-		}
+	/** Moves the compare divider with the pointer; its place is a fraction of the picture. */
+	function dragSplit(e: PointerEvent) {
+		e.stopPropagation();
+		const grip = e.currentTarget as HTMLElement;
+		grip.setPointerCapture(e.pointerId);
+		const move = (ev: PointerEvent) => {
+			if (!viewport) return;
+			const r = viewport.getBoundingClientRect();
+			split = clamp((ev.clientX - r.left - panX) / (natural.w * zoom), 0, 1);
+		};
+		const up = () => {
+			grip.removeEventListener('pointermove', move);
+			grip.removeEventListener('pointerup', up);
+			grip.removeEventListener('pointercancel', up);
+			grip.removeEventListener('lostpointercapture', up);
+		};
+		grip.addEventListener('pointermove', move);
+		grip.addEventListener('pointerup', up);
+		grip.addEventListener('pointercancel', up);
+		grip.addEventListener('lostpointercapture', up);
 	}
 
-	async function resolve(n: Note) {
-		try {
-			await api(env.org, `/screen-annotations/${n.id}/resolve`, {
-				method: 'POST',
-				key: newKey(),
-				body: { resolved: !n.resolved }
-			});
-			await env.onchanged();
-		} catch (e) {
-			toast.error(message(e, 'The note was not changed.'));
-		}
+	function step(delta: number) {
+		const next = slots[index + delta];
+		if (next) goto(hrefOf(next.key), { reset: false });
 	}
 
-	async function removeNote(n: Note) {
-		const yes = await askConfirm({
-			title: 'Remove this note?',
-			body: 'The note is deleted for everyone who can see this plan. The picture stays.',
-			confirmLabel: 'Remove note',
-			tone: 'danger'
-		});
-		if (!yes) return;
-		try {
-			await api(env.org, `/screen-annotations/${n.id}`, { method: 'DELETE', key: newKey() });
-			await env.onchanged();
-		} catch (e) {
-			toast.error(message(e, 'The note was not removed.'));
-		}
+	function close() {
+		goto(hrefOf(null), { reset: false });
+	}
+
+	/** Keys inside the open modal: arrows step, plus and minus zoom, 0 fits, 1 shows actual size, Shift and arrows pan. */
+	function onKey(e: KeyboardEvent) {
+		if (!selected || removing || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+		const target = e.target as HTMLElement;
+		// A focused control that uses the arrow keys itself (the capture switch, the divider) keeps them
+		if (
+			target.isContentEditable ||
+			target.closest('input, textarea, select, [role=radiogroup], [data-viewer-ui]')
+		)
+			return;
+		if (e.shiftKey && e.key.startsWith('Arrow')) {
+			e.preventDefault();
+			panX += e.key === 'ArrowLeft' ? PAN_STEP : e.key === 'ArrowRight' ? -PAN_STEP : 0;
+			panY += e.key === 'ArrowUp' ? PAN_STEP : e.key === 'ArrowDown' ? -PAN_STEP : 0;
+		} else if (e.key === 'ArrowLeft') step(-1);
+		else if (e.key === 'ArrowRight') step(1);
+		else if (e.key === '+' || e.key === '=') zoomCentre(1.25);
+		else if (e.key === '-') zoomCentre(0.8);
+		else if (e.key === '0') fit();
+		else if (e.key === '1') actualSize();
 	}
 
 	async function removeShot() {
 		const s = shown;
-		if (!s) return;
+		const current = slot;
+		if (!s || !current) return;
+		removing = true;
 		const yes = await askConfirm({
 			title: 'Remove this screenshot?',
-			body: 'The picture and every note on it are deleted for everyone who can see this plan. The agent can add a new capture.',
+			body: 'The picture is deleted for everyone who can see this plan. The agent can add a new capture.',
 			confirmLabel: 'Remove screenshot',
 			tone: 'danger'
-		});
+		}).finally(() => (removing = false));
 		if (!yes) return;
 		try {
 			await api(env.org, `/screens/${s.id}`, { method: 'DELETE', key: newKey() });
 			await env.onchanged();
-			// Nothing left of this slot shows the viewer's place, so the page goes back to the grid
+			// Nothing left of this slot shows the viewer's place, so the page goes back to the gallery
 			if (
 				!list.some(
-					(x) => x.id !== s.id && x.screen === s.screen && x.mode === s.mode && x.width === s.width
+					(x) =>
+						x.id !== s.id &&
+						x.screen === current.screen &&
+						x.mode === current.mode &&
+						x.width === current.width
 				)
 			)
-				await goto(hrefOf(null), { invalidateAll: true });
+				await goto(hrefOf(null), { invalidateAll: true, reset: false });
 		} catch (e) {
 			toast.error(message(e, 'The screenshot was not removed.'));
 		}
 	}
 </script>
 
+<!-- A resize or a phone turn fits the picture again while the modal is open -->
 <svelte:window
-	onkeydown={(e) => {
-		// Escape in the note field only leaves the field's own work alone: a half written note is never thrown away by it
-		if (e.key === 'Escape' && (draft || tool) && !(e.target instanceof HTMLTextAreaElement))
-			cancel();
+	onkeydown={onKey}
+	onresize={() => {
+		if (selected) fit();
 	}}
 />
 
-<!-- THE SCREENS TAB OF A PLAN: THE FINISHED SCREENS THE AGENT CAPTURED AT THE END OF THE PLAN, FIRST AND LATEST, WITH NOTES DRAWN OVER THEM (AFB-20261124-0926) -->
+<!-- THE SCREENS TAB OF A PLAN: ONE GALLERY OF LARGE CARDS, THE DETAILS IN A MODAL WITH A PANNABLE AND ZOOMABLE PICTURE (AFB-20261125-0625) -->
 <div class="flex flex-col gap-4" data-testid="screens-tab">
 	{#if slots.length === 0}
 		<div class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
@@ -334,360 +359,311 @@
 			/>
 		</div>
 	{:else}
-		{#if selected && shown}
-			<TabCard title={selected.screen} stack>
-				{#snippet meta()}
-					<span class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-						<Badge>{selected.mode === 'dark' ? 'Dark mode' : 'Light mode'}</Badge>
-						<Badge>{selected.width} px wide</Badge>
-						<span class="text-xs text-muted">Captured {ago(shown.createdAt)}</span>
-					</span>
-				{/snippet}
-				{#snippet actions()}
-					{#if selected.before && selected.after}
-						<SegmentedControl
-							label="Which capture"
-							value={role}
-							options={[
-								{ value: 'after', label: 'Latest' },
-								{ value: 'before', label: 'First' }
-							]}
-							onchange={(v) => (role = v === 'before' ? 'before' : 'after')}
-						/>
-					{/if}
-					{#if canWrite}
-						<Button tone="danger" onclick={removeShot} data-testid="remove-screen">
-							<Trash2 size={16} aria-hidden="true" /> Remove
-						</Button>
-					{/if}
-					<Button href={hrefOf(null)} data-sveltekit-noscroll>
-						<X size={16} aria-hidden="true" /> Close
-					</Button>
-				{/snippet}
-
-				<div class="grid gap-4 p-4 max-sm:p-3.5 lg:grid-cols-[minmax(0,1fr)_320px]">
-					<div class="flex min-w-0 flex-col gap-3">
-						{#if shown.caption}
-							<!-- WRITTEN BY THE AGENT OR A PERSON: PLAIN TEXT ONLY -->
-							<p class="text-sm [overflow-wrap:anywhere] whitespace-pre-wrap text-ink">
-								{shown.caption}
-							</p>
-						{/if}
-						{#if shown.note}
-							<p class="text-xs [overflow-wrap:anywhere] whitespace-pre-wrap text-muted">
-								{shown.note}
-							</p>
-						{/if}
-
-						{#if canWrite}
-							<!-- DRAW A NOTE: PICK A SHAPE THEN DRAG ON THE PICTURE, OR PLACE ONE AT THE MIDDLE AND MOVE IT WITH THE ARROW KEYS -->
-							<div class="flex flex-wrap items-center gap-2" role="group" aria-label="Add a note">
-								{#each KINDS as k (k.value)}
-									<Button
-										variant={tool === k.value ? 'ghost' : 'secondary'}
-										aria-pressed={tool === k.value}
-										onclick={() => {
-											draft = null;
-											tool = tool === k.value ? null : k.value;
-										}}
-										data-testid={`tool-${k.value}`}
-									>
-										<k.icon size={16} aria-hidden="true" />
-										{k.label}
-									</Button>
-								{/each}
-								{#if tool}
-									<Button variant="ghost" onclick={placeAtCentre}>Place at the middle</Button>
-								{/if}
-								{#if tool || draft}
-									<span class="text-xs text-muted">
-										{tool
-											? (tool === 'pin' ? 'Click' : 'Drag') + ' on the picture, or place one and '
-											: ''}Use the arrow keys on the new note to move it (Alt and an arrow key
-										changes its size).
-									</span>
-								{/if}
-							</div>
-						{/if}
-
-						{#if failed[shown.id]}
-							<Notice tone="warning">
-								The picture is missing. It may not have come back with a restore; the agent adds it
-								again at the end of the next plan.
-							</Notice>
-						{:else}
-							<!-- THE WRAPPER IS EXACTLY THE SIZE OF THE RENDERED PICTURE, SO THE NOTES STAY ON THEIR PLACE AT EVERY WIDTH -->
-							<div class="relative w-fit max-w-full leading-[0]" data-testid="screen-stage">
+		<!-- ONE CARD FOR EACH SCREEN, MODE AND WIDTH. EACH IS A LINK, SO THE ADDRESS AND THE BACK BUTTON FOLLOW THE CHOICE -->
+		<ul class="grid [grid-template-columns:repeat(auto-fill,minmax(min(100%,460px),1fr))] gap-4">
+			{#each slots as s (s.key)}
+				{@const cover = s.after ?? s.before}
+				<li>
+					<a
+						href={hrefOf(s.key)}
+						data-sveltekit-noscroll
+						class="group flex h-full cursor-pointer flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-[var(--elev-1)] hover:border-accent focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+					>
+						<span class="block aspect-[16/10] overflow-hidden border-b border-line bg-raised">
+							{#if cover && !failed[cover.id]}
 								<img
-									src={shown.image}
-									alt={`${selected.screen}, ${selected.mode} mode, ${selected.width} pixels wide, ${shown.role === 'before' ? 'first' : 'latest'} capture`}
-									class="block h-auto max-w-full rounded-lg border border-line"
+									src={cover.image}
+									alt=""
 									loading="lazy"
-									onerror={() => (failed[shown.id] = true)}
-								/>
-								<div
-									bind:this={overlay}
-									role="presentation"
 									class={cn(
-										'absolute inset-0',
-										// Touch scrolling is off only while a shape is being drawn, so the picture still scrolls on a phone
-										tool || start ? 'cursor-crosshair touch-none' : '',
-										busy ? 'pointer-events-none' : ''
+										'size-full transition-transform duration-200 ease-out group-hover:scale-[1.02] motion-reduce:transition-none motion-reduce:group-hover:scale-100',
+										s.width < 600 ? 'object-contain' : 'object-cover object-top'
 									)}
-									onpointerdown={pointerDown}
-									onpointermove={pointerMove}
-									onpointerup={pointerUp}
-									onpointercancel={pointerUp}
-								>
-									<svg
-										class="pointer-events-none absolute inset-0 size-full"
-										viewBox="0 0 1 1"
-										preserveAspectRatio="none"
-										aria-hidden="true"
-									>
-										{#each notes as n (n.id)}
-											{#if n.kind === 'box'}
-												<rect
-													x={n.x}
-													y={n.y}
-													width={n.w ?? 0}
-													height={n.h ?? 0}
-													stroke-width="2"
-													class={cn(
-														'fill-transparent [vector-effect:non-scaling-stroke]',
-														n.resolved ? 'stroke-muted' : 'stroke-accent'
-													)}
-												/>
-											{:else if n.kind === 'arrow'}
-												<line
-													x1={n.x}
-													y1={n.y}
-													x2={n.x + (n.w ?? 0)}
-													y2={n.y + (n.h ?? 0)}
-													stroke-width="2"
-													class={cn(
-														'[vector-effect:non-scaling-stroke]',
-														n.resolved ? 'stroke-muted' : 'stroke-accent'
-													)}
-												/>
-											{/if}
-										{/each}
-										{#if draft}
-											{#if draft.kind === 'box'}
-												<rect
-													x={draft.x}
-													y={draft.y}
-													width={draft.w}
-													height={draft.h}
-													stroke-width="2"
-													stroke-dasharray="6 4"
-													class="fill-accent/10 stroke-accent [vector-effect:non-scaling-stroke]"
-												/>
-											{:else if draft.kind === 'arrow'}
-												<line
-													x1={draft.x}
-													y1={draft.y}
-													x2={draft.x + draft.w}
-													y2={draft.y + draft.h}
-													stroke-width="2"
-													stroke-dasharray="6 4"
-													class="stroke-accent [vector-effect:non-scaling-stroke]"
-												/>
-											{/if}
-										{/if}
-									</svg>
-
-									<!-- THE END OF AN ARROW IS A DOT. ITS PLACE IS A RUNTIME PERCENT OF THE PICTURE -->
-									{#each notes as n (n.id)}
-										{#if n.kind === 'arrow'}
-											<span
-												class={cn(
-													'pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full',
-													n.resolved ? 'bg-muted' : 'bg-accent'
-												)}
-												style="left: {(n.x + (n.w ?? 0)) * 100}%; top: {(n.y + (n.h ?? 0)) * 100}%;"
-											></span>
-										{/if}
-									{/each}
-
-									<!-- THE NUMBERED MARKER OF EACH NOTE. THE HIT AREA IS 44 PX, THE MARKER ITSELF 26. ITS PLACE IS A RUNTIME PERCENT OF THE PICTURE -->
-									{#each notes as n, i (n.id)}
-										<button
-											type="button"
-											class="absolute grid size-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center leading-none focus-visible:outline-none"
-											style="left: {n.x * 100}%; top: {n.y * 100}%;"
-											aria-label={`Note ${i + 1}${n.resolved ? ' (done)' : ''}`}
-											aria-pressed={activeNote === n.id}
-											onpointerdown={(e) => e.stopPropagation()}
-											onclick={() => (activeNote = activeNote === n.id ? null : n.id)}
-										>
-											<span
-												class={cn(
-													'grid size-[26px] place-items-center rounded-full border-2 text-xs font-semibold [font-variant-numeric:tabular-nums]',
-													n.resolved
-														? 'border-muted bg-surface text-muted'
-														: 'border-accent bg-accent text-accent-ink',
-													activeNote === n.id ? 'ring-4 ring-accent-soft' : ''
-												)}>{i + 1}</span
-											>
-										</button>
-									{/each}
-
-									{#if draft}
-										<!-- THE NOTE BEING WRITTEN. IT TAKES THE KEYBOARD: ARROW KEYS MOVE IT, ALT AND AN ARROW KEY SIZES IT. ITS PLACE IS A RUNTIME PERCENT OF THE PICTURE -->
-										<button
-											type="button"
-											class="absolute grid size-11 -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center leading-none focus-visible:outline-none"
-											style="left: {draft.x * 100}%; top: {draft.y * 100}%;"
-											aria-label="The new note. Use the arrow keys to move it."
-											onkeydown={draftKey}
-											onpointerdown={(e) => e.stopPropagation()}
-										>
-											<span
-												class="grid size-[26px] place-items-center rounded-full border-2 border-accent bg-surface text-xs font-semibold text-accent-text ring-4 ring-accent-soft"
-												>{notes.length + 1}</span
-											>
-										</button>
-									{/if}
-								</div>
-							</div>
-						{/if}
-
-						{#if draft}
-							<div class="flex flex-col gap-3 rounded-lg border border-line bg-raised p-3">
-								<TextArea
-									label={`Note ${notes.length + 1}: what should a person look at here?`}
-									bind:value={text}
-									rows={3}
-									maxlength={1000}
-									disabled={busy}
+									onerror={() => (failed[cover.id] = true)}
 								/>
-								<div class="flex flex-wrap gap-2">
-									<Button
-										variant="primary"
-										loading={busy}
-										disabled={!text.trim() || busy}
-										onclick={saveNote}
-										data-testid="save-note">Add the note</Button
-									>
-									<Button variant="ghost" onclick={cancel} disabled={busy}>Cancel</Button>
-								</div>
-							</div>
-						{/if}
-					</div>
-
-					<!-- THE NOTES ON THE PICTURE, IN THE ORDER OF THEIR NUMBERS. THE TEXT WAS WRITTEN BY SOMEONE ELSE, SO IT IS PLAIN TEXT ONLY -->
-					<section aria-label="Notes on this picture" class="flex min-w-0 flex-col gap-2">
-						<h3 class="text-base font-semibold text-ink">Notes</h3>
-						{#if notes.length === 0}
-							<p class="text-sm text-muted">
-								No notes yet.{canWrite ? ' Pick a shape above and mark what to check.' : ''}
-							</p>
-						{:else}
-							<ol class="flex flex-col gap-2">
-								{#each notes as n, i (n.id)}
-									<li
-										class={cn(
-											'flex flex-col gap-1.5 rounded-lg border p-3',
-											activeNote === n.id
-												? 'border-accent bg-accent-soft'
-												: 'border-line bg-surface'
-										)}
-									>
-										<div class="flex items-center gap-2">
-											<span
-												class="grid size-6 shrink-0 place-items-center rounded-full bg-raised text-xs font-semibold text-ink"
-												>{i + 1}</span
-											>
-											<span class="min-w-0 truncate text-xs text-muted"
-												>{n.author || 'Someone'}, {ago(n.createdAt)}</span
-											>
-											{#if n.resolved}<Badge tone="success">Done</Badge>{/if}
-										</div>
-										<p class="text-sm [overflow-wrap:anywhere] whitespace-pre-wrap text-ink">
-											{n.body}
-										</p>
-										{#if canWrite}
-											<div class="flex gap-2">
-												<Button size="sm" onclick={() => resolve(n)}>
-													{#if n.resolved}<RotateCcw size={14} aria-hidden="true" /> Reopen{:else}<Check
-															size={14}
-															aria-hidden="true"
-														/> Mark done{/if}
-												</Button>
-												<Button
-													size="sm"
-													iconOnly
-													variant="ghost"
-													tone="danger"
-													aria-label={`Remove note ${i + 1}`}
-													onclick={() => removeNote(n)}
-												>
-													<Trash2 size={14} aria-hidden="true" />
-												</Button>
-											</div>
-										{/if}
-									</li>
-								{/each}
-							</ol>
-						{/if}
-					</section>
-				</div>
-			</TabCard>
-		{/if}
-
-		<!-- ONE CARD FOR EACH SCREEN, MODE AND WIDTH, GROUPED BY SCREEN. EACH IS A LINK, SO THE ADDRESS AND THE BACK BUTTON FOLLOW THE CHOICE -->
-		{#each groups as g (g.screen)}
-			<section class="flex flex-col gap-2" aria-label={g.screen}>
-				<h3 class="font-mono text-sm font-semibold text-ink">{g.screen}</h3>
-				<ul class="grid [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))] gap-3">
-					{#each g.items as s (s.key)}
-						{@const cover = s.after ?? s.before}
-						{@const open = openCount(s)}
-						<li>
-							<a
-								href={hrefOf(s.key)}
-								data-sveltekit-noscroll
-								aria-current={selected?.key === s.key ? 'true' : undefined}
-								class={cn(
-									'flex min-h-14 cursor-pointer flex-col gap-2 rounded-xl border bg-surface p-3 shadow-[var(--elev-1)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent',
-									selected?.key === s.key
-										? 'border-accent bg-accent-soft'
-										: 'border-line hover:bg-raised'
-								)}
-							>
+							{:else}
 								<span
-									class="block aspect-[16/10] overflow-hidden rounded-lg border border-line bg-raised"
+									class="flex size-full flex-col items-center justify-center gap-2 p-4 text-center text-sm text-muted"
 								>
-									{#if cover && !failed[cover.id]}
-										<img
-											src={cover.image}
-											alt=""
-											loading="lazy"
-											class="size-full object-cover object-top"
-											onerror={() => (failed[cover.id] = true)}
-										/>
-									{/if}
+									<ImageOff size={28} aria-hidden="true" />
+									Picture missing
 								</span>
-								<span class="flex flex-wrap items-center gap-x-2 gap-y-1">
-									<Badge>{s.mode === 'dark' ? 'Dark' : 'Light'}</Badge>
-									<span class="text-xs text-muted [font-variant-numeric:tabular-nums]"
-										>{s.width} px</span
-									>
-									{#if s.before && s.after}<span class="text-xs text-muted">First and latest</span
-										>{/if}
-									{#if open > 0}<Badge tone="info">{open} to check</Badge>{/if}
-								</span>
-								{#if cover?.caption}
-									<span class="line-clamp-2 text-xs [overflow-wrap:anywhere] text-muted"
-										>{cover.caption}</span
-									>
-								{/if}
-							</a>
-						</li>
-					{/each}
-				</ul>
-			</section>
-		{/each}
+							{/if}
+						</span>
+						<span class="flex flex-col gap-2 p-4 max-sm:p-3.5">
+							<span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+								<span class="font-mono text-sm font-semibold text-ink">{s.screen}</span>
+								<Badge>{s.mode === 'dark' ? 'Dark' : 'Light'}</Badge>
+								<span class="text-xs text-muted [font-variant-numeric:tabular-nums]"
+									>{s.width} px</span
+								>
+								{#if s.before && s.after}<span class="text-xs text-muted">First and latest</span
+									>{/if}
+							</span>
+							{#if cover?.caption}
+								<!-- WRITTEN BY THE AGENT OR A PERSON: PLAIN TEXT ONLY -->
+								<span class="line-clamp-2 text-sm [overflow-wrap:anywhere] text-muted"
+									>{cover.caption}</span
+								>
+							{/if}
+						</span>
+					</a>
+				</li>
+			{/each}
+		</ul>
 	{/if}
 </div>
+
+<!-- THE DETAIL MODAL. MOUNTED WITH open, NEVER INSIDE AN {#if}, AND IT KEEPS ITS SLOT WHILE IT CLOSES -->
+<ResponsiveModal
+	open={selected !== null}
+	onclose={close}
+	title={slot ? `${slot.screen}, ${modeLabel(slot.mode)}, ${slot.width} px wide` : 'Screenshot'}
+	size="full"
+	flush
+>
+	{#snippet heading()}
+		{#if slot}
+			<span class="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+				<span class="truncate font-mono text-base">{slot.screen}</span>
+				<Badge>{modeLabel(slot.mode)}</Badge>
+				<Badge>{slot.width} px wide</Badge>
+			</span>
+		{/if}
+	{/snippet}
+
+	{#if slot && shown}
+		<!-- THE VIEWER. DRAG TO PAN, SCROLL OR PINCH TO ZOOM. THE CANVAS TRANSFORM IS A RUNTIME COORDINATE -->
+		<div
+			bind:this={viewport}
+			role="application"
+			aria-label="Screenshot viewer. Drag to pan, scroll to zoom, plus and minus to zoom, 0 to fit, 1 for actual size."
+			class="relative min-w-0 flex-1 cursor-grab touch-none overflow-hidden bg-raised select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent active:cursor-grabbing"
+			data-testid="screen-viewer"
+			onpointerdown={pointerDown}
+			onpointermove={pointerMove}
+			onpointerup={pointerUp}
+			onpointercancel={pointerUp}
+			ondblclick={doubleClick}
+		>
+			{#if failed[shown.id]}
+				<div class="grid size-full place-items-center p-6" data-viewer-ui>
+					<Notice tone="warning">
+						The picture is missing. It may not have come back with a restore; the agent adds it
+						again at the end of the next plan.
+					</Notice>
+				</div>
+			{:else}
+				<!-- THE CANVAS IS THE PICTURE'S OWN SIZE, MOVED AND SCALED WITH ONE TRANSFORM -->
+				<div
+					class="absolute top-0 left-0 origin-top-left overflow-hidden rounded-sm border border-line shadow-[var(--elev-2)]"
+					style="width: {natural.w}px; height: {natural.h}px; transform: translate({panX}px, {panY}px) scale({zoom});"
+				>
+					<img
+						src={comparing ? (slot.after?.image ?? shown.image) : shown.image}
+						alt={`${slot.screen}, ${slot.mode} mode, ${slot.width} pixels wide, ${comparing ? 'latest' : shown.role === 'before' ? 'first' : 'latest'} capture`}
+						class="absolute inset-0 size-full max-w-none"
+						draggable="false"
+						onload={onImageLoad}
+						onerror={() => (failed[shown.id] = true)}
+					/>
+					{#if comparing && slot.before}
+						<!-- THE FIRST CAPTURE ON TOP, CUT AT THE DIVIDER. THE CUT IS A RUNTIME PERCENT -->
+						<img
+							src={slot.before.image}
+							alt={`${slot.screen}, first capture`}
+							class="absolute inset-0 size-full max-w-none"
+							draggable="false"
+							style="clip-path: inset(0 {(1 - split) * 100}% 0 0);"
+						/>
+					{/if}
+				</div>
+
+				{#if comparing}
+					<!-- THE COMPARE DIVIDER: LEFT OF IT IS THE FIRST CAPTURE, RIGHT OF IT THE LATEST. ITS PLACE FOLLOWS THE PICTURE -->
+					<div
+						class="pointer-events-none absolute inset-y-0 w-0"
+						style="left: {panX + split * natural.w * zoom}px;"
+					>
+						<div class="absolute inset-y-0 -left-px w-0.5 bg-accent"></div>
+						<button
+							type="button"
+							data-viewer-ui
+							aria-label="Move the compare divider"
+							class="pointer-events-auto absolute top-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize place-items-center rounded-full border-2 border-accent bg-surface text-accent-text shadow-[var(--elev-2)]"
+							onpointerdown={dragSplit}
+							onkeydown={(e) => {
+								if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+								// The divider uses the arrow keys itself, so the screen does not change with it
+								e.preventDefault();
+								e.stopPropagation();
+								split = clamp(split + (e.key === 'ArrowLeft' ? -0.02 : 0.02), 0, 1);
+							}}
+						>
+							<ChevronLeft size={16} aria-hidden="true" class="-mr-1.5" />
+							<ChevronRight size={16} aria-hidden="true" class="-ml-1.5" />
+						</button>
+						<span
+							class="absolute top-3 right-full mr-3 rounded-full bg-surface px-2.5 py-0.5 text-badge font-semibold whitespace-nowrap text-ink shadow-[var(--elev-1)]"
+							>First</span
+						>
+						<span
+							class="absolute top-3 left-full ml-3 rounded-full bg-surface px-2.5 py-0.5 text-badge font-semibold whitespace-nowrap text-ink shadow-[var(--elev-1)]"
+							>Latest</span
+						>
+					</div>
+				{/if}
+			{/if}
+
+			<!-- THE VIEWER TOOLBAR, FLOATING AT THE BOTTOM CENTRE -->
+			<div class="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-3">
+				<div
+					role="toolbar"
+					aria-label="Zoom"
+					data-viewer-ui
+					class="pointer-events-auto flex max-w-full [scrollbar-width:none]! items-center gap-1 overflow-x-auto overflow-y-hidden rounded-xl border border-line bg-surface p-1 shadow-[var(--elev-2)] [&::-webkit-scrollbar]:hidden"
+				>
+					<Button variant="subtle" iconOnly aria-label="Zoom out" onclick={() => zoomCentre(0.8)}>
+						<ZoomOut size={18} aria-hidden="true" />
+					</Button>
+					<span
+						class="min-w-14 shrink-0 text-center text-sm font-medium [font-variant-numeric:tabular-nums]"
+						>{percent}%</span
+					>
+					<Button variant="subtle" iconOnly aria-label="Zoom in" onclick={() => zoomCentre(1.25)}>
+						<ZoomIn size={18} aria-hidden="true" />
+					</Button>
+					<span class="mx-1 h-6 w-px shrink-0 bg-line max-sm:hidden" aria-hidden="true"></span>
+					<Button variant="subtle" class="max-sm:min-w-11 max-sm:px-0" onclick={fit}>
+						<Maximize size={16} aria-hidden="true" />
+						<span class="max-sm:sr-only">Fit</span>
+					</Button>
+					<Button variant="subtle" class="max-sm:min-w-11 max-sm:px-0" onclick={actualSize}
+						>100%</Button
+					>
+					{#if both}
+						<span class="mx-1 h-6 w-px shrink-0 bg-line max-sm:hidden" aria-hidden="true"></span>
+						<Button
+							variant="subtle"
+							aria-pressed={compare}
+							class="aria-pressed:bg-accent-soft aria-pressed:text-accent-text max-sm:min-w-11 max-sm:px-0"
+							onclick={() => (compare = !compare)}
+						>
+							<Columns2 size={16} aria-hidden="true" />
+							<span class="max-sm:sr-only">Compare</span>
+						</Button>
+					{/if}
+					<Button
+						variant="subtle"
+						aria-pressed={info}
+						class="aria-pressed:bg-accent-soft aria-pressed:text-accent-text max-sm:min-w-11 max-sm:px-0"
+						onclick={toggleInfo}
+					>
+						<PanelRight size={16} aria-hidden="true" />
+						<span class="max-sm:sr-only">Details</span>
+					</Button>
+				</div>
+			</div>
+
+			<!-- A QUIET HINT, GONE AFTER THE FIRST MOVE -->
+			<p
+				class={cn(
+					'pointer-events-none absolute top-3 left-3 rounded-full bg-surface px-3 py-1 text-xs text-muted shadow-[var(--elev-1)] transition-opacity duration-300 motion-reduce:transition-none max-sm:hidden',
+					hint ? 'opacity-100' : 'opacity-0'
+				)}
+			>
+				Scroll to zoom, drag to pan, double-click to fit
+			</p>
+		</div>
+
+		<!-- THE DETAILS: A SIDE PANEL FROM lg UP, A SHEET OVER THE BOTTOM OF THE VIEWER BELOW IT. THE TEXT WAS WRITTEN BY SOMEONE ELSE, SO IT IS PLAIN TEXT ONLY -->
+		{#if info}
+			<aside
+				aria-label="Details"
+				class="flex min-w-0 flex-col gap-4 overflow-auto border-line bg-surface p-5 max-lg:absolute max-lg:inset-x-0 max-lg:bottom-0 max-lg:max-h-[60%] max-lg:border-t max-lg:p-3.5 max-lg:pb-20 max-lg:shadow-[var(--shadow-pop)] lg:w-80 lg:shrink-0 lg:border-l"
+			>
+				<section class="flex flex-col gap-1.5">
+					<h3 class="text-base font-semibold">What it shows</h3>
+					<p class="text-sm [overflow-wrap:anywhere] whitespace-pre-wrap text-ink">
+						{shown.caption || 'No caption was written for this picture.'}
+					</p>
+				</section>
+				{#if shown.note}
+					<section class="flex flex-col gap-1.5">
+						<h3 class="text-base font-semibold">Notes</h3>
+						<p class="text-sm [overflow-wrap:anywhere] whitespace-pre-wrap text-muted">
+							{shown.note}
+						</p>
+					</section>
+				{/if}
+				<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 border-t border-line pt-4 text-sm">
+					<dt class="text-muted">Mode</dt>
+					<dd>{slot.mode === 'dark' ? 'Dark' : 'Light'}</dd>
+					<dt class="text-muted">Width</dt>
+					<dd class="[font-variant-numeric:tabular-nums]">{slot.width} px</dd>
+					<dt class="text-muted">Capture</dt>
+					<dd>
+						{comparing
+							? 'First and latest'
+							: shown.role === 'before'
+								? 'First capture'
+								: 'Latest capture'}
+					</dd>
+					<dt class="text-muted">Captured</dt>
+					<dd>{ago(shown.createdAt)}</dd>
+				</dl>
+				<p class="border-t border-line pt-4 text-xs text-muted">
+					Keys: arrows for previous and next, plus and minus to zoom, 0 to fit, 1 for actual size,
+					Shift and arrows to pan.
+				</p>
+			</aside>
+		{/if}
+	{/if}
+
+	{#snippet footer()}
+		<div class="flex w-full flex-wrap items-center gap-2">
+			<div class="flex items-center gap-2">
+				<Button
+					iconOnly
+					aria-label="Previous screen"
+					disabled={index <= 0}
+					onclick={() => step(-1)}
+				>
+					<ChevronLeft size={16} aria-hidden="true" />
+				</Button>
+				<span class="min-w-14 text-center text-sm text-muted [font-variant-numeric:tabular-nums]"
+					>{index + 1} of {slots.length}</span
+				>
+				<Button
+					iconOnly
+					aria-label="Next screen"
+					disabled={index < 0 || index >= slots.length - 1}
+					onclick={() => step(1)}
+				>
+					<ChevronRight size={16} aria-hidden="true" />
+				</Button>
+			</div>
+			<div
+				class="ml-auto flex flex-wrap items-center justify-end gap-2 max-sm:ml-0 max-sm:w-full max-sm:justify-between"
+			>
+				{#if both && !comparing}
+					<SegmentedControl
+						label="Which capture"
+						value={role}
+						options={[
+							{ value: 'after', label: 'Latest' },
+							{ value: 'before', label: 'First' }
+						]}
+						onchange={(v) => (role = v === 'before' ? 'before' : 'after')}
+					/>
+				{/if}
+				{#if env.canWrite}
+					<Button variant="ghost" tone="danger" onclick={removeShot} data-testid="remove-screen">
+						<Trash2 size={16} aria-hidden="true" /> Remove
+					</Button>
+				{/if}
+				<Button variant="primary" onclick={close}>Close</Button>
+			</div>
+		</div>
+	{/snippet}
+</ResponsiveModal>

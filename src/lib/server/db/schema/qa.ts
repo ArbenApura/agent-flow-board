@@ -20,7 +20,7 @@ import {
 // IMPORTED MODULES
 import { orgId, projectId } from './core';
 import { item, task } from './items';
-import { screen, screenAnnotation } from './screens';
+import { screen } from './screens';
 import { id, oneOf, stamps, tenantTable, version } from './helpers';
 
 // -- CONSTANTS -- //
@@ -202,9 +202,6 @@ export const qaResult = tenantTable(
 		dataEntered: jsonb('data_entered').$type<QaEntered[]>().notNull().default([]),
 		commit: text('commit').notNull().default(''),
 		screenId: uuid('screen_id').references(() => screen.id, { onDelete: 'set null' }),
-		annotationId: uuid('annotation_id').references(() => screenAnnotation.id, {
-			onDelete: 'set null'
-		}),
 		taskId: uuid('task_id').references(() => task.id, { onDelete: 'set null' }),
 		sessionId: text('session_id'),
 		redactedAt: timestamp('redacted_at', { withTimezone: true }),

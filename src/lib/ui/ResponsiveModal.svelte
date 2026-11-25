@@ -20,7 +20,9 @@
 		busy = false,
 		dismissOnBackdrop = true,
 		size = 'md',
-		variant = 'dialog'
+		variant = 'dialog',
+		heading,
+		flush = false
 	}: {
 		/** Always mounted with this flag, never inside an {#if}, so the out transition plays. */
 		open: boolean;
@@ -32,9 +34,13 @@
 		busy?: boolean;
 		/** False makes a click on the dim background do nothing, so a running download is not lost by a stray click. The close button and Escape still ask to close. */
 		dismissOnBackdrop?: boolean;
-		size?: 'sm' | 'md' | 'lg';
+		size?: 'sm' | 'md' | 'lg' | 'full';
 		/** A drawer slides in from the right on a wide screen, so a record can be read next to the page it came from. */
 		variant?: 'dialog' | 'drawer' | 'top';
+		/** A header with more than text (badges beside the name). It replaces the plain title in the heading, which still labels the dialog, so its text is the dialog's name. */
+		heading?: Snippet;
+		/** The body has no padding and does not scroll by itself: a viewer inside it fills the room and scrolls its own content. */
+		flush?: boolean;
 	} = $props();
 
 	// -- CONSTANTS -- //
@@ -42,7 +48,14 @@
 	const uid = $props.id();
 	const titleId = `${uid}-title`;
 	const OUT_MS = 150;
-	const WIDTHS = { sm: 'sm:max-w-[400px]', md: 'sm:max-w-[480px]', lg: 'sm:max-w-[640px]' };
+	// The full size is a near full screen dialog (a screenshot viewer): 94 percent of the height, up to 1760 px wide
+	const WIDTHS = {
+		sm: 'sm:max-w-[400px]',
+		md: 'sm:max-w-[480px]',
+		lg: 'sm:max-w-[640px]',
+		// From sm up the wrapper keeps 1 rem around the dialog, so the height never passes the screen on a short window
+		full: 'h-[94dvh] sm:h-[calc(100dvh-2rem)] sm:max-w-[1760px]'
+	};
 
 	// -- STATES -- //
 
@@ -114,7 +127,8 @@
 				use:focusTrap
 				onkeydown={onKey}
 				class={cn(
-					'pointer-events-auto flex max-h-[90vh] w-full flex-col overflow-hidden border border-line bg-surface text-ink shadow-[var(--shadow-pop)] transition-[opacity,translate,scale] duration-150 motion-reduce:transition-none',
+					'pointer-events-auto flex w-full flex-col overflow-hidden border border-line bg-surface text-ink shadow-[var(--shadow-pop)] transition-[opacity,translate,scale] duration-150 motion-reduce:transition-none',
+					size === 'full' ? 'max-h-[94dvh]' : 'max-h-[90vh]',
 					variant === 'drawer'
 						? 'rounded-t-xl sm:h-full sm:max-h-none sm:max-w-[560px] sm:rounded-none sm:border-y-0 sm:border-r-0'
 						: cn('rounded-t-xl sm:rounded-xl', WIDTHS[size]),
@@ -128,8 +142,8 @@
 				)}
 			>
 				<div class="flex items-center gap-2 border-b border-line px-5 py-3">
-					<h2 id={titleId} class="flex-1 text-lg font-semibold">
-						{title}
+					<h2 id={titleId} class="min-w-0 flex-1 text-lg font-semibold">
+						{#if heading}{@render heading()}{:else}{title}{/if}
 					</h2>
 					<button
 						type="button"
@@ -141,7 +155,12 @@
 						<X size={20} />
 					</button>
 				</div>
-				<div class="min-h-0 flex-1 overflow-auto p-5 text-sm">
+				<div
+					class={cn(
+						'min-h-0 flex-1 text-sm',
+						flush ? 'relative flex overflow-hidden' : 'overflow-auto p-5'
+					)}
+				>
 					{@render children()}
 				</div>
 				{#if footer}

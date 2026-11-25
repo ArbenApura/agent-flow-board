@@ -1,4 +1,4 @@
-// THE SCREEN MCP TOOLS THROUGH A REAL CLIENT (AFB-20261124-0926): ADD, LIST, ANNOTATE AND REMOVE, WITH THEIR LIMITS
+// THE SCREEN MCP TOOLS THROUGH A REAL CLIENT (AFB-20261124-0926): ADD, LIST AND REMOVE, WITH THEIR LIMITS
 
 // IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -50,11 +50,12 @@ describe('screen tools', () => {
 
 	it('lists the screen tools next to the others', async () => {
 		const names = (await member.listTools()).tools.map((t) => t.name);
-		for (const n of ['screen_add', 'screen_list', 'screen_annotate', 'screen_remove'])
-			expect(names).toContain(n);
+		for (const n of ['screen_add', 'screen_list', 'screen_remove']) expect(names).toContain(n);
+		// Annotations were removed: no tool for them
+		expect(names).not.toContain('screen_annotate');
 	});
 
-	it('adds a screenshot, keeps the first as before, annotates it and removes it', async () => {
+	it('adds a screenshot, keeps the first as before and removes it', async () => {
 		const first = await call(member, 'screen_add', {
 			sessionId,
 			item: ref,
@@ -74,27 +75,44 @@ describe('screen tools', () => {
 			pngBase64: b64(2)
 		});
 		expect(second.screen.role).toBe('after');
-		const pin = await call(member, 'screen_annotate', {
-			sessionId,
-			screen: second.screen.id,
-			kind: 'pin',
-			x: 0.5,
-			y: 0.4,
-			body: 'The title and the button share a baseline'
-		});
-		expect(pin.annotation).toMatchObject({ kind: 'pin', untrusted: true });
-		const done = await call(member, 'screen_annotate', {
-			sessionId,
-			annotation: pin.annotation.id,
-			resolved: true
-		});
-		expect(done.annotation.resolved).toBe(true);
 		const listed = await call(member, 'screen_list', { sessionId, item: ref });
 		expect(listed.screens).toHaveLength(2);
 		// Nothing a reader gets carries a storage key
 		expect(JSON.stringify(listed)).not.toMatch(/storage|screens\//);
 		const gone = await call(member, 'screen_remove', { sessionId, screen: first.screen.id });
 		expect(gone.removed).toBe(true);
+	});
+
+	it('says it when a plan in review with a design brief has no screens, at work_stop and in board_validate', async () => {
+		const visible = (
+			await createItem(w.ctx('member'), {
+				project: w.projectKey,
+				title: 'Visible tools plan',
+				sections: [{ slug: 'design-brief', title: 'Design brief', body: 'A screen changes.' }]
+			})
+		).ref;
+		await call(member, 'work_start', { sessionId, item: visible });
+		// Not in review yet: nothing is said
+		const early = await call(member, 'work_stop', { sessionId });
+		expect(early.screensNotice).toBeUndefined();
+		await db.admin.exec(`update item set status = 'IN REVIEW' where ref = '${visible}'`);
+		const validated = await call(member, 'board_validate', { ids: [visible] });
+		expect(JSON.stringify(validated)).toContain('in-review-without-screens');
+		await call(member, 'work_start', { sessionId, item: visible });
+		const stopped = await call(member, 'work_stop', { sessionId });
+		expect(stopped.screensNotice).toContain(visible);
+		// A screen on the tab ends the notice
+		await call(member, 'screen_add', {
+			sessionId,
+			item: visible,
+			screen: 'visible-tools',
+			mode: 'light',
+			width: 1440,
+			pngBase64: b64(9)
+		});
+		await call(member, 'work_start', { sessionId, item: visible });
+		const quiet = await call(member, 'work_stop', { sessionId });
+		expect(quiet.screensNotice).toBeUndefined();
 	});
 
 	it('refuses a picture that is not a PNG, a name that is not a slug and a reader that tries to write', async () => {

@@ -14,6 +14,7 @@ import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields, checkVersion, type ItemRow } from './items';
 import { closeBlock, markPlanFinished } from './qa';
 import { findItem } from './resolve';
+import { screensMissing } from './screens';
 import { releaseClaimsOn, requireCloseConfirmation } from './tracking';
 
 // -- TYPES -- //
@@ -176,6 +177,14 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 						'COMPLETED_REFUSED',
 						`${open.n} counted ${open.n === 1 ? 'step is' : 'steps are'} still open. Close or waive ${open.n === 1 ? 'it' : 'them'} first.`,
 						{ reason: 'open-steps', openSteps: open.n }
+					);
+				// A plan that changes what a person sees cannot close with an empty Screens tab unless a screens-waiver names why
+				// (the owner's rule, 2026-11-25, AFB-20261125-0625). The agent adds the waiver section; it is never an override
+				if (await screensMissing(tx, it.id))
+					throw new OpError(
+						'COMPLETED_REFUSED',
+						"This plan changes what a person sees but its Screens tab is empty. Capture the finished screens first, or record a screens waiver that names why they can't be captured.",
+						{ reason: 'screens-missing' }
 					);
 				// A plan cannot close while a feature it touched broke since it started (the owner's rule, 2026-11-25)
 				const block = await closeBlock(tx, ctx, it.id, it.projectId);

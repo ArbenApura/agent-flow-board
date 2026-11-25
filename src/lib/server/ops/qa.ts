@@ -29,7 +29,6 @@ import {
 	qaResult,
 	qaSettings,
 	screen,
-	screenAnnotation,
 	step,
 	task
 } from '../db/schema';
@@ -1331,7 +1330,6 @@ export async function featureDetail(ctx: Ctx, raw: z.input<typeof qaFeatureDetai
 				createdAt: qaResult.createdAt,
 				id: qaResult.id,
 				screenId: qaResult.screenId,
-				annotationId: qaResult.annotationId,
 				runItemId: qaResult.runItemId
 			})
 			.from(qaResult)
@@ -1356,12 +1354,6 @@ export async function featureDetail(ctx: Ctx, raw: z.input<typeof qaFeatureDetai
 					.from(screen)
 					.where(inArray(screen.id, screenIds))
 			: [];
-		const notes = screenIds.length
-			? await tx
-					.select()
-					.from(screenAnnotation)
-					.where(inArray(screenAnnotation.screenId, screenIds))
-			: [];
 		const shotOf = new Map(shots.map((s) => [s.id, s]));
 		const cases: Record<
 			string,
@@ -1373,10 +1365,7 @@ export async function featureDetail(ctx: Ctx, raw: z.input<typeof qaFeatureDetai
 				mode: string;
 				role: string;
 				at: Date;
-				screen: {
-					image: string;
-					annotations: { kind: string; x: number; y: number; w: number | null; h: number | null }[];
-				} | null;
+				screen: { image: string } | null;
 			}
 		> = {};
 		for (const [k, r] of latest) {
@@ -1390,12 +1379,7 @@ export async function featureDetail(ctx: Ctx, raw: z.input<typeof qaFeatureDetai
 				role: r.role,
 				at: r.createdAt,
 				screen: shot
-					? {
-							image: `${screenImagePath(shot.id)}?v=${shot.checksum.slice(0, 12)}`,
-							annotations: notes
-								.filter((n) => n.screenId === shot.id)
-								.map((n) => ({ kind: n.kind, x: n.x, y: n.y, w: n.w, h: n.h }))
-						}
+					? { image: `${screenImagePath(shot.id)}?v=${shot.checksum.slice(0, 12)}` }
 					: null
 			};
 		}

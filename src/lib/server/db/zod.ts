@@ -5,6 +5,7 @@
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from 'drizzle-zod';
 import { z } from 'zod';
 // IMPORTED MODULES
+import { MOCKUP_FIDELITIES } from '../../board/mockups';
 import { NOTE_LIMITS, NOTE_PICTURE_TYPES } from '../../shared/notes';
 import { TAB_NAME } from '../../shared/tabName';
 import {
@@ -42,7 +43,6 @@ import {
 	qaResult,
 	qaRun,
 	screen,
-	screenAnnotation,
 	SETUP_KEYS,
 	SETUP_STATES,
 	section,
@@ -72,6 +72,8 @@ export const taskSelect = createSelectSchema(task);
 export const commentSelect = createSelectSchema(comment);
 export const attachmentSelect = createSelectSchema(attachment);
 export const sessionSelect = createSelectSchema(session);
+/** The fidelity tier of a mockup version, as the tool and API replies carry it. */
+export const mockupFidelitySchema = z.enum(MOCKUP_FIDELITIES);
 export const mockupSelect = createSelectSchema(mockup);
 export const mockupVersionSelect = createSelectSchema(mockupVersion);
 export const mockupPinSelect = createSelectSchema(mockupPin);
@@ -88,7 +90,6 @@ export const mockupKitSelect = createSelectSchema(mockupKit);
 export const mockupKitAssetSelect = createSelectSchema(mockupKitAsset);
 export const mockupPartSelect = createSelectSchema(mockupPart);
 export const screenSelect = createSelectSchema(screen);
-export const screenAnnotationSelect = createSelectSchema(screenAnnotation);
 
 // -- SCREENS (AFB-20261124-0926): THE ONE INPUT SCHEMA OF THE UI, /api/v1, MCP AND THE BRIDGE -- //
 
@@ -104,30 +105,6 @@ export const screenAddInput = createInsertSchema(screen, {
 })
 	.pick({ screenKey: true, mode: true, width: true, caption: true, note: true, phaseKey: true })
 	.extend({ item: z.string().min(1) });
-export const screenAnnotationInput = createInsertSchema(screenAnnotation, {
-	x: (s) => s.min(0).max(1),
-	y: (s) => s.min(0).max(1),
-	w: (s) => s.min(-1).max(1).nullish(),
-	h: (s) => s.min(-1).max(1).nullish(),
-	body: (s) => s.min(1).max(1000)
-})
-	.pick({ kind: true, x: true, y: true, w: true, h: true, body: true })
-	.extend({ screen: z.string().uuid() })
-	.superRefine((a, ctx) => {
-		const end = (v: number, d: number | null | undefined) => v + (d ?? 0);
-		if (a.kind === 'pin' && (a.w != null || a.h != null))
-			ctx.addIssue({ code: 'custom', message: 'A pin has no size.' });
-		if (a.kind !== 'pin' && (a.w == null || a.h == null))
-			ctx.addIssue({ code: 'custom', message: 'A box or an arrow needs a width and a height.' });
-		if (a.kind === 'box' && ((a.w ?? 0) <= 0 || (a.h ?? 0) <= 0))
-			ctx.addIssue({ code: 'custom', message: 'A box has a positive width and height.' });
-		if (a.kind !== 'pin') {
-			const ex = end(a.x, a.w);
-			const ey = end(a.y, a.h);
-			if (ex < 0 || ex > 1 || ey < 0 || ey > 1)
-				ctx.addIssue({ code: 'custom', message: 'The shape must stay inside the picture.' });
-		}
-	});
 // -- QA MAP (AFB-20261125-0442): THE ONE INPUT SCHEMA OF THE UI, /api/v1 AND MCP -- //
 
 /** A stable slug for a feature, journey, step or case. */
@@ -304,8 +281,7 @@ export const qaResultRow = createInsertSchema(qaResult, {
 		feature: qaKey,
 		/** The page the case ran on, part of the bug's cause. */
 		page: z.string().max(300).optional(),
-		screen: z.string().uuid().optional(),
-		annotation: z.string().uuid().optional()
+		screen: z.string().uuid().optional()
 	});
 export const qaResultInput = z.object({
 	run: z.string().min(1),

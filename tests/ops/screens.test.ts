@@ -1,4 +1,5 @@
-// SCREENS (AFB-20261124-0926): WHO MAY DO WHAT, FIRST AND LATEST, THE PICTURE CHECKS, PRIVACY OF A PLAN, ANNOTATIONS AND THE ORG PURGE
+// SCREENS (AFB-20261124-0926): WHO MAY DO WHAT, FIRST AND LATEST, THE PICTURE CHECKS, PRIVACY OF A PLAN AND THE ORG PURGE
+// Annotations were removed in AFB-20261125-0625, and a plan with a visible change now needs its screens or a waiver to close.
 
 // IMPORTED DEP-MODULES
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -9,18 +10,15 @@ import { adminFromExecutor } from '../../src/lib/server/backup/admin';
 import { dueOrgPurges, purgeOrg } from '../../src/lib/server/orgs/purge';
 import { purgeTrash } from '../../src/lib/server/ops/history';
 import { createItem, trashItem, updateItem } from '../../src/lib/server/ops/items';
+import { setStatus } from '../../src/lib/server/ops/status';
 import {
-	MAX_ANNOTATIONS_PER_SCREEN,
 	MAX_SCREEN_BYTES,
 	MAX_SCREENS_PER_ITEM,
 	addScreen,
-	addScreenAnnotation,
 	countScreens,
 	listScreens,
 	readScreenImage,
-	removeScreen,
-	removeScreenAnnotation,
-	setScreenAnnotationResolved
+	removeScreen
 } from '../../src/lib/server/ops/screens';
 import { makePostgres, type TestDb } from '../support/db';
 import { makeWorld, PLAN, type World } from '../support/ops';
@@ -62,7 +60,7 @@ describe('screens', () => {
 	}, 120_000);
 	afterAll(() => db?.stop());
 
-	it('writers add and annotate, viewers and guests only look or see nothing', async () => {
+	it('writers add, viewers and guests only look or see nothing', async () => {
 		const p = await plan('Screens role plan');
 		await expect(addScreen(as('viewer'), { item: p.ref, ...base() }, png(1))).rejects.toMatchObject(
 			{
@@ -74,21 +72,10 @@ describe('screens', () => {
 		});
 		const made = await addScreen(as('member'), { item: p.ref, ...base() }, png(1));
 		expect(made.screen.role).toBe('before');
-		const note = {
-			screen: made.screen.id,
-			kind: 'pin' as const,
-			x: 0.5,
-			y: 0.25,
-			body: 'Check the title'
-		};
-		await expect(addScreenAnnotation(as('viewer'), note)).rejects.toMatchObject({
-			code: 'FORBIDDEN'
-		});
-		const added = await addScreenAnnotation(as('member'), note);
-		expect(added.annotation).toMatchObject({ kind: 'pin', w: null, h: null, untrusted: true });
-		// A viewer can read
+		// A viewer can read, and the answer carries no annotations any more
 		const read = await listScreens(as('viewer'), p.ref);
-		expect(read.screens[0].annotations).toHaveLength(1);
+		expect(read.screens).toHaveLength(1);
+		expect(read.screens[0]).not.toHaveProperty('annotations');
 		expect(await countScreens(as('viewer'), p.ref)).toBe(1);
 	});
 
@@ -158,15 +145,9 @@ describe('screens', () => {
 		await updateItem(as('member'), { item: p.ref, visibility: 'private' });
 		await expect(listScreens(as('admin'), p.ref)).rejects.toMatchObject({ code: 'NOT_FOUND' });
 		await expect(countScreens(as('owner'), p.ref)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-		await expect(
-			addScreenAnnotation(as('admin'), {
-				screen: made.screen.id,
-				kind: 'pin',
-				x: 0.1,
-				y: 0.1,
-				body: 'x'
-			})
-		).rejects.toMatchObject({ code: 'NOT_FOUND' });
+		await expect(removeScreen(as('admin'), made.screen.id)).rejects.toMatchObject({
+			code: 'NOT_FOUND'
+		});
 		expect(await readScreenImage(db, storage, w.people.admin, made.screen.id)).toBeNull();
 		expect((await listScreens(as('member'), p.ref)).screens).toHaveLength(1);
 		// The picture itself reaches only a person who may see the plan, and never another org
@@ -174,71 +155,9 @@ describe('screens', () => {
 		expect(await readScreenImage(db, storage, w.other.userId, made.screen.id)).toBeNull();
 	});
 
-	it('validates annotations: coordinates inside the picture, shapes with sizes, a text and a cap', async () => {
-		const p = await plan('Annotation checks plan');
-		const { screen: s } = await addScreen(as('member'), { item: p.ref, ...base() }, png(40));
-		const add = (over: Record<string, unknown>) =>
-			addScreenAnnotation(heavy('member', '00000000-0000-4000-8000-0000000000a2'), {
-				screen: s.id,
-				kind: 'pin',
-				x: 0.2,
-				y: 0.2,
-				body: 'Look here',
-				...over
-			} as never);
-		await expect(add({ x: 1.2 })).rejects.toThrow();
-		await expect(add({ y: -0.1 })).rejects.toThrow();
-		await expect(add({ w: 0.1, h: 0.1 })).rejects.toThrow();
-		await expect(add({ kind: 'box' })).rejects.toThrow();
-		await expect(add({ kind: 'box', w: 0.9, h: 0.1 })).rejects.toThrow();
-		await expect(add({ kind: 'box', w: -0.1, h: 0.1 })).rejects.toThrow();
-		await expect(add({ kind: 'arrow', x: 0.9, w: 0.5, h: 0 })).rejects.toThrow();
-		await expect(add({ body: '' })).rejects.toThrow();
-		await expect(add({ body: 'x'.repeat(1001) })).rejects.toThrow();
-		await expect(add({ body: ' \u0007 ' })).rejects.toMatchObject({ code: 'INVALID' });
-		const box = await add({ kind: 'box', x: 0.1, y: 0.1, w: 0.3, h: 0.2 });
-		expect(box.annotation).toMatchObject({ kind: 'box', w: 0.3, h: 0.2 });
-		const arrow = await add({ kind: 'arrow', x: 0.8, y: 0.8, w: -0.3, h: -0.2 });
-		expect(arrow.annotation.kind).toBe('arrow');
-		for (let i = 2; i < MAX_ANNOTATIONS_PER_SCREEN; i++) await add({ body: `Note ${i}` });
-		await expect(add({})).rejects.toMatchObject({ code: 'CONFLICT' });
-	}, 120_000);
-
-	it('lets writers resolve and reopen a note, and only its author or an admin remove it', async () => {
-		const p = await plan('Resolve plan');
-		const { screen: s } = await addScreen(as('member'), { item: p.ref, ...base() }, png(50));
-		const { annotation: n } = await addScreenAnnotation(as('member'), {
-			screen: s.id,
-			kind: 'pin',
-			x: 0.4,
-			y: 0.4,
-			body: 'Check'
-		});
-		await expect(setScreenAnnotationResolved(as('viewer'), n.id, true)).rejects.toMatchObject({
-			code: 'FORBIDDEN'
-		});
-		const done = await setScreenAnnotationResolved(as('admin'), n.id, true);
-		expect(done.annotation.resolved).toBe(true);
-		expect((await setScreenAnnotationResolved(as('admin'), n.id, false)).annotation.resolved).toBe(
-			false
-		);
-		await expect(removeScreenAnnotation(as('viewer'), n.id)).rejects.toMatchObject({
-			code: 'FORBIDDEN'
-		});
-		await removeScreenAnnotation(as('admin'), n.id);
-		expect((await listScreens(as('member'), p.ref)).screens[0].annotations).toHaveLength(0);
-	});
-
-	it('removes a screenshot with its notes and its file, and refuses someone who did not add it', async () => {
+	it('removes a screenshot with its file, and refuses someone who did not add it', async () => {
 		const p = await plan('Remove plan');
 		const { screen: s } = await addScreen(as('member'), { item: p.ref, ...base() }, png(60));
-		await addScreenAnnotation(as('member'), {
-			screen: s.id,
-			kind: 'pin',
-			x: 0.3,
-			y: 0.3,
-			body: 'Check'
-		});
 		const [row] = await db.admin.query<{ k: string }>(
 			`select storage_key as k from screen where id = '${s.id}'`
 		);
@@ -247,27 +166,14 @@ describe('screens', () => {
 		await removeScreen(as('admin'), s.id);
 		expect(storage.files.has(row.k)).toBe(false);
 		expect((await listScreens(as('member'), p.ref)).screens).toHaveLength(0);
-		const notes = await db.admin.query<{ n: string }>(
-			`select count(*)::text as n from screen_annotation where screen_id = '${s.id}'`
-		);
-		expect(notes[0].n).toBe('0');
 	});
 
-	it('promotes the latest picture when the first is removed, and clears the notes of a replaced latest', async () => {
+	it('promotes the latest picture when the first is removed', async () => {
 		const p = await plan('Promote plan');
 		const first = await addScreen(as('member'), { item: p.ref, ...base('promote') }, png(80));
 		const second = await addScreen(as('member'), { item: p.ref, ...base('promote') }, png(81));
-		await addScreenAnnotation(as('member'), {
-			screen: second.screen.id,
-			kind: 'pin',
-			x: 0.5,
-			y: 0.5,
-			body: 'Old place'
-		});
-		// A later capture replaces the latest and the notes that pointed at the old picture go with it
+		// A later capture replaces the latest
 		await addScreen(as('member'), { item: p.ref, ...base('promote') }, png(82));
-		const after = await listScreens(as('member'), p.ref);
-		expect(after.screens.find((s) => s.role === 'after')?.annotations).toHaveLength(0);
 		// Removing the first picture makes the latest the first, so the next capture is a latest again
 		await removeScreen(as('admin'), first.screen.id);
 		const left = await listScreens(as('member'), p.ref);
@@ -277,6 +183,81 @@ describe('screens', () => {
 		// The picture address changes with the picture, so a page never shows the old one from its cache
 		expect(next.screen.image).not.toBe(second.screen.image);
 		expect(next.screen.image).toMatch(/^\/pictures\/screen\/[0-9a-f-]+\?v=[0-9a-f]{12}$/);
+	});
+
+	it('refuses to close a plan with a design brief and no screens, until a screen or a waiver exists', async () => {
+		// A plan with no counted steps, so only the screens rule can refuse it
+		const p = await createItem(as('member'), {
+			project: w.projectKey,
+			title: 'Visible plan',
+			sections: [{ slug: 'design-brief', title: 'Design brief', body: 'A screen changes.' }]
+		});
+		await expect(
+			setStatus(as('owner'), { item: p.ref, status: 'COMPLETED', note: 'Done at the board' })
+		).rejects.toMatchObject({ code: 'COMPLETED_REFUSED', details: { reason: 'screens-missing' } });
+		// A picture on the Screens tab lets it close
+		await addScreen(as('member'), { item: p.ref, ...base('visible') }, png(95));
+		const closed = await setStatus(as('owner'), {
+			item: p.ref,
+			status: 'COMPLETED',
+			note: 'Done at the board'
+		});
+		expect(closed.item.status).toBe('COMPLETED');
+		// A waiver also lets a plan with no pictures close
+		const q = await createItem(as('member'), {
+			project: w.projectKey,
+			title: 'Waived plan',
+			sections: [
+				{ slug: 'design-brief', title: 'Design brief', body: 'A screen changes.' },
+				{ slug: 'screens-waiver', title: 'Screens waiver', body: 'No integrated browser.' }
+			]
+		});
+		const waived = await setStatus(as('owner'), {
+			item: q.ref,
+			status: 'COMPLETED',
+			note: 'Done at the board'
+		});
+		expect(waived.item.status).toBe('COMPLETED');
+		// A waiver with no reason written does not count, and an owner override does not skip the rule
+		const e = await createItem(as('member'), {
+			project: w.projectKey,
+			title: 'Empty waiver plan',
+			sections: [
+				{ slug: 'design-brief', title: 'Design brief', body: 'A screen changes.' },
+				{ slug: 'screens-waiver', title: 'Screens waiver', body: '  ' }
+			]
+		});
+		await expect(
+			setStatus(as('owner'), {
+				item: e.ref,
+				status: 'COMPLETED',
+				note: 'Done at the board',
+				override: { reason: 'owner says so' }
+			})
+		).rejects.toMatchObject({ code: 'COMPLETED_REFUSED', details: { reason: 'screens-missing' } });
+		// A plan made before the rule existed is not held to it
+		const old = await createItem(as('member'), {
+			project: w.projectKey,
+			title: 'Old visible plan',
+			sections: [{ slug: 'design-brief', title: 'Design brief', body: 'A screen changes.' }]
+		});
+		await db.admin.exec(
+			`update item set created_at = '2026-11-20T00:00:00Z' where id = '${old.id}'`
+		);
+		const oldClosed = await setStatus(as('owner'), {
+			item: old.ref,
+			status: 'COMPLETED',
+			note: 'Done at the board'
+		});
+		expect(oldClosed.item.status).toBe('COMPLETED');
+		// A plan with no design brief is not asked for screens
+		const r = await createItem(as('member'), { project: w.projectKey, title: 'Server only plan' });
+		const plain = await setStatus(as('owner'), {
+			item: r.ref,
+			status: 'COMPLETED',
+			note: 'Done at the board'
+		});
+		expect(plain.item.status).toBe('COMPLETED');
 	});
 
 	it('deletes the picture files when a plan leaves the trash for good', async () => {
@@ -305,13 +286,6 @@ describe('screens', () => {
 			{ item: p.ref, ...base('backup') },
 			png(70)
 		);
-		await addScreenAnnotation(as('member'), {
-			screen: s.id,
-			kind: 'pin',
-			x: 0.5,
-			y: 0.5,
-			body: 'Check'
-		});
 		const [row] = await db.admin.query<{ k: string }>(
 			`select storage_key as k from screen where id = '${s.id}'`
 		);
@@ -320,9 +294,9 @@ describe('screens', () => {
 		const tables = frames.flatMap((f) =>
 			f.type === 'table' ? [f.json as { table: string; rows: { id?: string }[] }] : []
 		);
-		// The rows of both tables are in the dump
+		// The rows of the screen table are in the dump, and the annotation table no longer exists
 		expect(tables.find((t) => t.table === 'screen')?.rows.some((r) => r.id === s.id)).toBe(true);
-		expect(tables.find((t) => t.table === 'screen_annotation')?.rows.length).toBeGreaterThan(0);
+		expect(tables.some((t) => t.table === 'screen_annotation')).toBe(false);
 		// No picture file is written to the archive (ADR 5 of AFB-20261124-0926)
 		const keys = frames.flatMap((f) =>
 			f.type === 'file' ? [(f.json as { key: string }).key] : []

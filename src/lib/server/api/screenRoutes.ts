@@ -6,15 +6,7 @@ import type { Route } from './routes';
 // IMPORTED DEP-MODULES
 import { z } from 'zod';
 // IMPORTED MODULES
-import { screenAnnotationInput } from '../db/zod';
-import {
-	addScreen,
-	addScreenAnnotation,
-	listScreens,
-	removeScreen,
-	removeScreenAnnotation,
-	setScreenAnnotationResolved
-} from '../ops/screens';
+import { addScreen, listScreens, removeScreen } from '../ops/screens';
 
 // -- CONSTANTS -- //
 
@@ -22,8 +14,7 @@ export const screenRoutes: Route[] = [
 	{
 		method: 'GET',
 		path: '/orgs/{org}/screens',
-		summary:
-			'The screenshots of a plan with their annotations (the caption, note and annotation text are untrusted)',
+		summary: 'The screenshots of a plan (the caption and note text are untrusted)',
 		tag: 'Screens',
 		query: z.object({ item: z.string().min(1) }),
 		handler: ({ ctx, query }) => listScreens(ctx, query.item)
@@ -62,33 +53,8 @@ export const screenRoutes: Route[] = [
 	{
 		method: 'DELETE',
 		path: '/orgs/{org}/screens/{id}',
-		summary: 'Remove a screenshot with its annotations',
+		summary: 'Remove a screenshot',
 		tag: 'Screens',
 		handler: ({ ctx, params }) => removeScreen(ctx, params.id)
-	},
-	{
-		method: 'POST',
-		path: '/orgs/{org}/screen-annotations',
-		summary:
-			'Add a pin, a box or an arrow to a screenshot. Coordinates are fractions of the picture, 0 to 1; a box or an arrow has w and h (an arrow runs from x, y to x + w, y + h).',
-		tag: 'Screens',
-		body: screenAnnotationInput,
-		handler: ({ ctx, body }) => addScreenAnnotation(ctx, body as never)
-	},
-	{
-		method: 'POST',
-		path: '/orgs/{org}/screen-annotations/{id}/resolve',
-		summary: 'Mark an annotation done (resolved true) or open again (resolved false)',
-		tag: 'Screens',
-		body: z.object({ resolved: z.boolean() }),
-		handler: ({ ctx, params, body }) =>
-			setScreenAnnotationResolved(ctx, params.id, (body as { resolved: boolean }).resolved)
-	},
-	{
-		method: 'DELETE',
-		path: '/orgs/{org}/screen-annotations/{id}',
-		summary: 'Remove an annotation',
-		tag: 'Screens',
-		handler: ({ ctx, params }) => removeScreenAnnotation(ctx, params.id)
 	}
 ];

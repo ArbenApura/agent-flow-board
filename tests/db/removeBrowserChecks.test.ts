@@ -111,14 +111,13 @@ describe('migration 0053_remove_browser_checks', () => {
 			'qa_plan_feature',
 			'qa_bug'
 		];
-		for (const t of ['screen', 'screen_annotation', ...qaTables])
+		for (const t of ['screen', ...qaTables])
 			await owner.query(
 				`CREATE TABLE IF NOT EXISTS ${t} (id text PRIMARY KEY, org_id uuid, project_id uuid)`
 			);
 		await run(oldDir);
 		for (const t of [...qaTables].reverse()) await owner.query(`DROP TABLE ${t}`);
 		await owner.query(`DROP TABLE auth_method_setting`);
-		await owner.query(`DROP TABLE screen_annotation`);
 		await owner.query(`DROP TABLE screen`);
 		const org = '00000000-0000-4000-8000-000000000001';
 		const proj = '00000000-0000-4000-8000-000000000011';
@@ -148,7 +147,8 @@ describe('migration 0053_remove_browser_checks', () => {
 			'0054_master_child',
 			'0055_auth_method_setting',
 			'0056_screens',
-			'0057_qa_map'
+			'0057_qa_map',
+			'0058_screens_no_annotations'
 		]);
 
 		const tables = await admin.query<{ table_name: string }>(

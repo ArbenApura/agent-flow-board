@@ -1,7 +1,7 @@
-// SCREEN VERBS: THE SCREENSHOTS OF A PLAN'S FINISHED SCREENS AND THEIR ANNOTATIONS (AFB-20261124-0926)
+// SCREEN VERBS: THE SCREENSHOTS OF A PLAN'S FINISHED SCREENS (AFB-20261124-0926, ANNOTATIONS REMOVED IN AFB-20261125-0625)
 // One verb set behind the Screens tab, /api/v1, MCP and the bridge. The first capture of a screen, mode and width is kept as
-// the before picture and every later capture replaces the after picture. A caption, a note and an annotation are written by a
-// person or an agent, so they are returned marked untrusted and rendered as plain text.
+// the before picture and every later capture replaces the after picture. A caption and a note are written by a person or an
+// agent, so they are returned marked untrusted and rendered as plain text.
 
 // IMPORTED TYPES
 import type { z } from 'zod';
@@ -15,12 +15,11 @@ import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { SCREEN_KEY_PREFIX } from '../db/schema/screens';
 // IMPORTED MODULES
 import { appendEvent } from '../db/events';
-import { screen, screenAnnotation } from '../db/schema';
-import { screenAddInput, screenAnnotationInput } from '../db/zod';
+import { item, screen, section } from '../db/schema';
+import { screenAddInput } from '../db/zod';
 import { listMyOrgs } from '../orgs/orgs';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields } from './items';
-import { authorOf } from './mockups';
 import { findItem } from './resolve';
 
 // -- CONSTANTS -- //
@@ -31,7 +30,10 @@ export const MAX_SCREEN_BYTES = 10 * 1024 * 1024;
 /** The cap on the path with no shell, where the picture travels as base64 inside a tool call. */
 export const MAX_SCREEN_BASE64_BYTES = 3 * 1024 * 1024;
 export const MAX_SCREENS_PER_ITEM = 40;
-export const MAX_ANNOTATIONS_PER_SCREEN = 200;
+/** Plans created before this moment are not asked for screens (AFB-20261125-0625). */
+export const SCREENS_REQUIRED_FROM = new Date('2026-11-25T00:00:00Z');
+/** A screens-waiver names why in at least this many characters. */
+export const MIN_WAIVER_CHARS = 10;
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 // -- FUNCTIONS -- //
@@ -125,8 +127,6 @@ export async function addScreen(
 						.returning();
 				} else if (after) {
 					replacedKey = after.storageKey;
-					// The notes pointed at the old picture, so they go with it: the same place on the new one means something else
-					await tx.delete(screenAnnotation).where(eq(screenAnnotation.screenId, after.id));
 					[row] = await tx
 						.update(screen)
 						.set({ ...values, createdAt: new Date() })
@@ -166,7 +166,7 @@ export async function addScreen(
 	}
 }
 
-/** The screenshots of a plan with their annotations, grouped by the caller. Everything a person wrote is marked untrusted. */
+/** The screenshots of a plan. Everything a person wrote is marked untrusted. */
 export async function listScreens(ctx: Ctx, itemRef: string) {
 	return run(ctx, async (tx) => {
 		const it = await findItem(tx, ctx, itemRef);
@@ -176,25 +176,7 @@ export async function listScreens(ctx: Ctx, itemRef: string) {
 			.from(screen)
 			.where(eq(screen.itemId, it.id))
 			.orderBy(asc(screen.screenKey), asc(screen.mode), asc(screen.width), asc(screen.role));
-		const notes = rows.length
-			? await tx
-					.select()
-					.from(screenAnnotation)
-					.where(
-						inArray(
-							screenAnnotation.screenId,
-							rows.map((r) => r.id)
-						)
-					)
-					.orderBy(asc(screenAnnotation.createdAt))
-			: [];
-		return {
-			item: it.ref,
-			screens: rows.map((r) => ({
-				...shape(r),
-				annotations: notes.filter((n) => n.screenId === r.id).map(shapeAnnotation)
-			}))
-		};
+		return { item: it.ref, screens: rows.map(shape) };
 	});
 }
 
@@ -211,7 +193,34 @@ export async function countScreens(ctx: Ctx, itemRef: string) {
 	});
 }
 
-/** Removes one screenshot, its annotations (they cascade) and its file. The person who added it, and admins and owners, may do so. */
+/**
+ * True when a plan changes what a person sees (it has a design-brief), has no screenshot on its Screens tab and no
+ * screens-waiver section: the flow requires the finished screens to be shown (AFB-20261125-0625). The caller decides what to do.
+ */
+export async function screensMissing(tx: Tx, itemId: string): Promise<boolean> {
+	// Plans made before the rule existed were never told to capture screens, so they are not held to it
+	const [it] = await tx.select({ createdAt: item.createdAt }).from(item).where(eq(item.id, itemId));
+	if (!it || it.createdAt < SCREENS_REQUIRED_FROM) return false;
+	const rows = await tx
+		.select({ slug: section.slug, body: section.body })
+		.from(section)
+		.where(
+			and(eq(section.itemId, itemId), inArray(section.slug, ['design-brief', 'screens-waiver']))
+		);
+	const hasBrief = rows.some((s) => s.slug === 'design-brief');
+	// A waiver must say why: an empty section does not count
+	const waived = rows.some(
+		(s) => s.slug === 'screens-waiver' && s.body.trim().length >= MIN_WAIVER_CHARS
+	);
+	if (!hasBrief || waived) return false;
+	const [{ n }] = await tx
+		.select({ n: sql<number>`count(*)::int` })
+		.from(screen)
+		.where(eq(screen.itemId, itemId));
+	return n === 0;
+}
+
+/** Removes one screenshot and its file. The person who added it, and admins and owners, may do so. */
 export async function removeScreen(ctx: Ctx, screenId: string) {
 	const store = storage(ctx);
 	const done = await run(ctx, (tx) =>
@@ -255,124 +264,6 @@ export async function removeScreen(ctx: Ctx, screenId: string) {
 	);
 	await store.delete(done.storageKey).catch(() => undefined);
 	return { id: done.id, removed: true as const };
-}
-
-/** Adds a pin, a box or an arrow to a screenshot. Coordinates are fractions of the picture, 0 to 1. */
-export async function addScreenAnnotation(ctx: Ctx, raw: z.input<typeof screenAnnotationInput>) {
-	const input = screenAnnotationInput.parse(raw);
-	const body = plain(input.body);
-	if (!body) throw new OpError('INVALID', 'An annotation needs some text.');
-	return run(ctx, (tx) =>
-		idempotent(ctx, tx, async () => {
-			const found = await loadScreen(tx, ctx, input.screen, true);
-			const { role } = await requireCap(tx, ctx, 'write', found.row.projectId);
-			await rateLimit(tx, ctx, 'write');
-			const [{ n }] = await tx
-				.select({ n: sql<number>`count(*)::int` })
-				.from(screenAnnotation)
-				.where(eq(screenAnnotation.screenId, found.row.id));
-			if (n >= MAX_ANNOTATIONS_PER_SCREEN)
-				throw new OpError(
-					'CONFLICT',
-					'This screenshot already has the most annotations it can hold.'
-				);
-			const [row] = await tx
-				.insert(screenAnnotation)
-				.values({
-					orgId: ctx.orgId,
-					projectId: found.row.projectId,
-					screenId: found.row.id,
-					kind: input.kind,
-					x: input.x,
-					y: input.y,
-					w: input.kind === 'pin' ? null : (input.w ?? null),
-					h: input.kind === 'pin' ? null : (input.h ?? null),
-					body,
-					authorId: ctx.actor.userId,
-					author: await authorOf(tx, ctx),
-					untrusted: role === 'guest'
-				})
-				.returning();
-			await appendEvent(tx, {
-				orgId: ctx.orgId,
-				projectId: found.row.projectId,
-				itemId: found.row.itemId,
-				...actorFields(ctx),
-				verb: 'screen.annotate',
-				targetType: 'item',
-				targetId: found.row.itemId,
-				after: { screen: found.row.screenKey, kind: input.kind } as never,
-				undoable: false
-			});
-			return { annotation: shapeAnnotation(row) };
-		})
-	);
-}
-
-/** Marks an annotation done or open again. Anyone who can write may do it. The history event never carries the text. */
-export async function setScreenAnnotationResolved(
-	ctx: Ctx,
-	annotationId: string,
-	resolved: boolean
-) {
-	return run(ctx, (tx) =>
-		idempotent(ctx, tx, async () => {
-			const found = await loadAnnotation(tx, ctx, annotationId);
-			await requireCap(tx, ctx, 'write', found.row.projectId);
-			await rateLimit(tx, ctx, 'write');
-			if (Boolean(found.row.resolvedAt) === resolved)
-				return { annotation: shapeAnnotation(found.row) };
-			const [row] = await tx
-				.update(screenAnnotation)
-				.set(
-					resolved
-						? { resolvedAt: new Date(), resolvedBy: await authorOf(tx, ctx) }
-						: { resolvedAt: null, resolvedBy: null }
-				)
-				.where(eq(screenAnnotation.id, found.row.id))
-				.returning();
-			await appendEvent(tx, {
-				orgId: ctx.orgId,
-				projectId: found.row.projectId,
-				itemId: found.screen.itemId,
-				...actorFields(ctx),
-				verb: resolved ? 'screen.annotation-resolve' : 'screen.annotation-reopen',
-				targetType: 'item',
-				targetId: found.screen.itemId,
-				after: { screen: found.screen.screenKey } as never,
-				undoable: false
-			});
-			return { annotation: shapeAnnotation(row) };
-		})
-	);
-}
-
-/** Removes an annotation. The person who wrote it, and admins and owners, may do so. */
-export async function removeScreenAnnotation(ctx: Ctx, annotationId: string) {
-	return run(ctx, (tx) =>
-		idempotent(ctx, tx, async () => {
-			const found = await loadAnnotation(tx, ctx, annotationId);
-			const { role } = await requireCap(tx, ctx, 'write', found.row.projectId);
-			if (found.row.authorId !== ctx.actor.userId && role !== 'owner' && role !== 'admin')
-				throw new OpError(
-					'FORBIDDEN',
-					'Only the person who wrote this annotation, or an admin, can remove it.'
-				);
-			await tx.delete(screenAnnotation).where(eq(screenAnnotation.id, found.row.id));
-			await appendEvent(tx, {
-				orgId: ctx.orgId,
-				projectId: found.row.projectId,
-				itemId: found.screen.itemId,
-				...actorFields(ctx),
-				verb: 'screen.unannotate',
-				targetType: 'item',
-				targetId: found.screen.itemId,
-				before: { screen: found.screen.screenKey } as never,
-				undoable: false
-			});
-			return { id: found.row.id, removed: true as const };
-		})
-	);
 }
 
 /**
@@ -423,17 +314,6 @@ async function loadScreen(tx: Tx, ctx: Ctx, id: string, lock: boolean) {
 	return { row, item: it };
 }
 
-async function loadAnnotation(tx: Tx, ctx: Ctx, id: string) {
-	const [row] = await tx
-		.select()
-		.from(screenAnnotation)
-		.where(and(eq(screenAnnotation.id, id), eq(screenAnnotation.orgId, ctx.orgId)))
-		.for('update');
-	if (!row) throw new OpError('NOT_FOUND', 'No such annotation.');
-	const found = await loadScreen(tx, ctx, row.screenId, false);
-	return { row, screen: found.row };
-}
-
 function shape(r: typeof screen.$inferSelect) {
 	return {
 		id: r.id,
@@ -451,24 +331,5 @@ function shape(r: typeof screen.$inferSelect) {
 		untrusted: true as const,
 		caption: r.caption,
 		note: r.note
-	};
-}
-
-function shapeAnnotation(a: typeof screenAnnotation.$inferSelect) {
-	return {
-		id: a.id,
-		screenId: a.screenId,
-		kind: a.kind,
-		x: a.x,
-		y: a.y,
-		w: a.w,
-		h: a.h,
-		resolved: a.resolvedAt !== null,
-		resolvedAt: a.resolvedAt,
-		resolvedBy: a.resolvedBy,
-		author: a.author,
-		createdAt: a.createdAt,
-		untrusted: true as const,
-		body: a.body
 	};
 }

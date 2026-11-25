@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.23.0",
+		"version": "1.25.0",
 		"releasedAt": "2026-11-25"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.14.0",
+			"version": "1.16.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -174,11 +174,19 @@
 				{
 					"version": "1.14.0",
 					"hash": "fd6618def62a3af40386535037d13e3ee838e8861df59edc67d1c3e1a8a212f2"
+				},
+				{
+					"version": "1.15.0",
+					"hash": "c0ecc89cc8225154687ce52661b0e3d5fde82bf3d20f293cb7eab468b47e14c7"
+				},
+				{
+					"version": "1.16.0",
+					"hash": "fb395654a7a668d1edca105c89cb95d9795e2af31464d8f895962b3dc9afe912"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.3.6",
+			"version": "1.3.7",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -243,6 +251,10 @@
 				{
 					"version": "1.3.6",
 					"hash": "c8a8063450cfd9721d497e390802f27a79a92896186f13ab5f6ee3a8ccc9f7d6"
+				},
+				{
+					"version": "1.3.7",
+					"hash": "d40e67706dffa1ad670e0bd9f17c77b7ab8306a0ad0ae98cb801c1e718287926"
 				}
 			]
 		},
@@ -324,7 +336,7 @@
 			]
 		},
 		"flow-mockup": {
-			"version": "1.9.1",
+			"version": "1.10.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -401,6 +413,10 @@
 				{
 					"version": "1.9.1",
 					"hash": "b69b3524e9861c77cd92f4e518e7abf2cbf58fd125169ce3b2cff9cef5fd7b20"
+				},
+				{
+					"version": "1.10.0",
+					"hash": "ff6c014dc9f31b87c80727d430572124edc5317e666db9dd8169ceaa34ae113d"
 				}
 			]
 		},
@@ -509,7 +525,7 @@
 			]
 		},
 		"flow-critic-mockup": {
-			"version": "1.0.1",
+			"version": "1.1.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -518,6 +534,10 @@
 				{
 					"version": "1.0.1",
 					"hash": "a8685cf7d2c2339bf5ebd910eb1b293704450d4a854c2ca4d1c402c651fe6971"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "4ae670c00bd04c15dd8a89ea8586f4b406487d93d22fa9e91bea77ae0f89f046"
 				}
 			]
 		},
@@ -578,16 +598,68 @@
 			]
 		},
 		"flow-qa": {
-			"version": "1.0.0",
+			"version": "1.0.1",
 			"history": [
 				{
 					"version": "1.0.0",
 					"hash": "a524b784d80807fb12585979794e67ff9f5a254995783c758919a87a2694e34e"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "2807dd6bdf2f4cd8dc5e05a8bc4c9278c92ace5392f0385c6fa5ef71b8c12d94"
 				}
 			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.25.0",
+			"date": "2026-11-25",
+			"notes": [
+				"flow-mockup 1.10.0 (AFB-20261125-0703): a mockup now has a fidelity tier chosen from the user's words, declared as fidelity in its afb-config. wireframe is the default (grey boxes, no kit, no shell capture, no measuring), screenshot is a marked-up capture of an existing screen with numbered callouts, high is the strict full-fidelity build as before. An absent value means high. Two new starters: starter-wireframe.md and starter-screenshot.md.",
+				"flow 1.16.0 and flow-critic-mockup 1.1.0: a build binds a wireframe to its structure, order, text, states and interactions only and a screenshot to its numbered callouts only; the mockup critic judges each tier on its own terms. mockup_get and mockup_list carry each version's fidelity."
+			],
+			"skills": {
+				"flow": "1.16.0",
+				"flow-audit": "1.3.7",
+				"flow-interview": "1.2.7",
+				"flow-mockup": "1.10.0",
+				"flow-qa": "1.0.1",
+				"flow-task": "1.1.4",
+				"flow-align": "1.6.2",
+				"flow-commit": "1.0.1",
+				"flow-critic-code": "1.0.2",
+				"flow-critic-mockup": "1.1.0",
+				"flow-critic-plan": "1.0.2",
+				"flow-critic-screen": "1.0.1",
+				"flow-decide": "1.0.1",
+				"flow-update-skills": "1.0.1"
+			}
+		},
+		{
+			"version": "1.24.0",
+			"date": "2026-11-25",
+			"notes": [
+				"flow 1.15.0 (AFB-20261125-0625): showing the finished screens on the plan's Screens tab is required for every plan that changes anything a person sees. The design-brief ends with a Screens to capture line, the final message carries a Screens line, and the only way out is a screens-waiver section with a reason from a fixed list. flow-audit 1.3.7 reports SCREENS MISSING. The board refuses COMPLETED for such a plan, board_validate warns, and work_stop says it.",
+				"Screens have no annotations any more: the screen_annotate tool, the annotation routes and the table are gone; a picture carries a caption and a note instead (flow, flow-qa 1.0.1)."
+			],
+			"skills": {
+				"flow": "1.15.0",
+				"flow-audit": "1.3.7",
+				"flow-interview": "1.2.7",
+				"flow-mockup": "1.9.1",
+				"flow-qa": "1.0.1",
+				"flow-task": "1.1.4",
+				"flow-align": "1.6.2",
+				"flow-commit": "1.0.1",
+				"flow-critic-code": "1.0.2",
+				"flow-critic-mockup": "1.0.1",
+				"flow-critic-plan": "1.0.2",
+				"flow-critic-screen": "1.0.1",
+				"flow-decide": "1.0.1",
+				"flow-update-skills": "1.0.1"
+			}
+		},
 		{
 			"version": "1.23.0",
 			"date": "2026-11-25",

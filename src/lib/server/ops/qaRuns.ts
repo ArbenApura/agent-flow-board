@@ -20,7 +20,6 @@ import {
 	qaRun,
 	qaSettings,
 	screen,
-	screenAnnotation,
 	task
 } from '../db/schema';
 import { qaResultInput, qaRunStartInput } from '../db/zod';
@@ -349,19 +348,12 @@ export async function recordResults(ctx: Ctx, raw: z.input<typeof qaResultInput>
 					const feature = byKey.get(r.feature)!;
 					const observed = maskObserved(r.observed);
 					const dataEntered = maskEntered(r.dataEntered);
-					// A picture or a note on it must belong to this run, so a result never points at another plan's screenshot
-					if (r.screen || r.annotation) {
+					// A picture on it must belong to this run, so a result never points at another plan's screenshot
+					if (r.screen) {
 						const [own] = await tx
 							.select({ id: screen.id })
 							.from(screen)
-							.leftJoin(screenAnnotation, eq(screenAnnotation.screenId, screen.id))
-							.where(
-								and(
-									eq(screen.itemId, runItem.id),
-									r.screen ? eq(screen.id, r.screen) : undefined,
-									r.annotation ? eq(screenAnnotation.id, r.annotation) : undefined
-								)
-							)
+							.where(and(eq(screen.itemId, runItem.id), eq(screen.id, r.screen)))
 							.limit(1);
 						if (!own)
 							throw new OpError(
@@ -436,7 +428,6 @@ export async function recordResults(ctx: Ctx, raw: z.input<typeof qaResultInput>
 						dataEntered,
 						commit: runRow.commit,
 						screenId: r.screen ?? null,
-						annotationId: r.annotation ?? null,
 						taskId,
 						sessionId: c.actor.sessionId ?? null
 					});

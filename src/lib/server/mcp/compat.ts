@@ -16,6 +16,7 @@ import { OpError, run } from '../ops/context';
 import { createTask, listTasks, updateTask } from '../ops/docs';
 import { createItem, getItem } from '../ops/items';
 import { claimMockups } from '../ops/mockups';
+import { screensMissing } from '../ops/screens';
 import { listProjects } from '../ops/projects';
 import { recordSteps } from '../ops/steps';
 import { setStatus } from '../ops/status';
@@ -141,6 +142,10 @@ export function registerCompat({ tool }: ToolBuilder) {
 				for (const i of inReview)
 					if (!withLessons.has(i.id))
 						out.push({ ref: i.ref, warning: 'in-review-without-lessons' });
+				// A plan that changes what a person sees shows its finished screens before it is signed off (AFB-20261125-0625)
+				for (const i of inReview)
+					if (await run(ctx, (tx) => screensMissing(tx, i.id)))
+						out.push({ ref: i.ref, warning: 'in-review-without-screens' });
 			}
 			// A claim nobody has touched for a while keeps a Running badge on the item: say so, so the session can be released
 			if (rows.length) {
