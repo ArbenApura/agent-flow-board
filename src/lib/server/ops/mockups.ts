@@ -145,7 +145,8 @@ function warningsFor(bytes: Uint8Array, kit: LoadedKit | null): string[] {
 	const html = new TextDecoder().decode(bytes.subarray(0, LINT_BYTES));
 	const fidelity = readFidelity(html);
 	const warnings = [
-		...lintMockupHtml(html, kit?.facts),
+		// Only a high page is held to the project's kit palette and fonts: a wireframe has its own grey tokens, a screenshot its pin colours
+		...lintMockupHtml(html, fidelity === 'high' ? kit?.facts : undefined),
 		// A screenshot page is one picture with callouts: it has no screens or states for a hook to reach, but its pins still need data-ref
 		...lintMockupHooks(html).filter(
 			(w) => fidelity !== 'screenshot' || !/^The mockup has no data-(screen|state) hooks\./.test(w)

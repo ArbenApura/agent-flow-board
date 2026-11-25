@@ -10,7 +10,8 @@ Steps:
 2. Save each capture as JPEG (or downscale it), then embed it as a `data:` address. The whole page stays under 3,000,000 characters, so keep each picture to about 300 KB or less. A page with four pictures (two widths, two modes) is the most this starter holds.
 3. Place each pin over the picture in **percent coordinates** (`left` and `top` as a share of the picture's width and height), so it holds at every device width. Number the pins in the order of the callout list.
 4. Write one callout per pin as text under the picture: what changes and where ("1. Add a filter row above the table, sticky on scroll"). Be concrete: "looks nice" is not a callout.
-5. Draw nothing around the picture that the real screen does not show. No device frame and no switch of your own: the board draws them.
+5. The page declares a light and dark mode option. Capture and add a block for each mode the app has; for an app with one colour mode, or when you only captured light, delete the mode option from `afb-config` and the `data-mode` conditions from the CSS, or the page is blank in the mode that has no block.
+6. Draw nothing around the picture that the real screen does not show. No device frame and no switch of your own: the board draws them.
 
 Publish with `agent-flow-board mockup push <file.html> --item <reference> --screenshot <the 1280 light capture as png> --renders --widths 408,1280`.
 

@@ -411,6 +411,17 @@ describe('the fidelity a page declares', () => {
 		expect(readFidelity(starter('starter-screenshot.md'))).toBe('screenshot');
 	});
 
+	it('publishes the wireframe and screenshot starters with no lint warning but the one the screenshot tier is spared', () => {
+		const wire = starter('starter-wireframe.md');
+		const shot = starter('starter-screenshot.md');
+		expect(lintMockupHtml(wire)).toEqual([]);
+		expect(lintMockupHooks(wire)).toEqual([]);
+		expect(lintMockupHtml(shot)).toEqual([]);
+		// A screenshot page has no screens or states by design: only those two hook warnings may remain, and data-ref must not
+		const hooks = lintMockupHooks(shot);
+		expect(hooks.every((w) => /^The mockup has no data-(screen|state) hooks\./.test(w))).toBe(true);
+	});
+
 	it('stays fast and never throws on a hostile page', () => {
 		const started = Date.now();
 		for (const hostile of [

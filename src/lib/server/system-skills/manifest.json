@@ -1,6 +1,6 @@
 {
 	"bundle": {
-		"version": "1.25.0",
+		"version": "1.26.0",
 		"releasedAt": "2026-11-25"
 	},
 	"skills": {
@@ -336,7 +336,7 @@
 			]
 		},
 		"flow-mockup": {
-			"version": "1.10.0",
+			"version": "1.10.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -417,6 +417,10 @@
 				{
 					"version": "1.10.0",
 					"hash": "a83b83da420353e4af6accdadee7719aaf5fa23623e8013bbac3fb4905a2411a"
+				},
+				{
+					"version": "1.10.1",
+					"hash": "91f18021207a5d421531c55997fea543ac493fd07b2aa945eccde00cc54b8b14"
 				}
 			]
 		},
@@ -525,7 +529,7 @@
 			]
 		},
 		"flow-critic-mockup": {
-			"version": "1.1.0",
+			"version": "1.1.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -538,6 +542,10 @@
 				{
 					"version": "1.1.0",
 					"hash": "c852b7eb6f06b38c5960ef1c623083f0a3e667434ecd992f7d14ecfe48b82808"
+				},
+				{
+					"version": "1.1.1",
+					"hash": "472ab225ca1e8ba43b28a439598d5a0592461e99c05443a442ca8203e7b09fd6"
 				}
 			]
 		},
@@ -612,6 +620,29 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.26.0",
+			"date": "2026-11-25",
+			"notes": [
+				"flow-mockup 1.10.1 and flow-critic-mockup 1.1.1 (AFB-20261125-0703, code review): the mockup critic prompt now carries the tier ({TIER}), so a wireframe or screenshot is judged on its own terms and the lead skips the kit copy, real-screen pictures, measuring and the shell, brand and component lenses for them. A wireframe reads the plan and the nearest real screen first. The screenshot starter says to drop the mode option or add a block per mode. The publish answer holds only a high page to the project's kit palette and fonts, and spares a screenshot page the screen and state hook warnings."
+			],
+			"skills": {
+				"flow": "1.16.0",
+				"flow-audit": "1.3.7",
+				"flow-interview": "1.2.7",
+				"flow-mockup": "1.10.1",
+				"flow-qa": "1.0.1",
+				"flow-task": "1.1.4",
+				"flow-align": "1.6.2",
+				"flow-commit": "1.0.1",
+				"flow-critic-code": "1.0.2",
+				"flow-critic-mockup": "1.1.1",
+				"flow-critic-plan": "1.0.2",
+				"flow-critic-screen": "1.0.1",
+				"flow-decide": "1.0.1",
+				"flow-update-skills": "1.0.1"
+			}
+		},
 		{
 			"version": "1.25.0",
 			"date": "2026-11-25",
