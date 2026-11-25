@@ -8,16 +8,30 @@
 	import { page } from '$app/state';
 	// IMPORTED MODULES
 	import { api, newKey } from '#lib/board/api.js';
-	import { QA_SEVERITY_LABEL, qaCommand } from '#lib/board/qa/status.js';
+	import {
+		QA_SEVERITY_LABEL,
+		QA_STATUS_RANK,
+		qaCommand,
+		qaCounts,
+		qaPercent,
+		qaPlural,
+		qaStatusOf,
+		type QaStatus
+	} from '#lib/board/qa/status.js';
 	import { ago } from '#lib/board/status.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
 	// IMPORTED DEP-COMPONENTS
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import Copy from '@lucide/svelte/icons/copy';
+	import ImageIcon from '@lucide/svelte/icons/image';
+	import List from '@lucide/svelte/icons/list';
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import Plus from '@lucide/svelte/icons/plus';
 	// IMPORTED COMPONENTS
+	import QaHealthBar from '#lib/board/qa/QaHealthBar.svelte';
+	import QaStatusDot from '#lib/board/qa/QaStatusDot.svelte';
 	import QaStatusPill from '#lib/board/qa/QaStatusPill.svelte';
-	import ScreenViewer from '#lib/board/ScreenViewer.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
@@ -25,6 +39,7 @@
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import PageHeader from '#lib/ui/PageHeader.svelte';
 	import PermissionDenied from '#lib/ui/PermissionDenied.svelte';
+	import ProgressRing from '#lib/ui/ProgressRing.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import TextArea from '#lib/ui/TextArea.svelte';
@@ -41,6 +56,9 @@
 		| { kind: 'case'; j: string; s: string; c: string }
 		| { kind: 'add-case'; j: string; s: string }
 		| { kind: 'add-step'; j: string };
+	type Journey = QaMap['journeys'][number];
+	type Step = Journey['steps'][number];
+	type CaseFilter = 'all' | 'broken' | 'not_tested';
 
 	// -- CONSTANTS -- //
 
@@ -56,6 +74,14 @@
 		'add-case': 'Add a case to this step',
 		'add-step': 'Add a step to this journey'
 	};
+	const CARD = 'rounded-xl border border-line bg-surface shadow-[var(--elev-1)]';
+	const CHIP =
+		'group flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-pressed:border-accent/40 aria-pressed:bg-accent-soft aria-pressed:text-accent-text max-sm:h-11 max-sm:justify-center max-sm:gap-1.5 max-sm:px-2 whitespace-nowrap';
+	const COUNT =
+		'inline-flex min-w-6 items-center justify-center rounded-full bg-raised px-1.5 text-badge font-semibold text-ink tabular-nums group-aria-pressed:bg-surface group-aria-pressed:text-accent-text';
+	// The edit and add buttons show on hover or focus on a fine pointer and always on a touch screen
+	const REVEAL =
+		'opacity-0 transition-opacity focus-visible:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100';
 
 	// -- STATES -- //
 
@@ -71,6 +97,10 @@
 	let first = $state('');
 	let second = $state('');
 	let third = $state('');
+	// Cases a person opened or closed by hand; every other case opens when it is broken or could not be tested
+	let manual = $state<Record<string, boolean>>({});
+	let allOpen = $state(false);
+	const uid = $props.id();
 
 	// -- REACTIVE STATES -- //
 
@@ -80,12 +110,52 @@
 	const f = $derived(data.detail?.feature ?? null);
 	const journeys = $derived((f?.map.journeys ?? []).filter((j) => !j.removedAt));
 	const main = $derived(journeys.filter((j) => !j.parent));
-	const branches = (stepKey: string) => journeys.filter((j) => j.parent === stepKey);
+	const filter = $derived<CaseFilter>(
+		page.url.searchParams.get('cases') === 'broken'
+			? 'broken'
+			: page.url.searchParams.get('cases') === 'not_tested'
+				? 'not_tested'
+				: 'all'
+	);
+	/** Every case of the feature with the status its newest result gives it. */
+	const allCases = $derived(
+		journeys.flatMap((j) =>
+			j.steps
+				.filter((s) => !s.removedAt)
+				.flatMap((s) =>
+					s.cases
+						.filter((c) => !c.removedAt)
+						.map((c) => ({
+							id: `${j.key}/${s.key}/${c.key}`,
+							journey: j.key,
+							status: qaStatusOf(
+								data.detail?.cases[`${j.key}/${s.key}/${c.key}`]?.outcome ?? 'not_tested'
+							)
+						}))
+				)
+		)
+	);
+	const caseCounts = $derived(qaCounts(allCases.map((c) => c.status)));
+	const percent = $derived(qaPercent(caseCounts.works, allCases.length));
+	/** The outcomes that have at least one case, in the order the Summary lists them. */
+	const summaryStatuses = $derived(
+		(['works', 'broken', 'not_tested'] as const).filter((x) => caseCounts[x] > 0)
+	);
 	const sizeList = $derived(
 		sizes
 			.split(/[,\s]+/)
 			.map((s) => Number(s))
 			.filter((n) => Number.isInteger(n) && n > 0)
+	);
+	/** The last result at each screen width the feature is tested at: the worst of the cases tested there. */
+	const widthResults = $derived(
+		(f?.sizes ?? []).map((w) => {
+			const hits = Object.values(data.detail?.cases ?? {}).filter((r) => r.width === w);
+			const worst = hits
+				.map((r) => qaStatusOf(r.outcome))
+				.sort((a, b) => QA_STATUS_RANK[a] - QA_STATUS_RANK[b])[0];
+			return { width: w, status: worst ?? null };
+		})
 	);
 	const valid = $derived.by(() => {
 		if (edit.kind === 'feature')
@@ -98,6 +168,61 @@
 	});
 
 	// -- FUNCTIONS -- //
+
+	const branches = (stepKey: string) => journeys.filter((j) => j.parent === stepKey);
+	const liveSteps = (j: Journey) => j.steps.filter((s) => !s.removedAt);
+	const liveCases = (s: Step) => s.cases.filter((c) => !c.removedAt);
+	const caseId = (j: string, s: string, c: string) => `${j}/${s}/${c}`;
+	const domId = (id: string) => `${uid}-${id.replaceAll('/', '-')}`;
+	const statusOfCase = (id: string): QaStatus =>
+		qaStatusOf(data.detail?.cases[id]?.outcome ?? 'not_tested');
+	const shownBy = (status: QaStatus) =>
+		filter === 'all' || (filter === 'broken' ? status === 'broken' : status === 'not_tested');
+	/** A case opens by itself when it is broken or could not be tested, unless a person chose otherwise. */
+	const isOpen = (id: string) =>
+		id in manual ? manual[id] : ['broken', 'could_not_test'].includes(statusOfCase(id));
+	/** Whether a journey, a step or a branch still has a case the filter lets through. */
+	function journeyHas(j: Journey): boolean {
+		return liveSteps(j).some((s) => stepHas(j, s));
+	}
+	function stepHas(j: Journey, s: Step): boolean {
+		return (
+			liveCases(s).some((c) => shownBy(statusOfCase(caseId(j.key, s.key, c.key)))) ||
+			branches(s.key).some(journeyHas)
+		);
+	}
+	/** The health of one journey: its own cases, its branches left out. */
+	function journeyCounts(j: Journey) {
+		return qaCounts(
+			liveSteps(j).flatMap((s) =>
+				liveCases(s).map((c) => statusOfCase(caseId(j.key, s.key, c.key)))
+			)
+		);
+	}
+	function worstOf(j: Journey): QaStatus {
+		const c = journeyCounts(j);
+		return (
+			(['broken', 'needs_retest', 'could_not_test', 'not_tested', 'works'] as const).find(
+				(s) => c[s] > 0
+			) ?? 'not_tested'
+		);
+	}
+
+	function setFilter(next: CaseFilter) {
+		const u = new URL(page.url.href);
+		if (next === 'all') u.searchParams.delete('cases');
+		else u.searchParams.set('cases', next);
+		void goto(u, { replaceState: true, reset: false, noScroll: true });
+	}
+
+	function toggleCase(id: string) {
+		manual[id] = !isOpen(id);
+	}
+
+	function toggleAll() {
+		allOpen = !allOpen;
+		manual = Object.fromEntries(allCases.map((c) => [c.id, allOpen]));
+	}
 
 	/** A short slug for a new step or case, unique among its siblings. */
 	function slug(text: string, taken: string[]) {
@@ -222,107 +347,209 @@
 
 <svelte:head><title>{f ? `${f.name}, Testing` : 'Testing'}</title></svelte:head>
 
-{#snippet stepBlock(
-	j: { key: string; name: string },
-	s: QaMap['journeys'][number]['steps'][number],
-	n: number
-)}
-	<li
-		class="flex flex-col gap-3 border-b border-line px-4 py-3 last:border-b-0"
-		data-testid="qa-step"
-	>
-		<div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-			<span class="font-mono text-xs text-muted tabular-nums">{n}</span>
-			<span class="min-w-0 flex-1 text-sm font-medium [overflow-wrap:anywhere] text-ink"
-				>{s.action}</span
-			>
-			<span class="font-mono text-xs [overflow-wrap:anywhere] text-muted">{s.page}</span>
-		</div>
-		{#if s.expected.screen || s.expected.saved || s.expected.sent || s.expected.logged}
-			<dl class="grid gap-1 text-sm text-muted sm:grid-cols-[96px_minmax(0,1fr)]">
-				{#if s.expected.screen}<dt class="text-xs font-medium">Shows</dt>
-					<dd class="text-ink">{s.expected.screen}</dd>{/if}
-				{#if s.expected.saved}<dt class="text-xs font-medium">Saves</dt>
-					<dd class="text-ink">{s.expected.saved}</dd>{/if}
-				{#if s.expected.sent}<dt class="text-xs font-medium">Sends</dt>
-					<dd class="text-ink">{s.expected.sent}</dd>{/if}
-				{#if s.expected.logged}<dt class="text-xs font-medium">Logs</dt>
-					<dd class="text-ink">{s.expected.logged}</dd>{/if}
-			</dl>
-		{/if}
-		{#if s.cases.filter((c) => !c.removedAt).length > 0}
-			<ul class="flex flex-col gap-2">
-				{#each s.cases.filter((c) => !c.removedAt) as c (c.key)}
-					{@const r = data.detail?.cases[`${j.key}/${s.key}/${c.key}`]}
-					<li class="flex flex-col gap-2 rounded-lg border border-line bg-raised p-3">
-						<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-							<span class="min-w-0 flex-1 text-sm [overflow-wrap:anywhere] text-ink"
+<!-- A CASE: ONE LINE THAT OPENS IN PLACE TO WHAT THE AGENT SAW AND THE PICTURE -->
+{#snippet caseBlock(j: Journey, s: Step, c: Step['cases'][number])}
+	{@const id = caseId(j.key, s.key, c.key)}
+	{@const st = statusOfCase(id)}
+	{@const r = data.detail?.cases[id]}
+	{@const isOpenNow = isOpen(id)}
+	{#if shownBy(st)}
+		<li class="group/case rounded-lg border border-line bg-raised/50" data-testid="qa-case">
+			<div class="flex items-start">
+				<button
+					type="button"
+					aria-expanded={isOpenNow}
+					aria-controls={domId(id)}
+					onclick={() => toggleCase(id)}
+					class="flex min-h-11 min-w-0 flex-1 cursor-pointer items-start gap-3 px-3 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-accent"
+				>
+					<QaStatusDot status={st} class="mt-2" />
+					<span class="min-w-0 flex-1">
+						<span class="flex flex-wrap items-center gap-x-2 gap-y-1">
+							<span class="text-sm font-medium [overflow-wrap:anywhere] text-ink"
 								>{c.input || 'No input'}</span
 							>
-							<QaStatusPill status={r ? r.outcome : 'not_tested'} />
-							{#if r?.severity}<Badge tone="danger">{QA_SEVERITY_LABEL[r.severity]}</Badge>{/if}
-							{#if data.canWrite && !f?.removedAt}
-								<Button
-									iconOnly
-									size="sm"
-									onclick={() => begin({ kind: 'case', j: j.key, s: s.key, c: c.key })}
-									aria-label="Change what should happen"><Pencil size={14} /></Button
+							{#if r?.severity}
+								<Badge
+									tone={r.severity === 'blocker' || r.severity === 'major' ? 'danger' : 'warning'}
+									>{QA_SEVERITY_LABEL[r.severity] ?? r.severity}</Badge
 								>
 							{/if}
-						</div>
-						<p class="text-sm text-muted">Should: <span class="text-ink">{c.expected}</span></p>
+							<span class="ml-auto"><QaStatusPill status={st} /></span>
+						</span>
+						<span class="mt-0.5 block text-sm [overflow-wrap:anywhere] text-muted"
+							>Should: <span class="text-ink">{c.expected}</span></span
+						>
+					</span>
+					<ChevronDown
+						size={16}
+						class="mt-1 shrink-0 text-muted transition-transform duration-150 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none {isOpenNow
+							? 'rotate-180'
+							: ''}"
+					/>
+				</button>
+				{#if data.canWrite && !f?.removedAt}
+					<Button
+						variant="subtle"
+						iconOnly
+						size="sm"
+						class="mt-1.5 mr-1 {REVEAL} group-hover/case:opacity-100"
+						aria-label={`Change what should happen for ${c.input || c.key}`}
+						onclick={() => begin({ kind: 'case', j: j.key, s: s.key, c: c.key })}
+					>
+						<Pencil size={16} />
+					</Button>
+				{/if}
+			</div>
+			<!-- OPENS OVER 200 MS BY THE ROW HEIGHT, HIDDEN FROM FOCUS AND READERS WHILE CLOSED, OFF UNDER REDUCED MOTION -->
+			<div
+				id={domId(id)}
+				class="grid transition-[grid-template-rows,visibility] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none {isOpenNow
+					? 'visible grid-rows-[1fr]'
+					: 'invisible grid-rows-[0fr]'}"
+			>
+				<div class="overflow-hidden">
+					<div class="flex flex-col gap-3 border-t border-line px-3 py-3 pl-8">
 						{#if r}
 							<p class="text-sm text-muted">
 								Saw: <span class="[overflow-wrap:anywhere] text-ink"
 									>{r.observed || 'nothing written down'}</span
 								>
-								<span class="text-xs">
-									· {r.width} px, {r.mode}{r.role ? `, as ${r.role}` : ''}, {ago(r.at)}</span
-								>
+							</p>
+							<p class="text-xs text-muted tabular-nums">
+								{r.width} px · {r.mode}{r.role ? ` · as ${r.role}` : ''} · {ago(r.at)}
 							</p>
 							{#if r.screen}
-								<ScreenViewer
-									image={r.screen.image}
-									alt={`What the agent saw for ${c.input || c.key}, ${r.width} pixels wide, ${r.mode} mode`}
-									class="max-w-[560px]"
-								/>
+								<a
+									href={r.screen.image}
+									target="_blank"
+									rel="noopener"
+									class="block h-20 w-[120px] cursor-pointer overflow-hidden rounded-lg border border-line bg-surface focus-visible:outline-2 focus-visible:outline-accent max-sm:h-16 max-sm:w-24"
+									aria-label={`Open the picture the agent saw for ${c.input || c.key}, ${r.width} pixels wide, ${r.mode} mode`}
+								>
+									<img src={r.screen.image} alt="" class="size-full object-cover" loading="lazy" />
+								</a>
+							{:else}
+								<span class="inline-flex items-center gap-1.5 text-xs text-muted"
+									><ImageIcon size={16} /> No picture was taken</span
+								>
 							{/if}
+						{:else}
+							<p class="text-sm text-muted">
+								The agent has not tested this case yet. Ask it to retest this feature.
+							</p>
 						{/if}
-					</li>
-				{/each}
-			</ul>
-		{/if}
-		{#if data.canWrite && !f?.removedAt}
-			<div>
-				<Button size="sm" onclick={() => begin({ kind: 'add-case', j: j.key, s: s.key })}
-					><Plus size={14} /> Add a case</Button
-				>
+					</div>
+				</div>
 			</div>
-		{/if}
-		{#each branches(s.key) as b (b.key)}
-			<!-- AN ALTERNATIVE PATH SITS UNDER THE STEP IT BRANCHES FROM -->
-			<div class="ml-4 border-l-2 border-line pl-4" data-testid="qa-branch">
-				{@render journeyBlock(b, true)}
-			</div>
-		{/each}
-	</li>
+		</li>
+	{/if}
 {/snippet}
 
-{#snippet journeyBlock(j: QaMap['journeys'][number], nested: boolean)}
-	<section class="flex flex-col gap-2" data-testid="qa-journey">
-		<div class="flex flex-wrap items-center gap-2 px-1">
-			<h2 class={nested ? 'text-sm font-semibold text-ink' : 'text-base font-semibold text-ink'}>
+<!-- A STEP: A NUMBER ON THE RAIL, THE ACTION AND THE PAGE, WHAT SHOULD SHOW, THEN ITS CASES AND ITS BRANCHES -->
+{#snippet stepBlock(j: Journey, s: Step, n: number, last: boolean)}
+	{#if stepHas(j, s) || filter === 'all'}
+		<li class="relative flex gap-3 pb-5 last:pb-0" data-testid="qa-step">
+			{#if !last}
+				<span class="absolute top-7 bottom-0 left-3 w-px bg-line" aria-hidden="true"></span>
+			{/if}
+			<span
+				class="flex size-6 shrink-0 items-center justify-center rounded-full border border-line bg-surface font-mono text-xs text-muted tabular-nums"
+				>{n}</span
+			>
+			<div class="flex min-w-0 flex-1 flex-col gap-3">
+				<div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+					<span class="min-w-0 flex-1 text-sm font-medium [overflow-wrap:anywhere] text-ink"
+						>{s.action}</span
+					>
+					<span
+						class="rounded-md bg-raised px-2 py-0.5 font-mono text-xs [overflow-wrap:anywhere] text-muted"
+						>{s.page}</span
+					>
+				</div>
+				{#if s.expected.screen || s.expected.saved || s.expected.sent || s.expected.logged}
+					<dl class="grid gap-x-3 gap-y-1 sm:grid-cols-[72px_minmax(0,1fr)]">
+						{#if s.expected.screen}<dt class="text-xs font-medium text-muted">Shows</dt>
+							<dd class="text-sm [overflow-wrap:anywhere] text-ink">{s.expected.screen}</dd>{/if}
+						{#if s.expected.saved}<dt class="text-xs font-medium text-muted">Saves</dt>
+							<dd class="text-sm [overflow-wrap:anywhere] text-ink">{s.expected.saved}</dd>{/if}
+						{#if s.expected.sent}<dt class="text-xs font-medium text-muted">Sends</dt>
+							<dd class="text-sm [overflow-wrap:anywhere] text-ink">{s.expected.sent}</dd>{/if}
+						{#if s.expected.logged}<dt class="text-xs font-medium text-muted">Logs</dt>
+							<dd class="text-sm [overflow-wrap:anywhere] text-ink">{s.expected.logged}</dd>{/if}
+					</dl>
+				{/if}
+				<div class="group/step flex flex-col gap-2">
+					{#if liveCases(s).length > 0}
+						<ul class="flex flex-col gap-2">
+							{#each liveCases(s) as c (c.key)}
+								{@render caseBlock(j, s, c)}
+							{/each}
+						</ul>
+					{/if}
+					{#if data.canWrite && !f?.removedAt}
+						<div>
+							<Button
+								size="sm"
+								variant="ghost"
+								class={`${REVEAL} group-hover/step:opacity-100`}
+								onclick={() => begin({ kind: 'add-case', j: j.key, s: s.key })}
+								><Plus size={16} /> Add a case</Button
+							>
+						</div>
+					{/if}
+				</div>
+				{#each branches(s.key) as b (b.key)}
+					<!-- AN ALTERNATIVE PATH SITS UNDER THE STEP IT BRANCHES FROM -->
+					{#if filter === 'all' || journeyHas(b)}
+						<div class="ml-1 border-l-2 border-line pl-4" data-testid="qa-branch">
+							{@render journeyBlock(b, true)}
+						</div>
+					{/if}
+				{/each}
+			</div>
+		</li>
+	{/if}
+{/snippet}
+
+<!-- A JOURNEY: A CARD WITH ITS OWN PROGRESS, OR A BRANCH WITHOUT THE CARD -->
+{#snippet journeyBlock(j: Journey, nested: boolean)}
+	{@const c = journeyCounts(j)}
+	{@const total = liveSteps(j).reduce((n, s) => n + liveCases(s).length, 0)}
+	<section
+		id={nested ? undefined : `j-${j.key}`}
+		class={nested ? 'flex flex-col gap-3' : `${CARD} scroll-mt-[73px]`}
+		data-testid="qa-journey"
+	>
+		<div
+			class="flex flex-wrap items-center gap-x-3 gap-y-2 {nested
+				? ''
+				: 'border-b border-line px-4 py-3'}"
+		>
+			<h2 class="min-w-0 {nested ? 'text-sm' : 'text-base'} font-semibold tracking-tight text-ink">
 				{nested ? `Or: ${j.name}` : j.name}
 			</h2>
+			<span class="text-xs text-muted tabular-nums"
+				>{c.works} of {total}
+				{qaPlural(total, 'case')}
+				{c.works === 1 && total === 1 ? 'passes' : 'pass'}</span
+			>
+			<span class="w-16">
+				<QaHealthBar counts={c} label={j.name} class="h-1.5 w-16" />
+			</span>
 			{#if data.canWrite && !f?.removedAt}
-				<Button size="sm" class="ml-auto" onclick={() => begin({ kind: 'add-step', j: j.key })}
-					><Plus size={14} /> Add a step</Button
+				<Button
+					size="sm"
+					variant="ghost"
+					class="ml-auto"
+					onclick={() => begin({ kind: 'add-step', j: j.key })}
+					><Plus size={16} /> Add a step</Button
 				>
 			{/if}
 		</div>
-		<ol class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
-			{#each j.steps.filter((s) => !s.removedAt) as s, i (s.key)}
-				{@render stepBlock(j, s, i + 1)}
+		<ol class="flex flex-col {nested ? '' : 'p-4'}">
+			{#each liveSteps(j) as s, i (s.key)}
+				{@render stepBlock(j, s, i + 1, i === liveSteps(j).length - 1)}
 			{/each}
 		</ol>
 	</section>
@@ -339,16 +566,22 @@
 					<QaStatusPill status={f.status} flaky={f.flaky} />
 					<span>{f.area || 'Other'}</span>
 					<span class="font-mono text-xs">{f.key}</span>
-					{#if f.sizes.length}<span class="font-mono text-xs tabular-nums"
-							>{f.sizes.join(' · ')}</span
-						>{/if}
+					{#each f.sizes as w (w)}
+						<span class="rounded-md bg-raised px-2 py-0.5 font-mono text-xs text-muted tabular-nums"
+							>{w}</span
+						>
+					{/each}
 				</span>
 			{/snippet}
 			{#snippet actions()}
-				<Button onclick={copyCommand}><Copy size={16} /> Copy the test command</Button>
+				<Button variant="primary" class="max-sm:flex-1" onclick={copyCommand}>
+					<Copy size={16} /> Retest this feature
+				</Button>
 				{#if data.canWrite && !f.removedAt}
-					<Button onclick={() => begin({ kind: 'feature' })} data-testid="qa-edit-feature"
-						><Pencil size={16} /> Edit</Button
+					<Button
+						class="max-sm:flex-1"
+						onclick={() => begin({ kind: 'feature' })}
+						data-testid="qa-edit-feature"><Pencil size={16} /> Edit</Button
 					>
 				{/if}
 			{/snippet}
@@ -385,80 +618,212 @@
 				{f.description}
 			</p>{/if}
 
-		{#if main.length === 0}
-			<div class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
-				<EmptyState
-					kind="items"
-					title="No journeys yet"
-					text="Your agent adds this feature's journeys the next time it runs /flow-qa discover."
-				/>
+		<div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+			<!-- THE SIDE COLUMN: THE VERDICT STAYS IN VIEW. BELOW LG ITS CARDS SIT AROUND THE JOURNEYS (SUMMARY FIRST) -->
+			<div
+				class="contents lg:sticky lg:top-[73px] lg:col-start-2 lg:row-start-1 lg:flex lg:max-h-[calc(100dvh-89px)] lg:flex-col lg:gap-4 lg:self-start lg:overflow-y-auto"
+			>
+				<section
+					class="{CARD} flex flex-col gap-3 p-4 max-lg:order-1 max-sm:p-3.5"
+					data-testid="qa-summary"
+				>
+					<div class="flex items-center gap-3">
+						<ProgressRing value={percent} label="Cases passing" size={48} />
+						<div>
+							<p class="text-lg font-semibold tracking-tight text-ink">
+								{caseCounts.works} of {allCases.length}
+								{qaPlural(allCases.length, 'case')}
+								{caseCounts.works === 1 && allCases.length === 1 ? 'passes' : 'pass'}
+							</p>
+							<p class="text-xs text-muted">
+								{#if f.lastTestedAt}Last tested {ago(f.lastTestedAt)}{#if f.lastCommit}
+										· <span class="font-mono">{f.lastCommit.slice(0, 7)}</span>{/if}{:else}Never
+									tested{/if}
+							</p>
+						</div>
+					</div>
+					<div class="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+						{#each summaryStatuses as x (x)}
+							<span class="inline-flex items-center gap-2">
+								<QaStatusDot status={x} />
+								<span class="text-ink"
+									>{x === 'works' ? 'Works' : x === 'broken' ? 'Broken' : 'Not tested yet'}</span
+								>
+								<span class="text-muted tabular-nums">{caseCounts[x]}</span>
+							</span>
+						{/each}
+					</div>
+					{#if widthResults.length > 0}
+						<div class="flex flex-col gap-1.5 border-t border-line pt-3">
+							<p class="text-xs font-medium text-muted">Last result by screen width</p>
+							<div class="flex flex-wrap gap-2">
+								{#each widthResults as w (w.width)}
+									<span
+										class="inline-flex items-center gap-1.5 rounded-md bg-raised px-2 py-1 font-mono text-xs text-ink tabular-nums"
+									>
+										{#if w.status}<QaStatusDot status={w.status} class="size-1.5" />{:else}<span
+												class="text-muted"
+												aria-hidden="true">–</span
+											>{/if}{w.width}
+									</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
+					{#if f.priority}
+						<p class="border-t border-line pt-3 text-sm text-muted">
+							Priority <span class="font-medium text-ink"
+								>{PRIORITIES.find((p) => p.value === f.priority)?.label ?? f.priority}</span
+							>
+						</p>
+					{/if}
+				</section>
+
+				{#if main.length > 1}
+					<nav
+						class="{CARD} hidden flex-col gap-1 p-3 max-lg:order-5 xl:flex"
+						aria-label="On this page"
+					>
+						<p class="px-2 pb-1 text-xs font-medium text-muted">On this page</p>
+						{#each main as j (j.key)}
+							<a
+								href={`#j-${j.key}`}
+								class="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-ink hover:bg-raised"
+								><QaStatusDot status={worstOf(j)} />{j.name}</a
+							>
+						{/each}
+					</nav>
+				{/if}
+
+				{#if f.bugs.length > 0}
+					<section class="{CARD} flex flex-col gap-2 p-4 max-lg:order-3 max-sm:p-3.5">
+						<h2 class="text-base font-semibold tracking-tight text-ink">Open bugs</h2>
+						<ul class="flex flex-col">
+							{#each f.bugs as b (b.id)}
+								<li class="flex flex-col gap-1 py-1">
+									<span class="font-mono text-xs text-muted">{b.ref}</span>
+									<a
+										href={`${base}/tasks?task=${encodeURIComponent(b.id)}`}
+										class="cursor-pointer text-sm font-medium [overflow-wrap:anywhere] text-ink hover:underline"
+										>{b.title}</a
+									>
+								</li>
+							{/each}
+						</ul>
+					</section>
+				{/if}
+
+				<section class="{CARD} flex flex-col gap-2 p-4 max-lg:order-4 max-sm:p-3.5">
+					<h2 class="text-base font-semibold tracking-tight text-ink">Runs</h2>
+					{#if (data.detail?.runs.length ?? 0) === 0}
+						<p class="text-sm text-muted">No run has tested this feature yet.</p>
+					{:else}
+						<ul class="flex flex-col divide-y divide-line">
+							{#each data.detail?.runs ?? [] as r (r.ref)}
+								<li>
+									<a
+										href={`${base}/${r.ref}`}
+										class="flex min-h-11 cursor-pointer flex-col justify-center py-1 hover:underline"
+									>
+										<span class="text-sm font-medium text-ink"
+											>Run {r.runNo} <span class="font-normal text-muted">· {ago(r.at)}</span></span
+										>
+										<span class="text-xs text-muted tabular-nums"
+											>{r.works} work · {r.broken} broken · {r.couldNotTest} couldn’t test</span
+										>
+									</a>
+								</li>
+							{/each}
+						</ul>
+						<div class="flex gap-2">
+							{#if (data.detail?.runsOffset ?? 0) > 0}
+								<Button
+									size="sm"
+									onclick={() => pageRuns(Math.max(0, (data.detail?.runsOffset ?? 0) - 10))}
+									>Newer runs</Button
+								>
+							{/if}
+							{#if data.detail?.moreRuns}
+								<Button size="sm" onclick={() => pageRuns((data.detail?.runsOffset ?? 0) + 10)}
+									>Older runs</Button
+								>
+							{/if}
+						</div>
+					{/if}
+				</section>
 			</div>
-		{:else}
-			{#each main as j (j.key)}
-				{@render journeyBlock(j, false)}
-			{/each}
-		{/if}
 
-		{#if f.bugs.length > 0}
-			<section class="flex flex-col gap-2">
-				<h2 class="px-1 text-base font-semibold text-ink">Open bugs</h2>
-				<ul class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
-					{#each f.bugs as b (b.id)}
-						<li
-							class="flex min-h-14 items-center gap-3 border-b border-line px-4 py-3 last:border-b-0"
+			<div class="flex min-w-0 flex-col gap-4 max-lg:order-2 lg:col-start-1 lg:row-start-1">
+				{#if main.length === 0}
+					<div class={CARD}>
+						<EmptyState
+							kind="items"
+							title="No journeys yet"
+							text="Your agent adds this feature's journeys the next time it runs /flow-qa discover."
+						/>
+					</div>
+				{:else}
+					<!-- ONE TOOLBAR CARD LIKE THE MAP: THE CASE FILTER ON THE LEFT, ONE EXPAND TOGGLE ON THE RIGHT -->
+					<div
+						class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface p-2.5"
+					>
+						<div
+							class="flex flex-wrap items-center gap-2 max-sm:grid max-sm:w-full max-sm:grid-cols-3"
+							role="group"
+							aria-label="Show cases"
 						>
-							<span class="w-14 shrink-0 font-mono text-xs text-muted">{b.ref}</span>
-							<a
-								href={`${base}/tasks?task=${encodeURIComponent(b.id)}`}
-								class="min-h-11 min-w-0 flex-1 cursor-pointer content-center text-sm font-medium text-ink hover:underline"
-								><span class="line-clamp-2 [overflow-wrap:anywhere]">{b.title}</span></a
+							<button
+								type="button"
+								class={CHIP}
+								aria-pressed={filter === 'all'}
+								onclick={() => setFilter('all')}
 							>
-						</li>
-					{/each}
-				</ul>
-			</section>
-		{/if}
+								<List size={16} class="text-muted max-sm:hidden" />
+								<span>All<span class="max-sm:hidden"> cases</span></span>
+								<span class={COUNT}>{allCases.length}</span>
+							</button>
+							<button
+								type="button"
+								class={CHIP}
+								aria-pressed={filter === 'broken'}
+								onclick={() => setFilter('broken')}
+							>
+								<QaStatusDot status="broken" class="max-sm:hidden" />
+								<span>Broken</span>
+								<span class={COUNT}>{caseCounts.broken}</span>
+							</button>
+							<button
+								type="button"
+								class={CHIP}
+								aria-pressed={filter === 'not_tested'}
+								onclick={() => setFilter('not_tested')}
+							>
+								<QaStatusDot status="not_tested" class="max-sm:hidden" />
+								<span class="max-sm:hidden">Not tested</span><span class="sm:hidden">Untested</span>
+								<span class={COUNT}>{caseCounts.not_tested}</span>
+							</button>
+						</div>
+						<Button class="max-sm:w-full" onclick={toggleAll} aria-pressed={allOpen}>
+							<ChevronsUpDown size={16} class="text-muted" />
+							{allOpen ? 'Collapse all' : 'Expand all'}
+						</Button>
+					</div>
 
-		<section class="flex flex-col gap-2">
-			<h2 class="px-1 text-base font-semibold text-ink">Runs</h2>
-			{#if (data.detail?.runs.length ?? 0) === 0}
-				<p class="px-1 text-sm text-muted">No run has tested this feature yet.</p>
-			{:else}
-				<ul class="rounded-xl border border-line bg-surface shadow-[var(--elev-1)]">
-					{#each data.detail?.runs ?? [] as r (r.ref)}
-						<li
-							class="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-3 last:border-b-0"
-						>
-							<a
-								href={`${base}/${r.ref}`}
-								class="min-h-11 min-w-0 flex-1 cursor-pointer content-center text-sm font-medium text-ink hover:underline"
-								>Run {r.runNo}</a
-							>
-							<span class="text-xs text-muted tabular-nums"
-								>{r.works} work · {r.broken} broken · {r.couldNotTest} couldn't test</span
-							>
-							<span class="w-24 shrink-0 text-right text-xs text-muted max-sm:hidden"
-								>{ago(r.at)}</span
-							>
-						</li>
+					{#each main as j (j.key)}
+						{#if filter === 'all' || journeyHas(j)}
+							{@render journeyBlock(j, false)}
+						{/if}
 					{/each}
-				</ul>
-				<div class="flex gap-2">
-					{#if (data.detail?.runsOffset ?? 0) > 0}
-						<Button
-							size="sm"
-							onclick={() => pageRuns(Math.max(0, (data.detail?.runsOffset ?? 0) - 10))}
-							>Newer runs</Button
-						>
+					{#if filter !== 'all' && !main.some(journeyHas)}
+						<p class="px-1 text-sm text-muted">
+							{filter === 'broken'
+								? 'No broken cases. Everything tested here works.'
+								: 'Every case has been tested.'}
+						</p>
 					{/if}
-					{#if data.detail?.moreRuns}
-						<Button size="sm" onclick={() => pageRuns((data.detail?.runsOffset ?? 0) + 10)}
-							>Older runs</Button
-						>
-					{/if}
-				</div>
-			{/if}
-		</section>
+				{/if}
+			</div>
+		</div>
 	{/if}
 </PageFrame>
 
