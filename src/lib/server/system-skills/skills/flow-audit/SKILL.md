@@ -1,6 +1,6 @@
 ---
 name: flow-audit
-description: Use when implementation of a /flow item or phase on Agent Flow Board is finished, before asking the user for commit sign-off, alongside /flow-critic-code, or when the user asks whether everything done is recorded in the plan. Compares what was actually built (the working tree, untracked files, commits since the plan's base, database migrations) against the item on Agent Flow Board (steps, decisions, sections, history) in both directions, then fixes the board so it tells the truth. Board only; never changes code or ticks anything unverified.
+description: Use when implementation of a /flow item or phase on Agent Flow Board is finished, before asking the user for commit sign-off, alongside /flow-critic code, or when the user asks whether everything done is recorded in the plan. Compares what was actually built (the working tree, untracked files, commits since the plan's base, database migrations) against the item on Agent Flow Board (steps, decisions, sections, history) in both directions, then fixes the board so it tells the truth. Board only; never changes code or ticks anything unverified.
 ---
 
 # Progress Audit
@@ -13,7 +13,7 @@ Plans live on Agent Flow Board and are read and written through the **agent-flow
 
 **Repo rulebook.** Read `CLAUDE.md`, `AGENTS.md`, the README and the package scripts (`package.json`, `Makefile` or equivalent). It overrides project facts and optional steps here, never the `/flow` safety rules (section 5 point 4 and section 6) or the method of this skill. What it says about branch, base commit, ports, databases or visibility applies.
 
-Check that the item records everything built and claims nothing that was not (`/flow-critic-code` asks whether the code is right; this asks whether the records match it).
+Check that the item records everything built and claims nothing that was not (`/flow-critic code` asks whether the code is right; this asks whether the records match it).
 
 ## Hard rules
 
@@ -69,6 +69,7 @@ Also check the records against each other:
 - `lessons` is true and useful: each bullet names a real file or step, says what happened and what to watch for, and is not generic ("went well", "tests pass"). A plan in review with none is a finding (`board_validate` warns the same). `learned-from` names plans that exist, and each reuse it claims shows as a `settled` decision citing the source item.
 - `resume-here` describes where the work really stands and its next step is the real next step. `blockers` lists what really blocks.
 - `board_validate` drift (planned with done steps, complete but not in review, in review with open steps): every flag is explained or fixed. A status change was made with `item_status` and a note.
+- `board_validate` finished-plan codes: `resume-stale` (the first line of `resume-here` still says not built: rewrite the note), `owed-open` (a COMPLETED plan with open lines in its `owed` section: tick what is done, name the rest to the user), `completed-without-lessons` (write the lessons) and `phase-empty:<key>` (a phase with no steps: information, explained in one line or removed by the user). Owed actions written only as prose in `resume-here` or `blockers` are moved to `owed` lines.
 - A plan with a mockup (`mockup_list` with the item returns one) has a `Mockup read: <mockup id> v<n>: ...` line in its `design-brief` for every phase whose changed files include a screen, component or style (judge from the working tree, not the plan's wording: a markup, component, layout or stylesheet file counts, a server-only file does not; the line names the phase key). A step that changed such files with no line for its phase is `NOT RECORDED`: reopen it with `record` and tell the user the mockup was never read. A line naming an older version than the current one is a finding too. Do not trust the typed line alone: `mockup_list` with the item returns `htmlLength`, `readChars` and `readComplete` per mockup, the server's own record of what was read (`readComplete` means every authored character was delivered; pictures, an icon sprite and generated style are excluded and `unreadChars` counts only authored source). An inventory with no motion line while the source declares transitions or animations is `NOT RECORDED` too (`mockup_inventory` seeds those lines). A mockup with `readComplete` false, a `design-brief` with no `Mockup inventory`, or an inventory line not marked `built`, `free` or `differs` is `NOT RECORDED` likewise. Read the item's history too: a mockup that was unlinked from the plan or moved to the trash while the build ran is reported to the user in plain words, never fixed or judged by you.
 - `validation` has results only where a check ran, with the date.
 - `gate-results`, when the end-of-plan gates ran, lists each gate as passed or failed with the files it covered and which run it was, and matches what was really run. A plan in review whose gates ran with no `gate-results` section is `NOT RECORDED`. `resume-here` was refreshed at the end of each finished phase and still carries the "Built under:" line when the item added or renamed a visible feature.
@@ -101,4 +102,4 @@ Short and plain:
 5. **Unclear owner**: changed files that may belong to another session, left out of the record.
 6. **Rule files that drifted** (only when met): a line of the repo rulebook or a saved memory that contradicts the flow rules, named in one line with the note that `/flow-align` fixes it. The audit never edits a rule file or a memory.
 
-Run `/flow-critic-code` separately if the code has not been reviewed; this audit does not judge code quality.
+Run `/flow-critic code` separately if the code has not been reviewed; this audit does not judge code quality.

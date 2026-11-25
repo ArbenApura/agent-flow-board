@@ -1,6 +1,6 @@
 # Review Checklists (per lane)
 
-Paste only the lanes the diff touches into `{LANE_CHECKLISTS}` in `code-template.md`, next to the lens checklist from `code-lenses.md`. `SKILL.md` section 4 says which lanes go with which lens. Lanes are numbered 1 to 7 so they do not clash with the lens letters A to F. Each item comes from a written rule or a real file; the reason lets the reviewer judge cases the wording does not cover. Paths are repo-relative.
+Paste only the lanes the diff touches into `{LANE_CHECKLISTS}` in `code-template.md`, next to the lens checklist from `code-lenses.md`. `code.md` section 4 says which lanes go with which lens. Lanes are numbered 1 to 7 so they do not clash with the lens letters A to F. Each item comes from a written rule or a real file; the reason lets the reviewer judge cases the wording does not cover. Paths are repo-relative.
 
 "Applies when ..." means: if false for this repo, mark the item "not applicable" with that reason instead of raising a finding. An (example) is one stack's illustration; take real names from the repo rulebook (CLAUDE.md, AGENTS.md, README) and the code.
 
@@ -171,7 +171,7 @@ Paste only the lanes the diff touches into `{LANE_CHECKLISTS}` in `code-template
 - [ ] Tests that enumerate files or tables at run time assert the enumeration is non-empty.
 - [ ] Mocks do not replace the thing under test; database tests use a real database handle; error paths are exercised. (example) `tests/support/db.ts`.
 - [ ] Browser tests run against the target the rulebook names, sign in through the real page with the seeded people, and wait on a condition, never an unconditional sleep. Applies when the repo has browser tests. (example) `tests/checks/*.spec.ts`, `yarn test:checks`, `seed owner`.
-- [ ] No invariant test was weakened to pass (`SKILL.md` Step 3).
+- [ ] No invariant test was weakened to pass (`code.md` Step 3).
 
 ---
 

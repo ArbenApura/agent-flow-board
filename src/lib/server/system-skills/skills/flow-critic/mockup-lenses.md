@@ -1,6 +1,6 @@
 # Mockup Critic: Prompt Template and Lenses
 
-Used by mockup mode (`SKILL.md` section 4a). The lead prepares the evidence, fills the template once per subagent and dispatches them in one message. A critic judges the mockup as a person would see it next to the real product, and must point at what it saw: a picture, a line of the mockup's HTML, a file of the repo.
+Used by mockup mode (`mockup.md` section 4a). The lead prepares the evidence, fills the template once per subagent and dispatches them in one message. A critic judges the mockup as a person would see it next to the real product, and must point at what it saw: a picture, a line of the mockup's HTML, a file of the repo.
 
 **Tier.** A mockup declares `fidelity` in its `afb-config` (none means `high`). The shell, brand, measuring and "real component" checks below are for `high` only. A `wireframe` is judged on structure, order, text, states and interactions against the plan, on every declared screen, state and option really changing the page, and on both modes working; a grey look, a missing kit and an invented-looking icon box are not findings. A `screenshot` is judged on whether each numbered callout is concrete, matches a pin and says what changes where, whether the picture is the real screen with no secret or real person's data, and whether pins hold at both widths. In either tier, a mockup that claims `high` in its notes or is not honest about its tier is a `HIGH`.
 

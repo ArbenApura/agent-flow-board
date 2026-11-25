@@ -875,17 +875,13 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'workflow_get',
-		'Read a workflow: flow, flow-task, flow-interview, flow-critic, -plan, -code, -mockup, -screens, flow-audit, flow-mockup, flow-align, flow-decide, flow-autopilot, flow-commit, flow-update-skills, flow-qa, flow-screens. Files: flow has design, mockup-read, reference, screens; critics: rules, lenses. Pass next as offset.',
+		'Read a workflow: flow, flow-task, flow-interview, flow-critic, flow-audit, flow-mockup, flow-align, flow-decide, flow-autopilot, flow-commit, flow-update-skills, flow-qa, flow-screens. Files: flow has design, mockup-read, reference, screens; flow-critic: critic-rules, plan, code, mockup, screens, lenses. Pass next as offset.',
 		{
 			name: z.enum([
 				'flow',
 				'flow-task',
 				'flow-interview',
 				'flow-critic',
-				'flow-critic-plan',
-				'flow-critic-code',
-				'flow-critic-mockup',
-				'flow-critic-screens',
 				'flow-audit',
 				'flow-mockup',
 				'flow-align',
@@ -905,7 +901,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			if (a.file && !(WORKFLOW_FILES[a.name] ?? []).includes(a.file))
 				throw new OpError(
 					'INVALID',
-					'Only the critic reviews (flow-critic-plan, flow-critic-code, flow-critic-mockup and flow-critic-screens: their rules, lens, template and brief files) and flow (design, mockup-read, reference and screens) have supporting files.'
+					'Only flow-critic (critic-rules, plan, code, mockup, screens and their lens, template and brief files) and flow (design, mockup-read, reference and screens) have supporting files.'
 				);
 			const full = a.file ? workflowFile(a.name, a.file) : w.body;
 			const off = a.offset ?? 0;

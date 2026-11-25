@@ -23,7 +23,7 @@ Do not paraphrase the template. Do not paste your conversation history into it; 
 | `{KNOWN_UNVERIFIED}` | What the implementer did not or could not verify (screen never opened in a browser, migration never run on a real database, etc.). `none` only if genuinely none |
 | `{LENS_NAME}` | Assigned lens name (e.g. Lens A - Completeness & Silent Omissions Auditor), or combined names when merged |
 | `{LENS_CHECKLIST}` | Verbatim items for this lens from `code-lenses.md` |
-| `{LANE_CHECKLISTS}` | The matching lanes from `checklists.md`, verbatim (lens to lane table in `SKILL.md` section 4). Lane 5 goes to at least one subagent every time |
+| `{LANE_CHECKLISTS}` | The matching lanes from `checklists.md`, verbatim (lens to lane table in `code.md` section 4). Lane 5 goes to at least one subagent every time |
 
 ---
 

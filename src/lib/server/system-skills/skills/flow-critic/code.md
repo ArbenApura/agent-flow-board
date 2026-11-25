@@ -1,18 +1,11 @@
----
-name: flow-critic-code
-description: Use to have independent critic subagents review implemented code on Agent Flow Board (the code review), after a phase or an item is built, before commit sign-off, or after any change to server code, an endpoint, a migration, auth, a background worker or a screen. Scopes the working tree including untracked files, runs the repo's gates first, then read-only critics (a number sized to the work, or the number the user asks for) review it by lens. Applies to any code change, not only /flow items. Usable when the user types /flow-critic-code or asks for this review.
----
-
 # Flow Critic: code mode
 
-> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
+> The code review of `/flow-critic`, read after `SKILL.md` chose it. **Shared rules first.** Before you dispatch anything, read `critic-rules.md` in this folder (in a tool with no skills: `workflow_get` name `flow-critic` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this file.
 
-> **Shared rules first.** This skill is one of the four critic reviews. Before you dispatch anything, read `critic-rules.md` next to this file (in a tool with no skills: `workflow_get` name `flow-critic-code` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this skill.
-
-Files in this skill:
+Files of this review (all in the `flow-critic` folder):
 
 - `critic-rules.md`: the rules every critic review shares.
-- `SKILL.md` (this file): when code mode runs, lens allocation, scoping, requirements, gates and dispatch.
+- `code.md` (this file): when code mode runs, lens allocation, scoping, requirements, gates and dispatch.
 - `code-template.md` and `code-lenses.md`: the subagent prompt and its 6 lenses (A to F).
 - `checklists.md`: per-lane checklists (1 operations layer and entry points, 2 tenant isolation, secrets and untrusted text, 3 database, 4 UI, 5 protected surfaces, 6 tests, 7 design fit). Each lane applies when the repo has that kind of code. Paste only the lanes the diff touches.
 

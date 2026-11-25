@@ -1,18 +1,11 @@
----
-name: flow-critic-plan
-description: Use to have independent critic subagents attack a /flow plan on Agent Flow Board before it is built (the plan review), where the item's steps, spec and decisions are read from the board and read-only critics (a number sized to the plan, or the number the user asks for) look for loopholes, silent omissions and broken invariants. Usable when the user types /flow-critic-plan or asks for this review.
----
-
 # Flow Critic: plan mode
 
-> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
+> The plan review of `/flow-critic`, read after `SKILL.md` chose it. **Shared rules first.** Before you dispatch anything, read `critic-rules.md` in this folder (in a tool with no skills: `workflow_get` name `flow-critic` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this file.
 
-> **Shared rules first.** This skill is one of the four critic reviews. Before you dispatch anything, read `critic-rules.md` next to this file (in a tool with no skills: `workflow_get` name `flow-critic-plan` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this skill.
-
-Files in this skill:
+Files of this review (all in the `flow-critic` folder):
 
 - `critic-rules.md`: the rules every critic review shares.
-- `SKILL.md` (this file): plan mode, its topic-driven lenses and steps.
+- `plan.md` (this file): plan mode, its topic-driven lenses and steps.
 - `plan-template.md` and `plan-lenses.md`: the subagent prompt and the lens checklists, including the standing Project Safety and Design Fit checklists (Design Fit applies when the repo has design rules).
 
 ---

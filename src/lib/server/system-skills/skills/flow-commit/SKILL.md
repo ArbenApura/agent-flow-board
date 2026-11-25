@@ -34,7 +34,7 @@ Other sessions may edit and commit in this tree at the same time. Commit only th
   3. `git write-tree`, then `git commit-tree <tree> -p HEAD -F <message file>`.
   4. `git update-ref refs/heads/<branch> <new> <old HEAD>`: the old value makes it a compare-and-swap, so a commit that lands in between is never overwritten.
   5. `git reset -q -- <your paths>` so the real index matches the new HEAD for your files only.
-- **A shared file mixes your edits with another session's.** Commit only your hunks: build the blob from `git show HEAD:<path>` plus your changes and stage it as above. Leave their hunks uncommitted.
+- **A shared file mixes your edits with another session's.** Commit only your hunks: build the blob from `git show HEAD:<path>` plus your changes and stage it as above. Leave their hunks uncommitted. The `sharedFiles` list of the last `work_start` or `step_done` reply names the files another live session of the project also edited: check each of them this way before staging it.
 - **Your work was swept into another session's unpushed commit.** Ask the user first: say which commit, which of your files it holds and what you plan to do, and wait for a yes. Only then rebuild that commit without your files, keeping its message, author and author date, add your own commit on top with `commit-tree` and move the branch with the compare-and-swap `update-ref`; show the old and new SHAs first. Never rewrite a pushed commit (check with `git branch -r --contains <sha>`).
 
 ## Workflow

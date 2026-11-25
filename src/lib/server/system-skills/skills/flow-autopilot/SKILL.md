@@ -1,6 +1,6 @@
 ---
 name: flow-autopilot
-description: Use when the user types /flow-autopilot, or says "don't stop", "do it all yourself" or "finish the whole plan" about a plan that is already approved on Agent Flow Board. Runs every remaining phase to the end on its own: every choice goes through /flow-decide, a stop is allowed only for one of the six numbered reasons of /flow, a turn never ends with open steps and no reason, a blocked step is attempted three ways before it is called blocked, and the closing report lists the stops by reason number.
+description: Use when the user types /flow-autopilot, or says "don't stop", "do it all yourself" or "finish the whole plan" about a plan that is already approved on Agent Flow Board. Runs every remaining phase to the end on its own. Every choice goes through /flow-decide, a stop is allowed only for one of the six numbered reasons of /flow, a turn never ends with open steps and no reason, a blocked step is attempted three ways before it is called blocked, and the closing report lists the stops by reason number.
 ---
 
 # Flow autopilot: finish the whole plan, alone
@@ -57,7 +57,7 @@ The run ends only when all of this is true:
 
 1. every step is recorded with `step_done` as it was finished; `lessons` is written before the last step; `resume-here` is true;
 2. the gates ran once at the end of the whole plan as the repo rulebook names them, and `gate-results` is written;
-3. the code review (`/flow-critic-code`) ran with the number of critics `/flow` step 8 sizes, and its confirmed findings are fixed, each as a step;
+3. the code review (`/flow-critic code`) ran with the number of critics `/flow` step 8 sizes, and its confirmed findings are fixed, each as a step;
 4. `/flow-audit` ran;
 5. when the plan changed anything a person sees, `/flow` step 10 is done in its order: `/flow-screens`, the screens critique on those pictures, the fixes, `/flow-screens` again for what a fix changed, the scratch pictures deleted; the final message carries the `Screens:` line and the `Reviews:` line;
 6. `work_stop` was called, and nothing is committed or pushed.

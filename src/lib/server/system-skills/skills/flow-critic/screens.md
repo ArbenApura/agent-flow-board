@@ -1,20 +1,13 @@
----
-name: flow-critic-screens
-description: Use when the user asks for a per-screen visual critique of a design mockup or a built UI ("one critic for each screen", "check desktop, tablet and mobile", "render the pictures, do not just read the code"), or when /flow runs it at the end of a plan that changed a screen, on Agent Flow Board (the screen review). The lead takes real pictures of every screen at phone, tablet and desktop widths in the harness browser, gives each screen its own read-only critic that LOOKS at the pictures, then verifies, fixes and republishes. Usable when the user types /flow-critic-screens or asks for this review.
----
-
 # Flow Critic: one critic for each screen
 
-> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
+> The screens review of `/flow-critic`, read after `SKILL.md` chose it (on the user's word, or `/flow`'s own end-of-plan step on a plan that changed a screen). **Shared rules first.** Before you dispatch anything, read `critic-rules.md` in this folder (in a tool with no skills: `workflow_get` name `flow-critic` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this file. **One exception to its section 2: the subagent count is one critic for each screen (a small plan: one critic over all pictures), not the table's number.**
 
-> **Shared rules first.** This skill is one of the four critic reviews. Before you dispatch anything, read `critic-rules.md` next to this file (in a tool with no skills: `workflow_get` name `flow-critic-screens` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this skill. **One exception to its section 2: the subagent count is one critic for each screen, not 3.**
+The mockup review (`mockup.md`) reviews a mockup with critics split by lens. This is the **per-screen** variant: every screen (with its sheets) gets its own critic, and each judges **rendered pictures** at phone, tablet and desktop and the **consistency between them**. A critic never drives a browser: **the lead takes the pictures, the critics look at the files.**
 
-`/flow-critic-mockup` reviews a mockup with 3 critics split by lens. This is the **per-screen** variant: every screen (with its sheets) gets its own critic, and each judges **rendered pictures** at phone, tablet and desktop and the **consistency between them**. A critic never drives a browser: **the lead takes the pictures, the critics look at the files.**
-
-Files in this skill:
+Files of this review (all in the `flow-critic` folder):
 
 - `critic-rules.md`: the rules every critic review shares.
-- `SKILL.md` (this file): the steps and the report.
+- `screens.md` (this file): the steps and the report.
 - `critic-brief.md`: the standing brief and output format every screen critic gets.
 
 ## 0. Before you start
@@ -38,7 +31,7 @@ Use the browser protocol of `/flow` section 3 step 5a (open the page, set the wi
 - macOS: the same flags with `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`.
 - Linux: the same flags with `google-chrome` or `chromium`.
 
-**No browser and no headless Chromium at all: no screen critics.** Say so in one line, review the same work with `/flow-critic-code` (or `/flow-critic-mockup` for a mockup, reading the HTML against the repo) and name the limit under "Not verified". Never dispatch a screen critic without pictures.
+**No browser and no headless Chromium at all: no screen critics.** Say so in one line, review the same work with `/flow-critic code` (or `/flow-critic mockup` for a mockup, reading the HTML against the repo) and name the limit under "Not verified". Never dispatch a screen critic without pictures.
 
 ## 2. Dispatch one critic for each screen
 

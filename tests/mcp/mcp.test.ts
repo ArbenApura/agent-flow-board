@@ -229,10 +229,6 @@ describe('MCP server', () => {
 			'flow',
 			'flow-task',
 			'flow-interview',
-			'flow-critic-plan',
-			'flow-critic-code',
-			'flow-critic-mockup',
-			'flow-critic-screens',
 			'flow-audit',
 			'flow-mockup',
 			'flow-align',
@@ -248,29 +244,27 @@ describe('MCP server', () => {
 			expect(each.name, name).toBe(name);
 			expect(String(each.text).length, name).toBeGreaterThan(500);
 		}
-		const brief = await call(client, 'workflow_get', {
-			name: 'flow-critic-screens',
-			file: 'critic-brief'
-		});
-		expect(brief.name).toBe('flow-critic-screens/critic-brief');
-		const wf = await call(client, 'workflow_get', { name: 'flow-critic-plan' });
-		expect(String(wf.text).toLowerCase()).toContain('design fit');
-		// flow-critic is the router again (2.0.0): a workflow of its own with no supporting files, and the reviews carry the shared rules
+		// flow-critic is the one critic skill (AFB-20261125-1548): the entry text, then one file per review and the shared rules once
 		const router = await call(client, 'workflow_get', { name: 'flow-critic' });
 		expect(router.name).toBe('flow-critic');
 		expect(String(router.text)).toContain('Which review?');
-		const rules = await call(client, 'workflow_get', {
-			name: 'flow-critic-code',
-			file: 'critic-rules'
-		});
-		expect(rules.name).toBe('flow-critic-code/critic-rules');
-		// A supporting file of a critic module is readable, and a file on another workflow is refused
-		const lenses = await call(client, 'workflow_get', {
-			name: 'flow-critic-plan',
-			file: 'plan-lenses'
-		});
-		expect(lenses.name).toBe('flow-critic-plan/plan-lenses');
+		const brief = await call(client, 'workflow_get', { name: 'flow-critic', file: 'critic-brief' });
+		expect(brief.name).toBe('flow-critic/critic-brief');
+		const plan = await call(client, 'workflow_get', { name: 'flow-critic', file: 'plan' });
+		expect(plan.name).toBe('flow-critic/plan');
+		expect(String(plan.text)).toContain('Plan Mode');
+		const rules = await call(client, 'workflow_get', { name: 'flow-critic', file: 'critic-rules' });
+		expect(rules.name).toBe('flow-critic/critic-rules');
+		// A supporting file of flow-critic is readable, and a file on another workflow is refused
+		const lenses = await call(client, 'workflow_get', { name: 'flow-critic', file: 'plan-lenses' });
+		expect(lenses.name).toBe('flow-critic/plan-lenses');
 		expect(String(lenses.text).length).toBeGreaterThan(500);
+		// The four retired workflow names are refused by the enum
+		const gone = await client
+			.callTool({ name: 'workflow_get', arguments: { name: 'flow-critic-code' } })
+			.then((r) => (r.isError === true ? JSON.stringify(r.content) : ''))
+			.catch((e: unknown) => String(e));
+		expect(gone).toMatch(/invalid|enum/i);
 		const wrongFile = await call(client, 'workflow_get', { name: 'flow', file: 'plan-lenses' });
 		expect(wrongFile.error ?? wrongFile.code).toBeTruthy();
 		// The task workflow is readable, and never tells the agent to claim an item
@@ -291,8 +285,15 @@ describe('MCP server', () => {
 			index.skills.map(() => 'install')
 		);
 		expect(fresh.rules.join(' ')).toContain('Never run');
-		// flow-critic is a skill again, so it is no longer offered for deletion by name; its six old files are
+		// flow-critic is a skill again, so it is no longer offered for deletion by name; the four old module names are
 		expect(fresh.retiredNames).not.toContain('flow-critic');
+		for (const gone of [
+			'flow-critic-plan',
+			'flow-critic-code',
+			'flow-critic-mockup',
+			'flow-critic-screens'
+		])
+			expect(fresh.retiredNames, gone).toContain(gone);
 		expect(fresh.skills.map((s: { name: string }) => s.name)).toContain('flow-critic');
 		// No skill lists a removed file today, and the field is there for the next time
 		const gone = Object.fromEntries(

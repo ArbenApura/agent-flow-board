@@ -62,30 +62,7 @@ export const SKILL_INFO: Record<string, SkillInfo> = {
 		kind: 'Check',
 		icon: 'scan-search',
 		summary:
-			'One entry for the four reviews: works out which one you meant, and asks once when it cannot tell.'
-	},
-	'flow-critic-plan': {
-		kind: 'Check',
-		icon: 'scan-search',
-		summary:
-			'Sends independent reviewers to attack the plan on the board before any code is written.'
-	},
-	'flow-critic-code': {
-		kind: 'Check',
-		icon: 'scan-search',
-		summary:
-			'Sends independent reviewers to critique the code after it is written, before you sign off a commit.'
-	},
-	'flow-critic-mockup': {
-		kind: 'Check',
-		icon: 'scan-search',
-		summary: 'Sends independent reviewers to attack a design mockup against the real product.'
-	},
-	'flow-critic-screens': {
-		kind: 'Check',
-		icon: 'scan-search',
-		summary:
-			'Gives every screen its own reviewer, judging real pictures at phone, tablet and desktop widths.'
+			'Sends independent reviewers over a plan, the code, a mockup or every screen; works out which one you meant and asks once when it cannot tell.'
 	},
 	'flow-decide': {
 		kind: 'Plan',

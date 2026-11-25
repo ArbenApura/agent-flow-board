@@ -25,7 +25,7 @@ The mockup is the spec for what a person sees: its structure, layout order, text
 
 ## Check it at the end of the phase
 
-Mark every inventory line `built`, `free` (say why: a token, a real component or the Free note) or `differs`. Then write one line for the phase in the `design-brief`: `Mockup read: <mockup id> v<n>: HTML read in full, inventory <n> lines, built <n>, free <n>, differs <n>`. A visible step is not done without the inventory and that line; `/flow-critic-code` and `/flow-audit` check both against the HTML and the server's record.
+Mark every inventory line `built`, `free` (say why: a token, a real component or the Free note) or `differs`. Then write one line for the phase in the `design-brief`: `Mockup read: <mockup id> v<n>: HTML read in full, inventory <n> lines, built <n>, free <n>, differs <n>`. A visible step is not done without the inventory and that line; `/flow-critic code` and `/flow-audit` check both against the HTML and the server's record.
 
 A line that differs in something binding is never dropped silently. Collect them through the phase and show them as one list at the end of the phase, never one stop for each. With none, say nothing and go on. With some, that one list is the stop: show each line with what you built instead and why, and wait for the user's word before the next phase.
 

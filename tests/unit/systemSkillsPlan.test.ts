@@ -355,8 +355,8 @@ describe('the files a skill no longer ships (AFB-20261123-1205)', () => {
 	});
 });
 
-describe('the restored flow-critic name (AFB-20261125-1442)', () => {
-	// An installed copy of the old monolith (1.5.6, six extra files) must update to the router, never read as newer
+describe('the one flow-critic skill (AFB-20261125-1442, AFB-20261125-1548)', () => {
+	// An installed copy of the old monolith (1.5.6) or of the router (2.0.0) must update to 2.1.0, never read as newer
 	const real: ServedSkill[] = systemSkills().map((s) => ({
 		name: s.name,
 		version: s.version,
@@ -374,21 +374,35 @@ describe('the restored flow-critic name (AFB-20261125-1442)', () => {
 			MANIFEST.removedFiles ?? {}
 		);
 
-	it('updates an installed old flow-critic to 2.0.0 and deletes its six old files', () => {
+	it('updates an installed old flow-critic to 2.1.0 and writes all its files, deleting none', () => {
 		const critic = planned().skills.find((s) => s.name === 'flow-critic')!;
 		expect(critic.action).toBe('update');
-		expect(critic.version).toBe('2.0.0');
-		expect(critic.removedFiles.sort()).toEqual([
-			'checklists.md',
-			'code-lenses.md',
-			'code-template.md',
-			'mockup-lenses.md',
-			'plan-lenses.md',
-			'plan-template.md'
-		]);
+		expect(critic.version).toBe('2.1.0');
+		// The old monolith's file names ship again, so nothing is removed and every one is rewritten from the served text
+		expect(critic.removedFiles).toEqual([]);
+		expect(critic.files.map((f) => f.path)).toContain('plan-lenses.md');
+		expect(critic.files.map((f) => f.path)).toContain('code.md');
 		// It is a bundle skill now, so it is no longer a retired copy to remove
 		expect(planned().retired.map((r) => r.name)).not.toContain('flow-critic');
-		expect(compareVersions('1.5.6', '2.0.0')).toBeLessThan(0);
+		expect(compareVersions('1.5.6', '2.1.0')).toBeLessThan(0);
+		expect(compareVersions('2.0.0', '2.1.0')).toBeLessThan(0);
+	});
+
+	it('retires an installed copy of each of the four old modules, and asks when it reports files', () => {
+		const modules = [
+			'flow-critic-plan',
+			'flow-critic-code',
+			'flow-critic-mockup',
+			'flow-critic-screens'
+		];
+		const retire = (installed: InstalledSkill[]) =>
+			planSkills(real, 'claude-code', 'user', installed, true, MANIFEST.retired ?? [], {}).retired;
+		const plain = retire(modules.map((m) => clean(m, '1.0.3', { otherFilesChanged: false })));
+		expect(plain.map((r) => [r.name, r.action])).toEqual(modules.map((m) => [m, 'retire']));
+		const withFiles = retire([
+			clean('flow-critic-plan', '1.0.3', { files: [{ path: 'critic-rules.md', sha256: H }] })
+		]);
+		expect(withFiles[0].action).toBe('ask');
 	});
 
 	it('asks, and deletes nothing, when the installed old flow-critic was edited by hand', () => {

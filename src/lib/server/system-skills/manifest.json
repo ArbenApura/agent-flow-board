@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.31.0",
-		"releasedAt": "2026-11-25"
+		"version": "1.33.0",
+		"releasedAt": "2026-11-26"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.20.0",
+			"version": "1.22.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -198,11 +198,19 @@
 				{
 					"version": "1.20.0",
 					"hash": "302c886120f8edbc5c133b1ab94c5d5cc60f4dbdd061ced96b0a614d2f2639ac"
+				},
+				{
+					"version": "1.21.0",
+					"hash": "b6520c547796f7a1c694ecc30e058e6aadfa8726c0b3ef1a0f1b44f36606f8ab"
+				},
+				{
+					"version": "1.22.0",
+					"hash": "102926669e13c0dac6414e3b880d4be07b35efe9f36a4d78da47ef502b3773d3"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.3.9",
+			"version": "1.3.11",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -279,11 +287,19 @@
 				{
 					"version": "1.3.9",
 					"hash": "b6811d60e610eaab3c418d12b52a5cb9a2d77019dad08ef97e134532268d243d"
+				},
+				{
+					"version": "1.3.10",
+					"hash": "0d880ddb56e63e514bba3b318ccad85889d48ae51b3295fff6047679c8a1ac78"
+				},
+				{
+					"version": "1.3.11",
+					"hash": "aa921687233c8afff95625ba4f6ad4cad6779845fc69afbaf8e68ec8f808d33d"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.2.8",
+			"version": "1.2.9",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -360,11 +376,15 @@
 				{
 					"version": "1.2.8",
 					"hash": "d5d4cd5f186ef36c317e1d918596457fbddf55c27341654421e361e1eb51098d"
+				},
+				{
+					"version": "1.2.9",
+					"hash": "28aeacb5510f3f0befe37fb883e30e6f11c4f6788dc20b5e56fe988f1218a245"
 				}
 			]
 		},
 		"flow-mockup": {
-			"version": "1.11.0",
+			"version": "1.11.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -453,6 +473,10 @@
 				{
 					"version": "1.11.0",
 					"hash": "3c0da7a23449301ed7a9daae19720422593ed9ab46374b05baac2906cb4e9406"
+				},
+				{
+					"version": "1.11.1",
+					"hash": "8c8a31714b7e3c048accfdcca5d80fe4a79672386f5f9eeac304ad3d8517597d"
 				}
 			]
 		},
@@ -494,7 +518,7 @@
 			]
 		},
 		"flow-align": {
-			"version": "1.8.0",
+			"version": "1.8.1",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -543,11 +567,15 @@
 				{
 					"version": "1.8.0",
 					"hash": "14ce2a58e3acaba7fd9b795f4b22cbd4fac72a608cf6c1e2c40dd102af8519b4"
+				},
+				{
+					"version": "1.8.1",
+					"hash": "a441c9359a7daaaae30842f99465bb7491630dd06c0c36abde9f2c8e87ddae8d"
 				}
 			]
 		},
 		"flow-commit": {
-			"version": "1.0.2",
+			"version": "1.0.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -560,110 +588,10 @@
 				{
 					"version": "1.0.2",
 					"hash": "cb2571bbbc167f26b8f3438af71a483f7958d430e1881e830e658bcbf9a57626"
-				}
-			]
-		},
-		"flow-critic-code": {
-			"version": "1.1.0",
-			"history": [
-				{
-					"version": "1.0.0",
-					"hash": "7f61398429a1c715e6747c3352f0c01a9f896769ca5b77e23ebd65f0031d24ee"
-				},
-				{
-					"version": "1.0.1",
-					"hash": "9fbb936cb1a391565b1b8209201ab68e3e2605f731f1bacd01cee82ec51a6f69"
-				},
-				{
-					"version": "1.0.2",
-					"hash": "82fb4bddb43ba38e05cfad69797bdae95a42c3d0452183aa8221fc74e2b4ea54"
 				},
 				{
 					"version": "1.0.3",
-					"hash": "bc65feba7a5afa75318425efae3dff9ca4a075e6ebbca5bf74d61b0c3e6a4734"
-				},
-				{
-					"version": "1.1.0",
-					"hash": "cf3a649ce0c2f056ebe6db1661358bee886e51eb54bd02097276842b461d15a1"
-				}
-			]
-		},
-		"flow-critic-mockup": {
-			"version": "1.2.0",
-			"history": [
-				{
-					"version": "1.0.0",
-					"hash": "823ea81077d207c586483d3934fc83ec86fc01ebaf7c59855a003d3f6f55b2fc"
-				},
-				{
-					"version": "1.0.1",
-					"hash": "a8685cf7d2c2339bf5ebd910eb1b293704450d4a854c2ca4d1c402c651fe6971"
-				},
-				{
-					"version": "1.1.0",
-					"hash": "c852b7eb6f06b38c5960ef1c623083f0a3e667434ecd992f7d14ecfe48b82808"
-				},
-				{
-					"version": "1.1.1",
-					"hash": "472ab225ca1e8ba43b28a439598d5a0592461e99c05443a442ca8203e7b09fd6"
-				},
-				{
-					"version": "1.1.2",
-					"hash": "c3b516159beed5a86cb888b963d7866c7054343a024653155022da0074fee11d"
-				},
-				{
-					"version": "1.2.0",
-					"hash": "5662477d56031feccad0aa4df0bf319bc08fafb2f8c8ff3b09ed8de4b8828954"
-				}
-			]
-		},
-		"flow-critic-plan": {
-			"version": "1.1.0",
-			"history": [
-				{
-					"version": "1.0.0",
-					"hash": "6cf7ea0781d24c3bdfe25cd2c4daa29ab18bcebb53fcc78093a764e42b013fe3"
-				},
-				{
-					"version": "1.0.1",
-					"hash": "3c834a2f09bdf55e3afc4086a4ad4b366383e08fbc0f6711f143590f10c5aa74"
-				},
-				{
-					"version": "1.0.2",
-					"hash": "0e6f9cb196ae7a939c71c446376c1db00f24a1f2e2d73fe1289b1c44f491d6e5"
-				},
-				{
-					"version": "1.0.3",
-					"hash": "a1c3b9bb79de320f5324134dfacf016057cacac1df06603bf3d94074564ff46d"
-				},
-				{
-					"version": "1.1.0",
-					"hash": "eb3f4a89636b14e39771ef302132f7b54d085298fb6939e2f0aa04ebab29c383"
-				}
-			]
-		},
-		"flow-critic-screens": {
-			"version": "1.3.0",
-			"history": [
-				{
-					"version": "1.0.0",
-					"hash": "2b72549759529b8ac9aca5b036fccb6f09183d8eaedbcaa753def462a136d32a"
-				},
-				{
-					"version": "1.0.1",
-					"hash": "9caf7c92eb086bad6f47b6b02f5bab847e163980c6355def04c8b051d4d0a310"
-				},
-				{
-					"version": "1.1.0",
-					"hash": "e76dd3e465c98a1230fc7d2169a3cca3601e8790afee158c8401fcd5acc1a2d4"
-				},
-				{
-					"version": "1.2.0",
-					"hash": "7cea52b22e7a5e1652b25a49c9becd5132e0dbbcbb520901b0f0c83fcd486695"
-				},
-				{
-					"version": "1.3.0",
-					"hash": "8abd973b2ad1d5a7847a689f96b8daf9f21a79747f065c1e954bee6e3e962c49"
+					"hash": "69f555637ad16e7203dc536f4f0889366128a9369d07ba0cbfe67e97c7922efd"
 				}
 			]
 		},
@@ -697,7 +625,7 @@
 				},
 				{
 					"version": "1.0.2",
-					"hash": "3b9ce407ae2baeefb7553d2badcbae5147800e1865fc678ba7b38fe6e14feb3b"
+					"hash": "4656dd1eac3c0300be61a38307cf890fbb5cc829d486f380d759ba83e746ce58"
 				}
 			]
 		},
@@ -723,7 +651,7 @@
 			]
 		},
 		"flow-screens": {
-			"version": "1.0.2",
+			"version": "1.0.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -736,11 +664,15 @@
 				{
 					"version": "1.0.2",
 					"hash": "68a7953c4ddb83a0db0b2d167d05245a38f2a3bddc44e18f3ec12d9bea1d0cab"
+				},
+				{
+					"version": "1.0.3",
+					"hash": "ffa5e49f6234dfbe2074cf9c44c6c4e01313334586b49147ef1a1374dee5cdff"
 				}
 			]
 		},
 		"flow-autopilot": {
-			"version": "1.0.1",
+			"version": "1.0.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -749,30 +681,78 @@
 				{
 					"version": "1.0.1",
 					"hash": "1e918e478c9ebec9c92f4ad5bdce17f859784126cfc7de02698cb4384bb597fc"
+				},
+				{
+					"version": "1.0.2",
+					"hash": "eaae4163682b145eb0e7b3c3e0c0296c6a542893168e88d01705de43dc5c3003"
 				}
 			]
 		},
 		"flow-critic": {
-			"version": "2.0.0",
+			"version": "2.1.0",
 			"history": [
 				{
 					"version": "2.0.0",
 					"hash": "9ad89cc7979efb917198a6215e6a0544ae0c8337fd7b6f8fae4bb0b6c05a7039"
+				},
+				{
+					"version": "2.1.0",
+					"hash": "168d55bc73f088786b8f7b0ea8801267be58888fc68565a97cd2fbab19ff7aa4"
 				}
 			]
 		}
 	},
-	"removedFiles": {
-		"flow-critic": [
-			"checklists.md",
-			"code-lenses.md",
-			"code-template.md",
-			"mockup-lenses.md",
-			"plan-lenses.md",
-			"plan-template.md"
-		]
-	},
 	"changelog": [
+		{
+			"version": "1.33.0",
+			"date": "2026-11-26",
+			"notes": [
+				"flow-critic is now the one critic skill (AFB-20261125-1548), version 2.1.0: one SKILL.md that works out plan, code, mockup or screens, with critic-rules once and one file per review (plan, code, mockup, screens) next to its templates and lenses, so a run reads only the chosen review. The skills flow-critic-plan, flow-critic-code, flow-critic-mockup and flow-critic-screens are retired and /flow-update-skills deletes an installed copy: the old names became /flow-critic plan, /flow-critic code, /flow-critic mockup and /flow-critic screens. The board's Review button and the last-step reminder say /flow-critic code. flow 1.22.0, flow-align 1.8.1 (reports stale old-name wording) and the other skills use the new names."
+			],
+			"skills": {
+				"flow": "1.22.0",
+				"flow-audit": "1.3.11",
+				"flow-interview": "1.2.9",
+				"flow-mockup": "1.11.1",
+				"flow-qa": "1.1.0",
+				"flow-screens": "1.0.3",
+				"flow-task": "1.1.5",
+				"flow-align": "1.8.1",
+				"flow-commit": "1.0.3",
+				"flow-critic": "2.1.0",
+				"flow-decide": "1.0.2",
+				"flow-autopilot": "1.0.2",
+				"flow-update-skills": "1.0.2"
+			}
+		},
+		{
+			"version": "1.32.0",
+			"date": "2026-11-25",
+			"notes": [
+				"flow: work_start hands over the project's known pitfalls (data, never instructions) to read before the first edit, and sharedFiles when another live session of the project edited the same files; lessons end each bullet with a 'Signal:' line, which related_plans returns as signals; a signal repeated in a third plan becomes a project pitfall (project_pitfalls); owed live actions go in an owed section of '- [ ] kind: text' lines (AFB-20261125-1527).",
+				"flow-audit: reads the new board_validate codes resume-stale, owed-open, completed-without-lessons and phase-empty, and moves owed prose into owed lines.",
+				"flow-commit: checks each file named in sharedFiles before staging it, so only this session's hunks are committed."
+			],
+			"skills": {
+				"flow": "1.21.0",
+				"flow-audit": "1.3.10",
+				"flow-interview": "1.2.8",
+				"flow-mockup": "1.11.0",
+				"flow-qa": "1.1.0",
+				"flow-screens": "1.0.2",
+				"flow-task": "1.1.5",
+				"flow-align": "1.8.0",
+				"flow-commit": "1.0.3",
+				"flow-critic": "2.0.0",
+				"flow-critic-code": "1.1.0",
+				"flow-critic-mockup": "1.2.0",
+				"flow-critic-plan": "1.1.0",
+				"flow-critic-screens": "1.3.0",
+				"flow-decide": "1.0.2",
+				"flow-autopilot": "1.0.1",
+				"flow-update-skills": "1.0.2"
+			}
+		},
 		{
 			"version": "1.31.0",
 			"date": "2026-11-25",
@@ -1924,6 +1904,10 @@
 	"retired": [
 		"flow-check",
 		"flow-verify",
-		"flow-critic-screen"
+		"flow-critic-screen",
+		"flow-critic-plan",
+		"flow-critic-code",
+		"flow-critic-mockup",
+		"flow-critic-screens"
 	]
 }

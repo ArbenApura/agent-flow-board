@@ -1,18 +1,11 @@
----
-name: flow-critic-mockup
-description: Use only when the user asks for it, to have independent critic subagents attack a design mockup made by /flow-mockup against the real product on Agent Flow Board (the mockup review), where the lead takes pictures of the mockup and the nearest real screen, measures both, and read-only critics (a number sized to the work) judge them; fixes go out as a new version of the same mockup. Usable when the user types /flow-critic-mockup or asks for this review.
----
-
 # Flow Critic: mockup mode
 
-> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
+> The mockup review of `/flow-critic`, read after `SKILL.md` chose it, and only on the user's word. **Shared rules first.** Before you dispatch anything, read `critic-rules.md` in this folder (in a tool with no skills: `workflow_get` name `flow-critic` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this file.
 
-> **Shared rules first.** This skill is one of the four critic reviews. Before you dispatch anything, read `critic-rules.md` next to this file (in a tool with no skills: `workflow_get` name `flow-critic-mockup` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this skill.
-
-Files in this skill:
+Files of this review (all in the `flow-critic` folder):
 
 - `critic-rules.md`: the rules every critic review shares.
-- `SKILL.md` (this file): mockup mode, its steps and its report.
+- `mockup.md` (this file): mockup mode, its steps and its report.
 - `mockup-lenses.md`: the subagent prompt and its 6 lenses (M1 to M6).
 
 ---

@@ -96,7 +96,7 @@ New wording comes **only from this skill and its `rules-block.md`**. Never copy 
 
 ## 10. Report once, short
 
-One short plain list: per file what changed and why (for class a, the flow line it now agrees with); what was listed and left, one line each; tools with nothing found; the backup folder, which is the way to undo. No question at the end. A second run right after changes nothing: if it would, the first run was wrong, so say what and stop.
+One short plain list: per file what changed and why (for class a, the flow line it now agrees with); what was listed and left, one line each (stale `/flow-critic-plan`, `-code`, `-mockup` or `-screens` wording in a rule file or memory is one such line: the form is now `/flow-critic <review>`); tools with nothing found; the backup folder, which is the way to undo. No question at the end. A second run right after changes nothing: if it would, the first run was wrong, so say what and stop.
 
 ## Never
 

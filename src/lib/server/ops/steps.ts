@@ -293,7 +293,7 @@ export async function recordSteps(
 				...(open.length === 0
 					? {
 							reminder:
-								'All counted steps are done. Run /flow-critic-code and /flow-audit, then call work_stop to release the claim.'
+								'All counted steps are done. Run /flow-critic code and /flow-audit, then call work_stop to release the claim.'
 						}
 					: {}),
 				...(claim ? { claim } : {}),

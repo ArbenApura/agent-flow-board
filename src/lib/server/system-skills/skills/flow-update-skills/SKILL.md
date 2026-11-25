@@ -31,7 +31,7 @@ Keep file names and folder layout exactly as listed: a skill can have supporting
 
 ## 4. Clean up
 
-- **Obsolete skills.** Every skill the reply lists as retired is no longer in the bundle. For action `retire`, delete its folder outright (no backup); for `ask`, show the reason and wait for a yes. Delete only a folder the reply names.
+- **Obsolete skills.** Every skill the reply lists as retired is no longer in the bundle. For action `retire`, delete its folder outright (no backup); for `ask`, show the reason and wait for a yes. Delete only a folder the reply names. A retired folder normally holds files of that skill itself (the four old critic skills held `critic-rules.md` and lens files), so when its `ask` is only about such files, say so in the reason you show; the yes deletes the whole folder.
 - **Stale files.** Files listed as `removedFiles` for an installed bundle skill are no longer shipped: delete them only after that skill was installed or updated with every sha256 matching (or after a yes for an `ask`), only inside that skill's own folder, never a path containing `..`. Any other file in a skill folder is the person's and is left.
 - Name every skill and file removed in the report.
 

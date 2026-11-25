@@ -39,10 +39,6 @@ const NAMES = [
 	'flow-autopilot',
 	'flow-commit',
 	'flow-critic',
-	'flow-critic-code',
-	'flow-critic-mockup',
-	'flow-critic-plan',
-	'flow-critic-screens',
 	'flow-decide',
 	'flow-interview',
 	'flow-mockup',
@@ -78,23 +74,18 @@ describe('the system skills manifest', () => {
 	it('lists every flow skill, each with a semver version, and the retired ones apart (AFB-20261116-1457)', () => {
 		expect(Object.keys(MANIFEST.skills).sort()).toEqual(NAMES);
 		// flow-critic came back in bundle 1.31.0 as the router, version 2.0.0 above the old monolith's 1.5.6 (AFB-20261125-1442)
-		// flow-critic-screen was renamed flow-critic-screens in bundle 1.27.0, so the old folder name is retired too
+		// and became the one critic skill in bundle 1.33.0 (AFB-20261125-1548): the four modules are retired, so installed copies are deleted
 		expect([...(MANIFEST.retired ?? [])].sort()).toEqual([
 			'flow-check',
+			'flow-critic-code',
+			'flow-critic-mockup',
+			'flow-critic-plan',
 			'flow-critic-screen',
+			'flow-critic-screens',
 			'flow-verify'
 		]);
-		// The old monolith's six files are deleted from an installed copy that is updated to the router
-		expect(MANIFEST.removedFiles).toEqual({
-			'flow-critic': [
-				'checklists.md',
-				'code-lenses.md',
-				'code-template.md',
-				'mockup-lenses.md',
-				'plan-lenses.md',
-				'plan-template.md'
-			]
-		});
+		// The files of the old monolith ship again inside flow-critic, so nothing is listed as removed
+		expect(MANIFEST.removedFiles ?? {}).toEqual({});
 		const [major] = MANIFEST.skills['flow-critic'].version.split('.').map(Number);
 		expect(
 			major,
@@ -194,10 +185,9 @@ describe('workflow_get and the bundle', () => {
 		expect(stripFrontMatter('---\nname: a\n---\n\n# A\n')).toBe('# A\n');
 	});
 
-	it('read each critic review supporting file from the bundle files, and critic-rules is the same file in all four (AFB-20261123-1205)', () => {
-		for (const [name, names] of Object.entries(WORKFLOW_FILES).filter(([n]) =>
-			n.startsWith('flow-critic')
-		)) {
+	it('read each supporting file of flow-critic and flow from the bundle files, and critic-rules exists once (AFB-20261125-1548)', () => {
+		for (const name of ['flow-critic', 'flow']) {
+			const names = WORKFLOW_FILES[name];
 			const skill = systemSkills().find((s) => s.name === name)!;
 			for (const f of names)
 				expect(skill.files.find((x) => x.path === `${f}.md`)?.text.trimEnd(), `${name}/${f}`).toBe(
@@ -211,29 +201,22 @@ describe('workflow_get and the bundle', () => {
 					.sort()
 			]);
 		}
-		// The router has SKILL.md only; the review files stay in the four modules
-		expect(
-			systemSkills()
-				.find((s) => s.name === 'flow-critic')!
-				.files.map((f) => f.path)
-		).toEqual(['SKILL.md']);
-		// The shared rules are one text in four places, so a review never reads a different copy from its sibling
-		const rules = ['plan', 'code', 'mockup', 'screens'].map((m) =>
-			systemSkills()
-				.find((s) => s.name === `flow-critic-${m}`)!
-				.files.find((f) => f.path === 'critic-rules.md')!
-		);
-		expect(rules.every((r) => r.text === rules[0].text && r.sha256 === rules[0].sha256)).toBe(true);
-		// Every supporting file name is owned by a review, and only critic-rules by all four
-		const owned = Object.entries(WORKFLOW_FILES)
-			.filter(([n]) => n.startsWith('flow-critic'))
-			.flatMap(([, names]) => [...names]);
-		// The flow detail files (design, mockup-read, screens) belong to flow, not to a critic review (AFB-20261124-1254)
-		const flowOwn = WORKFLOW_FILES.flow;
-		expect([...new Set(owned)].sort()).toEqual(
-			[...WORKFLOW_FILE_NAMES].filter((n) => !flowOwn.includes(n)).sort()
-		);
-		expect(owned.filter((n) => n === 'critic-rules')).toHaveLength(4);
+		// The four old critic skills are gone for good, so there is no second copy of the shared rules to drift
+		for (const gone of [
+			'flow-critic-plan',
+			'flow-critic-code',
+			'flow-critic-mockup',
+			'flow-critic-screens'
+		])
+			expect(
+				systemSkills().find((s) => s.name === gone),
+				gone
+			).toBeUndefined();
+		const copies = systemSkills().filter((s) => s.files.some((f) => f.path === 'critic-rules.md'));
+		expect(copies.map((s) => s.name)).toEqual(['flow-critic']);
+		// Every supporting file name is owned by flow-critic or flow, and the names both own are read per workflow (screens)
+		const owned = new Set([...WORKFLOW_FILES['flow-critic'], ...WORKFLOW_FILES.flow]);
+		expect([...owned].sort()).toEqual([...WORKFLOW_FILE_NAMES, 'reference'].sort());
 	});
 });
 

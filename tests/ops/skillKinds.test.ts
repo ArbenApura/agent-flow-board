@@ -36,12 +36,6 @@ describe('skill kinds of the Skills tab', () => {
 			filterSkills(rows, 'All', '  critic  ')
 				.map((r) => r.name)
 				.sort()
-		).toEqual([
-			'flow-critic',
-			'flow-critic-code',
-			'flow-critic-mockup',
-			'flow-critic-plan',
-			'flow-critic-screens'
-		]);
+		).toEqual(['flow-critic']);
 	});
 });

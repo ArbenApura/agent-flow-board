@@ -188,11 +188,11 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		},
 		{
 			rule: 'only the card options that say go are a go',
-			pattern: /"Go" and "`\/flow-critic-plan` then go" are a go/
+			pattern: /"Go" and "`\/flow-critic plan` then go" are a go/
 		},
 		{
 			rule: 'just the critic is not a go',
-			pattern: /"just `\/flow-critic-plan`" runs the critic and ends at the hand-over again/
+			pattern: /"just `\/flow-critic plan`" runs the critic and ends at the hand-over again/
 		},
 		{
 			rule: 'no open question goes in the card',
@@ -289,12 +289,9 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			pattern: /unlinked from the plan or moved to the trash while the build ran/
 		}
 	],
-	// AFB-20261123-1205: flow-critic is gone; the rules every critic review shares are CRITIC_SHARED, pinned in each of the four, and the rules that moved with the work are pinned where they now live
-	'flow-critic-plan': [
+	// AFB-20261125-1548: the four critic reviews are one skill; the pins of every review file are checked against the joined text of the skill, and the rules every review shares are CRITIC_SHARED
+	'flow-critic': [
 		{ rule: 'checks the design brief', pattern: /Has a sourced design brief/ },
-		{ rule: 'reads the shared rules first', pattern: /Shared rules first\./ }
-	],
-	'flow-critic-code': [
 		{ rule: 'no AI attribution', pattern: /Claude or Anthropic attribution/ },
 		{ rule: 'checks the build against the design', pattern: /An unapproved difference is/ },
 		// AFB-20261110-2331: a critic gets the mockup itself and checks the build against it
@@ -303,15 +300,9 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 			rule: 'the inventory is checked against the code',
 			pattern: /check every inventory line against the code/
 		},
-		{ rule: 'reads the shared rules first', pattern: /Shared rules first\./ }
-	],
-	'flow-critic-mockup': [
 		{ rule: 'the free notes are checked', pattern: /The Free notes are complete/ },
 		{ rule: 'a mockup shell must be the app own', pattern: /The shell is the app's own/ },
 		{ rule: 'runs only when the user asks', pattern: /It runs only when the user asks for it/ },
-		{ rule: 'reads the shared rules first', pattern: /Shared rules first\./ }
-	],
-	'flow-critic-screens': [
 		{ rule: 'never a critic without pictures', pattern: /Dispatch a critic without pictures/ },
 		{ rule: 'a critic never drives a browser', pattern: /A critic never drives a browser/ },
 		{ rule: 'reads the shared rules first', pattern: /Shared rules first\./ }
@@ -540,7 +531,7 @@ describe('the shipped skills keep their safety rules', () => {
 	for (const [name, rules] of Object.entries(RETAINED)) {
 		it(`${name} still states every retained rule`, () => {
 			const text = sources[name].map((f) => f.text).join('\n');
-			const all = [...rules, ...(name.startsWith('flow-critic-') ? CRITIC_SHARED : [])];
+			const all = [...rules, ...(name === 'flow-critic' ? CRITIC_SHARED : [])];
 			const missing = all.filter((r) => !r.pattern.test(text)).map((r) => r.rule);
 			expect(missing, name).toEqual([]);
 		});
@@ -625,13 +616,39 @@ describe('the skill descriptions', () => {
 			const md = files.find((f) => f.path === 'SKILL.md')!.text;
 			const description = frontMatterKeys(md).description ?? '';
 			expect(description.length, name).toBeGreaterThan(60);
-			expect(description.length, name).toBeLessThan(1100);
+			// The Agent Skills format caps a description at 1024 characters and a name at 64 lowercase letters, digits and hyphens
+			expect(description.length, name).toBeLessThanOrEqual(1024);
+			expect(name, name).toMatch(/^[a-z0-9-]{1,64}$/);
 			expect(description, name).not.toMatch(/^[>|]/);
 			expect(description, name).not.toContain('in agent-flow-board');
 			// The extracted value equals the raw front matter line, so nothing was cut at a colon or a quote
 			const raw = md.split('\n').find((l) => l.startsWith('description:'))!;
 			const value = raw.replace(/^description:\s*/, '').replace(/^"(.*)"$/, '$1');
 			expect(description, name).toBe(value);
+			// A strict YAML parser (an editor's Markdown preview, another harness) rejects a plain value that holds ': ' (a nested mapping) or ' #' (a comment); our own loader is lenient and would never notice
+			if (/^description:\s*"/.test(raw))
+				expect(value, `${name}: a quote inside a quoted value`).not.toContain('"');
+			else {
+				expect(value, `${name}: ': ' makes a strict YAML parser read a nested mapping`).not.toMatch(
+					/: /
+				);
+				expect(value, `${name}: ' #' starts a YAML comment`).not.toMatch(/ #/);
+				expect(value, `${name}: starts with a YAML indicator`).not.toMatch(
+					/^[-?:,[\]{}#&*!|>'%@`]/
+				);
+			}
+		}
+	});
+
+	it('keeps every other front matter line of every skill valid for a strict YAML parser', () => {
+		for (const [name, files] of Object.entries(sourceFiles())) {
+			const md = files.find((f) => f.path === 'SKILL.md')!.text;
+			const front = md.split('\n---\n')[0].split('\n').slice(1);
+			for (const line of front) {
+				const m = /^([A-Za-z][\w-]*): ?(.*)$/.exec(line);
+				expect(m, `${name}: '${line.slice(0, 40)}' is not a key: value line`).not.toBeNull();
+				if (m && !/^["']/.test(m[2])) expect(m[2], `${name}: ${m[1]}`).not.toMatch(/: | #/);
+			}
 		}
 	});
 });
@@ -707,20 +724,56 @@ describe('the modules and the new skills keep their own rules', () => {
 		expect(text).not.toContain('Score the two or three serious options');
 	});
 
-	it('each critic review names its critic-rules.md as its mandatory first read, and carries no file of the old monolith', () => {
-		const old = new Set(MANIFEST.removedFiles?.['flow-critic'] ?? []);
-		expect(old.size).toBe(6);
-		for (const name of [
+	it('flow-critic is one small entry plus one file per review, critic-rules.md once, and the four old skills are retired', () => {
+		const files = sources['flow-critic'].map((f) => f.path).sort();
+		expect(files).toEqual(
+			[
+				'SKILL.md',
+				'checklists.md',
+				'code-lenses.md',
+				'code-template.md',
+				'code.md',
+				'critic-brief.md',
+				'critic-rules.md',
+				'mockup-lenses.md',
+				'mockup.md',
+				'plan-lenses.md',
+				'plan-template.md',
+				'plan.md',
+				'screens.md'
+			].sort()
+		);
+		// A run reads critic-rules and one review, so the entry stays small and names every review file
+		const entry = skill('flow-critic');
+		expect(entry.length).toBeLessThan(6500);
+		for (const f of ['plan.md', 'code.md', 'mockup.md', 'screens.md'])
+			expect(entry, f).toContain(`\`${f}\``);
+		expect(entry).toContain('and nothing else');
+		for (const gone of [
 			'flow-critic-plan',
 			'flow-critic-code',
 			'flow-critic-mockup',
 			'flow-critic-screens'
 		]) {
-			expect(skill(name), name).toContain('Shared rules first.');
-			expect(skill(name), name).toContain('`critic-rules.md`');
+			expect(MANIFEST.retired, gone).toContain(gone);
+			expect(sources[gone], gone).toBeUndefined();
 		}
-		// The old monolith's files are gone from the router, which has SKILL.md only
-		expect(sources['flow-critic'].map((f) => f.path)).toEqual(['SKILL.md']);
+		// The files ship again inside flow-critic, so none is listed as removed
+		expect(MANIFEST.removedFiles ?? {}).toEqual({});
+	});
+
+	it('each review file reads critic-rules.md first and keeps its own pinned rules', () => {
+		const file = (path: string) => sources['flow-critic'].find((f) => f.path === path)!.text;
+		for (const mode of ['plan', 'code', 'mockup', 'screens']) {
+			const text = file(`${mode}.md`);
+			expect(text, mode).toContain('Shared rules first.');
+			expect(text, mode).toContain('`critic-rules.md`');
+			expect(text, mode).not.toMatch(/^---\nname:/);
+			expect(text, mode).not.toMatch(/\/flow-critic-(plan|code|mockup|screens)/);
+		}
+		// The review files name each other by file: a 'SKILL.md section N' would point at the small entry, which holds none of their sections
+		for (const f of sources['flow-critic'].filter((x) => x.path !== 'SKILL.md'))
+			expect(f.text, f.path).not.toMatch(/`SKILL\.md` (?:section|Step) \d+/);
 	});
 
 	it('flow-critic routes by an argument first, picks mockup and screens only from the words, and shows one card', () => {
@@ -811,7 +864,7 @@ describe('the modules and the new skills keep their own rules', () => {
 		expect(skill('flow-screens')).toContain(
 			'keep them until it says the screens critique is finished'
 		);
-		expect(skill('flow-critic-screens')).toContain(
+		expect(sources['flow-critic'].find((f) => f.path === 'screens.md')!.text).toContain(
 			'it gives you the files that skill just captured'
 		);
 	});

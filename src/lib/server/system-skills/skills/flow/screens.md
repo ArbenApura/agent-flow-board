@@ -4,7 +4,7 @@ Read this when a phase or a plan changed a screen and the harness has an integra
 
 ## Driving the browser (step 5a)
 
-This is the one home of the protocol; `/flow-mockup`, `/flow-critic-mockup`, `/flow-critic-screens` and `/flow-screens` point here. A browser the agent can drive (Claude Browser, Claude in Chrome, a Playwright tool and the like) is used like Playwright: open the running app or the published mockup, set the width, take a picture, scroll, click through the states (empty, loading, error, open sheet, hover), and read the console and the network errors.
+This is the one home of the protocol; `/flow-mockup`, `/flow-critic mockup`, `/flow-critic screens` and `/flow-screens` point here. A browser the agent can drive (Claude Browser, Claude in Chrome, a Playwright tool and the like) is used like Playwright: open the running app or the published mockup, set the width, take a picture, scroll, click through the states (empty, loading, error, open sheet, hover), and read the console and the network errors.
 
 - **Widths:** the repo rulebook's widths win, else wide 1440, tablet 820 and phone 390 for the app, in each colour mode. A mockup is looked at at the board's four device widths of `/flow-mockup` (408, 820, 1280, 1600). A mockup and the app are compared only at one width both have, the nearest the harness can set.
 - Reload the page after changing the width. A width under 768 can switch the browser to a phone user agent, and a harness may not reach 390 exactly: say so in the report when it does not.
