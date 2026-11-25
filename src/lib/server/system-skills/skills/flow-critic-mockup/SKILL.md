@@ -37,7 +37,7 @@ Attacks one published mockup against the real product. It runs only when the use
 5. **Verify, triage and resolve** as in section 5, with these differences:
    - **Verify by looking.** Open the picture or HTML line and the repo file each `BLOCKER` and `HIGH` cites. Refute a finding whose "real product" source does not say what the critic claims.
    - **`MEDIUM` findings are fixed too** when they cite a measured or visible defect: in a mockup the look is the work. Only `LOW` (taste with no source) is logged and left.
-   - **Fix and publish a new version of the same mockup**, without a question: the user asked for the review, and a revision is a new version, never a second mockup. Look at the fixed page again as `/flow-mockup` section 4 says before publishing, and update the Keep, Free and `Fidelity:` notes.
+   - **Fix and publish a new version of the same mockup**, without a question: the user asked for the review, and a revision is a new version, never a second mockup. Look at the fixed page again as `/flow-mockup` section 4 says before publishing, and update the Keep and Free notes (and the `Fidelity:` line of a `high` mockup).
    - **Pass 2 runs only after a `BLOCKER`**, on the new version.
    - A finding that the mockup lacks something the plan does not contain either is not a mockup defect: say so under "Open for you".
    - Record one `record` log line on the plan when the mockup belongs to one. No code in the repo is changed in this mode, and the mockup is never saved in the repo.

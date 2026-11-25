@@ -152,6 +152,10 @@ ${skillBody('flow-mockup').trim()}
 
 ${skillSupportText('flow-mockup', 'starter.md').trim()}
 
+${skillSupportText('flow-mockup', 'starter-wireframe.md').trim()}
+
+${skillSupportText('flow-mockup', 'starter-screenshot.md').trim()}
+
 ${RULES}`
 	},
 	{
