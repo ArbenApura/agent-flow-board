@@ -7,7 +7,12 @@ import { relatedTokens } from '../../src/lib/server/db/search';
 import { searchBoard } from '../../src/lib/server/ops/board';
 import { upsertDecision } from '../../src/lib/server/ops/docs';
 import { createItem, trashItem } from '../../src/lib/server/ops/items';
-import { RELATED_NOTICE, plainSnippet, relatedPlans } from '../../src/lib/server/ops/related';
+import {
+	RELATED_NOTICE,
+	lessonSignals,
+	plainSnippet,
+	relatedPlans
+} from '../../src/lib/server/ops/related';
 import { recordSteps } from '../../src/lib/server/ops/steps';
 import { makePostgres, type TestDb } from '../support/db';
 import { PLAN, makeWorld, type World } from '../support/ops';
@@ -337,14 +342,15 @@ describe('related plans', () => {
 		});
 		const plan = found.data.find((p) => p.ref === made.ref)!;
 		expect(plan).toMatchObject({ reopened: 1, waived: 1, superseded: 1 });
-		expect(plan.lessons!.length).toBeLessThanOrEqual(601);
+		// The lessons come back longer than the other notes, still cut and plain (AFB-20261125-1527)
+		expect(plan.lessons!.length).toBeLessThanOrEqual(1501);
 		expect(plan.resume).toBe('Marmoset trial is waiting.');
 		const text = JSON.stringify(found.data);
 		expect(text).not.toContain('http://evil');
 		expect(text).not.toContain('<script');
 		expect(plan.lessons).not.toMatch(/[<>]/);
 		expect(plan.lessons).toContain('click here');
-		expect(text.length).toBeLessThan(6000);
+		expect(text.length).toBeLessThan(9000);
 	});
 
 	it('ranks a plan higher when a plan the caller can see learned from it, and ignores plans the caller cannot see', async () => {
@@ -420,6 +426,78 @@ describe('related plans', () => {
 			project: w.projectKey
 		});
 		expect(refs(exact)).toContain(hostile.ref);
+	});
+
+	it('ranks a build plan that names the files above a feature map that only lists them (AFB-20261125-1527)', async () => {
+		// The map names both files and the words in a long reference list, and its steps name no file
+		const map = await createItem(w.ctx('member'), {
+			project: w.projectKey,
+			title: 'Platform feature map',
+			sections: [
+				{
+					slug: 'references',
+					title: 'References',
+					body: 'Every area: src/lib/quokka/grid.ts, src/lib/quokka/sheet.ts, quokka export, quokka import, totals.'
+				}
+			],
+			...PLAN
+		});
+		// The build plan matched the same words, and its steps name the files it changed
+		const build = await createItem(w.ctx('member'), {
+			project: w.projectKey,
+			title: 'Quokka export totals',
+			sections: [
+				{
+					slug: 'lessons',
+					title: 'Lessons',
+					body: 'Quokka export totals must round once. Signal: a second rounding in sheet.ts.'
+				}
+			],
+			phases: [
+				{
+					key: '1',
+					title: 'Build',
+					steps: [
+						{
+							text: 'Round the totals',
+							files: ['src/lib/quokka/grid.ts', 'src/lib/quokka/sheet.ts']
+						}
+					]
+				}
+			]
+		});
+		const found = await relatedPlans(w.ctx('member'), {
+			q: 'quokka export totals',
+			files: ['src/lib/quokka/grid.ts', 'src/lib/quokka/sheet.ts'],
+			project: w.projectKey,
+			limit: 2
+		});
+		const order = refs(found);
+		expect(order).toContain(build.ref);
+		expect(order.indexOf(build.ref)).toBeLessThan(
+			order.includes(map.ref) ? order.indexOf(map.ref) : Infinity
+		);
+		expect(found.data.find((p) => p.ref === build.ref)?.signals).toEqual([
+			'a second rounding in sheet.ts.'
+		]);
+	});
+
+	it('reads at most three signal lines, plain and cut, from the head of a lessons note', () => {
+		expect(lessonSignals(null)).toEqual([]);
+		expect(lessonSignals('No lessons: one-line change')).toEqual([]);
+		const body = [
+			'- One. Signal: first <b>thing</b>',
+			'- Two. Signal: second',
+			'- Two again. Signal: second',
+			'- Three. Signal: third',
+			'- Four. Signal: fourth'
+		].join('\n');
+		expect(lessonSignals(body)).toEqual(['first thing', 'second', 'third']);
+		expect(lessonSignals(`Signal: ${'y'.repeat(400)}`)[0].length).toBeLessThanOrEqual(241);
+		// Hostile text stays fast: no nested quantifier over a long run
+		const t0 = Date.now();
+		lessonSignals(`${'Signal:'.repeat(30_000)}`);
+		expect(Date.now() - t0).toBeLessThan(1_000);
 	});
 
 	it('boosts a finished plan of the same stream, and cuts plain text at a word', () => {

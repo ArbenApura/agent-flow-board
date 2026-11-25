@@ -3,6 +3,7 @@
 // here, so Claude Code, Antigravity and Gemini CLI behave alike. Hooks warn and ask, they never block work (ADR-014).
 
 // IMPORTED TYPES
+import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 import type { SessionStatus } from './sessionStatus';
 // IMPORTED DEP-MODULES
@@ -19,6 +20,7 @@ import { SESSION_PREFIX, displayTitle } from '../mcp/sessions';
 import { requireCap, run } from './context';
 import { findItem, mayView } from './resolve';
 import { logSessionEvent } from './sessionEvents';
+import { recordSessionFile } from './sharedFiles';
 import { sessionStatusForRow } from './sessionStatus';
 import { CLOSING_STATUSES, nudgeLevel, renewSession, staleProgressNote } from './tracking';
 import { formatWaitingBlocker } from './waiting';
@@ -358,8 +360,8 @@ async function handleEvent(
 		};
 		if (edited) {
 			// One atomic update counts the edit, so two hooks running at once never lose a count
-			[counted] = await run(ctx, (tx) =>
-				tx
+			[counted] = await run(ctx, async (tx) => {
+				const rows = await tx
 					.update(session)
 					.set({
 						codeTouchedAt: sql`now()`,
@@ -371,8 +373,23 @@ async function handleEvent(
 						edits: session.codeEditsSinceRecord,
 						firstAt: session.firstUnrecordedEditAt,
 						level: session.nudgedLevel
-					})
-			);
+					});
+				// Which repo file a claimed session edited, for the shared-files warning (AFB-20261125-1527). A savepoint keeps a
+				// failure here from losing the edit count, which matters more than the warning
+				if (a.kind === 'edit' && s.claimedItemId && input.cwd) {
+					try {
+						await tx.transaction((inner) =>
+							recordSessionFile(inner as unknown as Tx, ctx, s, input.cwd, a.file)
+						);
+					} catch (e) {
+						console.error(
+							'recordSessionFile failed',
+							e instanceof Error ? e.message : 'unknown error'
+						);
+					}
+				}
+				return rows;
+			});
 		} else if (a.kind === 'shell' && commits(a.command)) {
 			// A commit is a code change for the Stop reminder, but it is no unrecorded edit: the usual commit after the last
 			// step_done must not start the Not recorded clock

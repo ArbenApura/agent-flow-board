@@ -16,6 +16,8 @@ import { OpError, run } from '../ops/context';
 import { createTask, listTasks, updateTask } from '../ops/docs';
 import { createItem, getItem } from '../ops/items';
 import { claimMockups } from '../ops/mockups';
+import { briefPitfalls } from '../ops/pitfalls';
+import { driftWarnings, recentCompleted } from '../ops/drift';
 import { screensMissing } from '../ops/screens';
 import { listProjects } from '../ops/projects';
 import { recordSteps } from '../ops/steps';
@@ -84,6 +86,8 @@ export function registerCompat({ tool }: ToolBuilder) {
 				openItems: items.length,
 				tasks: tasks.slice(0, 25),
 				openTasks: tasks.length,
+				// The known pitfalls of the projects the caller reads, marked as data (AFB-20261125-1527)
+				...(await briefPitfalls(ctx)),
 				// The first call of most sessions, so the offer to install the skills reaches the agent even when it skipped the instructions
 				skillsNotice: skillsNotice(undefined, MANIFEST.bundle.version)
 			};
@@ -92,7 +96,7 @@ export function registerCompat({ tool }: ToolBuilder) {
 
 	tool(
 		'board_validate',
-		'Check items for drift: planned with done steps, complete but not in review, in review with open steps, ready for sign-off.',
+		'Check items for drift: planned with done steps, in review with open steps, ready for sign-off, and finished plans whose resume says not built, that owe actions or have no lessons.',
 		{ ids: z.array(z.string()).max(20).optional() },
 		ro,
 		async (a, { ctx }) => {
@@ -118,6 +122,12 @@ export function registerCompat({ tool }: ToolBuilder) {
 						return seen;
 					});
 			for (const i of rows) for (const w of i.health.drift) out.push({ ref: i.ref, warning: w });
+			// Finished plans whose notes still say not built, that owe something or learned nothing (AFB-20261125-1527). With no ids
+			// the newest completed plans of each project are checked too, so the audit reaches them
+			const finished = names
+				? rows
+				: [...rows, ...(await run(ctx, (tx) => recentCompleted(tx, ctx)))];
+			out.push(...(await run(ctx, (tx) => driftWarnings(tx, finished))));
 			// A plan going to review should say what it learned, so the next plan can use it (a warning, never an error)
 			const inReview = rows.filter((i) => i.status === 'IN REVIEW');
 			if (inReview.length) {

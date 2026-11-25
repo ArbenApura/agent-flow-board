@@ -126,6 +126,32 @@ export const session = tenantTable(
 	]
 );
 
+// -- SESSION FILE (WHICH REPO FILES A CLAIMED SESSION EDITED, FOR THE SHARED-FILES WARNING, AFB-20261125-1527) -- //
+
+/**
+ * One row per session and repo-relative path, written by the tool hook only while the session holds a claim, so the
+ * project is known. Pruned to the last 24 hours of each session by the hook itself, and gone with its session row.
+ */
+export const sessionFile = tenantTable(
+	'session_file',
+	'project',
+	{
+		id: id(),
+		orgId: orgId(),
+		projectId: projectId(),
+		sessionId: text('session_id')
+			.notNull()
+			.references(() => session.id, { onDelete: 'cascade' }),
+		itemId: uuid('item_id').references(() => item.id, { onDelete: 'set null' }),
+		path: text('path').notNull(),
+		lastEditedAt: timestamp('last_edited_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [
+		unique('session_file_uq').on(t.sessionId, t.path),
+		index('session_file_project_idx').on(t.projectId, t.lastEditedAt)
+	]
+);
+
 // -- SESSION EVENT (APPEND ONLY: WHEN A SESSION CLAIMED, RELEASED, WAS REMINDED, NUDGED OR ENDED) -- //
 
 export const sessionEvent = tenantTable(

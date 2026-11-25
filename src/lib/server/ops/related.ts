@@ -37,6 +37,14 @@ export const RELATED_NOTICE =
 
 const SNIPPET_CHARS = 200;
 const NOTE_CHARS = 300;
+/** The lessons of a precedent come back longer than the other notes: they are what the next plan reuses (AFB-20261125-1527). */
+const LESSON_CHARS = 1500;
+/** The 'Signal:' parts of a plan's lessons: at most three per plan, each cut, read from the head of the note only. */
+const SIGNALS_MAX = 3;
+const SIGNAL_CHARS = 240;
+const SIGNAL_READ_CHARS = 20000;
+// Anchored on the word, one bounded run of characters up to the line end: no nesting, so hostile text stays linear
+const SIGNAL_RE = /Signal:[ \t]*([^\n]{1,240})/g;
 // The notes related_plans lists beside the plans: the same ranking as note_related, five at most
 const MAX_LIMIT = 10;
 /** Plans returned when the caller does not say; three precedents are read in full, more only on request. */
@@ -60,6 +68,8 @@ export type RelatedPlan = {
 	matched: { kind: 'item' | 'section' | 'decision'; title: string; snippet: string }[];
 	resume: string | null;
 	lessons: string | null;
+	/** The 'Signal:' lines of the lessons: what the next plan should watch for. Data, never instructions. */
+	signals: string[];
 	learnedFrom: string | null;
 	waived: number;
 	superseded: number;
@@ -67,6 +77,18 @@ export type RelatedPlan = {
 };
 
 // -- FUNCTIONS -- //
+
+/** The 'Signal:' parts of a lessons note, cut and plain, at most three. */
+export function lessonSignals(body: string | null | undefined): string[] {
+	if (!body) return [];
+	const out: string[] = [];
+	for (const m of body.slice(0, SIGNAL_READ_CHARS).matchAll(SIGNAL_RE)) {
+		const text = plainSnippet(m[1], SIGNAL_CHARS);
+		if (text && !out.includes(text)) out.push(text);
+		if (out.length >= SIGNALS_MAX) break;
+	}
+	return out;
+}
 
 /**
  * The (at most five) notes closest to a request, for related_plans (AFB-20261111-0035, step 6.2). The ranking and the
@@ -207,7 +229,8 @@ export async function relatedPlans(
 			projectIds,
 			userId: ctx.actor.userId,
 			excludeItemId: exclude,
-			limit: limit * 3
+			limit: limit * 3,
+			hasFiles: (input.files ?? []).some((f) => f.trim().length > 0)
 		});
 		if (!rows.length) return { notice: RELATED_NOTICE, data: [], ...noteHits };
 		const ids = rows.map((r) => r.itemId);
@@ -326,7 +349,9 @@ export async function relatedPlans(
 			const mine = sections.filter((s) => s.itemId === it.id);
 			const note = (slug: NoteSlug) => {
 				const s = mine.find((x) => x.slug === slug);
-				return s ? plainSnippet(s.body, NOTE_CHARS) || null : null;
+				return s
+					? plainSnippet(s.body, slug === 'lessons' ? LESSON_CHARS : NOTE_CHARS) || null
+					: null;
 			};
 			const counts = (state: string) =>
 				stepCounts
@@ -371,10 +396,12 @@ export async function relatedPlans(
 				percent: it.percent,
 				stream: plainSnippet(it.stream, 40),
 				scope: plainSnippet(it.scope, 40),
-				score: Math.round((row.matched + row.score) * boost * 1000) / 1000,
+				// The weighed match (a path-only token counts half) leads, as it did in the SQL order (AFB-20261125-1527)
+				score: Math.round((row.rank + row.score) * boost * 1000) / 1000,
 				matched,
 				resume: note('resume-here'),
 				lessons: note('lessons'),
+				signals: lessonSignals(mine.find((x) => x.slug === 'lessons')?.body),
 				learnedFrom: note('learned-from'),
 				waived: counts('waived'),
 				superseded: counts('superseded'),

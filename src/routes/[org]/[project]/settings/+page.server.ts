@@ -5,6 +5,7 @@ import { OpError } from '#lib/server/ops/context.js';
 import { refsFor } from '#lib/server/ops/board.js';
 import { getProject } from '#lib/server/ops/projects.js';
 import { listEvents, listTrash } from '#lib/server/ops/history.js';
+import { listPitfalls } from '#lib/server/ops/pitfalls.js';
 import { childContext, pageError } from '#lib/server/web/ctx.js';
 
 // -- TYPES -- //
@@ -28,8 +29,11 @@ export const load: PageServerLoad = async ({ params, parent, locals, url, depend
 			project: null,
 			usage: [],
 			canManage: false,
+			canWrite: false,
 			activity: null,
 			activityFailed: false,
+			pitfalls: null,
+			pitfallsFailed: false,
 			trash: null,
 			sessionId
 		};
@@ -65,6 +69,17 @@ export const load: PageServerLoad = async ({ params, parent, locals, url, depend
 			activityFailed = true;
 		}
 	}
+	// The known pitfalls are read only while their tab is open, like Activity and Trash (AFB-20261125-1527)
+	let pitfalls: Awaited<ReturnType<typeof listPitfalls>> | null = null;
+	let pitfallsFailed = false;
+	if (tab === 'pitfalls') {
+		try {
+			pitfalls = await listPitfalls(ctx, params.project);
+		} catch (e) {
+			if (e instanceof OpError) throw e;
+			pitfallsFailed = true;
+		}
+	}
 	if (tab === 'trash') {
 		try {
 			trash = { list: await listTrash(ctx, params.project), denied: null };
@@ -86,8 +101,12 @@ export const load: PageServerLoad = async ({ params, parent, locals, url, depend
 		// How many items sit under each stream and scope, as this person may see them (private and trashed items are not counted)
 		usage: summary.areas.map((a) => ({ stream: a.stream, scope: a.scope, n: a.n })),
 		canManage,
+		// A member may add a pitfall; managing the rest of the page stays with admins and owners
+		canWrite: summary.caps.includes('write'),
 		activity,
 		activityFailed,
+		pitfalls,
+		pitfallsFailed,
 		trash,
 		sessionId
 	};

@@ -57,6 +57,8 @@ import {
 	updateItemInput
 } from '../ops/items';
 import { pinProject, unpinProject } from '../ops/pins';
+import { PITFALL_NOTICE, addPitfall, listPitfalls, removePitfall } from '../ops/pitfalls';
+import { pitfallAddInput } from '../db/zod';
 import {
 	createProject,
 	getProject,
@@ -195,6 +197,33 @@ export const routes: Route[] = [
 		summary: 'Remove your pin from a project',
 		tag: 'Projects',
 		handler: ({ ctx, params }) => unpinProject(ctx, params.project)
+	},
+	// The facts every plan of a project should know before it starts (AFB-20261125-1527)
+	{
+		method: 'GET',
+		path: '/orgs/{org}/projects/{project}/pitfalls',
+		summary: "List a project's known pitfalls, newest first",
+		tag: 'Projects',
+		handler: async ({ ctx, params }) => ({
+			notice: PITFALL_NOTICE,
+			pitfalls: await listPitfalls(ctx, params.project)
+		})
+	},
+	{
+		method: 'POST',
+		path: '/orgs/{org}/projects/{project}/pitfalls',
+		summary: 'Add a known pitfall to a project (members and their agents)',
+		tag: 'Projects',
+		body: strip(pitfallAddInput, 'project'),
+		handler: ({ ctx, params, body }) =>
+			addPitfall(ctx, { ...(body as object), project: params.project } as never)
+	},
+	{
+		method: 'DELETE',
+		path: '/orgs/{org}/projects/{project}/pitfalls/{id}',
+		summary: 'Remove a known pitfall (its author or an admin)',
+		tag: 'Projects',
+		handler: ({ ctx, params }) => removePitfall(ctx, { project: params.project, id: params.id })
 	},
 	{
 		method: 'PATCH',

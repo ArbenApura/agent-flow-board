@@ -23,6 +23,7 @@
 	} from '#lib/board/streams.js';
 	import Section from '#lib/settings/Section.svelte';
 	import StreamsEditor from '#lib/settings/StreamsEditor.svelte';
+	import PitfallsEditor from '#lib/settings/PitfallsEditor.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
 	import ErrorState from '#lib/ui/ErrorState.svelte';
@@ -36,6 +37,7 @@
 	import Activity from '@lucide/svelte/icons/activity';
 	import Trash from '@lucide/svelte/icons/trash';
 	import ListFilter from '@lucide/svelte/icons/list-filter';
+	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 
 	// -- REQUIRED PROPS -- //
 
@@ -47,8 +49,25 @@
 	let streams = $state<StreamRow[]>([]);
 	let status = $state<Record<string, { saving: boolean; saved: boolean; error: string }>>({});
 	let retryingActivity = $state(false);
+	let retryingPitfalls = $state(false);
 
 	// -- FUNCTIONS -- //
+
+	/** Reads the pitfalls again after they failed to load. */
+	async function retryPitfalls() {
+		retryingPitfalls = true;
+		try {
+			await invalidate('afb:settings');
+		} finally {
+			retryingPitfalls = false;
+		}
+	}
+
+	/** After an add or a remove the list, and the project data agents see, are read again. */
+	async function pitfallsChanged() {
+		await invalidate('afb:settings');
+		await invalidate('afb:project');
+	}
 
 	/** Reads the activity list again after it failed to load. */
 	async function retryActivity() {
@@ -166,7 +185,9 @@
 		title="Project settings"
 		context={can
 			? 'Each section saves on its own.'
-			: 'You can look at these. An admin or owner changes them.'}
+			: data.canWrite
+				? 'An admin or owner changes these. Members can add known pitfalls.'
+				: 'You can look at these. An admin or owner changes them.'}
 	/>
 
 	<SettingsShell>
@@ -235,6 +256,36 @@
 					})}
 			>
 				<StreamsEditor bind:rows={streams} usage={data.usage} can={Boolean(can)} />
+			</Section>
+
+			<!-- KNOWN PITFALLS: NO SAVE BAR, EACH ADD AND REMOVE SAVES AT ONCE (AFB-20261125-1527) -->
+			<Section
+				id="pitfalls"
+				icon={TriangleAlert}
+				title="Known pitfalls"
+				text="Facts every plan in this project should know before it starts. Agents read them at the start of work."
+			>
+				{#if tab === 'pitfalls' && retryingPitfalls}
+					<div class="rounded-xl border border-line bg-surface p-3" data-testid="pitfalls-loading">
+						<Skeleton variant="row" lines={3} />
+					</div>
+				{:else if tab === 'pitfalls' && data.pitfallsFailed}
+					<div class="rounded-xl border border-line bg-surface" data-testid="pitfalls-error">
+						<ErrorState
+							title="The pitfalls did not load"
+							message="The known pitfalls of this project could not be read. Check your connection and try again."
+							onretry={retryPitfalls}
+						/>
+					</div>
+				{:else if tab === 'pitfalls' && data.pitfalls}
+					<PitfallsEditor
+						{org}
+						projectKey={key}
+						pitfalls={data.pitfalls}
+						canWrite={Boolean(data.canWrite)}
+						onchanged={pitfallsChanged}
+					/>
+				{/if}
 			</Section>
 
 			<Section

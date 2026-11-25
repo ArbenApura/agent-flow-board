@@ -189,6 +189,8 @@ export type RelatedRow = {
 	itemId: string;
 	/** How many of the distinct search tokens this plan matched. */
 	matched: number;
+	/** The matched tokens weighed: a path-only match counts half, and a plan with no step files is damped when files were asked. */
+	rank: number;
 	score: number;
 	/** The sections and decisions that matched, best first. */
 	docs: { kind: 'item' | 'section' | 'decision'; id: string }[];
@@ -203,9 +205,17 @@ export type RelatedRow = {
 export async function searchRelated(
 	tx: Tx,
 	tokens: string[],
-	options: { projectIds: string[]; userId: string; excludeItemId?: string | null; limit: number }
+	options: {
+		projectIds: string[];
+		userId: string;
+		excludeItemId?: string | null;
+		limit: number;
+		/** The request named files, so a plan whose steps name none is a weaker precedent. */
+		hasFiles?: boolean;
+	}
 ): Promise<RelatedRow[]> {
 	if (!tokens.length || !options.projectIds.length) return [];
+	const hasFiles = options.hasFiles ? sql`true` : sql`false`;
 	const toks = sql.join(
 		tokens.map((t) => sql`${t}`),
 		sql`, `
@@ -240,35 +250,58 @@ export async function searchRelated(
 			select d.item_id, 'decision', d.id, d.search_vector, 2.0 from decision d where d.item_id in (select id from ok)
 		),
 		pairs as (
-			select docs.item_id, docs.kind, docs.doc_id, toks.tok, false as is_path,
+			select docs.item_id, docs.kind, docs.doc_id, toks.tok, false as is_path, false as is_file,
 				ts_rank(docs.vec, plainto_tsquery('simple', toks.tok)) * docs.w as r
 			from docs join toks on docs.vec @@ plainto_tsquery('simple', toks.tok)
 			union all
 			-- A FILE OR PATH IS ALSO FOUND INSIDE A SECTION BODY, BECAUSE THE PARSER KEEPS A WHOLE PATH AS ONE WORD
-			select s.item_id, 'section', s.id, toks.tok, true, 0.5::real
+			select s.item_id, 'section', s.id, toks.tok, true, false, 0.5::real
 			from toks join section s on s.item_id in (select id from ok)
 				and toks.tok ~ '[./]' and length(toks.tok) >= 4
 				and s.body ilike toks.pat
+			union all
+			-- A FILE A PLAN'S OWN STEPS CHANGED IS THE STRONGEST PRECEDENT FOR A REQUEST NAMING THAT FILE (AFB-20261125-1527)
+			select st.item_id, 'item', st.item_id, toks.tok, false, true, 2.0::real
+			from toks join step st on st.item_id in (select id from ok)
+				and st.state in ('open', 'done')
+				and toks.tok ~ '[./]' and length(toks.tok) >= 4
+				and st.files::text ilike toks.pat
+			group by st.item_id, toks.tok
 		),
-		scored as (
-			select item_id, count(distinct tok)::int as matched, sum(r)::float8 as score
+		grouped as (
+			select item_id, count(distinct tok)::int as matched,
+				-- A TOKEN FOUND ONLY AS A PATH INSIDE A BODY COUNTS HALF: A FEATURE MAP NAMES EVERY FILE (AFB-20261125-1527)
+				(count(distinct tok) filter (where not is_path)
+					+ 0.5 * (count(distinct tok) - count(distinct tok) filter (where not is_path)))::float8 as weighted,
+				sum(r)::float8 as score
 			from pairs group by item_id
 			-- A FILE NAMED IN THE REQUEST IS STRONG ENOUGH ON ITS OWN, EVEN WHEN THE OTHER WORDS DO NOT MATCH
-			having count(distinct tok) >= ${minTokens} or bool_or(is_path)
-			order by matched desc, score desc
+			-- AND A FILE THE PLAN'S OWN STEPS CHANGED, EVEN MORE SO
+			having count(distinct tok) >= ${minTokens} or bool_or(is_path) or bool_or(is_file)
+		),
+		scored as (
+			select g.item_id, g.matched, g.score,
+				-- A PLAN WHOSE COUNTED STEPS NAME NO FILE (A MAP, AN AUDIT, A TRACE) IS A WEAKER PRECEDENT FOR A BUILD THAT NAMES FILES
+				g.weighted * case when ${hasFiles} and not exists (
+					select 1 from step st where st.item_id = g.item_id
+						and st.state in ('open', 'done') and jsonb_array_length(st.files) > 0
+				) then 0.75 else 1.0 end as rank
+			from grouped g
+			order by rank desc, g.score desc
 			limit ${options.limit}
 		)
 		-- THE BEST SIX DISTINCT DOCUMENTS PER PLAN, SO ONE HEAVILY MATCHING SECTION CANNOT TAKE EVERY PLACE
-		select s.item_id, s.matched, s.score,
+		select s.item_id, s.matched, s.score, s.rank,
 			(select coalesce(jsonb_agg(jsonb_build_object('kind', d.kind, 'id', d.doc_id) order by d.best desc), '[]'::jsonb)
 				from (select kind, doc_id, max(r) as best from pairs p where p.item_id = s.item_id group by kind, doc_id order by best desc limit 6) d
 			) as docs
-		from scored s order by s.matched desc, s.score desc
+		from scored s order by s.rank desc, s.score desc
 	`);
 	const rows = (res as unknown as { rows: Record<string, unknown>[] }).rows;
 	return rows.map((r) => ({
 		itemId: r.item_id as string,
 		matched: Number(r.matched),
+		rank: Number(r.rank),
 		score: Number(r.score),
 		docs: ((r.docs as { kind: RelatedRow['docs'][number]['kind']; id: string }[]) ?? []).filter(
 			(d, i, all) => all.findIndex((x) => x.id === d.id) === i

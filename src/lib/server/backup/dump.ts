@@ -32,7 +32,8 @@ export type BackupMeta = {
 
 /** Counters and idempotency records that are worthless after a restore. */
 // The deletion log is about the org but outlives it, so a backup of the org never carries it
-const SKIP = new Set(['rate_bucket', 'request_log', 'org_deletion_log']);
+// session_file holds which files a live session edited in the last day: short-lived, never worth restoring (AFB-20261125-1527)
+const SKIP = new Set(['rate_bucket', 'request_log', 'org_deletion_log', 'session_file']);
 const PAGE = 500;
 
 // -- FUNCTIONS -- //

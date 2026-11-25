@@ -414,6 +414,13 @@
       "when": 1795589355298,
       "tag": "0058_screens_no_annotations",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795621335133,
+      "tag": "0059_lesson_reuse",
+      "breakpoints": true
     }
   ]
 }

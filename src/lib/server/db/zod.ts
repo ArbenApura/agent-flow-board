@@ -35,6 +35,9 @@ import {
 	phase,
 	project,
 	projectPin,
+	PITFALL_PATH_MAX,
+	PITFALL_TEXT_MAX,
+	projectPitfall,
 	QA_MODES,
 	QA_OUTCOMES,
 	QA_PRIORITIES,
@@ -105,6 +108,24 @@ export const screenAddInput = createInsertSchema(screen, {
 })
 	.pick({ screenKey: true, mode: true, width: true, caption: true, note: true, phaseKey: true })
 	.extend({ item: z.string().min(1) });
+// -- PROJECT PITFALLS (AFB-20261125-1527): THE ONE INPUT SCHEMA OF THE UI, /api/v1 AND MCP -- //
+
+/** A new pitfall: its kind, one short plain fact, an optional repo path and the plan it came from. */
+export const pitfallAddInput = createInsertSchema(projectPitfall, {
+	text: (s) =>
+		s
+			.trim()
+			.min(10, 'Write the fact in a few words (10 characters or more).')
+			.max(PITFALL_TEXT_MAX, `Keep it to ${PITFALL_TEXT_MAX} characters.`),
+	path: (s) => s.trim().max(PITFALL_PATH_MAX).nullish()
+})
+	.pick({ kind: true, text: true, path: true })
+	.extend({ project: z.string().min(1).max(40), sourceItem: z.string().min(1).max(80).optional() });
+export const pitfallRemoveInput = z.object({
+	project: z.string().min(1).max(40),
+	id: z.string().uuid()
+});
+
 // -- QA MAP (AFB-20261125-0442): THE ONE INPUT SCHEMA OF THE UI, /api/v1 AND MCP -- //
 
 /** A stable slug for a feature, journey, step or case. */

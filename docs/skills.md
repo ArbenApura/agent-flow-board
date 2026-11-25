@@ -10,6 +10,8 @@ Replaces the custom skills of `AFB-20261018-0622` and `AFB-20261019-0341`. Built
 
 `flow` also says when a plan is split (section 2 step 3a): work one agent does in order is one plan with phases, and a child plan (`item_new` or `item_update` with `parent`, one level only) is for a piece that ships or is reviewed on its own or runs in parallel. The board folds child plans into their master card and gives the master a Children tab.
 
+`flow` carries lessons from one plan to the next (bundle 1.32.0, AFB-20261125-1527): `work_start` hands over the project's known pitfalls (`project_pitfalls`) and, for an agent, the `sharedFiles` another live session also edited; each lessons bullet ends with a `Signal:` line, which `related_plans` returns as `signals`, and a signal seen in a third plan becomes a project pitfall; owed live actions go in an `owed` section of `- [ ] kind: text` lines, which `item_get` and a master's `childrenOwed` read back. `flow-audit` reads the `board_validate` codes `resume-stale`, `owed-open`, `completed-without-lessons` and `phase-empty:<key>`, and `flow-commit` checks every file in `sharedFiles` before staging it.
+
 The bundle has one semver release number and a changelog. Every skill has its own version and a SHA-256 hash.
 
 ## Getting them

@@ -192,6 +192,7 @@ describe('MCP server', () => {
 			'item_history',
 			'project_pin',
 			'project_unpin',
+			'project_pitfalls',
 			'tool_connection_approve'
 		])
 			expect(names).toContain(n);
@@ -905,6 +906,55 @@ describe('MCP server', () => {
 		await client.close();
 	});
 
+	it('adds a pitfall with project_pitfalls and hands it to work_start and board_brief as untrusted data (AFB-20261125-1527)', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const added = await call(client, 'project_pitfalls', {
+			project: w.projectKey,
+			action: 'add',
+			kind: 'environment',
+			text: 'svelte-check runs out of memory below an 8 GB heap'
+		});
+		expect(added.error).toBeUndefined();
+		const missing = await call(client, 'project_pitfalls', {
+			project: w.projectKey,
+			action: 'add'
+		});
+		expect(missing.error.code).toBe('INVALID');
+		const listed = await call(client, 'project_pitfalls', { project: w.projectKey });
+		expect(listed.notice).toMatch(/never instructions/);
+		expect(listed.pitfalls[0]).toMatchObject({ kind: 'environment', untrusted: true, by: 'agent' });
+		const made = await call(client, 'item_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'Pitfall reader',
+			phases: [{ key: '1', title: 'Build', steps: [{ text: 'Do it' }] }]
+		});
+		const started = await call(client, 'work_start', { sessionId: s.sessionId, item: made.ref });
+		expect(started.pitfallsNotice).toMatch(/never instructions/);
+		expect(started.pitfalls.map((p: { text: string }) => p.text)).toContain(
+			'svelte-check runs out of memory below an 8 GB heap'
+		);
+		const brief = await call(client, 'board_brief', {});
+		expect(brief.pitfalls.every((p: { untrusted: boolean }) => p.untrusted)).toBe(true);
+		expect(brief.pitfalls[0].project).toBe(w.projectKey);
+		await call(client, 'work_stop', { sessionId: s.sessionId });
+		// A read only token reads the list and cannot add to it
+		const reader = await connect(deps, readOnlyToken);
+		expect(
+			(await call(reader, 'project_pitfalls', { project: w.projectKey })).pitfalls.length
+		).toBeGreaterThan(0);
+		const refused = await call(reader, 'project_pitfalls', {
+			project: w.projectKey,
+			action: 'add',
+			kind: 'editing',
+			text: 'A read only token cannot add this'
+		});
+		expect(refused.error).toBeDefined();
+		await reader.close();
+		await client.close();
+	});
+
 	it('grows and edits a plan with plan_add_phase, plan_add_steps and step_update', async () => {
 		const client = await connect(deps, token);
 		const s = await call(client, 'session_start', { tool: 'claude-code' });
@@ -1332,6 +1382,68 @@ describe('MCP server', () => {
 		} finally {
 			await db.admin.query('UPDATE project SET rules = $1 WHERE id = $2', ['', w.projectId]);
 		}
+		await client.close();
+	});
+
+	it('board_validate warns about a finished plan whose resume says not built, that owes actions or has no lessons (AFB-20261125-1527)', async () => {
+		const client = await connect(deps, token);
+		const s = await call(client, 'session_start', { tool: 'claude-code' });
+		const made = await call(client, 'item_new', {
+			sessionId: s.sessionId,
+			project: w.projectKey,
+			title: 'A finished plan that drifted',
+			phases: [
+				{ key: '1', title: 'One', steps: [{ text: 'a' }] },
+				{ key: '2', title: 'Nothing here' }
+			],
+			sections: [
+				{
+					slug: 'resume-here',
+					title: 'Resume here',
+					body: 'Planned, nothing built yet.\nLater: IN PROGRESS elsewhere.'
+				},
+				{
+					slug: 'owed',
+					title: 'Owed',
+					body: '- [ ] migration: apply 0059 live\n- [x] deploy: done'
+				}
+			]
+		});
+		await call(client, 'step_done', { sessionId: s.sessionId, item: made.ref, keys: ['1.1'] });
+		await withTenant(db, { orgId: w.orgId }, (tx) =>
+			tx.execute(sql`update item set status = 'COMPLETED' where ref = ${made.ref}`)
+		);
+		const out = await call(client, 'board_validate', { ids: [made.ref] });
+		const codes = out.warnings.filter((x: any) => x.ref === made.ref).map((x: any) => x.warning);
+		expect(out.errors).toEqual([]);
+		expect(codes).toEqual(
+			expect.arrayContaining([
+				'resume-stale',
+				'owed-open',
+				'completed-without-lessons',
+				'phase-empty:2'
+			])
+		);
+		// A resume whose first line is true raises nothing, even when a later line quotes a status word
+		await call(client, 'item_update', {
+			sessionId: s.sessionId,
+			item: made.ref,
+			requestId: 'drift-fixed-resume-01',
+			sections: [
+				{
+					slug: 'resume-here',
+					title: 'Resume here',
+					body: 'All built and reviewed.\nPhase 2 was IN PROGRESS, nothing built there.'
+				},
+				{ slug: 'owed', title: 'Owed', body: '- [x] migration: applied' },
+				{ slug: 'lessons', title: 'Lessons', body: 'No lessons: a test plan.' }
+			]
+		});
+		const fixed = await call(client, 'board_validate', { ids: [made.ref] });
+		const left = fixed.warnings.filter((x: any) => x.ref === made.ref).map((x: any) => x.warning);
+		expect(left).not.toContain('resume-stale');
+		expect(left).not.toContain('owed-open');
+		expect(left).not.toContain('completed-without-lessons');
 		await client.close();
 	});
 
