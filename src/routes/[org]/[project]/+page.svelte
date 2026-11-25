@@ -246,14 +246,20 @@
 		if (!row || row.status === status) return;
 		try {
 			await toast.promise(
-				api(org, `/items/${ref}/status`, {
+				api<{ followed?: unknown[] }>(org, `/items/${ref}/status`, {
 					body: { status, note: 'Moved on the board' },
 					key: newKey()
 				}),
 				{
 					id: 'item-move',
 					loading: `Moving ${ref}...`,
-					success: `${ref} is now ${status.toLowerCase()}.`,
+					// A master plan carries its status to its child plans, so the toast says how many followed
+					success: (res) => {
+						const followed = res?.followed?.length ?? 0;
+						return followed > 0
+							? `${ref} is now ${status.toLowerCase()}. ${followed} child ${followed === 1 ? 'plan' : 'plans'} followed.`
+							: `${ref} is now ${status.toLowerCase()}.`;
+					},
 					error: (e) => (e instanceof ApiError ? e.message : 'The item was not moved.')
 				}
 			);

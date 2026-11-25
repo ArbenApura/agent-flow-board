@@ -219,13 +219,19 @@
 		busy = true;
 		const id = d.item.id;
 		try {
-			await api(org, `/items/${d.item.ref}/status`, {
+			const res = await api<{ followed?: unknown[] }>(org, `/items/${d.item.ref}/status`, {
 				body: { status: next, note: 'Changed on the item page', ...(override ? { override } : {}) },
 				key: newKey()
 			});
 			qaBlock = null;
 			closeAnywayOpen = false;
-			toast.success(`Status is now ${next.toLowerCase()}.`);
+			// A master plan carries its status to its child plans, so the person is told how many followed
+			const followed = res?.followed?.length ?? 0;
+			toast.success(
+				followed > 0
+					? `Status is now ${next.toLowerCase()}. ${followed} child ${followed === 1 ? 'plan' : 'plans'} followed.`
+					: `Status is now ${next.toLowerCase()}.`
+			);
 			await invalidate('afb:project');
 		} catch (e) {
 			// A QA refusal is shown on the page with what broke, never only as a toast that fades

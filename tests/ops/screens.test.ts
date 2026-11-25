@@ -209,9 +209,22 @@ describe('screens', () => {
 			title: 'Visible plan',
 			sections: [{ slug: 'design-brief', title: 'Design brief', body: 'A screen changes.' }]
 		});
+		// The rule is for agents: an agent is refused, a person moving the plan by hand is not (AFB-20261125-0906)
+		const asAgent = { ...w.ctx('owner', { kind: 'agent' }), services };
 		await expect(
-			setStatus(as('owner'), { item: p.ref, status: 'COMPLETED', note: 'Done at the board' })
+			setStatus(asAgent, { item: p.ref, status: 'COMPLETED', note: 'Done at the board' })
 		).rejects.toMatchObject({ code: 'COMPLETED_REFUSED', details: { reason: 'screens-missing' } });
+		const byHand = await createItem(as('member'), {
+			project: w.projectKey,
+			title: 'Visible plan closed by hand',
+			sections: [{ slug: 'design-brief', title: 'Design brief', body: 'A screen changes.' }]
+		});
+		const handClosed = await setStatus(as('owner'), {
+			item: byHand.ref,
+			status: 'COMPLETED',
+			note: 'Done at the board'
+		});
+		expect(handClosed.item.status).toBe('COMPLETED');
 		// A picture on the Screens tab lets it close
 		await addScreen(as('member'), { item: p.ref, ...base('visible') }, png(95));
 		const closed = await setStatus(as('owner'), {
@@ -235,7 +248,7 @@ describe('screens', () => {
 			note: 'Done at the board'
 		});
 		expect(waived.item.status).toBe('COMPLETED');
-		// A waiver with no reason written does not count, and an owner override does not skip the rule
+		// A waiver with no reason written does not count for an agent, and an override does not skip the rule
 		const e = await createItem(as('member'), {
 			project: w.projectKey,
 			title: 'Empty waiver plan',
@@ -245,13 +258,17 @@ describe('screens', () => {
 			]
 		});
 		await expect(
-			setStatus(as('owner'), {
+			setStatus(asAgent, { item: e.ref, status: 'COMPLETED', note: 'Done at the board' })
+		).rejects.toMatchObject({ code: 'COMPLETED_REFUSED', details: { reason: 'screens-missing' } });
+		// An agent cannot send the owner's override at all
+		await expect(
+			setStatus(asAgent, {
 				item: e.ref,
 				status: 'COMPLETED',
 				note: 'Done at the board',
 				override: { reason: 'owner says so' }
 			})
-		).rejects.toMatchObject({ code: 'COMPLETED_REFUSED', details: { reason: 'screens-missing' } });
+		).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		// A plan made before the rule existed is not held to it
 		const old = await createItem(as('member'), {
 			project: w.projectKey,

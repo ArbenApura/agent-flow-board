@@ -4,16 +4,16 @@
 import type { Tx } from '../db/client';
 import type { Ctx } from './context';
 // IMPORTED DEP-MODULES
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // IMPORTED MODULES
-import { computeHealthForItem } from '../db/calc';
+import { computeHealthForItem, countsFor } from '../db/calc';
 import { appendEvent } from '../db/events';
-import { item, step, task } from '../db/schema';
+import { event, item, step, task } from '../db/schema';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields, checkVersion, type ItemRow } from './items';
 import { closeBlock, markPlanFinished } from './qa';
-import { findItem } from './resolve';
+import { findItem, visibleItemSql } from './resolve';
 import { screensMissing } from './screens';
 import { releaseClaimsOn, requireCloseConfirmation } from './tracking';
 
@@ -21,6 +21,10 @@ import { releaseClaimsOn, requireCloseConfirmation } from './tracking';
 
 export type Status = 'PLANNED' | 'IN PROGRESS' | 'IN REVIEW' | 'ON HOLD' | 'COMPLETED' | 'REMOVED';
 export type StatusChange = { from: Status; to: Status; note: string };
+/** A child plan that followed its master, and one that stayed where it was with the reason. */
+export type FollowedChild = { ref: string; from: Status; to: Status };
+export type SkippedChild = { ref: string; reason: 'screens-missing' | 'qa-broken' };
+export type CascadeResult = { followed: FollowedChild[]; skipped: SkippedChild[] };
 
 // -- CONSTANTS -- //
 
@@ -131,6 +135,113 @@ export async function applyStatus(
 	return { from: it.status as Status, to, note };
 }
 
+/** The status a held child had before its master put it on hold, read from its last status event. Null when it was held on its own. */
+async function statusBeforeFollowedHold(
+	tx: Tx,
+	childId: string,
+	masterRef: string
+): Promise<Status | null> {
+	const [ev] = await tx
+		.select({ before: event.before, after: event.after })
+		.from(event)
+		.where(and(eq(event.itemId, childId), eq(event.verb, 'item.status')))
+		.orderBy(desc(event.id))
+		.limit(1);
+	const after = ev?.after as { status?: unknown; note?: unknown } | null | undefined;
+	const before = ev?.before as { status?: unknown } | null | undefined;
+	if (!after || after.status !== 'ON HOLD') return null;
+	// Only a hold this very master caused counts, so a note written by hand for another plan never resumes a child
+	if (after.note !== `Followed master ${masterRef}`) return null;
+	const prev = before?.status;
+	return STATUS_LIST.includes(prev as Status) &&
+		prev !== 'ON HOLD' &&
+		!CLOSING.includes(prev as Status)
+		? (prev as Status)
+		: null;
+}
+
+/**
+ * A master plan's manual status change carries to its suitable child plans in the same transaction (AFB-20261125-0906).
+ * The children are locked in id order and read under the lock. A person's cascade skips the per-plan refusals; an agent's runs
+ * the Screens and QA checks per child, skips the ones that fail and must confirm a COMPLETED cascade, because closing a child
+ * releases the claims on it. A child's own change never moves its master, and a master's automatic moves do not cascade.
+ */
+export async function followMaster(
+	tx: Tx,
+	ctx: Ctx,
+	master: { id: string; ref: string; projectId: string; parentId: string | null },
+	to: Status,
+	confirmed: boolean | undefined,
+	ownerPerson: boolean
+): Promise<CascadeResult> {
+	const result: CascadeResult = { followed: [], skipped: [] };
+	// Plans nest one level only, so a child plan has no children of its own
+	if (master.parentId) return result;
+	if (to === 'REMOVED') return result;
+	const kids = await tx
+		.select({
+			id: item.id,
+			ref: item.ref,
+			title: item.title,
+			status: item.status,
+			projectId: item.projectId
+		})
+		.from(item)
+		// A child the caller cannot see behaves as if it did not exist: it is never moved, named or counted
+		.where(
+			and(eq(item.parentId, master.id), isNull(item.deletedAt), visibleItemSql(ctx.actor.userId))
+		)
+		.orderBy(item.id)
+		.for('update');
+	const movers: { kid: (typeof kids)[number]; target: Status }[] = [];
+	for (const kid of kids) {
+		const from = kid.status as Status;
+		if (from === to || from === 'COMPLETED' || from === 'REMOVED') continue;
+		let target: Status | null = null;
+		if (to === 'COMPLETED') target = 'COMPLETED';
+		else if (to === 'ON HOLD') target = from === 'ON HOLD' ? null : 'ON HOLD';
+		else if (to === 'IN REVIEW') {
+			// Only a plan whose counted steps are all done is ready for review, so no drift warning is written
+			const c = await countsFor(tx, kid.id);
+			if (from === 'IN PROGRESS' && c.total > 0 && c.done === c.total) target = 'IN REVIEW';
+		} else if (from === 'ON HOLD') {
+			// IN PROGRESS or PLANNED: only a child this master held comes back, to the status it had
+			target = await statusBeforeFollowedHold(tx, kid.id, master.ref);
+		}
+		if (!target) continue;
+		if (target === 'COMPLETED') {
+			// The Screens rule is for agents. A broken QA feature still blocks everyone but the owner at the board, who may close anyway
+			if (ctx.actor.kind !== 'person' && (await screensMissing(tx, kid.id))) {
+				result.skipped.push({ ref: kid.ref, reason: 'screens-missing' });
+				continue;
+			}
+			if (!ownerPerson && (await closeBlock(tx, ctx, kid.id, kid.projectId))) {
+				result.skipped.push({ ref: kid.ref, reason: 'qa-broken' });
+				continue;
+			}
+		}
+		movers.push({ kid, target });
+	}
+	// An agent confirms the children it closes, since their claims are released (ADR-029)
+	if (ctx.actor.kind === 'agent' && !confirmed && movers.some((m) => m.target === 'COMPLETED'))
+		throw new OpError(
+			'CONFIRM_REQUIRED',
+			`Setting ${master.ref} to COMPLETED also closes ${movers.length} child ${movers.length === 1 ? 'plan' : 'plans'}: ${movers.map((m) => `${m.kid.ref} (${m.kid.title})`).join(', ')}. Show this to the user and repeat the call with confirmed true only after they agree.`,
+			{ alsoClosing: movers.map((m) => ({ ref: m.kid.ref, title: m.kid.title })) }
+		);
+	for (const { kid, target } of movers) {
+		const change = await applyStatus(
+			tx,
+			ctx,
+			{ id: kid.id, projectId: kid.projectId, status: kid.status, ref: kid.ref },
+			target,
+			`Followed master ${master.ref}`
+		);
+		result.followed.push({ ref: kid.ref, from: change.from, to: change.to });
+	}
+	return result;
+}
+
 export const setStatusInput = z.object({
 	item: z.string().min(1),
 	status: z.enum(STATUS_LIST as [Status, ...Status[]]),
@@ -165,8 +276,18 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 					'FORBIDDEN',
 					'Only the owner, at the board, can close a plan while a feature it touched is broken.'
 				);
-			if (it.status === input.status)
-				return { item: it, statusChanges: [] as StatusChange[], already: true };
+			// The same status again still catches up the children of a master (one that was hidden, added or restored since)
+			if (it.status === input.status) {
+				const cascade = await followMaster(
+					tx,
+					ctx,
+					it,
+					input.status,
+					input.confirmed,
+					ctx.actor.kind === 'person' && role === 'owner'
+				);
+				return { item: it, statusChanges: [] as StatusChange[], already: true, ...cascade };
+			}
 			if (input.status === 'COMPLETED') {
 				const [open] = await tx
 					.select({ n: sql<number>`count(*) filter (where ${step.state} = 'open')::int` })
@@ -178,9 +299,10 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 						`${open.n} counted ${open.n === 1 ? 'step is' : 'steps are'} still open. Close or waive ${open.n === 1 ? 'it' : 'them'} first.`,
 						{ reason: 'open-steps', openSteps: open.n }
 					);
-				// A plan that changes what a person sees cannot close with an empty Screens tab unless a screens-waiver names why
-				// (the owner's rule, 2026-11-25, AFB-20261125-0625). The agent adds the waiver section; it is never an override
-				if (await screensMissing(tx, it.id))
+				// A plan that changes what a person sees cannot be closed by an agent with an empty Screens tab unless a
+				// screens-waiver names why (the owner's rule, 2026-11-25, AFB-20261125-0625). A person closing by hand is never
+				// refused for it (AFB-20261125-0906). The agent adds the waiver section; it is never an override
+				if (ctx.actor.kind !== 'person' && (await screensMissing(tx, it.id)))
 					throw new OpError(
 						'COMPLETED_REFUSED',
 						"This plan changes what a person sees but its Screens tab is empty. Capture the finished screens first, or record a screens waiver that names why they can't be captured.",
@@ -224,8 +346,17 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 			if (CLOSING.includes(input.status))
 				await requireCloseConfirmation(tx, ctx, it, input.confirmed);
 			const change = await applyStatus(tx, ctx, it, input.status, input.note);
+			// The master's children follow in this same transaction; an agent's confirmation comes before any child closes
+			const cascade = await followMaster(
+				tx,
+				ctx,
+				it,
+				input.status,
+				input.confirmed,
+				ctx.actor.kind === 'person' && role === 'owner'
+			);
 			const [updated] = await tx.select().from(item).where(eq(item.id, it.id));
-			return { item: updated, statusChanges: [change], already: false };
+			return { item: updated, statusChanges: [change], already: false, ...cascade };
 		})
 	);
 }
