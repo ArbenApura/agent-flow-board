@@ -29,7 +29,7 @@ export function registerQaTools({ tool }: ToolBuilder) {
 
 	tool(
 		'qa_map_merge',
-		'Merge what you discovered into the QA map. New features are added; an existing one needs the version you read as expectVersion, and paths a person edited are kept. Name features you no longer find in missing: they are flagged, never deleted.',
+		'Merge what you discovered into the QA map. New features are added; an existing one needs the version you read as expectVersion, and paths a person edited are kept. Name features you no longer find in missing: they are flagged, never deleted. Write each area as a path: apps/admin.',
 		{
 			project: z.string().min(1),
 			features: z.array(qaFeatureInput).min(1).max(40),

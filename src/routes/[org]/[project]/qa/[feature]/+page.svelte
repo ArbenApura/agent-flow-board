@@ -11,6 +11,7 @@
 	import {
 		QA_SEVERITY_LABEL,
 		QA_STATUS_LABEL,
+		qaAreaPath,
 		qaCommand,
 		qaCounts,
 		qaPercent,
@@ -107,6 +108,12 @@
 	const key = $derived(page.params.project ?? '');
 	const base = $derived(`/${org}/${key}`);
 	const f = $derived(data.detail?.feature ?? null);
+	// The path of the feature's area as links, one per level: apps / centers / queue
+	const trail = $derived(
+		qaAreaPath(f?.area)
+			.split('/')
+			.map((label, i, all) => ({ label, path: all.slice(0, i + 1).join('/') }))
+	);
 	const journeys = $derived((f?.map.journeys ?? []).filter((j) => !j.removedAt));
 	const main = $derived(journeys.filter((j) => !j.parent));
 	const filter = $derived<CaseFilter>(
@@ -335,7 +342,8 @@
 					? {
 							expectVersion: f.version,
 							name: name.trim(),
-							area: area.trim(),
+							// Saved as the path the map shows: parts trimmed, at most four levels, a blank stays blank
+							area: area.trim() === '' ? '' : qaAreaPath(area),
 							priority: priority === 'none' ? null : priority,
 							sizes: sizeList,
 							description: description.trim()
@@ -588,11 +596,28 @@
 		<PageHeader title="Testing" back={{ href: `${base}/qa`, label: 'Testing' }} />
 		<PermissionDenied needed={data.denied.needed} current={data.denied.role} what="testing" />
 	{:else if f}
-		<PageHeader class="mb-2!" title={f.name} back={{ href: `${base}/qa`, label: 'Testing' }}>
+		<PageHeader class="mb-2!" title={f.name}>
+			<!-- THE AREA AS A TRAIL OF LINKS, EACH BACK TO THE MAP OPEN ON THAT GROUP -->
+			{#snippet crumbs()}
+				<nav aria-label="Breadcrumb" class="flex min-w-0 flex-wrap items-center gap-1">
+					<a
+						href={`${base}/qa`}
+						class="cursor-pointer text-accent-text hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+						>Testing</a
+					>
+					{#each trail as t (t.path)}
+						<span class="text-muted" aria-hidden="true">/</span>
+						<a
+							href={`${base}/qa?area=${encodeURIComponent(t.path)}`}
+							class="cursor-pointer text-accent-text hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+							>{t.label}</a
+						>
+					{/each}
+				</nav>
+			{/snippet}
 			{#snippet context()}
 				<span class="flex flex-wrap items-center gap-2">
 					<QaStatusPill status={f.status} flaky={f.flaky} />
-					<span>{f.area || 'Other'}</span>
 					<span class="font-mono text-xs">{f.key}</span>
 					{#each uniqueSizes as w (w)}
 						<span class="rounded-md bg-raised px-2 py-0.5 font-mono text-xs text-muted tabular-nums"
@@ -602,14 +627,12 @@
 				</span>
 			{/snippet}
 			{#snippet actions()}
-				<Button variant="primary" class="max-sm:flex-1" onclick={copyCommand}>
-					<Copy size={16} /> Retest this feature
+				<Button size="sm" onclick={copyCommand} data-testid="qa-retest">
+					<Copy size={16} /> Copy retest command
 				</Button>
 				{#if data.canWrite && !f.removedAt}
-					<Button
-						class="max-sm:flex-1"
-						onclick={() => begin({ kind: 'feature' })}
-						data-testid="qa-edit-feature"><Pencil size={16} /> Edit</Button
+					<Button size="sm" onclick={() => begin({ kind: 'feature' })} data-testid="qa-edit-feature"
+						><Pencil size={16} /> Edit</Button
 					>
 				{/if}
 			{/snippet}
@@ -868,11 +891,16 @@
 			/>
 			<TextField
 				label="Which area of the app is it in?"
-				placeholder="Billing"
+				placeholder="apps/admin"
+				hint="Use / to nest, for example apps/admin. Features with the same path sit in the same group."
 				bind:value={area}
 				maxlength={80}
+				list={`${uid}-areas`}
 				class="text-sm"
 			/>
+			<datalist id={`${uid}-areas`}>
+				{#each data.areas as a (a)}<option value={a}></option>{/each}
+			</datalist>
 			<div class="flex flex-col gap-1.5">
 				<span class="text-sm font-medium text-ink">How important is it to test?</span>
 				<Select label="How important is it to test?" options={PRIORITIES} bind:value={priority} />

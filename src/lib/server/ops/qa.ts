@@ -550,6 +550,23 @@ export const qaMapGetInput = z.object({
 });
 
 /** The map of a project with each feature's derived status, as the caller may see it. */
+/**
+ * The distinct areas the map uses, for the Area field's suggestions. A small read in place of the whole map, which carries every
+ * journey and a status for each feature. Needs the same read access as the map.
+ */
+export async function listAreas(ctx: Ctx, raw: { project: string }): Promise<string[]> {
+	const input = z.object({ project: z.string().min(1) }).parse(raw);
+	return run(ctx, async (tx) => {
+		const proj = await findProject(tx, ctx, input.project);
+		await requireQaRead(tx, ctx, proj.id);
+		const rows = await tx
+			.selectDistinct({ area: qaFeature.area })
+			.from(qaFeature)
+			.where(and(eq(qaFeature.projectId, proj.id), isNull(qaFeature.removedAt)));
+		return rows.map((r) => r.area);
+	});
+}
+
 export async function getMap(ctx: Ctx, raw: z.input<typeof qaMapGetInput>) {
 	const input = qaMapGetInput.parse(raw);
 	return run(ctx, async (tx) => {

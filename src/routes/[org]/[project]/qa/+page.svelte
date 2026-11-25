@@ -12,13 +12,14 @@
 		QA_SEVERITY_LABEL,
 		QA_SORTS,
 		QA_SORT_LABEL,
-		QA_STATUS_RAIL,
 		qaBugIsOpen,
 		qaBugStateOf,
+		qaBuildTree,
 		qaCommand,
 		qaCounts,
+		qaGroupPaths,
+		qaInArea,
 		qaPercent,
-		qaPlural,
 		qaSortFeatures,
 		qaSortOf,
 		qaStatusOf,
@@ -29,17 +30,18 @@
 	// IMPORTED DEP-COMPONENTS
 	import Bug from '@lucide/svelte/icons/bug';
 	import CircleCheck from '@lucide/svelte/icons/circle-check';
+	import ChevronsDownUp from '@lucide/svelte/icons/chevrons-down-up';
+	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
 	import CircleDot from '@lucide/svelte/icons/circle-dot';
-	import ClipboardCopy from '@lucide/svelte/icons/clipboard-copy';
 	import Copy from '@lucide/svelte/icons/copy';
 	import List from '@lucide/svelte/icons/list';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import MapIcon from '@lucide/svelte/icons/map';
 	import Search from '@lucide/svelte/icons/search';
 	// IMPORTED COMPONENTS
+	import QaAreaGroup from '#lib/board/qa/QaAreaGroup.svelte';
 	import QaHealthBar from '#lib/board/qa/QaHealthBar.svelte';
 	import QaOverview from '#lib/board/qa/QaOverview.svelte';
-	import QaStatusPill from '#lib/board/qa/QaStatusPill.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
 	import Button from '#lib/ui/Button.svelte';
 	import EmptyState from '#lib/ui/EmptyState.svelte';
@@ -49,7 +51,6 @@
 	import SegmentedControl from '#lib/ui/SegmentedControl.svelte';
 	import Select from '#lib/ui/Select.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
-	import Tooltip from '#lib/ui/Tooltip.svelte';
 
 	// -- REQUIRED PROPS -- //
 
@@ -57,8 +58,10 @@
 
 	// -- CONSTANTS -- //
 
-	// A middle dot with a space each side. Written as a constant because Svelte trims the space next to an if block
-	const SEP = ' · ';
+	// The address holds no filter: no word, no status, every group
+	const NO_FILTER = '||all';
+	// The Group select's own value for every group; no area path can look like it
+	const ALL_GROUPS = '@@all-groups';
 	const CHIP =
 		'group flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-pressed:border-accent/40 aria-pressed:bg-accent-soft aria-pressed:text-accent-text max-sm:h-11 max-sm:flex-1 max-sm:justify-center';
 	const COUNT =
@@ -78,6 +81,8 @@
 	// The search box shows the filter the address holds, so a shared or reloaded link does not look unfiltered
 	let q = $state(untrack(() => page.url.searchParams.get('q') ?? ''));
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
+	// The paths of the groups a person closed. Remembered per project in this browser, and every group opens while a filter is on
+	let collapsed = $state<string[]>([]);
 
 	// -- REACTIVE STATES -- //
 
@@ -86,18 +91,20 @@
 	const base = $derived(`/${org}/${key}`);
 	const projectName = $derived(key);
 	const statusFilter = $derived(page.url.searchParams.get('status') ?? 'all');
-	const areaFilter = $derived(page.url.searchParams.get('area') ?? 'all');
+	// Empty means every group. A group that is really called "all" is still a group
+	const areaFilter = $derived(page.url.searchParams.get('area') ?? '');
 	const sort = $derived(qaSortOf(page.url.searchParams.get('sort')));
 	const query = $derived((page.url.searchParams.get('q') ?? '').trim().toLowerCase());
 	const bugState = $derived(qaBugStateOf(page.url.searchParams.get('bugs')));
 	const severityFilter = $derived(page.url.searchParams.get('sev') ?? 'all');
-	const areas = $derived([...new Set(data.features.map((f) => f.area || 'Other'))].sort());
+	// Every group of the map, with its path, for the Group select. Not narrowed by the filters, so a person can always pick another
+	const groupPaths = $derived(qaGroupPaths(qaBuildTree(data.features)));
 	const shown = $derived(
 		qaSortFeatures(
 			data.features.filter(
 				(f) =>
 					(statusFilter === 'all' || f.status === statusFilter) &&
-					(areaFilter === 'all' || (f.area || 'Other') === areaFilter) &&
+					qaInArea(f.area, areaFilter) &&
 					(query === '' ||
 						f.name.toLowerCase().includes(query) ||
 						f.key.toLowerCase().includes(query))
@@ -105,12 +112,10 @@
 			sort
 		)
 	);
-	const groups = $derived(
-		areas
-			.map((a) => ({ area: a, features: shown.filter((f) => (f.area || 'Other') === a) }))
-			.filter((g) => g.features.length > 0)
-	);
-	const filtering = $derived(query !== '' || statusFilter !== 'all' || areaFilter !== 'all');
+	const tree = $derived(qaBuildTree(shown));
+	const filtering = $derived(query !== '' || statusFilter !== 'all' || areaFilter !== '');
+	const filterKey = $derived(filtering ? `${query}|${statusFilter}|${areaFilter}` : NO_FILTER);
+	const storeKey = $derived(`afb-qa-collapsed:${org}/${key}`);
 	const statuses = $derived(data.features.map((f) => qaStatusOf(f.status)));
 	const counts = $derived(qaCounts(statuses));
 	const summaryLine = $derived(qaSummary(statuses));
@@ -121,8 +126,8 @@
 		)
 	);
 	const areaOptions = $derived([
-		{ value: 'all', label: 'All areas' },
-		...areas.map((a) => ({ value: a, label: a }))
+		{ value: ALL_GROUPS, label: 'All groups' },
+		...groupPaths.map((g) => ({ value: g.path, label: g.path.split('/').join(' / ') }))
 	]);
 	const tabOptions = $derived([
 		{ value: 'map', label: 'Map', icon: MapIcon },
@@ -162,6 +167,15 @@
 	// A search that is still waiting is dropped when the page goes away
 	$effect(() => () => clearTimeout(searchTimer));
 
+	// A filter opens every group so the matches show; with no filter the groups a person closed come back from this browser
+	$effect(() => {
+		const k = filterKey;
+		const sk = storeKey;
+		untrack(() => {
+			collapsed = k === NO_FILTER ? readCollapsed(sk) : [];
+		});
+	});
+
 	// -- FUNCTIONS -- //
 
 	/** Keeps the address as the one place the tab and the filters live, so a view can be shared and the back button works. */
@@ -185,6 +199,56 @@
 	function clearFilters() {
 		q = '';
 		go({ q: null, status: null, area: null });
+	}
+
+	/** The closed groups of this project, or none when the browser has nothing or will not say. */
+	function readCollapsed(storageKey: string): string[] {
+		try {
+			const raw: unknown = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
+			return Array.isArray(raw) ? raw.filter((p): p is string => typeof p === 'string') : [];
+		} catch {
+			return [];
+		}
+	}
+
+	// Only the quiet view is remembered; a closed group during a filter is a passing choice
+	function saveCollapsed() {
+		if (filtering) return;
+		try {
+			localStorage.setItem(storeKey, JSON.stringify(collapsed));
+		} catch {
+			// Private windows and blocked storage just forget the choice
+		}
+	}
+
+	function toggleGroup(path: string) {
+		collapsed = collapsed.includes(path)
+			? collapsed.filter((p) => p !== path)
+			: [...collapsed, path];
+		saveCollapsed();
+	}
+
+	function expandAll() {
+		collapsed = [];
+		saveCollapsed();
+	}
+
+	function collapseAll() {
+		collapsed = tree.map((n) => n.path);
+		saveCollapsed();
+	}
+
+	// Up and Down walk the group headers and the feature rows in the order they show
+	function walkTree(e: KeyboardEvent) {
+		if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+		const items = [
+			...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[data-qa-nav]')
+		];
+		const at = items.indexOf(document.activeElement as HTMLElement);
+		if (at < 0) return;
+		e.preventDefault();
+		const next = Math.min(items.length - 1, Math.max(0, at + (e.key === 'ArrowDown' ? 1 : -1)));
+		items[next]?.focus();
 	}
 
 	async function copyCommand(scope?: string) {
@@ -211,13 +275,8 @@
 	>
 		{#snippet actions()}
 			{#if !data.denied && data.features.length > 0}
-				<Button
-					variant="primary"
-					class="max-sm:flex-1"
-					onclick={() => copyCommand()}
-					data-testid="qa-copy-command"
-				>
-					<Copy size={16} /> Copy the test command
+				<Button size="sm" onclick={() => copyCommand()} data-testid="qa-copy-command">
+					<Copy size={16} /> Copy test command
 				</Button>
 			{/if}
 		{/snippet}
@@ -286,21 +345,28 @@
 						onchange={(v) => go({ sort: v === 'attention' ? null : v })}
 						triggerClass="w-56"
 					/>
-					{#if areas.length > 1}
+					{#if groupPaths.length > 1}
 						<Select
-							label="Area"
+							label="Group"
+							prefix="Group:"
 							options={areaOptions}
-							value={areaFilter}
-							onchange={(v) => go({ area: v === 'all' ? null : v })}
-							triggerClass="w-44"
+							value={areaFilter || ALL_GROUPS}
+							onchange={(v) => go({ area: v === ALL_GROUPS ? null : v })}
+							triggerClass="w-56"
 						/>
+						<Button variant="ghost" onclick={expandAll} data-testid="qa-expand-all">
+							<ChevronsUpDown size={16} /> Expand all
+						</Button>
+						<Button variant="ghost" onclick={collapseAll} data-testid="qa-collapse-all">
+							<ChevronsDownUp size={16} /> Collapse all
+						</Button>
 					{/if}
 					{#if filtering}
 						<Button variant="ghost" onclick={clearFilters}>Clear filters</Button>
 					{/if}
 				</div>
 
-				{#if groups.length === 0}
+				{#if tree.length === 0}
 					<EmptyState
 						kind="search"
 						title="No features match"
@@ -311,111 +377,17 @@
 						{/snippet}
 					</EmptyState>
 				{:else}
-					{#each groups as g (g.area)}
-						{@const areaCounts = qaCounts(g.features.map((f) => qaStatusOf(f.status)))}
-						<section class="flex flex-col gap-2" data-testid="qa-area">
-							<div class="flex items-center gap-3 px-1">
-								<h2 class="text-xs font-medium text-muted">{g.area}</h2>
-								<span class="text-xs text-muted tabular-nums"
-									>{g.features.length} {qaPlural(g.features.length, 'feature')}</span
-								>
-								<span class="ml-auto w-16">
-									<QaHealthBar
-										counts={areaCounts}
-										label={`${g.area}: ${g.features.length} ${qaPlural(g.features.length, 'feature')}`}
-										class="h-1.5 w-16"
-									/>
-								</span>
-							</div>
-							<ul class="{CARD} overflow-hidden">
-								{#each g.features as f (f.id)}
-									{@const st = qaStatusOf(f.status)}
-									<li
-										class="group/row relative flex flex-wrap items-center border-b border-line last:border-b-0 sm:flex-nowrap"
-										data-testid="qa-feature"
-									>
-										<!-- THE STATUS RAIL ON THE LEFT EDGE, A FIXED STATUS TOKEN -->
-										<span
-											class="absolute inset-y-0 left-0 w-[3px] {QA_STATUS_RAIL[st]}"
-											aria-hidden="true"
-										></span>
-										<a
-											href={`${base}/qa/${f.key}`}
-											title={f.name}
-											class="flex min-h-14 min-w-0 flex-1 basis-full cursor-pointer flex-wrap items-center gap-x-4 gap-y-2 py-3 pr-2 pl-5 hover:bg-raised/60 focus-visible:outline-2 focus-visible:outline-accent max-sm:pr-14 sm:basis-0 sm:flex-nowrap"
-										>
-											<span class="flex min-w-0 flex-1 basis-64 flex-col gap-1">
-												<span
-													class="line-clamp-2 text-sm font-medium [overflow-wrap:anywhere] text-ink"
-													>{f.name}</span
-												>
-												<span
-													class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted"
-												>
-													<span class="font-mono">{f.key}</span>
-													<span aria-hidden="true">·</span>
-													<span class="tabular-nums"
-														>{f.journeys}
-														{qaPlural(f.journeys, 'journey')} · {f.cases}
-														{qaPlural(f.cases, 'case')}</span
-													>
-													<span class="flex items-center gap-1">
-														{#if f.sizes.length}
-															{#each f.sizes as w (w)}
-																<span
-																	class="rounded-md bg-raised px-2 py-0.5 font-mono text-xs text-muted tabular-nums"
-																	>{w}</span
-																>
-															{/each}
-														{:else}
-															No sizes
-														{/if}
-													</span>
-												</span>
-											</span>
-											<span class="flex shrink-0 items-center gap-3 max-sm:w-full max-sm:flex-wrap">
-												<QaStatusPill status={f.status} flaky={f.flaky} />
-												<span class="w-16 shrink-0">
-													{#if f.openBugs > 0}
-														<Badge tone="danger">{f.openBugs} {qaPlural(f.openBugs, 'bug')}</Badge>
-													{:else}
-														<span class="text-xs text-muted tabular-nums">0 bugs</span>
-													{/if}
-												</span>
-												<span
-													class="w-40 shrink-0 text-xs text-muted max-sm:ml-auto max-sm:w-auto sm:text-right"
-													>{f.lastTestedAt
-														? ago(f.lastTestedAt)
-														: 'Never tested'}{#if f.lastCommit}<span class="block sm:inline"
-															><span class="max-sm:hidden">{SEP}</span><span class="font-mono"
-																>{f.lastCommit.slice(0, 7)}</span
-															></span
-														>{/if}</span
-												>
-											</span>
-										</a>
-										<!-- THE RETEST BUTTON IS A SIBLING OF THE LINK. HOVER OR FOCUS ON A FINE POINTER, ALWAYS ON TOUCH -->
-										<Tooltip text="Copy the retest command">
-											{#snippet children({ props })}
-												<Button
-													{...props}
-													variant="secondary"
-													size="sm"
-													iconOnly
-													class="mr-3 ml-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none max-sm:absolute max-sm:top-1 max-sm:right-1 max-sm:mr-0 max-sm:opacity-100 [@media(hover:none)]:opacity-100"
-													aria-label={`Copy the retest command for ${f.name}`}
-													onclick={() => copyCommand(f.key)}
-													data-testid="qa-retest"
-												>
-													<ClipboardCopy size={16} />
-												</Button>
-											{/snippet}
-										</Tooltip>
-									</li>
-								{/each}
-							</ul>
-						</section>
-					{/each}
+					<!-- THE GROUP TREE: A CARD FOR EACH TOP GROUP, SUB-GROUPS INSIDE IT. UP AND DOWN WALK THE HEADERS AND ROWS -->
+					<div
+						role="presentation"
+						class="flex flex-col gap-4"
+						data-testid="qa-tree"
+						onkeydown={walkTree}
+					>
+						{#each tree as node (node.path)}
+							<QaAreaGroup {node} {base} {collapsed} ontoggle={toggleGroup} oncopy={copyCommand} />
+						{/each}
+					</div>
 				{/if}
 			{/if}
 		{:else if data.tab === 'runs'}

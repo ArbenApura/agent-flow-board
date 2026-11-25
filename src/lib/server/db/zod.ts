@@ -180,6 +180,7 @@ const qaSizes = z
 	.refine((a) => new Set(a).size === a.length, 'Use each screen width once.');
 export const qaFeatureInput = createInsertSchema(qaFeature, {
 	key: () => qaKey,
+	// An area is a path of up to four levels split by /, such as apps/centers/queue; a flat word still works
 	area: (s) => s.max(80).optional(),
 	name: (s) => s.min(1).max(120),
 	description: (s) => s.max(2000).optional(),

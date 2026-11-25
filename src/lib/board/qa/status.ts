@@ -152,3 +152,120 @@ export function qaSummary(statuses: QaStatus[]): string {
 	for (const [s, w] of words) if (count(s) > 0) parts.push(`${count(s)} ${w}`);
 	return parts.join(' · ');
 }
+
+// -- AREA TREE (AFB-20261125-1421) -- //
+
+/** The deepest group level; a longer path keeps its first four parts. */
+export const QA_AREA_DEPTH = 4;
+/** The group of a feature whose area is empty. */
+export const QA_AREA_OTHER = 'Other';
+
+/** One feature as the Testing page lists it, the same shape the page server sends. */
+export type QaMapFeature = {
+	id: string;
+	key: string;
+	area: string;
+	name: string;
+	sizes: number[];
+	status: string;
+	flaky: boolean;
+	openBugs: number;
+	lastTestedAt: Date | string | null;
+	lastCommit: string | null;
+	journeys: number;
+	cases: number;
+	works: number;
+};
+
+export type QaTreeNode<T> = {
+	/** The whole path, such as `apps/centers/queue`. */
+	path: string;
+	/** The last part, such as `queue`. */
+	label: string;
+	/** The parts before the label, such as `apps / centers`, or empty for a top group. */
+	trail: string;
+	/** 0 for a top group. */
+	depth: number;
+	/** The features that sit right in this group. */
+	own: T[];
+	children: QaTreeNode<T>[];
+	/** Every feature in this group and under it, for the counts and the health bar. */
+	all: T[];
+};
+
+/** An area is a path of up to four parts split on `/`: "apps/admin" is the group apps and its sub-group admin. Blank is Other. */
+export function qaAreaPath(area: string | null | undefined): string {
+	const parts = (area ?? '')
+		.split('/')
+		.map((p) => p.trim())
+		.filter(Boolean)
+		.slice(0, QA_AREA_DEPTH);
+	return parts.length ? parts.join('/') : QA_AREA_OTHER;
+}
+
+/** True when the feature sits in the group `area` or in a group under it. An empty `area` means no group filter and matches everything, so a group that is really called "all" stays a group. */
+export const qaInArea = (featureArea: string | null | undefined, area: string): boolean => {
+	if (area === '') return true;
+	const p = qaAreaPath(featureArea);
+	return p === area || p.startsWith(`${area}/`);
+};
+
+/**
+ * Builds the group tree from the features, keeping their order inside each group. A group that only has sub-groups still
+ * gets its own node, and Other always comes last.
+ */
+export function qaBuildTree<T extends { area: string | null | undefined }>(
+	features: T[]
+): QaTreeNode<T>[] {
+	const nodes = new Map<string, QaTreeNode<T>>();
+	const roots: QaTreeNode<T>[] = [];
+	const nodeOf = (path: string): QaTreeNode<T> => {
+		const found = nodes.get(path);
+		if (found) return found;
+		const parts = path.split('/');
+		const label = parts[parts.length - 1];
+		const node: QaTreeNode<T> = {
+			path,
+			label,
+			trail: parts.slice(0, -1).join(' / '),
+			depth: parts.length - 1,
+			own: [],
+			children: [],
+			all: []
+		};
+		nodes.set(path, node);
+		if (parts.length === 1) roots.push(node);
+		else nodeOf(parts.slice(0, -1).join('/')).children.push(node);
+		return node;
+	};
+	for (const f of features) {
+		const path = qaAreaPath(f.area);
+		nodeOf(path).own.push(f);
+		const parts = path.split('/');
+		for (let i = 1; i <= parts.length; i++) nodeOf(parts.slice(0, i).join('/')).all.push(f);
+	}
+	const byLabel = (a: QaTreeNode<T>, b: QaTreeNode<T>) =>
+		Number(a.path === QA_AREA_OTHER) - Number(b.path === QA_AREA_OTHER) ||
+		a.label.localeCompare(b.label);
+	const order = (list: QaTreeNode<T>[]) => {
+		list.sort(byLabel);
+		for (const n of list) order(n.children);
+	};
+	order(roots);
+	return roots;
+}
+
+/** Every group path in tree order, with its depth, for the Group select. Parents come before their children. */
+export function qaGroupPaths<T>(
+	tree: QaTreeNode<T>[]
+): { path: string; label: string; depth: number }[] {
+	const out: { path: string; label: string; depth: number }[] = [];
+	const walk = (list: QaTreeNode<T>[]) => {
+		for (const n of list) {
+			out.push({ path: n.path, label: n.label, depth: n.depth });
+			walk(n.children);
+		}
+	};
+	walk(tree);
+	return out;
+}
