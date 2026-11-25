@@ -146,8 +146,10 @@ function warningsFor(bytes: Uint8Array, kit: LoadedKit | null): string[] {
 	const fidelity = readFidelity(html);
 	const warnings = [
 		...lintMockupHtml(html, kit?.facts),
-		// A screenshot page is one picture with callouts: it has no screens or states for a hook to reach
-		...(fidelity === 'screenshot' ? [] : lintMockupHooks(html)),
+		// A screenshot page is one picture with callouts: it has no screens or states for a hook to reach, but its pins still need data-ref
+		...lintMockupHooks(html).filter(
+			(w) => fidelity !== 'screenshot' || !/^The mockup has no data-(screen|state) hooks\./.test(w)
+		),
 		...lintMockupBudgets(html, kit !== null && kit.head !== null, fidelity)
 	];
 	if (bytes.byteLength > LINT_BYTES)

@@ -114,6 +114,13 @@ describe('workflow text', () => {
 		}
 	});
 
+	it('serves all three flow-mockup starters in its body, so a tool with no skills folder can start each fidelity tier (AFB-20261125-0703)', () => {
+		const body = WORKFLOWS.find((w) => w.name === 'flow-mockup')?.body ?? '';
+		expect(body).toContain('# Mockup starter');
+		expect(body).toContain('# Wireframe starter');
+		expect(body).toContain('# Screenshot starter');
+	});
+
 	it('serves the flow reference (lite flow, model rows, tools, errors) as a file of flow, readable to the end in parts (AFB-20261116-1551)', () => {
 		const text = workflowFile('flow', 'reference');
 		expect(text.length).toBeGreaterThan(500);

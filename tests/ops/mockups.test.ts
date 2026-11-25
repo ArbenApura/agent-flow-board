@@ -160,6 +160,12 @@ describe('mockups', () => {
 		expect(tierOf(shot.mockup.id)).toBe('screenshot');
 		expect(tierOf(plain.mockup.id)).toBe('high');
 		expect(tierOf(junk.mockup.id)).toBe('high');
+		// A screenshot page has no screens or states, so only the data-ref hook warning is given for it
+		const hooksOf = (r: { warnings: string[] }) => r.warnings.filter((x) => /data-/.test(x));
+		expect(hooksOf(shot).some((x) => /no data-screen hooks/.test(x))).toBe(false);
+		expect(hooksOf(shot).some((x) => /no data-state hooks/.test(x))).toBe(false);
+		expect(hooksOf(shot).some((x) => /no data-ref hooks/.test(x))).toBe(true);
+		expect(hooksOf(plain).some((x) => /no data-screen hooks/.test(x))).toBe(true);
 		const read = await getMockup(as('member'), wire.mockup.id);
 		expect(read.versions[0]?.fidelity).toBe('wireframe');
 		// "Make it high fidelity" is a new version of the same mockup, so the newest version decides the badge
