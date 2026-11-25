@@ -3,7 +3,7 @@
 // IMPORTED DEP-MODULES
 import { describe, expect, it } from 'vitest';
 // IMPORTED MODULES
-import { systemSkills } from '../../src/lib/server/system-skills';
+import { MANIFEST, systemSkills } from '../../src/lib/server/system-skills';
 import {
 	HARNESSES,
 	INSTALL_STEPS,
@@ -352,5 +352,55 @@ describe('the files a skill no longer ships (AFB-20261123-1205)', () => {
 			{}
 		);
 		expect(p.skills.every((s) => s.removedFiles.length === 0)).toBe(true);
+	});
+});
+
+describe('the restored flow-critic name (AFB-20261125-1442)', () => {
+	// An installed copy of the old monolith (1.5.6, six extra files) must update to the router, never read as newer
+	const real: ServedSkill[] = systemSkills().map((s) => ({
+		name: s.name,
+		version: s.version,
+		files: s.files.map((f) => ({ path: f.path, sha256: f.sha256, bytes: f.bytes }))
+	}));
+	const oldCopy: InstalledSkill = clean('flow-critic', '1.5.6', { otherFilesChanged: false });
+	const planned = () =>
+		planSkills(
+			real,
+			'claude-code',
+			'user',
+			[oldCopy],
+			true,
+			MANIFEST.retired ?? [],
+			MANIFEST.removedFiles ?? {}
+		);
+
+	it('updates an installed old flow-critic to 2.0.0 and deletes its six old files', () => {
+		const critic = planned().skills.find((s) => s.name === 'flow-critic')!;
+		expect(critic.action).toBe('update');
+		expect(critic.version).toBe('2.0.0');
+		expect(critic.removedFiles.sort()).toEqual([
+			'checklists.md',
+			'code-lenses.md',
+			'code-template.md',
+			'mockup-lenses.md',
+			'plan-lenses.md',
+			'plan-template.md'
+		]);
+		// It is a bundle skill now, so it is no longer a retired copy to remove
+		expect(planned().retired.map((r) => r.name)).not.toContain('flow-critic');
+		expect(compareVersions('1.5.6', '2.0.0')).toBeLessThan(0);
+	});
+
+	it('asks, and deletes nothing, when the installed old flow-critic was edited by hand', () => {
+		const edited = planSkills(
+			real,
+			'claude-code',
+			'user',
+			[{ ...oldCopy, computedSha256: 'b'.repeat(64) }],
+			true,
+			MANIFEST.retired ?? [],
+			MANIFEST.removedFiles ?? {}
+		).skills.find((s) => s.name === 'flow-critic')!;
+		expect(edited.action).toBe('ask');
 	});
 });

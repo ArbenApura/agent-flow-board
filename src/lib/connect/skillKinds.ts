@@ -58,6 +58,12 @@ export const SKILL_INFO: Record<string, SkillInfo> = {
 		summary:
 			'Brings your rule files and your agent’s memory in line with the flow rules, backing every file up first.'
 	},
+	'flow-critic': {
+		kind: 'Check',
+		icon: 'scan-search',
+		summary:
+			'One entry for the four reviews: works out which one you meant, and asks once when it cannot tell.'
+	},
 	'flow-critic-plan': {
 		kind: 'Check',
 		icon: 'scan-search',
@@ -86,6 +92,12 @@ export const SKILL_INFO: Record<string, SkillInfo> = {
 		icon: 'route',
 		summary:
 			'Decides small choices itself from the code and the plan, records them and reports, and asks only what is yours.'
+	},
+	'flow-autopilot': {
+		kind: 'Plan',
+		icon: 'route',
+		summary:
+			'Runs an approved plan to the end on its own, decides with flow-decide and stops only for the six real reasons.'
 	},
 	'flow-commit': {
 		kind: 'Plan',

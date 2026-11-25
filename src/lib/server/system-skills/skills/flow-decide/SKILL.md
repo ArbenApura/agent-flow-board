@@ -5,6 +5,8 @@ description: Use when the user wants the agent to make decisions itself instead 
 
 # Flow decide: find the answer, decide, record, act, report
 
+> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
+
 The user has handed the choices to you. A question costs their attention every time; a wrong default costs one follow-up. So: **find the answer in the evidence, decide, record, act, report.** Do not narrate options you will not pursue, and do not ask what the repo can answer.
 
 This is the working method behind the "Defaults and questions" and "Keep going" rules of `/flow`. It adds no stop list of its own: **what is never yours to decide is the list of those two rules** (anything that changes data, access, money, wording or anything live, a question that is the user's, a request that contradicts a settled decision or the repo rulebook, access you do not have). Where this skill and `/flow` differ, `/flow` wins, and the repo rulebook wins over both on project facts. The safety rules of `/flow` always apply.

@@ -5,6 +5,8 @@ description: Use when the user types /flow-update-skills, or asks to install, ch
 
 # Flow update skills: check, install, update and clean up
 
+> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
+
 The skills come as one versioned bundle served by the Agent Flow Board connection you use. This skill brings the installed copy to the served one. Typing `/flow-update-skills` is the request: do everything below, ask only where a step says so, report once.
 
 ## 1. Find out what is installed

@@ -36,7 +36,9 @@ const NAMES = [
 	'flow',
 	'flow-align',
 	'flow-audit',
+	'flow-autopilot',
 	'flow-commit',
+	'flow-critic',
 	'flow-critic-code',
 	'flow-critic-mockup',
 	'flow-critic-plan',
@@ -73,17 +75,31 @@ describe('the system skills manifest', () => {
 		for (const rule of rules) expect(flow, rule).toContain(rule);
 	});
 
-	it('lists the thirteen flow skills, each with a semver version, and the retired ones apart (AFB-20261116-1457)', () => {
+	it('lists every flow skill, each with a semver version, and the retired ones apart (AFB-20261116-1457)', () => {
 		expect(Object.keys(MANIFEST.skills).sort()).toEqual(NAMES);
-		// flow-critic is gone for good: its four reviews stand alone, and an installed copy is deleted by /flow-update-skills (AFB-20261123-1205)
+		// flow-critic came back in bundle 1.31.0 as the router, version 2.0.0 above the old monolith's 1.5.6 (AFB-20261125-1442)
 		// flow-critic-screen was renamed flow-critic-screens in bundle 1.27.0, so the old folder name is retired too
 		expect([...(MANIFEST.retired ?? [])].sort()).toEqual([
 			'flow-check',
-			'flow-critic',
 			'flow-critic-screen',
 			'flow-verify'
 		]);
-		expect(MANIFEST.removedFiles ?? {}).toEqual({});
+		// The old monolith's six files are deleted from an installed copy that is updated to the router
+		expect(MANIFEST.removedFiles).toEqual({
+			'flow-critic': [
+				'checklists.md',
+				'code-lenses.md',
+				'code-template.md',
+				'mockup-lenses.md',
+				'plan-lenses.md',
+				'plan-template.md'
+			]
+		});
+		const [major] = MANIFEST.skills['flow-critic'].version.split('.').map(Number);
+		expect(
+			major,
+			'above the old 1.5.6, so an installed copy is never newer'
+		).toBeGreaterThanOrEqual(2);
 		for (const gone of MANIFEST.retired ?? []) expect(MANIFEST.skills[gone], gone).toBeUndefined();
 		expect(MANIFEST.bundle.version).toMatch(/^\d+\.\d+\.\d+$/);
 		for (const [name, entry] of Object.entries(MANIFEST.skills))
@@ -195,7 +211,12 @@ describe('workflow_get and the bundle', () => {
 					.sort()
 			]);
 		}
-		expect(systemSkills().find((s) => s.name === 'flow-critic')).toBeUndefined();
+		// The router has SKILL.md only; the review files stay in the four modules
+		expect(
+			systemSkills()
+				.find((s) => s.name === 'flow-critic')!
+				.files.map((f) => f.path)
+		).toEqual(['SKILL.md']);
 		// The shared rules are one text in four places, so a review never reads a different copy from its sibling
 		const rules = ['plan', 'code', 'mockup', 'screens'].map((m) =>
 			systemSkills()

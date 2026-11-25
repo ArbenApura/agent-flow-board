@@ -5,6 +5,8 @@ description: Use only when the user types /flow-commit or explicitly asks to com
 
 # Flow commit: conventional commits for this session's work
 
+> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
+
 **If the user's latest message did not type `/flow-commit` or ask to commit, stop and do nothing.** The sign-off is the user's words in chat, never the skill being loaded.
 
 No plan is needed. This skill claims no item, records no step and writes nothing to the board. When the work belongs to an item, its reference goes in the commit header; that is all.

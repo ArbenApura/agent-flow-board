@@ -37,6 +37,7 @@ describe('skill kinds of the Skills tab', () => {
 				.map((r) => r.name)
 				.sort()
 		).toEqual([
+			'flow-critic',
 			'flow-critic-code',
 			'flow-critic-mockup',
 			'flow-critic-plan',

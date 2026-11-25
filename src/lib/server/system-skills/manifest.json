@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.28.0",
+		"version": "1.31.0",
 		"releasedAt": "2026-11-25"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.18.0",
+			"version": "1.20.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -190,11 +190,19 @@
 				{
 					"version": "1.18.0",
 					"hash": "5f2862b022bb3f9c4fea1981229839d6c5caf8c9fc692f11ef9155076958b332"
+				},
+				{
+					"version": "1.19.0",
+					"hash": "ff6108e5cfe2a3915b1c268a37fd8f3f27795b79b198c8b6e901740a7bffc7e3"
+				},
+				{
+					"version": "1.20.0",
+					"hash": "302c886120f8edbc5c133b1ab94c5d5cc60f4dbdd061ced96b0a614d2f2639ac"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.3.8",
+			"version": "1.3.9",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -267,11 +275,15 @@
 				{
 					"version": "1.3.8",
 					"hash": "710fe65f3bf8246b7af95a7f711afaf8ed8de0792c76167e5e1a3d82b131800e"
+				},
+				{
+					"version": "1.3.9",
+					"hash": "b6811d60e610eaab3c418d12b52a5cb9a2d77019dad08ef97e134532268d243d"
 				}
 			]
 		},
 		"flow-interview": {
-			"version": "1.2.7",
+			"version": "1.2.8",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -344,11 +356,15 @@
 				{
 					"version": "1.2.7",
 					"hash": "b3d8ba7c480e3d79279489eb7a562f92c250c69fb18fbcb1fc3a97f980b2adfe"
+				},
+				{
+					"version": "1.2.8",
+					"hash": "d5d4cd5f186ef36c317e1d918596457fbddf55c27341654421e361e1eb51098d"
 				}
 			]
 		},
 		"flow-mockup": {
-			"version": "1.10.1",
+			"version": "1.11.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -433,11 +449,15 @@
 				{
 					"version": "1.10.1",
 					"hash": "91f18021207a5d421531c55997fea543ac493fd07b2aa945eccde00cc54b8b14"
+				},
+				{
+					"version": "1.11.0",
+					"hash": "3c0da7a23449301ed7a9daae19720422593ed9ab46374b05baac2906cb4e9406"
 				}
 			]
 		},
 		"flow-task": {
-			"version": "1.1.4",
+			"version": "1.1.5",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -466,11 +486,15 @@
 				{
 					"version": "1.1.4",
 					"hash": "bd47c70843ae46c601e8a80f66f030521e9f5c1808b6545b62808191767b0c31"
+				},
+				{
+					"version": "1.1.5",
+					"hash": "88c1fdfcf862f5b4d33971651cd507500aa556ef96e54c298c8b673ac31f4b37"
 				}
 			]
 		},
 		"flow-align": {
-			"version": "1.6.3",
+			"version": "1.8.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -511,11 +535,19 @@
 				{
 					"version": "1.6.3",
 					"hash": "5280ef91bfe44641bce84c5c4f6a61ab7fa4c99a98cae6803a0d285478702ec3"
+				},
+				{
+					"version": "1.7.0",
+					"hash": "a2fecdd5768943555727795851eb2f9d9ec4e84df67669fb033423cd10d07414"
+				},
+				{
+					"version": "1.8.0",
+					"hash": "14ce2a58e3acaba7fd9b795f4b22cbd4fac72a608cf6c1e2c40dd102af8519b4"
 				}
 			]
 		},
 		"flow-commit": {
-			"version": "1.0.1",
+			"version": "1.0.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -524,11 +556,15 @@
 				{
 					"version": "1.0.1",
 					"hash": "e9224ce0a65fcfe209f63155c3f74b084c7c5f9a90ef9a173b4df839671e8a23"
+				},
+				{
+					"version": "1.0.2",
+					"hash": "cb2571bbbc167f26b8f3438af71a483f7958d430e1881e830e658bcbf9a57626"
 				}
 			]
 		},
 		"flow-critic-code": {
-			"version": "1.0.3",
+			"version": "1.1.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -545,11 +581,15 @@
 				{
 					"version": "1.0.3",
 					"hash": "bc65feba7a5afa75318425efae3dff9ca4a075e6ebbca5bf74d61b0c3e6a4734"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "cf3a649ce0c2f056ebe6db1661358bee886e51eb54bd02097276842b461d15a1"
 				}
 			]
 		},
 		"flow-critic-mockup": {
-			"version": "1.1.2",
+			"version": "1.2.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -570,11 +610,15 @@
 				{
 					"version": "1.1.2",
 					"hash": "c3b516159beed5a86cb888b963d7866c7054343a024653155022da0074fee11d"
+				},
+				{
+					"version": "1.2.0",
+					"hash": "5662477d56031feccad0aa4df0bf319bc08fafb2f8c8ff3b09ed8de4b8828954"
 				}
 			]
 		},
 		"flow-critic-plan": {
-			"version": "1.0.3",
+			"version": "1.1.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -591,11 +635,15 @@
 				{
 					"version": "1.0.3",
 					"hash": "a1c3b9bb79de320f5324134dfacf016057cacac1df06603bf3d94074564ff46d"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "eb3f4a89636b14e39771ef302132f7b54d085298fb6939e2f0aa04ebab29c383"
 				}
 			]
 		},
 		"flow-critic-screens": {
-			"version": "1.1.0",
+			"version": "1.3.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -608,11 +656,19 @@
 				{
 					"version": "1.1.0",
 					"hash": "e76dd3e465c98a1230fc7d2169a3cca3601e8790afee158c8401fcd5acc1a2d4"
+				},
+				{
+					"version": "1.2.0",
+					"hash": "7cea52b22e7a5e1652b25a49c9becd5132e0dbbcbb520901b0f0c83fcd486695"
+				},
+				{
+					"version": "1.3.0",
+					"hash": "8abd973b2ad1d5a7847a689f96b8daf9f21a79747f065c1e954bee6e3e962c49"
 				}
 			]
 		},
 		"flow-decide": {
-			"version": "1.0.1",
+			"version": "1.0.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -621,11 +677,15 @@
 				{
 					"version": "1.0.1",
 					"hash": "6fc00d2b4020730d30fd8f2db349be0425d768c6ad6df22da1408e5f395560e7"
+				},
+				{
+					"version": "1.0.2",
+					"hash": "af578e4a527ba39c7282503cf74795e68ad716534b465de0c2a993ec6c772bd5"
 				}
 			]
 		},
 		"flow-update-skills": {
-			"version": "1.0.1",
+			"version": "1.0.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -634,11 +694,15 @@
 				{
 					"version": "1.0.1",
 					"hash": "f00ab371789d5ee9605b5d83310ec40513d651a060b56fd9725d48cd50e32d45"
+				},
+				{
+					"version": "1.0.2",
+					"hash": "3b9ce407ae2baeefb7553d2badcbae5147800e1865fc678ba7b38fe6e14feb3b"
 				}
 			]
 		},
 		"flow-qa": {
-			"version": "1.0.1",
+			"version": "1.1.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -647,20 +711,146 @@
 				{
 					"version": "1.0.1",
 					"hash": "2807dd6bdf2f4cd8dc5e05a8bc4c9278c92ace5392f0385c6fa5ef71b8c12d94"
+				},
+				{
+					"version": "1.0.2",
+					"hash": "53b663e0a50dcc50dc947f68fca6db10676d4afc5930e176b06573f70d628a52"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "2640981727e555d39e4dd59358a2d68c023dfb7b56bcb88f116f6a789e2ad0a3"
 				}
 			]
 		},
 		"flow-screens": {
-			"version": "1.0.0",
+			"version": "1.0.2",
 			"history": [
 				{
 					"version": "1.0.0",
 					"hash": "8f9ad3021fbbf77159971327cfe0bad2130f35db69b52b23b917e1235300bff0"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "ca55acc6d6e75c102e55611caa2d374ca0be10ebef55a3708cb0eb7f27b9f728"
+				},
+				{
+					"version": "1.0.2",
+					"hash": "68a7953c4ddb83a0db0b2d167d05245a38f2a3bddc44e18f3ec12d9bea1d0cab"
+				}
+			]
+		},
+		"flow-autopilot": {
+			"version": "1.0.1",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "4fb7fb0edf620ccd9989e6fc0f05c45e2022dfc2343e018a7e8786442cac5f1a"
+				},
+				{
+					"version": "1.0.1",
+					"hash": "1e918e478c9ebec9c92f4ad5bdce17f859784126cfc7de02698cb4384bb597fc"
+				}
+			]
+		},
+		"flow-critic": {
+			"version": "2.0.0",
+			"history": [
+				{
+					"version": "2.0.0",
+					"hash": "9ad89cc7979efb917198a6215e6a0544ae0c8337fd7b6f8fae4bb0b6c05a7039"
 				}
 			]
 		}
 	},
+	"removedFiles": {
+		"flow-critic": [
+			"checklists.md",
+			"code-lenses.md",
+			"code-template.md",
+			"mockup-lenses.md",
+			"plan-lenses.md",
+			"plan-template.md"
+		]
+	},
 	"changelog": [
+		{
+			"version": "1.31.0",
+			"date": "2026-11-25",
+			"notes": [
+				"flow-critic is back as the one entry for the four critic reviews (AFB-20261125-1442), version 2.0.0 above the old 1.5.6: it works out plan, code, mockup or screens from the words, the item and the working tree, runs it when clear and shows one pick card when not. The four modules keep their names. An installed old flow-critic is updated and its six old files are deleted. The critics now size their number from a table in critic-rules (one for a short plan, at least three for auth, migrations and tenant code) and say it in a Reviews line.",
+				"flow 1.20.0: the plan hand-over card is strict (a listed or deferred question tool counts, it is the last call of the turn), a pick card of a typed skill is not a stop, every plan ends with a sized code review, and a plan that changed a screen ends with /flow-screens, a screens critique on the same pictures, the fixes and a retake. The user's own rule files win over skill defaults through five named keys (critics, end-of-plan-screens-critic, pick-cards, mockup-default, qa-default); /flow-align 1.8.0 writes the template once and never touches it again. flow-mockup 1.11.0 and flow-qa 1.1.0 show one pick card when the tier or the mode is not clear. flow-autopilot 1.0.1, flow-critic-screens 1.3.0 and every other skill point to the preferences."
+			],
+			"skills": {
+				"flow": "1.20.0",
+				"flow-audit": "1.3.9",
+				"flow-interview": "1.2.8",
+				"flow-mockup": "1.11.0",
+				"flow-qa": "1.1.0",
+				"flow-screens": "1.0.2",
+				"flow-task": "1.1.5",
+				"flow-align": "1.8.0",
+				"flow-commit": "1.0.2",
+				"flow-critic": "2.0.0",
+				"flow-critic-code": "1.1.0",
+				"flow-critic-mockup": "1.2.0",
+				"flow-critic-plan": "1.1.0",
+				"flow-critic-screens": "1.3.0",
+				"flow-decide": "1.0.2",
+				"flow-autopilot": "1.0.1",
+				"flow-update-skills": "1.0.2"
+			}
+		},
+		{
+			"version": "1.30.0",
+			"date": "2026-11-25",
+			"notes": [
+				"flow-qa 1.0.2 (AFB-20261125-1421): Discover writes each feature's area as a path of up to four levels split by '/' (apps/admin, apps/centers/queue), so the Testing page shows groups and sub-groups. A flat area still works."
+			],
+			"skills": {
+				"flow": "1.19.0",
+				"flow-audit": "1.3.8",
+				"flow-interview": "1.2.7",
+				"flow-mockup": "1.10.1",
+				"flow-qa": "1.0.2",
+				"flow-screens": "1.0.1",
+				"flow-task": "1.1.4",
+				"flow-align": "1.7.0",
+				"flow-commit": "1.0.1",
+				"flow-critic-code": "1.0.3",
+				"flow-critic-mockup": "1.1.2",
+				"flow-critic-plan": "1.0.3",
+				"flow-critic-screens": "1.2.0",
+				"flow-decide": "1.0.1",
+				"flow-autopilot": "1.0.0",
+				"flow-update-skills": "1.0.1"
+			}
+		},
+		{
+			"version": "1.29.0",
+			"date": "2026-11-25",
+			"notes": [
+				"New flow-autopilot skill (AFB-20261125-1418): type /flow-autopilot, or say 'don't stop', after a plan is approved and the agent finishes the whole plan on its own. It needs a go first, decides every choice with flow-decide (unchanged), stops only for the six numbered reasons of flow, checks the open steps before every turn ends, tries a blocked step three ways and never waives it, and reports its stops by reason. flow 1.19.0 and the flow-align rules block 1.7.0 point at it.",
+				"flow-critic-screens 1.2.0 and flow-screens 1.0.1 are linked: the critic's widths follow the repo's two plus tablet, and after its fixes it hands over once to flow-screens so the plan's Screens tab shows the fixed look; flow-screens never calls the critic back."
+			],
+			"skills": {
+				"flow": "1.19.0",
+				"flow-audit": "1.3.8",
+				"flow-interview": "1.2.7",
+				"flow-mockup": "1.10.1",
+				"flow-qa": "1.0.1",
+				"flow-screens": "1.0.1",
+				"flow-task": "1.1.4",
+				"flow-align": "1.7.0",
+				"flow-commit": "1.0.1",
+				"flow-critic-code": "1.0.3",
+				"flow-critic-mockup": "1.1.2",
+				"flow-critic-plan": "1.0.3",
+				"flow-critic-screens": "1.2.0",
+				"flow-decide": "1.0.1",
+				"flow-autopilot": "1.0.0",
+				"flow-update-skills": "1.0.1"
+			}
+		},
 		{
 			"version": "1.28.0",
 			"date": "2026-11-25",
@@ -1734,7 +1924,6 @@
 	"retired": [
 		"flow-check",
 		"flow-verify",
-		"flow-critic",
 		"flow-critic-screen"
 	]
 }

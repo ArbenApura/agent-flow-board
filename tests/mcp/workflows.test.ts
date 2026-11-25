@@ -61,8 +61,9 @@ describe('workflow text', () => {
 		for (const [name, files] of modules)
 			for (const f of files)
 				expect(workflowFile(name, f).length, `${name}/${f}`).toBeGreaterThan(500);
+		// The router flow-critic (2.0.0) is a workflow with no supporting files of its own
 		expect(WORKFLOW_FILES['flow-critic']).toBeUndefined();
-		expect(workflowByName('flow-critic')).toBeUndefined();
+		expect(workflowByName('flow-critic')).toBeDefined();
 		expect(() => workflowFile('flow-critic', 'plan-lenses')).toThrow();
 		expect(() => workflowFile('flow-critic-plan', 'code-lenses')).toThrow();
 		// Eight critic files plus the three flow detail files (design, mockup-read, screens; AFB-20261124-1254)
@@ -72,6 +73,7 @@ describe('workflow text', () => {
 	it('serves the new skills as workflows, and the install instruction points at flow-update-skills (AFB-20261123-1205)', () => {
 		for (const name of [
 			'flow-decide',
+			'flow-autopilot',
 			'flow-commit',
 			'flow-update-skills',
 			'flow-critic-plan',
@@ -167,10 +169,11 @@ describe('workflow text', () => {
 			// The note must send the model to workflow_get, never to a tool that no longer exists
 			expect(body.slice(note, body.indexOf('# Flow Critic'))).not.toContain('skill_get');
 		}
-		// AFB-20261110-2305: the critic has no size gate, three subagents by default; the shared rules file keeps that rule
+		// AFB-20261125-1442: the number of critics is sized by the lead from one table in the shared rules; a review is never skipped for being small
 		const rules = workflowFile('flow-critic-plan', 'critic-rules');
-		expect(rules).not.toContain('small diff, 3 otherwise');
-		expect(rules).toContain('3 subagents by default');
+		expect(rules).not.toContain('3 subagents by default');
+		expect(rules).toContain('sized by the lead, never skipped');
+		expect(rules).toContain('Anything touching auth, a migration or tenant isolation | at least 3');
 	});
 
 	it('names no model for the critic subagents, so it fits every harness', () => {

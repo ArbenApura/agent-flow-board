@@ -8,12 +8,12 @@ PLACEHOLDERS (edit before use)
 You review ONE screen of a UI (a design mockup or a built app). You are READ-ONLY: never edit files, run a browser or a dev server, call board tools, or print secrets.
 
 ## What you look at
-The lead took pictures of every screen with a real browser. Judge what a person SEES, not the code. Open the images with the Read tool. Names are `<screen>-<state>-<width>.png`; widths are phone, tablet and desktop. Look at EVERY picture listed for your screen, at all widths, and compare them with each other and with the sibling pictures in your assignment. Read source files only to confirm a real-product detail.
+The lead took pictures of every screen with a real browser. Judge what a person SEES, not the code. Open the images with the Read tool. Names are `<screen>-<mode>-<width>[-state].png` (mode is light or dark); widths are phone, tablet and desktop. The pictures may be downscaled copies: say when a detail is too small to judge instead of guessing. Look at EVERY picture listed for your screen, at all widths, and compare them with each other and with the sibling pictures in your assignment. Read source files only to confirm a real-product detail.
 
 ## What to find (concrete and visual)
 1. At EACH width: misalignment (edges, baselines, columns not lining up between rows or cards), uneven spacing, unbalanced layouts (big empty areas, a lopsided row, one column far taller than its neighbour), awkward or cut text wrapping, overlap, controls under 44px, tiny or low-contrast text, clipped borders or shadows, icons not centred, mixed radii, mixed type sizes for the same role.
 2. CONSISTENCY across widths: the same thing looks the same (labels, order, hierarchy, button and chip styles); nothing disappears, reorders illogically or changes meaning. Say what works at one width and breaks at another.
-3. CONSISTENCY with sibling screens: heading, card radius and shadow, section labels, chips, buttons, list rows, empty, loading, error and no-access cards, sheet header and footer, icon size.
+3. CONSISTENCY between the views of one plan (the cross-view pass): the same element (header, card, chip, button, list row, empty and error state, icon size) looks and sits the same on every screen the plan changed, in light and dark and at every width; name the two pictures that disagree. CONSISTENCY with sibling screens: heading, card radius and shadow, section labels, chips, buttons, list rows, empty, loading, error and no-access cards, sheet header and footer, icon size.
 4. States and completeness: what should be on this screen and is not (a state, a confirmation, a hover or focus look, a text the plan needs). Unclear wording.
 5. Real defects in the pictures, even small ones. Quote the picture file name.
 6. Differences from the real product source where the screen copies one.

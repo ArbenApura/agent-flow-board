@@ -1,10 +1,10 @@
 # Plan Critic Review Lenses
 
-Checklists for plan reviews: 3 subagents by default, 1 only when the user asks, or 5 for a deep dive. When `project_rules` returns `lensPack.source === 'project'`, use the project's custom `plan` lenses instead. Plans reach the critic as pasted text; the code is the repo you are in. An item with "Applies when" is marked "not applicable" with that reason when the trigger is false here. A line marked (example) illustrates one stack; take real names from the repo rulebook (CLAUDE.md, AGENTS.md, README).
+Checklists for plan reviews. The number of critics comes from the sizing table in `critic-rules.md` section 2: the 3-subagent layout below is the usual one, one critic takes all three areas, and 5 is the deep dive. When `project_rules` returns `lensPack.source === 'project'`, use the project's custom `plan` lenses instead. Plans reach the critic as pasted text; the code is the repo you are in. An item with "Applies when" is marked "not applicable" with that reason when the trigger is false here. A line marked (example) illustrates one stack; take real names from the repo rulebook (CLAUDE.md, AGENTS.md, README).
 
 ---
 
-## 3-Subagent Default Configuration (Recommended)
+## 3-Subagent Configuration (Recommended for a normal plan)
 
 ### Subagent 1 - Systems Architecture, Ops Layer & Concurrency
 - [ ] **One Operations Layer**: every new action goes through one shared operation that every entry point (web action, public API, agent tools, CLI) calls; the plan names which entry points get it and why any is left out. Applies when: one operations layer sits behind several entry points.
@@ -72,7 +72,7 @@ The lead pastes the `related_plans` digests of the closest plans as `{PAST_PLANS
 
 ## 1-Subagent Fast Pass Configuration
 
-Only when the user asks for 1 subagent: it covers all three core areas plus Project Safety (and Design Fit when the plan has a visible change) in one adversarial sweep.
+When the sizing table gives 1 critic, or the user asks for 1: it covers all three core areas plus Project Safety (and Design Fit when the plan has a visible change) in one adversarial sweep.
 
 ---
 

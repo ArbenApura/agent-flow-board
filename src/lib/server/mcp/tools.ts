@@ -844,12 +844,13 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'workflow_get',
-		'Read a workflow: flow, flow-task, flow-interview, flow-critic-plan, -code, -mockup, -screens, flow-audit, flow-mockup, flow-align, flow-decide, flow-commit, flow-update-skills, flow-qa, flow-screens. Files: flow has design, mockup-read, reference, screens; critics have rules and lenses. Long texts: pass next as offset.',
+		'Read a workflow: flow, flow-task, flow-interview, flow-critic, -plan, -code, -mockup, -screens, flow-audit, flow-mockup, flow-align, flow-decide, flow-autopilot, flow-commit, flow-update-skills, flow-qa, flow-screens. Files: flow has design, mockup-read, reference, screens; critics: rules, lenses. Pass next as offset.',
 		{
 			name: z.enum([
 				'flow',
 				'flow-task',
 				'flow-interview',
+				'flow-critic',
 				'flow-critic-plan',
 				'flow-critic-code',
 				'flow-critic-mockup',
@@ -858,6 +859,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				'flow-mockup',
 				'flow-align',
 				'flow-decide',
+				'flow-autopilot',
 				'flow-commit',
 				'flow-update-skills',
 				'flow-qa',

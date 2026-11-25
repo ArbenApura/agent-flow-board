@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 // IMPORTED MODULES
 import {
 	FORBIDDEN_FRONT_MATTER_KEYS,
+	MANIFEST,
 	assertSkillShape,
 	sourceFiles
 } from '../../src/lib/server/system-skills';
@@ -521,12 +522,16 @@ const CRITIC_SHARED: { rule: string; pattern: RegExp }[] = [
 		rule: 'mockup and screen reviews run only on the user word',
 		pattern: /run only on the user's word/
 	},
-	// AFB-20261110-2305: no size gate, three subagents by default
+	// AFB-20261110-2305: no review is skipped for being small; AFB-20261125-1442: the number of critics is sized from one table, never below the floor of 3 for auth, migrations and tenant code
 	{
 		rule: 'no review is skipped for being small',
 		pattern: /No review is skipped for being small/
 	},
-	{ rule: 'three subagents by default', pattern: /\*\*3 subagents by default\*\*/ },
+	{ rule: 'critics are sized by the lead', pattern: /sized by the lead, never skipped/ },
+	{
+		rule: 'a floor of three critics for sensitive code',
+		pattern: /Anything touching auth, a migration or tenant isolation \| at least 3/
+	},
 	{ rule: 'a critic never touches the board', pattern: /Critic subagents never touch the board/ }
 ];
 
@@ -687,7 +692,24 @@ describe('the modules and the new skills keep their own rules', () => {
 		expect(text).toContain('Where this skill and `/flow` differ, `/flow` wins');
 	});
 
-	it('each critic review names its critic-rules.md as its mandatory first read, and names no flow-critic skill', () => {
+	it('flow-autopilot defers to /flow and /flow-decide, needs a go first and never loosens a stop reason', () => {
+		const text = skill('flow-autopilot');
+		expect(text).toContain('where this skill and `/flow` differ, `/flow` wins');
+		expect(text).toContain('/flow-decide');
+		expect(text).toContain('A go comes first.');
+		expect(text).toContain('is never that go');
+		expect(text).toContain('**Never defaulted, whatever the skill says elsewhere:**');
+		expect(text).toContain('A blocked step stays open');
+		expect(text).toContain('the six of `/flow` "Keep going"');
+		expect(text).toMatch(/Open: <n>\. Stop reason:/);
+		expect(text).not.toMatch(/\b(RLS|clinical|clinic|pharmacy|health data|Live Safety)\b/i);
+		// The one flow-decide it names is read, never edited or copied: its protocol text is not repeated here
+		expect(text).not.toContain('Score the two or three serious options');
+	});
+
+	it('each critic review names its critic-rules.md as its mandatory first read, and carries no file of the old monolith', () => {
+		const old = new Set(MANIFEST.removedFiles?.['flow-critic'] ?? []);
+		expect(old.size).toBe(6);
 		for (const name of [
 			'flow-critic-plan',
 			'flow-critic-code',
@@ -696,9 +718,102 @@ describe('the modules and the new skills keep their own rules', () => {
 		]) {
 			expect(skill(name), name).toContain('Shared rules first.');
 			expect(skill(name), name).toContain('`critic-rules.md`');
-			for (const f of sources[name])
-				expect(f.text, `${name}/${f.path}`).not.toMatch(/\/flow-critic([^-]|$)/);
 		}
+		// The old monolith's files are gone from the router, which has SKILL.md only
+		expect(sources['flow-critic'].map((f) => f.path)).toEqual(['SKILL.md']);
+	});
+
+	it('flow-critic routes by an argument first, picks mockup and screens only from the words, and shows one card', () => {
+		const text = skill('flow-critic');
+		for (const arg of ['plan', 'code', 'mockup', 'screens'])
+			expect(text, arg).toContain(`\`/flow-critic ${arg}\``);
+		expect(text).toContain('An exact argument beats the table');
+		expect(text).toContain(
+			"Mockup and screens are chosen only from the user's words, never from the item or the working tree"
+		);
+		expect(text).toContain('Header "Which review?"');
+		expect(text).toContain('It writes no review rules of its own');
+		// Every module is reachable from the signal table, each by its own words
+		const table = text.slice(
+			text.indexOf('| You typed or said'),
+			text.indexOf('Say the pick in one line')
+		);
+		for (const review of ['plan', 'code', 'mockup', 'screens', 'pick card'])
+			expect(table, review).toMatch(new RegExp(`\\| ${review}`));
+	});
+
+	it('no skill but the shared critic rules names a critic count, so the table has one home', () => {
+		const hits: string[] = [];
+		for (const [name, files] of Object.entries(sources))
+			for (const file of files.filter((f) => f.path !== 'critic-rules.md'))
+				for (const { n, line } of unmarkedLines(file.text))
+					if (/\b(3|three) (subagents|critics) (by default|are dispatched)/i.test(line))
+						hits.push(`${name}/${file.path}:${n}`);
+		expect(hits).toEqual([]);
+	});
+
+	it('the preferences are five named keys in flow, in the flow-align template, and below the safety list', () => {
+		const flow = skill('flow');
+		const keys = [
+			'critics',
+			'end-of-plan-screens-critic',
+			'pick-cards',
+			'mockup-default',
+			'qa-default'
+		];
+		const block = sources['flow-align'].find((f) => f.path === 'rules-block.md')!.text;
+		const template = block.slice(block.indexOf('<!-- afb:flow-align prefs'));
+		for (const k of keys) {
+			expect(flow, k).toContain(`| \`${k}\` |`);
+			expect(template, k).toMatch(new RegExp(`^${k}: `, 'm'));
+		}
+		expect(flow).toContain('0` or `off` is reported once and read as `auto`');
+		expect(flow).toContain('They never win over the safety rules above');
+		// The template sits outside the rules block, whose lines stay sentences of flow
+		expect(block.indexOf('<!-- /afb:flow-align rules -->')).toBeLessThan(
+			block.indexOf('<!-- afb:flow-align prefs')
+		);
+		// Every skill points to the one rule instead of copying it
+		for (const [name, files] of Object.entries(sources)) {
+			if (name === 'flow') continue;
+			expect(files.find((f) => f.path === 'SKILL.md')!.text, name).toContain(
+				'(`/flow` Precedence and "Flow preferences")'
+			);
+		}
+	});
+
+	it('the question card is strict: a listed or deferred tool counts, it is the last call, and plain text needs a stated reason', () => {
+		const flow = skill('flow');
+		expect(flow).toContain('## Asking with the question tool (hard rule)');
+		expect(flow).toContain(
+			'A question tool that is listed, loaded or deferred, counts as present.'
+		);
+		expect(flow).toContain('`select:AskUserQuestion`');
+		expect(flow).toContain('**The card is the last call of the turn.**');
+		expect(flow).toContain('"no question tool here"');
+		expect(flow).toContain(
+			'Never end a plan hand-over, a critic or interview result, or a pick in plain text'
+		);
+		for (const name of ['flow-interview', 'flow-critic', 'flow-mockup', 'flow-qa'])
+			expect(skill(name), name).toContain('Asking with the question tool');
+		// A pick card appears only on a skill the user typed, and not inside a build
+		expect(flow).toContain('pick card of a skill the user typed');
+		expect(skill('flow-mockup')).toContain('**one pick card**');
+		expect(skill('flow-qa')).toContain('show one pick card');
+	});
+
+	it('the end of a plan sizes its reviews and ends a UI plan with capture, critique on the same pictures and a retake', () => {
+		const flow = skill('flow');
+		expect(flow).toContain('`Reviews: code <n> critics, <inputs>`');
+		expect(flow).toContain('`/flow-screens` (captures and pushes), the screens critique');
+		expect(flow).toContain('one fix round and one retake');
+		expect(flow).toContain('the screens critique of a plan that changed a screen (step 10)');
+		expect(skill('flow-screens')).toContain(
+			'keep them until it says the screens critique is finished'
+		);
+		expect(skill('flow-critic-screens')).toContain(
+			'it gives you the files that skill just captured'
+		);
 	});
 
 	it('flow-mockup never pastes another mockup or template as it is', () => {

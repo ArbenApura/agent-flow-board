@@ -236,6 +236,8 @@ describe('MCP server', () => {
 			'flow-mockup',
 			'flow-align',
 			'flow-decide',
+			'flow-autopilot',
+			'flow-critic',
 			'flow-commit',
 			'flow-update-skills',
 			'flow-qa',
@@ -252,13 +254,10 @@ describe('MCP server', () => {
 		expect(brief.name).toBe('flow-critic-screens/critic-brief');
 		const wf = await call(client, 'workflow_get', { name: 'flow-critic-plan' });
 		expect(String(wf.text).toLowerCase()).toContain('design fit');
-		// flow-critic is retired: it is no workflow name any more, and its reviews carry the shared rules
-		const retired = await client
-			.callTool({ name: 'workflow_get', arguments: { name: 'flow-critic' } })
-			.then((r) => (r.isError === true ? JSON.stringify(r.content) : ''))
-			.catch((e: unknown) => String(e));
-		// The enum rejects the name and says which name it rejected
-		expect(retired).toContain('flow-critic');
+		// flow-critic is the router again (2.0.0): a workflow of its own with no supporting files, and the reviews carry the shared rules
+		const router = await call(client, 'workflow_get', { name: 'flow-critic' });
+		expect(router.name).toBe('flow-critic');
+		expect(String(router.text)).toContain('Which review?');
 		const rules = await call(client, 'workflow_get', {
 			name: 'flow-critic-code',
 			file: 'critic-rules'
@@ -291,9 +290,9 @@ describe('MCP server', () => {
 			index.skills.map(() => 'install')
 		);
 		expect(fresh.rules.join(' ')).toContain('Never run');
-		// flow-critic is retired, so an installed copy of it is offered for deletion by name from the manifest
-		expect(fresh.retiredNames).toContain('flow-critic');
-		expect(fresh.skills.map((s: { name: string }) => s.name)).not.toContain('flow-critic');
+		// flow-critic is a skill again, so it is no longer offered for deletion by name; its six old files are
+		expect(fresh.retiredNames).not.toContain('flow-critic');
+		expect(fresh.skills.map((s: { name: string }) => s.name)).toContain('flow-critic');
 		// No skill lists a removed file today, and the field is there for the next time
 		const gone = Object.fromEntries(
 			fresh.skills.map((s: { name: string; removedFiles: string[] }) => [s.name, s.removedFiles])

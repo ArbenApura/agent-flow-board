@@ -1,9 +1,11 @@
 ---
 name: flow-critic-screens
-description: Use only when the user asks for a per-screen visual critique of a design mockup or a built UI ("one critic for each screen", "check desktop, tablet and mobile", "render the pictures, do not just read the code"), on Agent Flow Board (the screen review). The lead takes real pictures of every screen at phone, tablet and desktop widths in the harness browser, gives each screen its own read-only critic that LOOKS at the pictures, then verifies, fixes and republishes. Usable when the user types /flow-critic-screens or asks for this review.
+description: Use when the user asks for a per-screen visual critique of a design mockup or a built UI ("one critic for each screen", "check desktop, tablet and mobile", "render the pictures, do not just read the code"), or when /flow runs it at the end of a plan that changed a screen, on Agent Flow Board (the screen review). The lead takes real pictures of every screen at phone, tablet and desktop widths in the harness browser, gives each screen its own read-only critic that LOOKS at the pictures, then verifies, fixes and republishes. Usable when the user types /flow-critic-screens or asks for this review.
 ---
 
 # Flow Critic: one critic for each screen
+
+> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
 
 > **Shared rules first.** This skill is one of the four critic reviews. Before you dispatch anything, read `critic-rules.md` next to this file (in a tool with no skills: `workflow_get` name `flow-critic-screens` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this skill. **One exception to its section 2: the subagent count is one critic for each screen, not 3.**
 
@@ -23,10 +25,10 @@ Files in this skill:
 
 ## 1. Take the pictures (the lead does this)
 
-Use the browser protocol of `/flow` section 3 step 5a (open the page, set the width, scroll, click through states, sign-in handoff, reset the viewport at the end). Widths are phone, tablet and desktop: the repo rulebook's widths for the app (else 390, 820 and 1440), the board's device widths for a mockup (408, 820 and 1280).
+Use the browser protocol of `/flow` section 3 step 5a (open the page, set the width, scroll, click through states, sign-in handoff, reset the viewport at the end). Widths are phone, tablet and desktop: for the app the repo rulebook's two widths (the same two `/flow-screens` captures) plus tablet 820, else 390, 820 and 1440; the board's device widths for a mockup (408, 820 and 1280). **When `/flow` (or `/flow-autopilot`) calls this review after `/flow-screens`, it gives you the files that skill just captured** (the repo's two widths, light and dark, kept in the scratch folder): use them as the pictures and capture only what is missing (tablet 820 and the states the plan names). They are full-page at pixel ratio 2, too large to read well: make downscaled or cropped copies for the critics and keep the originals for the push. With no files from a caller the lead takes its own pictures as below; the board hands out no picture file, so the Screens tab is never the source.
 
 1. Work in a temporary folder **outside the repo** (the session scratch folder). For a mockup, make the local copy with the kit head in place of the marker as `/flow-mockup` says, and add a "still" style (`*{animation:none!important;transition:none!important}` and any reveal or stroke-draw reset) so the pictures show the final state. Count-up numbers and similar script animations can still be caught half way: list them as known artefacts for the critics.
-2. Take one picture of every screen at each width with a tall viewport so the whole page shows; sheets and dialogs with a normal-height viewport. Also take the other states the plan names (loading, empty, error, no access, each variant) at phone and desktop width. Name each file `<screen>-<state>-<width>.png`.
+2. Take one picture of every screen at each width with a tall viewport so the whole page shows; sheets and dialogs with a normal-height viewport. Also take the other states the plan names (loading, empty, error, no access, each variant) at phone and desktop width. Name each file `<screen>-<mode>-<width>[-state].png` (mode is light or dark, so the two never collide).
 3. **Phone pictures can lie.** A headless browser can lay a page out wider than the phone width and crop the right edge. Check the right edge of every phone picture; when one is cropped, confirm the layout in the harness browser at that width and tell the critics which picture to distrust.
 4. **Look at two or three pictures yourself** before dispatching. If blank, half-animated or the wrong screen, fix the render first.
 
@@ -50,6 +52,7 @@ Use the browser protocol of `/flow` section 3 step 5a (open the page, set the wi
 2. Collect all findings first, then fix in one batch. Typical cross-screen fixes: one column template for table rows, equal state cards, one pattern for a repeated element, one header system, tap targets of at least 44 px, one set of labels at every width.
 3. Take **all** the pictures again, look at the changed ones, check that nothing scrolls sideways at phone and tablet widths and no tap target is under 44 px on every screen and state, then publish as a NEW VERSION of the same mockup (`/flow-mockup`; never a second mockup) and refresh its `Fidelity:` note with what was measured and the critic count. A built app is fixed in the code as the plan allows.
 4. `record` one log line on the plan when the work belongs to one. Do not commit or push. Delete the pictures and reset any viewport you emulated.
+5. **One fix round, one retake.** When `/flow` called this review on a built app and the fixes changed a screen, `/flow` runs `/flow-screens` once more for the changed screens (a typed run on a plan whose screens were already pushed means the same). The lead checks the retake by opening each file; a second critic pass runs only if a `BLOCKER` was fixed, and only over the changed pictures. A mockup or a run with no plan skips this. The claim stays with the caller and is released once; `/flow-screens` never calls this review, so the two never loop. **Size:** a tweak of one approved screen with no new layout is skipped (one line says so); up to three screens go to one critic over all pictures, from four screens one critic for each screen.
 
 ## 4. Report (short)
 

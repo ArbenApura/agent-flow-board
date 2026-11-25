@@ -104,7 +104,7 @@ Fidelity tier: {TIER}. For `wireframe` and `screenshot`, judge the page only on 
 
 ## The lenses
 
-Six lenses. By default three subagents split them M1 + M2, M3 + M4 and M5 + M6 (one subagent takes all only when the user asks for one); a user who asks for more gets one lens each.
+Six lenses. With three critics they split M1 + M2, M3 + M4 and M5 + M6; with fewer, merge them (one critic takes all six); with more, one lens each. The number comes from the sizing table in `critic-rules.md` section 2.
 
 ### Lens M1 - Shell and layout fidelity
 - [ ] **The shell is the app's own.** Compare the mockup's frame with `{SHELL_SOURCES}` element by element: same nesting, order, class strings, landmarks and attributes. A missing wrapper, a differing class or a redrawn part is a finding; a frame that is the starter's placeholder is a `BLOCKER`.

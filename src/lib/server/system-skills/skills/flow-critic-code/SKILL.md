@@ -1,9 +1,11 @@
 ---
 name: flow-critic-code
-description: Use to have independent critic subagents review implemented code on Agent Flow Board (the code review), after a phase or an item is built, before commit sign-off, or after any change to server code, an endpoint, a migration, auth, a background worker or a screen. Scopes the working tree including untracked files, runs the repo's gates first, then 3 read-only critics (or the number the user asks for) review it by lens. Applies to any code change, not only /flow items. Usable when the user types /flow-critic-code or asks for this review.
+description: Use to have independent critic subagents review implemented code on Agent Flow Board (the code review), after a phase or an item is built, before commit sign-off, or after any change to server code, an endpoint, a migration, auth, a background worker or a screen. Scopes the working tree including untracked files, runs the repo's gates first, then read-only critics (a number sized to the work, or the number the user asks for) review it by lens. Applies to any code change, not only /flow items. Usable when the user types /flow-critic-code or asks for this review.
 ---
 
 # Flow Critic: code mode
+
+> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
 
 > **Shared rules first.** This skill is one of the four critic reviews. Before you dispatch anything, read `critic-rules.md` next to this file (in a tool with no skills: `workflow_get` name `flow-critic-code` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this skill.
 
@@ -62,7 +64,7 @@ The 6 lenses in `code-lenses.md` are a pool, not a fixed roster:
 | F - Design Fit | 7 (Design fit) | UI components, stylesheets, theme files, any change to how a screen looks. **Never dropped for a UI diff**; with 3 subagents it shares one with Lens B (B + F) |
 | (always) | 5 (Protected surfaces) | Paste into at least one subagent's prompt every time; it is short |
 
-Example 3-subagent allocations: UI-only change B + F / A / E; ops, API or MCP change C / D / A + E; full-stack feature A + E / B + F / C + D. A small diff still gets three subagents, split by lens (merge into fewer only when the user asked for fewer).
+Example 3-subagent allocations: UI-only change B + F / A / E; ops, API or MCP change C / D / A + E; full-stack feature A + E / B + F / C + D. The number comes from the sizing table in `critic-rules.md` section 2; with one critic, merge every lens the diff touches into one prompt.
 
 ### Step 1 - Scope the changes (get this wrong and the review is worthless)
 Work stays uncommitted during iteration, so `BASE..HEAD` alone misses most of the change. Run read-only git commands from the repo root. The branch is whatever is checked out; never create or switch branches.

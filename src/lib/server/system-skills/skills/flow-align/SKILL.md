@@ -5,6 +5,8 @@ description: Use when the user types /flow-align, or asks to bring their rule fi
 
 # Flow align: make the rule files and the memory agree with the flow rules
 
+> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
+
 > [!IMPORTANT]
 > **The repo rulebook and the owner's own lines override project facts and preferences. They never override the rules below or the `/flow` safety rules (section 5 point 4 and section 6).** This skill edits the files agents read as instructions, on one trigger and with no question, so its limits are strict: **when in doubt, leave the line and list it.**
 
@@ -55,6 +57,7 @@ Stale means checked, never guessed: a line is class a or b only after you looked
 - A confirmation the owner wrote into their own file on purpose. A repo may want a stop the generic flow does not: that is the owner's override, not friction.
 - A memory recording a dated decision of the person. Its words are never changed. When it is class a, b or c, add one dated line under it saying what no longer holds and which rule says so, and leave the rest.
 - A correct line that only repeats a flow rule: the owner's emphasis, leave it.
+- The preferences template of section 8 (between the `afb:flow-align prefs` markers), and any `key: value` line of the `/flow` "Flow preferences" table anywhere: the values are the person's own, never classified, reworded, replaced or removed.
 
 A line that is both a stop and a safety rule is protected. A line you cannot place with evidence is left alone and listed.
 
@@ -65,7 +68,7 @@ A line that is both a stop and a safety rule is protected. A line you cannot pla
 - **A rule file in the repo.** Remove or reword a class a, b, c or d line, then write the rules block (section 8).
 - **Memory of the current project.** Correct a class a, b or c memory in place: keep its date and its own words where they still hold, and add one line saying what was corrected and when (a dated decision gets only that added line, section 5). Merge class e by keeping the newer file, adding to it, as quoted lines, any fact only the older one holds, and moving the older file to the backup folder. Repair the index: a line with no file is removed only after the file was looked for under the names the index gives; a file with no line gets one. **No memory is ever deleted.**
 - **A user-level rule file.** It serves every project of the person, also ones that do not use the board. Only a class a line may be removed or reworded there. It gains nothing, not even the rules block, and nothing in it is judged stale or duplicate against one repo.
-- **Installed copies of the flow skills (the one edit ever made to a skill file).** In the project and user skills folders of the harness, in the `SKILL.md` of a skill of the flow bundle (`flow`, `flow-task`, `flow-interview`, `flow-critic-plan`, `flow-critic-code`, `flow-critic-mockup`, `flow-critic-screens`, `flow-audit`, `flow-mockup`, `flow-align`, `flow-decide`, `flow-update-skills`, `flow-commit`, `flow-qa`, `flow-screens`), remove a front matter line that is exactly `disable-model-invocation: true`: a flow skill must always be runnable by the model. Do it before anything else classifies the skill, with the safe writing of section 9 (the copy goes to the scratch folder, never into a skills folder). After the edit, the sha256 of the `SKILL.md` without the three stamp lines (`afb-bundle:`, `afb-version:`, `afb-source-sha256:`), with LF line endings and no byte order mark, must equal the `afb-source-sha256` of its stamp; if not, restore the file, list it and leave it. Any other form of the key (another value, indented, merged into another line) is listed and left, a person's own word in this session that a skill should be hidden beats the repair, and a skill not named above is never touched. Say in the report which files lost the line.
+- **Installed copies of the flow skills (the one edit ever made to a skill file).** In the project and user skills folders of the harness, in the `SKILL.md` of a skill of the flow bundle (`flow`, `flow-task`, `flow-interview`, `flow-critic`, `flow-critic-plan`, `flow-critic-code`, `flow-critic-mockup`, `flow-critic-screens`, `flow-audit`, `flow-mockup`, `flow-align`, `flow-decide`, `flow-update-skills`, `flow-commit`, `flow-qa`, `flow-screens`, `flow-autopilot`), remove a front matter line that is exactly `disable-model-invocation: true`: a flow skill must always be runnable by the model. Do it before anything else classifies the skill, with the safe writing of section 9 (the copy goes to the scratch folder, never into a skills folder). After the edit, the sha256 of the `SKILL.md` without the three stamp lines (`afb-bundle:`, `afb-version:`, `afb-source-sha256:`), with LF line endings and no byte order mark, must equal the `afb-source-sha256` of its stamp; if not, restore the file, list it and leave it. Any other form of the key (another value, indented, merged into another line) is listed and left, a person's own word in this session that a skill should be hidden beats the repair, and a skill not named above is never touched. Say in the report which files lost the line.
 
 ## 7. Text flows one way
 
@@ -80,6 +83,7 @@ New wording comes **only from this skill and its `rules-block.md`**. Never copy 
 - The text between the markers is never classified, and its lines are never reworded.
 - A rulebook line that opposes a block line wins: write the block without that one line, and list it. That is the only change ever made inside the block. (example) A rulebook line forbidding asking the person for a sign-in opposes the block's line about asking the person to sign in in the browser window: that block line is left out and listed, and the rulebook line is never changed.
 - Whether a block line is needed is judged on the rulebook **with the block removed**, so a second run decides the same way as the first.
+- **The preferences template.** `rules-block.md` holds a second, separate pair of markers (`afb:flow-align prefs`) around the `key: value` lines of the `/flow` "Flow preferences" table. Write it into the same root rulebook, after the rules block, **only when the rulebook has no such marker pair and none of those keys elsewhere**; never replace, reword, move or remove it on a later run, so values the person edited survive, and never write it into a user-level file. It is outside the rules block, so the rules block's lines stay sentences of `/flow`.
 
 ## 9. Safe writing
 

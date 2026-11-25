@@ -5,6 +5,8 @@ description: Use when implementation of a /flow item or phase on Agent Flow Boar
 
 # Progress Audit
 
+> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
+
 Plans live on Agent Flow Board and are read and written through the **agent-flow-board MCP** only. The code audited is the working tree of the repo you are in; run the `git` commands at the repo root. Start as `/flow` section 0 says: `session_start`, `project_rules` for the project key; skip `workflow_get` for `flow-audit` when this skill is installed and current. Run it once per item, at the end of the last phase, and when the user asks; not after every phase.
 
 **Project key**, in this order: (1) the key the user names, (2) a key in the repo rulebook, (3) `board_brief`: one project is used, several are asked about, (4) none: stop and ask. Never guess a key.

@@ -5,6 +5,8 @@ description: Use when the user asks to be grilled or interviewed about an Agent 
 
 # Plan Interview
 
+> The user's own rule files win over this skill's defaults (`/flow` Precedence and "Flow preferences"); the safety rules never move.
+
 > [!IMPORTANT]
 > **The repo rulebook (CLAUDE.md, AGENTS.md or the project rules on the board) overrides project facts and optional steps, for example what a plan must or must not contain. It never overrides the rules below or the `/flow` safety rules (section 5 point 4 and section 6): no code before the plan is approved.** The interview is a mode the user asks for. It follows the one rule of `/flow` ("Defaults and questions"): what the user has not said and the documents cannot settle is recorded as a settled recommended default, and you ask only when the answer changes data, access, money, wording or anything live.
 
@@ -60,14 +62,14 @@ Rank by impact: design and data first, wording and polish last. Drop what the re
 
 ## Step 3 - Ask in rounds
 
-Use `AskUserQuestion`: 1 to 4 questions per call, each with 2 to 4 options (the user can always pick "Other").
+Use the question tool (`AskUserQuestion` in Claude Code) as `/flow` "Asking with the question tool" says: a tool that is listed or deferred counts as present, load a deferred one first, and every round ends with the card as the last call of the turn. 1 to 4 questions per call, each with 2 to 4 options (the user can always pick "Other").
 
 - **Plain language**, no jargon or bare codes; name decisions by title with number ("ADR 3 Steps are not editable"). **One decision per question**, with context in one or two short sentences: what the plan or code does now and why it matters.
 - **Concrete options.** `label` 1 to 5 words; `description` says what happens if picked, with cost or risk. Recommended option first with " (Recommended)" and the reason; never recommend a user-facing limit or number.
 - When visual, `preview` with a small text sketch. `header` is a chip of 12 characters or fewer. `multiSelect` only when choices are not exclusive.
 - **Visible changes.** When the plan adds or visibly changes a screen, read its `design-brief` section first (`/flow` section 2, step 4a) and confirm the target screen states and widths. Ask what the brief cannot source; never offer a look you made up or one an existing component already settles. Put every visual open line in one round, each with a text sketch in `preview` (layout, order, states). Never ask about, offer or recommend a mockup: it is made only when the user asks for one (`/flow` section 2, step 6a).
 
-Between rounds: record the answers (Step 4), add new questions they open, re-rank, and start the next round with one line saying what you recorded. Stop when the list is empty or the user says stop (usually 3 to 6 rounds). "Skip" or "later" is recorded as open, not decided. Without `AskUserQuestion`, write the round as a numbered list with the same structure and stop until they answer.
+Between rounds: record the answers (Step 4), add new questions they open, re-rank, and start the next round with one line saying what you recorded. Stop when the list is empty or the user says stop (usually 3 to 6 rounds). "Skip" or "later" is recorded as open, not decided. Only with no question tool at all (or a failed load), write the round as a numbered list with the same structure and stop until they answer.
 
 ## Step 4 - Record every answer
 
