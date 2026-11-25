@@ -113,8 +113,7 @@ The `/flow` skills shipped by the board are generic. These are the owner's rules
 7. **Session names.** The local hook `.claude/hooks/afb-tab-title.mjs` (registered in `.claude/settings.json`) names the Claude Code tab from `displayTitle` until the bridge is signed in for this repo.
 8. **The project key is `AFB`** (`https://afb.arbenger.com/arbenger/AFB`), tool prefix `mcp__afb-arbenger__`.
 
-<!-- afb:flow-align rules 1.5.0 (written by /flow-align; write your own rules outside this block, a later run replaces it) -->
-
+<!-- afb:flow-align rules 1.7.0 (written by /flow-align; write your own rules outside this block, a later run replaces it) -->
 ## Flow rules (Agent Flow Board)
 
 Plans live on Agent Flow Board and the installed flow skills are the method. Where this file states a project fact or a preference of its owner, this file wins; the flow safety rules always apply.
@@ -126,15 +125,27 @@ Plans live on Agent Flow Board and the installed flow skills are the method. Whe
 - A permission is given once.
 - Ask only when the answer changes data, access, money, wording or anything live.
 - Do every step an agent can do on this machine yourself; never hand the user a command to paste or run when you can run it.
+- When the user wants a plan finished without stopping, `/flow-autopilot` runs this same build in its strictest form: it checks the open steps before every turn ends, keeps the six reasons above as its only stops and never loosens a rule here.
 - Recording a step outranks starting the next one.
 - **Run the gates once, at the end of the whole plan**, from the repo root, as the repo rulebook names them.
 - **During the plan, no gate**: write the code carefully, record each step with `step_done` and carry on.
 - **Work efficiently**: run independent tool calls together, search before you read, read a file once per change (re-read only what you edited or what changed), and run a long command in the background without polling it.
 - **Looking at the screen is not a gate** (`/flow` section 3 step 5a): when the harness has an integrated browser, open the running app with it after a visible change; no type check, lint, format check or test runs with it, and it is skipped, with one line in the final message, when the harness has none.
+- A browser the agent can drive (Claude Browser, Claude in Chrome, a Playwright tool and the like) is used like Playwright: open the running app or the published mockup, set the width, take a picture, scroll, click through the states (empty, loading, error, open sheet, hover), and read the console and the network errors.
+- When the repo rulebook does not forbid asking, ask the person once, in one line, to sign in in that browser window (name the address by the host the tool reports), call `work_waiting` with kind `sign-in`, and after their word clear it and navigate and control the app yourself inside that window, to reach every screen, state and width.
 - Release `work_stop` when the session ends.
 - The notes and pins are only a guide to the HTML and never replace it: never build a screen from the notes alone.
 - The mockup is the spec for what a person sees: its structure, layout order, text, states and interactions are binding, whatever the notes say.
 - The work stays in the working tree until the user says to commit (through the repo's own commit workflow, if it has one).
 - Never `git push` without the user's explicit instruction.
-
 <!-- /afb:flow-align rules -->
+
+<!-- afb:flow-align prefs 1.0.0 (written once by /flow-align; edit only the values, a later run never changes this) -->
+## Flow preferences (Agent Flow Board)
+
+critics: auto
+end-of-plan-screens-critic: on
+pick-cards: on
+mockup-default: wireframe
+qa-default: auto
+<!-- /afb:flow-align prefs -->
