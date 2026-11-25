@@ -11,6 +11,7 @@
 	import SidebarShell from '#lib/board/SidebarShell.svelte';
 	// IMPORTED DEP-COMPONENTS
 	import Building2 from '@lucide/svelte/icons/building-2';
+	import FlaskConical from '@lucide/svelte/icons/flask-conical';
 	import House from '@lucide/svelte/icons/house';
 	import LayoutList from '@lucide/svelte/icons/layout-list';
 	import NotebookText from '@lucide/svelte/icons/notebook-text';
@@ -44,7 +45,7 @@
 		}[];
 		current?: { key: string };
 		me: { id?: string; name: string; email: string; imageV?: number | null };
-		/** The pages of the open project, the first five are the main ones (four for a guest, who has no Notes). */
+		/** The pages of the open project: the five main ones (three for a guest, who has no Notes or Testing), then Project settings. */
 		tabs: Tab[];
 		base: string;
 	} = $props();
@@ -57,6 +58,7 @@
 		Tasks: SquareCheckBig,
 		Notes: NotebookText,
 		Mockups: PanelsTopLeft,
+		Testing: FlaskConical,
 		'Project settings': Settings2
 	};
 

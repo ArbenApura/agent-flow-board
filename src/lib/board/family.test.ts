@@ -119,6 +119,7 @@ describe('the Children tab', () => {
 		expect(master?.counts.children).toBe(1);
 		const plain = itemTabsFrom('/[org]/[project]/[item]', data([]), params);
 		expect(plain?.tabs).not.toContain('children');
-		expect(plain?.tabs).toHaveLength(ITEM_TABS.length - 1);
+		// Neither Children nor Testing: this plan has no child plans and touches no QA feature
+		expect(plain?.tabs).toHaveLength(ITEM_TABS.length - 2);
 	});
 });

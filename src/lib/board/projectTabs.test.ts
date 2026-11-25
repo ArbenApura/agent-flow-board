@@ -5,20 +5,27 @@ import { describe, expect, it } from 'vitest';
 import { PROJECT_TAB_LABELS, projectTabs } from './projectTabs';
 
 describe('the pages of a project', () => {
-	it('lists four main pages in order, Notes after Tasks, then Project settings', () => {
+	it('lists five main pages in order, Notes after Tasks, Testing last, then Project settings', () => {
 		const { primary, secondary } = projectTabs('/acme', 'AFB', 'member');
-		expect(primary.map((t) => t.label)).toEqual(['Registry', 'Tasks', 'Notes', 'Mockups']);
+		expect(primary.map((t) => t.label)).toEqual([
+			'Registry',
+			'Tasks',
+			'Notes',
+			'Mockups',
+			'Testing'
+		]);
 		expect(primary.map((t) => t.href)).toEqual([
 			'/acme/AFB',
 			'/acme/AFB/tasks',
 			'/acme/AFB/notes',
-			'/acme/AFB/mockups'
+			'/acme/AFB/mockups',
+			'/acme/AFB/qa'
 		]);
 		expect(primary[0].exact).toBe(true);
 		expect(secondary.map((t) => t.label)).toEqual(['Project settings']);
 	});
 
-	it('gives a guest no Notes link, and everyone else one', () => {
+	it('gives a guest no Notes or Testing link, and everyone else both', () => {
 		expect(projectTabs('/acme', 'AFB', 'guest').primary.map((t) => t.label)).toEqual([
 			'Registry',
 			'Tasks',
@@ -26,9 +33,11 @@ describe('the pages of a project', () => {
 		]);
 		for (const role of ['owner', 'admin', 'member', 'viewer', undefined, null])
 			expect(
-				projectTabs('/acme', 'AFB', role).primary.some((t) => t.label === 'Notes'),
+				projectTabs('/acme', 'AFB', role).primary.filter(
+					(t) => t.label === 'Notes' || t.label === 'Testing'
+				).length,
 				String(role)
-			).toBe(true);
+			).toBe(2);
 	});
 
 	it('every page has a label the sidebar knows, and the sidebar has an icon for every label', () => {

@@ -85,6 +85,12 @@ export const visibleItemSql = (userId: string) =>
 	sql`(${item.visibility} = 'public' or ${item.createdBy} = ${userId})`;
 
 /**
+ * Leaves out the items that are QA runs (AFB-20261125-0442), so lists, counts and related plans show plans only. A run is
+ * still found by its reference, opened, claimed and read like any item.
+ */
+export const notQaRunSql = sql`not exists (select 1 from qa_run qr where qr.item_id = ${item.id})`;
+
+/**
  * Every verb that names an item comes through findItem, so the project, token and privacy rules are applied here, before
  * any change, and a hidden item gives the same NOT_FOUND as one that does not exist. A system call with no person
  * (the webhook that reads commits) has no actor and is not limited.

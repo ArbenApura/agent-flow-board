@@ -14,6 +14,7 @@ export const ITEM_TABS = [
 	'docs',
 	'mockups',
 	'screens',
+	'qa',
 	'activity',
 	'files',
 	'discussion'
@@ -31,6 +32,7 @@ export const ITEM_TAB_LABEL: Record<ItemTab, string> = {
 	docs: 'Documents',
 	mockups: 'Mockups',
 	screens: 'Screens',
+	qa: 'Testing',
 	activity: 'Activity',
 	files: 'Files',
 	discussion: 'Discussion'
@@ -69,21 +71,30 @@ export function itemTabsFrom(
 	if (!item) return null;
 	const mockups = isRecord(data.mockups) ? data.mockups : null;
 	const screens = isRecord(data.screens) ? data.screens : null;
+	// The Testing tab shows only on a plan that touches QA features, so a project with no QA map sees no empty tab
+	const qa = isRecord(data.qa) ? data.qa : null;
+	const qaCount = typeof qa?.count === 'number' ? qa.count : 0;
 	// The Children tab belongs to a master only: it is the plan's own id that holds a list of child plans
 	const family = isRecord(detail.family) ? detail.family : null;
 	const kids =
 		family && isRecord(family.kids) && typeof item.id === 'string' ? family.kids[item.id] : null;
 	const kidCount = length(kids);
+	const tabs = ITEM_TABS.filter(
+		(t) => (t !== 'children' || kidCount > 0) && (t !== 'qa' || qaCount > 0)
+	);
+	const asked = parseItemTab(params.get('tab'));
 	return {
-		tabs: ITEM_TABS.filter((t) => t !== 'children' || kidCount > 0),
+		tabs,
 		counts: {
 			plan: typeof item.totalSteps === 'number' ? item.totalSteps : 0,
 			children: kidCount,
 			decisions: length(detail.decisions),
 			docs: length(detail.sections),
 			mockups: length(mockups?.list),
-			screens: typeof screens?.count === 'number' ? screens.count : 0
+			screens: typeof screens?.count === 'number' ? screens.count : 0,
+			qa: qaCount
 		},
-		active: parseItemTab(params.get('tab'))
+		// A hidden tab in the address (Testing on a plan with no QA features) shows the plan
+		active: asked === 'qa' && qaCount === 0 ? 'plan' : asked
 	};
 }

@@ -9,3 +9,4 @@ export * from './auth';
 export * from './mockups';
 export * from './notes';
 export * from './screens';
+export * from './qa';

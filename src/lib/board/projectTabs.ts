@@ -1,5 +1,6 @@
 // THE PAGES OF A PROJECT, IN THE ORDER THE SIDEBAR, THE PHONE MENU AND THE COMMAND PALETTE SHOW THEM
-// One list, read by all three, so they always agree. Four main pages, then Project settings (DESIGN.md, App shell).
+// One list, read by all three, so they always agree. Five main pages, then Project settings (DESIGN.md, App shell).
+// Testing is the QA map, runs and bugs (AFB-20261125-0442); like Notes, it is not shared with guests.
 // Activity and Trash live inside Project settings as sections (AFB-20261115-1355).
 
 // -- TYPES -- //
@@ -14,6 +15,7 @@ export const PROJECT_TAB_LABELS = [
 	'Tasks',
 	'Notes',
 	'Mockups',
+	'Testing',
 	'Project settings'
 ] as const;
 
@@ -33,10 +35,14 @@ export function projectTabs(
 		{ href: at(''), label: 'Registry', exact: true },
 		{ href: at('/tasks'), label: 'Tasks' },
 		{ href: at('/notes'), label: 'Notes' },
-		{ href: at('/mockups'), label: 'Mockups' }
+		{ href: at('/mockups'), label: 'Mockups' },
+		{ href: at('/qa'), label: 'Testing' }
 	];
 	return {
-		primary: role === 'guest' ? primary.filter((t) => t.label !== 'Notes') : primary,
+		primary:
+			role === 'guest'
+				? primary.filter((t) => t.label !== 'Notes' && t.label !== 'Testing')
+				: primary,
 		secondary: [{ href: at('/settings'), label: 'Project settings' }]
 	};
 }

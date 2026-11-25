@@ -29,15 +29,16 @@ const data = (over: Record<string, unknown> = {}) => ({
 describe('itemTabsFrom', () => {
 	it('gives the tabs, their counts and the open tab for a loaded item', () => {
 		const got = itemTabsFrom(ITEM_ROUTE, data(), params('tab=docs'));
-		// The Children tab belongs to a master, and this item has no child plans
-		expect(got?.tabs).toEqual(ITEM_TABS.filter((t) => t !== 'children'));
+		// The Children tab belongs to a master, and the Testing tab to a plan that touches QA features: this item has neither
+		expect(got?.tabs).toEqual(ITEM_TABS.filter((t) => t !== 'children' && t !== 'qa'));
 		expect(got?.counts).toEqual({
 			plan: 12,
 			children: 0,
 			decisions: 3,
 			docs: 2,
 			mockups: 1,
-			screens: 0
+			screens: 0,
+			qa: 0
 		});
 		expect(got?.active).toBe('docs');
 	});
@@ -75,8 +76,14 @@ describe('itemTabsFrom', () => {
 			decisions: 0,
 			docs: 0,
 			mockups: 0,
-			screens: 0
+			screens: 0,
+			qa: 0
 		});
+	});
+	it('shows the Testing tab with its count on a plan that touches QA features (AFB-20261125-0442)', () => {
+		const got = itemTabsFrom(ITEM_ROUTE, { ...data(), qa: { count: 2, list: null } }, params());
+		expect(got?.tabs).toContain('qa');
+		expect(got?.counts.qa).toBe(2);
 	});
 });
 

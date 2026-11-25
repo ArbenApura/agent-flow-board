@@ -21,7 +21,7 @@ import {
 	readableProjectIds,
 	type RelatedNote
 } from './relatedNotes';
-import { findItem, findProject, noteRoleOf } from './resolve';
+import { findItem, findProject, noteRoleOf, notQaRunSql } from './resolve';
 
 // -- RE-EXPORTS -- //
 
@@ -232,7 +232,8 @@ export async function relatedPlans(
 					projectId: item.projectId
 				})
 				.from(item)
-				.where(inArray(item.id, ids)),
+				// A QA run is never an earlier plan to learn from
+				.where(and(inArray(item.id, ids), notQaRunSql)),
 			tx
 				.select({
 					id: section.id,

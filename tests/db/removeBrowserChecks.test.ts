@@ -102,11 +102,21 @@ describe('migration 0053_remove_browser_checks', () => {
 		// stood in for while the old database is built, and removed again before the real run creates it
 		await owner.query(`CREATE TABLE IF NOT EXISTS auth_method_setting (id text PRIMARY KEY)`);
 		// The same for the screenshot tables of 0056 (AFB-20261124-0926): tenant tables, so they carry the org and project columns
-		for (const t of ['screen', 'screen_annotation'])
+		// And for the QA Map tables of 0057 (AFB-20261125-0442)
+		const qaTables = [
+			'qa_feature',
+			'qa_settings',
+			'qa_run',
+			'qa_result',
+			'qa_plan_feature',
+			'qa_bug'
+		];
+		for (const t of ['screen', 'screen_annotation', ...qaTables])
 			await owner.query(
 				`CREATE TABLE IF NOT EXISTS ${t} (id text PRIMARY KEY, org_id uuid, project_id uuid)`
 			);
 		await run(oldDir);
+		for (const t of [...qaTables].reverse()) await owner.query(`DROP TABLE ${t}`);
 		await owner.query(`DROP TABLE auth_method_setting`);
 		await owner.query(`DROP TABLE screen_annotation`);
 		await owner.query(`DROP TABLE screen`);
@@ -137,7 +147,8 @@ describe('migration 0053_remove_browser_checks', () => {
 			'0053_remove_browser_checks',
 			'0054_master_child',
 			'0055_auth_method_setting',
-			'0056_screens'
+			'0056_screens',
+			'0057_qa_map'
 		]);
 
 		const tables = await admin.query<{ table_name: string }>(

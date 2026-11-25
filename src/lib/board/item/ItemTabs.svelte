@@ -9,6 +9,7 @@
 	import Activity from '@lucide/svelte/icons/activity';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Gavel from '@lucide/svelte/icons/gavel';
+	import FlaskConical from '@lucide/svelte/icons/flask-conical';
 	import GalleryThumbnails from '@lucide/svelte/icons/gallery-thumbnails';
 	import ListChecks from '@lucide/svelte/icons/list-checks';
 	import ListTree from '@lucide/svelte/icons/list-tree';
@@ -48,6 +49,7 @@
 		docs: FileText,
 		mockups: PanelsTopLeft,
 		screens: GalleryThumbnails,
+		qa: FlaskConical,
 		activity: Activity,
 		files: Paperclip,
 		discussion: MessagesSquare

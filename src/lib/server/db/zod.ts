@@ -34,6 +34,13 @@ import {
 	phase,
 	project,
 	projectPin,
+	QA_MODES,
+	QA_OUTCOMES,
+	QA_PRIORITIES,
+	QA_SEVERITIES,
+	qaFeature,
+	qaResult,
+	qaRun,
 	screen,
 	screenAnnotation,
 	SETUP_KEYS,
@@ -121,6 +128,199 @@ export const screenAnnotationInput = createInsertSchema(screenAnnotation, {
 				ctx.addIssue({ code: 'custom', message: 'The shape must stay inside the picture.' });
 		}
 	});
+// -- QA MAP (AFB-20261125-0442): THE ONE INPUT SCHEMA OF THE UI, /api/v1 AND MCP -- //
+
+/** A stable slug for a feature, journey, step or case. */
+export const QA_KEY = /^[a-z0-9][a-z0-9._-]{0,59}$/;
+/** A place a run may target: scheme, host and port only, never sign in details or a path. */
+export const QA_ORIGIN = /^https?:\/\/(?:[a-z0-9-]+\.)*[a-z0-9-]+(?::\d{1,5})?$/;
+/** The largest map one feature may hold, so one document never grows without bound. */
+export const QA_MAP_MAX_CHARS = 200_000;
+const qaKey = z
+	.string()
+	.regex(QA_KEY, 'Use a short slug of lowercase letters, digits, dots, dashes');
+const qaText = (max: number) => z.string().max(max);
+const qaCase = z.object({
+	key: qaKey,
+	input: qaText(400),
+	technique: qaText(60).optional(),
+	expected: qaText(1000),
+	regression: z.boolean().optional()
+});
+const qaExpected = z.object({
+	screen: qaText(1000).optional(),
+	saved: qaText(1000).optional(),
+	sent: qaText(1000).optional(),
+	logged: qaText(1000).optional()
+});
+const qaStep = z.object({
+	key: qaKey,
+	page: qaText(300),
+	action: qaText(300),
+	control: qaText(200).optional(),
+	expected: qaExpected,
+	cases: z.array(qaCase).max(60).default([])
+});
+const qaJourney = z.object({
+	key: qaKey,
+	name: z.string().min(1).max(160),
+	parent: qaKey.optional(),
+	steps: z.array(qaStep).max(60)
+});
+export const qaMapSchema = z
+	.object({ journeys: z.array(qaJourney).max(50) })
+	.superRefine((m, ctx) => {
+		if (JSON.stringify(m).length > QA_MAP_MAX_CHARS)
+			ctx.addIssue({
+				code: 'custom',
+				message: 'This feature map is too large. Split the feature.'
+			});
+		const journeys = new Set<string>();
+		for (const j of m.journeys) {
+			if (journeys.has(j.key))
+				ctx.addIssue({ code: 'custom', message: `Journey ${j.key} appears twice.` });
+			journeys.add(j.key);
+			const steps = new Set<string>();
+			for (const s of j.steps) {
+				if (steps.has(s.key))
+					ctx.addIssue({ code: 'custom', message: `Step ${j.key}/${s.key} appears twice.` });
+				steps.add(s.key);
+				const cases = new Set<string>();
+				for (const c of s.cases) {
+					if (cases.has(c.key))
+						ctx.addIssue({
+							code: 'custom',
+							message: `Case ${j.key}/${s.key}/${c.key} appears twice.`
+						});
+					cases.add(c.key);
+				}
+			}
+		}
+	});
+const qaSizes = z.array(z.number().int().min(200).max(4000)).max(6);
+export const qaFeatureInput = createInsertSchema(qaFeature, {
+	key: () => qaKey,
+	area: (s) => s.max(80).optional(),
+	name: (s) => s.min(1).max(120),
+	description: (s) => s.max(2000).optional(),
+	codeGlobs: () => z.array(z.string().min(1).max(200)).max(50).optional(),
+	sizes: () => qaSizes.optional(),
+	map: () => qaMapSchema
+})
+	.pick({
+		key: true,
+		area: true,
+		name: true,
+		description: true,
+		codeGlobs: true,
+		sizes: true,
+		map: true
+	})
+	.extend({ expectVersion: z.number().int().positive().optional() });
+export const qaMapMergeInput = z.object({
+	project: z.string().min(1),
+	features: z.array(qaFeatureInput).min(1).max(40),
+	/** Feature keys the agent no longer finds in the app; they are flagged removed, never deleted. */
+	missing: z.array(qaKey).max(200).optional()
+});
+export const qaFeatureEditInput = z.object({
+	project: z.string().min(1),
+	feature: qaKey,
+	expectVersion: z.number().int().positive(),
+	name: z.string().min(1).max(120).optional(),
+	area: z.string().max(80).optional(),
+	description: z.string().max(2000).optional(),
+	priority: z.enum(QA_PRIORITIES).nullable().optional(),
+	sizes: qaSizes.optional(),
+	/** A whole new map from the page's editor; every path that differs from the stored map counts as edited. */
+	map: qaMapSchema.optional()
+});
+export const qaFeatureMergeInput = z.object({
+	project: z.string().min(1),
+	from: qaKey,
+	into: qaKey
+});
+export const qaFeatureSplitInput = z.object({
+	project: z.string().min(1),
+	feature: qaKey,
+	journeys: z.array(qaKey).min(1).max(50),
+	key: qaKey,
+	name: z.string().min(1).max(120)
+});
+export const qaTargetsInput = z.object({
+	project: z.string().min(1),
+	targets: z
+		.array(
+			z.object({
+				origin: z
+					.string()
+					.max(200)
+					.transform((v) => v.trim().toLowerCase().replace(/\/$/, ''))
+					.pipe(
+						z.string().regex(QA_ORIGIN, 'Use an address like https://staging.example.com:8443')
+					),
+				writes: z.boolean()
+			})
+		)
+		.max(20)
+});
+export const qaRunStartInput = createInsertSchema(qaRun, {
+	scope: (s) => s.max(120).optional(),
+	commit: (s) => s.max(80).optional(),
+	sizes: () => qaSizes.optional()
+})
+	.pick({ scope: true, commit: true, sizes: true })
+	.extend({
+		project: z.string().min(1),
+		/** The address of the app under test; only its origin is kept. */
+		target: z.string().url().max(500),
+		/** Feature keys to test; none means smoke and changed features first, then the rest. */
+		features: z.array(qaKey).max(200).optional()
+	});
+export const qaResultRow = createInsertSchema(qaResult, {
+	caseKey: (s) => s.min(1).max(200),
+	width: (s) => s.int().min(200).max(4000),
+	role: (s) => s.max(40).optional(),
+	observed: (s) => s.max(2000).optional(),
+	dataEntered: () =>
+		z
+			.array(z.object({ field: z.string().min(1).max(80), value: z.string().max(400) }))
+			.max(40)
+			.optional()
+})
+	.pick({
+		caseKey: true,
+		outcome: true,
+		width: true,
+		mode: true,
+		role: true,
+		observed: true,
+		dataEntered: true
+	})
+	.extend({
+		outcome: z.enum(QA_OUTCOMES),
+		mode: z.enum(QA_MODES),
+		severity: z.enum(QA_SEVERITIES).optional(),
+		feature: qaKey,
+		/** The page the case ran on, part of the bug's cause. */
+		page: z.string().max(300).optional(),
+		screen: z.string().uuid().optional(),
+		annotation: z.string().uuid().optional()
+	});
+export const qaResultInput = z.object({
+	run: z.string().min(1),
+	results: z.array(qaResultRow).min(1).max(60)
+});
+export const qaPlanLinkInput = z.object({
+	item: z.string().min(1),
+	files: z.array(z.string().min(1).max(300)).max(200).optional()
+});
+export const qaRedactInput = z.object({ result: z.string().uuid() });
+/** The owner's reason for closing a plan while a feature it touched is broken. */
+export const qaOverrideInput = z.object({ reason: z.string().trim().min(3).max(160) });
+export const qaFeatureSelect = createSelectSchema(qaFeature);
+export const qaRunSelect = createSelectSchema(qaRun);
+export const qaResultSelect = createSelectSchema(qaResult);
 export const noteSelect = createSelectSchema(note);
 export const noteFolderSelect = createSelectSchema(noteFolder);
 export const noteVersionSelect = createSelectSchema(noteVersion);

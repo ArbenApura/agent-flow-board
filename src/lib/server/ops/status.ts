@@ -12,6 +12,7 @@ import { appendEvent } from '../db/events';
 import { item, step, task } from '../db/schema';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields, checkVersion, type ItemRow } from './items';
+import { closeBlock, markPlanFinished } from './qa';
 import { findItem } from './resolve';
 import { releaseClaimsOn, requireCloseConfirmation } from './tracking';
 
@@ -113,6 +114,8 @@ export async function applyStatus(
 		undoable: false
 	});
 	await syncLinkedTasks(tx, it.id, to);
+	// The first move to IN REVIEW marks the QA features the plan touched as finished, so an older result means Needs retest
+	if (to === 'IN REVIEW') await markPlanFinished(tx, it.id);
 	// A closed item lets go of every claim on it in this same transaction (SPEC 9.2)
 	if (CLOSING.includes(to)) {
 		const ref =
@@ -133,7 +136,9 @@ export const setStatusInput = z.object({
 	note: z.string().min(3).max(160),
 	expectVersion: z.number().int().optional(),
 	/** Closing an item the session is not bound to asks first (Phase 9). */
-	confirmed: z.boolean().optional()
+	confirmed: z.boolean().optional(),
+	/** The owner's reason for closing while a QA feature the plan touched is broken (AFB-20261125-0442). A person only. */
+	override: z.object({ reason: z.string().trim().min(3).max(160) }).optional()
 });
 
 /**
@@ -145,7 +150,7 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 	return run(ctx, async (tx) =>
 		idempotent(ctx, tx, async () => {
 			const it = await findItem(tx, ctx, input.item, { lock: true });
-			await requireCap(
+			const { role } = await requireCap(
 				tx,
 				ctx,
 				CLOSING.includes(input.status) ? 'complete' : 'write',
@@ -153,6 +158,12 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 			);
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
+			// Closing anyway is the owner's word at the web app, never an agent's: an agent that sends it is refused, not ignored
+			if (input.override && (ctx.actor.kind !== 'person' || role !== 'owner'))
+				throw new OpError(
+					'FORBIDDEN',
+					'Only the owner, at the board, can close a plan while a feature it touched is broken.'
+				);
 			if (it.status === input.status)
 				return { item: it, statusChanges: [] as StatusChange[], already: true };
 			if (input.status === 'COMPLETED') {
@@ -166,6 +177,38 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 						`${open.n} counted ${open.n === 1 ? 'step is' : 'steps are'} still open. Close or waive ${open.n === 1 ? 'it' : 'them'} first.`,
 						{ reason: 'open-steps', openSteps: open.n }
 					);
+				// A plan cannot close while a feature it touched broke since it started (the owner's rule, 2026-11-25)
+				const block = await closeBlock(tx, ctx, it.id, it.projectId);
+				if (block && !input.override) {
+					const names = block.features.map((f) => f.name);
+					const what =
+						names.length > 0
+							? `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} broken`
+							: 'a feature it touched is broken';
+					const more =
+						block.hidden > 0 && names.length > 0 ? `, and ${block.hidden} more you can't see` : '';
+					throw new OpError(
+						'COMPLETED_REFUSED',
+						`This plan can't close: ${what}${more}. Fix it and rerun QA first.`,
+						{ reason: 'qa-broken', ...block }
+					);
+				}
+				if (block && input.override)
+					await appendEvent(tx, {
+						orgId: ctx.orgId,
+						projectId: it.projectId,
+						itemId: it.id,
+						...actorFields(ctx),
+						verb: 'qa.close.override',
+						targetType: 'item',
+						targetId: it.id,
+						after: {
+							reason: input.override.reason,
+							features: block.features.map((f) => f.key),
+							hidden: block.hidden
+						} as never,
+						undoable: false
+					});
 			}
 			// An agent closing an item its session is not bound to is asked first, never refused (ADR-029). The refusals above come
 			// first, so nobody is asked to confirm something that would be refused anyway.
