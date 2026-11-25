@@ -398,7 +398,7 @@
 											onclick={() => copyCommand(f.key)}
 											data-testid="qa-retest"
 										>
-											<RotateCcw size={18} />
+											<RotateCcw size={16} />
 										</Button>
 									</li>
 								{/each}

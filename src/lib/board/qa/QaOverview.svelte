@@ -4,6 +4,8 @@
 	// IMPORTED MODULES
 	import { QA_STATUSES, QA_STATUS_LABEL, qaPlural } from '#lib/board/qa/status.js';
 	import { ago } from '#lib/board/status.js';
+	// IMPORTED DEP-COMPONENTS
+	import FlaskConical from '@lucide/svelte/icons/flask-conical';
 	// IMPORTED COMPONENTS
 	import QaHealthBar from '#lib/board/qa/QaHealthBar.svelte';
 	import QaStatusDot from '#lib/board/qa/QaStatusDot.svelte';
@@ -51,6 +53,8 @@
 
 	const total = $derived(QA_STATUSES.reduce((n, s) => n + counts[s], 0));
 	const attention = $derived(counts.broken + counts.needs_retest);
+	// Nothing has been tested yet: a 0 percent ring and a row of zeros would only say the same thing five times
+	const untested = $derived(total > 0 && counts.not_tested === total);
 </script>
 
 <!-- THE FIRST SCREEN ANSWERS ONE QUESTION: IS IT SAFE TO SHIP. THE RING AND THE HEADLINE, THE LAST RUN AND THE OPEN BUGS, ONE HEALTH BAR, THEN THE STATUS FILTERS -->
@@ -60,16 +64,30 @@
 >
 	<div class="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
 		<div class="flex min-w-0 items-center gap-3">
-			<ProgressRing value={percent} label="Cases passing" size={48} />
-			<div class="min-w-0">
-				<h2 class="text-lg font-semibold tracking-tight text-ink">{percent}% of cases pass</h2>
-				<p class="text-sm text-muted">
-					{counts.works} of {total}
-					{qaPlural(total, 'feature')}
-					{counts.works === 1 && total === 1 ? 'works' : 'work'}{#if attention > 0}
-						· {attention} {attention === 1 ? 'needs' : 'need'} attention first{/if}
-				</p>
-			</div>
+			{#if untested}
+				<span
+					class="inline-flex size-12 shrink-0 items-center justify-center rounded-full bg-raised text-muted"
+					aria-hidden="true"><FlaskConical size={20} /></span
+				>
+				<div class="min-w-0">
+					<h2 class="text-lg font-semibold tracking-tight text-ink">Nothing tested yet</h2>
+					<p class="text-sm text-muted">
+						{total}
+						{qaPlural(total, 'feature is', 'features are')} waiting for the first run
+					</p>
+				</div>
+			{:else}
+				<ProgressRing value={percent} label="Cases passing" size={48} />
+				<div class="min-w-0">
+					<h2 class="text-lg font-semibold tracking-tight text-ink">{percent}% of cases pass</h2>
+					<p class="text-sm text-muted">
+						{counts.works} of {total}
+						{qaPlural(total, 'feature')}
+						{counts.works === 1 && total === 1 ? 'works' : 'work'}{#if attention > 0}
+							· {attention} {attention === 1 ? 'needs' : 'need'} attention first{/if}
+					</p>
+				</div>
+			{/if}
 		</div>
 		<div
 			class="grid w-full gap-4 border-t border-line pt-4 sm:grid-cols-2 lg:flex lg:w-auto lg:items-stretch lg:gap-6 lg:border-t-0 lg:pt-0"
@@ -126,7 +144,10 @@
 				title={QA_STATUS_LABEL[s]}
 				onclick={() => onstatus(statusFilter === s ? 'all' : s)}
 				data-testid="qa-chip"
-				class="group flex h-10 w-full cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-pressed:border-accent/40 aria-pressed:bg-accent-soft aria-pressed:text-accent-text max-sm:h-11 max-sm:gap-1.5 max-sm:px-2.5"
+				class={[
+					'group flex h-10 w-full cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-pressed:border-accent/40 aria-pressed:bg-accent-soft aria-pressed:text-accent-text max-sm:h-11 max-sm:gap-1.5 max-sm:px-2.5',
+					counts[s] === 0 && statusFilter !== s && 'opacity-60'
+				]}
 			>
 				<QaStatusDot status={s} decorative />
 				<span class="min-w-0 flex-1 truncate text-left">{QA_STATUS_LABEL[s]}</span>
