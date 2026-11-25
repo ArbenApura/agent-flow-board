@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.33.0",
+		"version": "1.34.0",
 		"releasedAt": "2026-11-26"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.22.0",
+			"version": "1.23.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -206,6 +206,10 @@
 				{
 					"version": "1.22.0",
 					"hash": "102926669e13c0dac6414e3b880d4be07b35efe9f36a4d78da47ef502b3773d3"
+				},
+				{
+					"version": "1.23.0",
+					"hash": "8dc75efea8b7927fa6419286a8192e1b66ef158adbaeb02437815287b01805eb"
 				}
 			]
 		},
@@ -651,7 +655,7 @@
 			]
 		},
 		"flow-screens": {
-			"version": "1.0.3",
+			"version": "1.0.4",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -668,6 +672,10 @@
 				{
 					"version": "1.0.3",
 					"hash": "ffa5e49f6234dfbe2074cf9c44c6c4e01313334586b49147ef1a1374dee5cdff"
+				},
+				{
+					"version": "1.0.4",
+					"hash": "01c06f766e9be64694560567d18e721990a5eed0bd97217ba01b4e1cabcc686d"
 				}
 			]
 		},
@@ -703,6 +711,28 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.34.0",
+			"date": "2026-11-26",
+			"notes": [
+				"flow and flow-screens: the Screens tab takes PNG, JPEG, WebP and AVIF (AFB-20261125-1628), the type and width read from the file's bytes. PNG stays preferred; a full-size JPEG, WebP or AVIF is accepted, never a reduced picture. screen_add takes imageBase64 (pngBase64 is the old name) and the bridge command takes .png, .jpg, .jpeg, .webp and .avif from bridge 0.14.0. A harness browser that scales its screenshot below the claimed width is still refused: widen the pane."
+			],
+			"skills": {
+				"flow": "1.23.0",
+				"flow-audit": "1.3.11",
+				"flow-interview": "1.2.9",
+				"flow-mockup": "1.11.1",
+				"flow-qa": "1.1.0",
+				"flow-screens": "1.0.4",
+				"flow-task": "1.1.5",
+				"flow-align": "1.8.1",
+				"flow-commit": "1.0.3",
+				"flow-critic": "2.1.0",
+				"flow-decide": "1.0.2",
+				"flow-autopilot": "1.0.2",
+				"flow-update-skills": "1.0.2"
+			}
+		},
 		{
 			"version": "1.33.0",
 			"date": "2026-11-26",

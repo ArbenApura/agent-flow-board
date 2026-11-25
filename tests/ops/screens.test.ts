@@ -120,6 +120,51 @@ describe('screens', () => {
 		expect(b.screen.id).toBe(a.screen.id);
 	});
 
+	it('stores a JPEG as the after picture of a PNG slot and serves it with its own type', async () => {
+		const p = await plan('Picture types plan');
+		const jpeg = (n: number, width = 1440) =>
+			Uint8Array.from([
+				0xff,
+				0xd8,
+				0xff,
+				0xc0,
+				0x00,
+				0x11,
+				0x08,
+				0x03,
+				0x84,
+				width >> 8,
+				width & 255,
+				0x03,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				0,
+				n,
+				0xff,
+				0xda
+			]);
+		const first = await addScreen(as('member'), { item: p.ref, ...base() }, png(1));
+		expect(first.screen.mime).toBe('image/png');
+		const second = await addScreen(as('member'), { item: p.ref, ...base() }, jpeg(2));
+		expect(second.screen.role).toBe('after');
+		expect(second.screen.mime).toBe('image/jpeg');
+		const shot = await readScreenImage(db, storage, w.people.member, second.screen.id);
+		expect(shot?.mime).toBe('image/jpeg');
+		// A JPEG narrower than its claimed width is refused like a small PNG
+		await expect(
+			addScreen(as('member'), { item: p.ref, ...base('narrow') }, jpeg(3, 800))
+		).rejects.toMatchObject({ code: 'INVALID' });
+	});
+
 	it('refuses anything that is not a PNG, an empty file, a big one and a bad name, width or mode', async () => {
 		const p = await plan('Picture checks plan');
 		const bad = (bytes: Uint8Array, over: Record<string, unknown> = {}) =>

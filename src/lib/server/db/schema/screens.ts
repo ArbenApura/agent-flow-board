@@ -26,6 +26,13 @@ import { id, oneOf, tenantTable } from './helpers';
 export const SCREEN_KEY_PREFIX = 'screens';
 export const SCREEN_MODES = ['light', 'dark'] as const;
 export const SCREEN_ROLES = ['before', 'after'] as const;
+/** The picture types a screenshot may be (the sniffer in ops/imageType.ts reads the same four from the bytes). */
+export const SCREEN_PICTURE_MIMES = [
+	'image/png',
+	'image/jpeg',
+	'image/webp',
+	'image/avif'
+] as const;
 export type ScreenMode = (typeof SCREEN_MODES)[number];
 export type ScreenRole = (typeof SCREEN_ROLES)[number];
 
@@ -53,6 +60,8 @@ export const screen = tenantTable(
 		caption: text('caption').notNull().default(''),
 		note: text('note').notNull().default(''),
 		storageKey: text('storage_key').notNull(),
+		/** The picture type, read from its bytes when it was stored (AFB-20261125-1628). Rows made before it are PNG. */
+		mime: text('mime').notNull().default('image/png'),
 		size: bigint('size', { mode: 'number' }).notNull(),
 		checksum: text('checksum').notNull(),
 		createdBy: text('created_by'),
@@ -65,6 +74,7 @@ export const screen = tenantTable(
 		index('screen_item_idx').on(t.itemId),
 		oneOf('screen_mode_chk', t.mode, SCREEN_MODES),
 		oneOf('screen_role_chk', t.role, SCREEN_ROLES),
+		oneOf('screen_mime_chk', t.mime, SCREEN_PICTURE_MIMES),
 		check('screen_width_chk', sql`${t.width} between 200 and 4000`)
 	]
 );

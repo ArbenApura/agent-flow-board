@@ -88,6 +88,8 @@ agent-flow-board hooks setup codex --server https://<your domain> --org <slug>
 | Antigravity | the hooks file Antigravity and `agy` read (`hooks.json`)       |
 | Gemini CLI  | `~/.gemini/settings.json`                                      |
 
+The bridge also uploads the finished screens of a plan to its Screens tab: `agent-flow-board screen push <file> --server <address> --org <slug> --item <ref> --screen <slug> --mode light|dark --width <px>`, where `<file>` is a `.png`, `.jpg`, `.jpeg`, `.webp` or `.avif` picture (bridge 0.14.0 or later; older bridges take PNG only). The board reads the real type and width from the file's bytes, refuses GIF, SVG and HEIC, and refuses a picture narrower than `--width`. A harness with no shell sends the picture with the `screen_add` tool as `imageBase64`.
+
 The bridge edits a tool's settings only when you or your agent run `agent-flow-board setup --org <slug>` on purpose (see "Show status in your editor"); `hooks print` only prints. A git hook adds a warning (never a failure) when a commit names no item:
 
 ```

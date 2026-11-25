@@ -1,6 +1,6 @@
 // THE SCREEN TOOLS (AFB-20261124-0926): ADD, LIST AND REMOVE THE SCREENSHOTS OF A PLAN (NO ANNOTATE TOOL SINCE AFB-20261125-0625)
 // They are thin: each wraps an operations verb. A harness with a shell uploads with the bridge command (agent-flow-board screen push),
-// so a picture never travels inside a tool call; screen_add takes the PNG as base64 only for a harness with no shell.
+// so a picture never travels inside a tool call; screen_add takes the picture as base64 only for a harness with no shell.
 // A caption and a note are written by people, so everything returned is marked untrusted.
 
 // IMPORTED TYPES
@@ -33,13 +33,18 @@ export function registerScreenTools({ tool }: ToolBuilder) {
 
 	tool(
 		'screen_add',
-		'Add a PNG screenshot of a changed screen to a plan. With a shell use the bridge command "agent-flow-board screen push" instead; this takes base64 (under about 2 MB). The first capture of a screen, mode and width is kept as before, a later one replaces the after.',
+		'Add a PNG, JPEG, WebP or AVIF screenshot of a changed screen to a plan. With a shell use "agent-flow-board screen push" instead; this takes imageBase64 (pngBase64 is the old name, under about 2 MB). The first capture of a screen, mode and width is kept as before, a later one replaces the after.',
 		{
 			item: z.string().optional().describe('The plan. Defaults to your claimed item'),
 			screen: z.string().regex(SCREEN_SLUG).describe('A short slug naming the screen'),
 			mode: z.enum(['light', 'dark']),
 			width: z.number().int().min(200).max(4000),
-			pngBase64: z.string().min(1).describe('The picture as base64'),
+			imageBase64: z
+				.string()
+				.min(1)
+				.optional()
+				.describe('The picture (PNG, JPEG, WebP or AVIF) as base64'),
+			pngBase64: z.string().min(1).optional().describe('The old name of imageBase64'),
 			caption: z.string().max(200).optional(),
 			note: z.string().max(1000).optional(),
 			phase: z.string().max(40).optional().describe('The phase key it belongs to')
@@ -48,9 +53,16 @@ export function registerScreenTools({ tool }: ToolBuilder) {
 		async (a, { ctx, claimed }) => {
 			const item = a.item ?? claimed ?? undefined;
 			if (!item) throw new OpError('INVALID', 'Name the plan (item) or claim it first.');
+			// The tool takes a raw zod shape, so the one-of rule is checked here (the old name stays an alias)
+			if ((a.imageBase64 === undefined) === (a.pngBase64 === undefined))
+				throw new OpError(
+					'INVALID',
+					'Give the picture as imageBase64 (pngBase64 is the old name), exactly one of them.'
+				);
+			const encoded = (a.imageBase64 ?? a.pngBase64) as string;
 			checkLength(
 				'picture',
-				a.pngBase64,
+				encoded,
 				MCP_SCREEN_CHARS,
 				'Push it with the bridge command: agent-flow-board screen push <file>.'
 			);
@@ -65,7 +77,7 @@ export function registerScreenTools({ tool }: ToolBuilder) {
 					note: a.note,
 					phaseKey: a.phase
 				},
-				decodeBase64(a.pngBase64),
+				decodeBase64(encoded),
 				{ maxBytes: MAX_SCREEN_BASE64_BYTES }
 			);
 			return r as never;

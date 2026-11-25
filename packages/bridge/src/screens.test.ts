@@ -69,6 +69,27 @@ describe('screen push', () => {
 		expect(s.calls).toHaveLength(0);
 	});
 
+	it('accepts each picture extension and sends the type of its extension, and refuses a .gif', async () => {
+		for (const [name, type] of [
+			['a.jpg', 'image/jpeg'],
+			['b.jpeg', 'image/jpeg'],
+			['c.webp', 'image/webp'],
+			['d.avif', 'image/avif'],
+			['e.PNG', 'image/png']
+		] as const) {
+			const file = join(dir, name);
+			writeFileSync(file, Buffer.from([1, 2, 3, 4]));
+			const s = setup();
+			await pushScreen({ ...s.options, file });
+			expect(s.calls[0].type).toBe(type);
+		}
+		const gif = join(dir, 'f.gif');
+		writeFileSync(gif, Buffer.from([1, 2, 3, 4]));
+		const s = setup();
+		await expect(pushScreen({ ...s.options, file: gif })).rejects.toThrow(/\.png/);
+		expect(s.calls).toHaveLength(0);
+	});
+
 	it('refuses a picture over 10 MB before any call is made', async () => {
 		const big = join(dir, 'big.png');
 		writeFileSync(big, Buffer.from([137, 80, 78, 71]));

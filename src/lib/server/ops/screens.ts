@@ -18,6 +18,7 @@ import { appendEvent } from '../db/events';
 import { item, screen, section } from '../db/schema';
 import { screenAddInput } from '../db/zod';
 import { listMyOrgs } from '../orgs/orgs';
+import { SCREEN_EXTENSIONS, imageWidth, sniffImageMime, type ScreenMime } from './imageType';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields } from './items';
 import { findItem } from './resolve';
@@ -25,7 +26,7 @@ import { findItem } from './resolve';
 // -- CONSTANTS -- //
 
 // PROPOSED numbers (AFB-20261124-0926, settled 3): the owner has not confirmed them, so each is one line to change.
-/** A screenshot is one PNG of one screen, up to 10 MB (confirmed by the owner, 2026-11-24). */
+/** A screenshot is one PNG, JPEG, WebP or AVIF picture of one screen, up to 10 MB (confirmed by the owner, 2026-11-24). */
 export const MAX_SCREEN_BYTES = 10 * 1024 * 1024;
 /** The cap on the path with no shell, where the picture travels as base64 inside a tool call. */
 export const MAX_SCREEN_BASE64_BYTES = 3 * 1024 * 1024;
@@ -34,7 +35,6 @@ export const MAX_SCREENS_PER_ITEM = 40;
 export const SCREENS_REQUIRED_FROM = new Date('2026-11-25T00:00:00Z');
 /** A screens-waiver names why in at least this many characters. */
 export const MIN_WAIVER_CHARS = 10;
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 // -- FUNCTIONS -- //
 
@@ -51,28 +51,23 @@ const plain = (s: string) =>
 
 const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
-/** Only a real PNG of a sensible size is stored: the type is read from the bytes, never from what the sender says. */
-export function checkScreenPicture(bytes: Uint8Array | undefined, maxBytes = MAX_SCREEN_BYTES) {
+/**
+ * Only a real PNG, JPEG, WebP or AVIF picture of a sensible size is stored: the type is read from the bytes, never from what
+ * the sender says. Returns the type read.
+ */
+export function checkScreenPicture(
+	bytes: Uint8Array | undefined,
+	maxBytes = MAX_SCREEN_BYTES
+): ScreenMime {
 	if (!bytes || bytes.byteLength === 0) throw new OpError('INVALID', 'The picture is empty.');
 	if (bytes.byteLength > maxBytes)
 		throw new OpError(
 			'INVALID',
 			`The picture is larger than ${Math.round(maxBytes / 1048576)} MB.`
 		);
-	if (!PNG_SIGNATURE.every((b, i) => bytes[i] === b))
-		throw new OpError('INVALID', 'The picture must be a PNG image.');
-}
-
-/**
- * The width in pixels of a PNG, read from its first chunk (IHDR), or null when the header is not there.
- * Nothing else is decoded, so a picture is never opened or resized on the server.
- */
-export function pngWidth(bytes: Uint8Array): number | null {
-	// 8 bytes of signature, then 4 of length and 4 of the chunk name (IHDR), then the width as 4 big-endian bytes
-	if (bytes.byteLength < 24) return null;
-	const name = String.fromCharCode(bytes[12], bytes[13], bytes[14], bytes[15]);
-	if (name !== 'IHDR') return null;
-	return ((bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19]) >>> 0;
+	const mime = sniffImageMime(bytes);
+	if (!mime) throw new OpError('INVALID', 'The picture must be a PNG, JPEG, WebP or AVIF image.');
+	return mime;
 }
 
 /** The address a member's browser asks for the picture, with the row's own id. The route checks the caller's access. */
@@ -89,11 +84,15 @@ export async function addScreen(
 	options: { maxBytes?: number } = {}
 ) {
 	const input = screenAddInput.parse(raw);
-	checkScreenPicture(bytes, options.maxBytes);
+	const mime = checkScreenPicture(bytes, options.maxBytes);
 	// A picture narrower than the width it claims was scaled down and would be blurred when it is zoomed: it is refused
 	// (a pixel ratio of 2 gives a wider picture and is welcome)
-	const pixels = pngWidth(bytes);
-	if (pixels === null) throw new OpError('INVALID', 'The picture has no readable PNG header.');
+	const pixels = imageWidth(bytes, mime);
+	if (pixels === null)
+		throw new OpError(
+			'INVALID',
+			`The picture has no readable ${SCREEN_EXTENSIONS[mime].toUpperCase()} header.`
+		);
 	if (pixels < input.width)
 		throw new OpError(
 			'INVALID',
@@ -122,8 +121,8 @@ export async function addScreen(
 				// The same picture again changes nothing
 				if (after?.checksum === checksum || (!after && before?.checksum === checksum))
 					return { screen: shape(after ?? before!), replacedKey: null as string | null };
-				key = `${SCREEN_KEY_PREFIX}/${ctx.orgId}/${it.projectId}/${randomUUID()}.png`;
-				await store.put(key, bytes, 'image/png');
+				key = `${SCREEN_KEY_PREFIX}/${ctx.orgId}/${it.projectId}/${randomUUID()}.${SCREEN_EXTENSIONS[mime]}`;
+				await store.put(key, bytes, mime);
 				const values = {
 					orgId: ctx.orgId,
 					projectId: it.projectId,
@@ -135,6 +134,7 @@ export async function addScreen(
 					caption,
 					note,
 					storageKey: key,
+					mime,
 					size: bytes.byteLength,
 					checksum,
 					createdBy: ctx.actor.userId
@@ -296,7 +296,7 @@ export async function readScreenImage(
 	store: Storage,
 	viewerId: string,
 	screenId: string
-): Promise<{ bytes: Uint8Array; checksum: string } | null> {
+): Promise<{ bytes: Uint8Array; checksum: string; mime: string } | null> {
 	for (const o of await listMyOrgs(handle, viewerId)) {
 		if (o.deletedAt) continue;
 		const ctx: Ctx = { handle, orgId: o.id, actor: { userId: viewerId, kind: 'person' } };
@@ -308,7 +308,7 @@ export async function readScreenImage(
 			});
 			if (!row) continue;
 			const bytes = await store.get(row.storageKey);
-			return bytes ? { bytes, checksum: row.checksum } : null;
+			return bytes ? { bytes, checksum: row.checksum, mime: row.mime } : null;
 		} catch (e) {
 			if (e instanceof OpError) continue;
 			throw e;
@@ -344,6 +344,7 @@ function shape(r: typeof screen.$inferSelect) {
 		mode: r.mode,
 		width: r.width,
 		role: r.role,
+		mime: r.mime,
 		bytes: r.size,
 		// The checksum is in the address, so a replaced picture is a new address and the page loads it at once
 		image: `${screenImagePath(r.id)}?v=${r.checksum.slice(0, 12)}`,

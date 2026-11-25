@@ -1,0 +1,2 @@
+ALTER TABLE "screen" ADD COLUMN "mime" text DEFAULT 'image/png' NOT NULL;--> statement-breakpoint
+ALTER TABLE "screen" ADD CONSTRAINT "screen_mime_chk" CHECK ("screen"."mime" in ('image/png', 'image/jpeg', 'image/webp', 'image/avif'));

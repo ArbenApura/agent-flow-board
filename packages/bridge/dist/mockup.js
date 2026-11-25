@@ -12,6 +12,14 @@ export const MAX_MOCKUP_BYTES = 50 * 1024 * 1024;
 export const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
 /** A screenshot of a plan's screen (AFB-20261124-0926): the same cap as the board's MAX_SCREEN_BYTES, 10 MB. */
 export const MAX_SCREEN_PUSH_BYTES = 10 * 1024 * 1024;
+/** The picture files a screen push accepts and the type each is sent as (the server reads the real type from the bytes). */
+export const SCREEN_CONTENT_TYPES = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.avif': 'image/avif'
+};
 const TRIES = 3;
 /** The characters one pull call asks for: the most the board serves in one part. */
 const PULL_PART_CHARS = 200_000;
@@ -252,7 +260,8 @@ export async function pushScreen(o) {
         throw new Error('Not signed in. Run: agent-flow-board login --server <url> --org <slug>');
     if (!o.item)
         throw new Error('Name the plan (--item).');
-    const png = readFileChecked(o.file, ['.png'], MAX_SCREEN_PUSH_BYTES, 'screenshot');
+    const png = readFileChecked(o.file, Object.keys(SCREEN_CONTENT_TYPES), MAX_SCREEN_PUSH_BYTES, 'screenshot');
+    const contentType = SCREEN_CONTENT_TYPES[extname(o.file).toLowerCase()] ?? 'image/png';
     const q = new URLSearchParams({
         item: o.item,
         screen: o.screen,
@@ -268,7 +277,7 @@ export async function pushScreen(o) {
             q.set(k, v);
     // The same file again is the same request, so a retry after a lost answer never stores two pictures
     const key = createHash('sha256').update(png).digest('hex').slice(0, 24);
-    const res = await call(o, 'POST', `/orgs/${encodeURIComponent(o.org)}/screens?${q}`, png, { 'content-type': 'image/png' }, `screen-push-${o.item}-${o.screen}-${o.mode}-${o.width}-${key}`.slice(0, 80));
+    const res = await call(o, 'POST', `/orgs/${encodeURIComponent(o.org)}/screens?${q}`, png, { 'content-type': contentType }, `screen-push-${o.item}-${o.screen}-${o.mode}-${o.width}-${key}`.slice(0, 80));
     if (!res.ok)
         throw new Error(await failure(res));
     const made = (await res.json());

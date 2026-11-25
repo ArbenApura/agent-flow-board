@@ -1,5 +1,5 @@
 // THE SCREENSHOT ENDPOINTS OF THE REST ROUTE TABLE (AFB-20261124-0926). EACH ONE IS A THIN WRAPPER AROUND AN OPERATIONS VERB
-// A capture goes up as the raw PNG body with the plan and the screen in the query, so no picture has to fit in a JSON string.
+// A capture goes up as the raw picture body (PNG, JPEG, WebP or AVIF) with the plan and the screen in the query, so no picture has to fit in a JSON string.
 
 // IMPORTED TYPES
 import type { Route } from './routes';
@@ -23,7 +23,7 @@ export const screenRoutes: Route[] = [
 		method: 'POST',
 		path: '/orgs/{org}/screens',
 		summary:
-			'Add a screenshot of a changed screen (a PNG as the body, at most 10 MB). The first capture of a screen, mode and width is kept as the before picture and a later one replaces the after picture.',
+			'Add a screenshot of a changed screen (a PNG, JPEG, WebP or AVIF picture as the body, at most 10 MB; the type is read from its bytes). The first capture of a screen, mode and width is kept as the before picture and a later one replaces the after picture.',
 		tag: 'Screens',
 		query: z.object({
 			item: z.string().min(1),

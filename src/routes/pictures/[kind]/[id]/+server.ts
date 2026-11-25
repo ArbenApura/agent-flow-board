@@ -21,7 +21,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const GET: RequestHandler = async ({ params, url, locals, request }) => {
 	if (!locals.user) error(401, 'Sign in first');
 	const handle = await getDb();
-	// A plan's screenshot (AFB-20261124-0926): a PNG read through the plan's own visibility, with the isolating headers
+	// A plan's screenshot (AFB-20261124-0926): a picture read through the plan's own visibility, with the isolating headers
 	if (params.kind === 'screen') {
 		const store = getStorage();
 		if (!store || !UUID.test(params.id)) error(404, 'Not found');
@@ -30,7 +30,8 @@ export const GET: RequestHandler = async ({ params, url, locals, request }) => {
 		const tag = `"${shot.checksum}"`;
 		const shotHeaders = {
 			etag: tag,
-			'content-type': 'image/png',
+			// The type read from the bytes when it was stored (PNG, JPEG, WebP or AVIF; older rows are PNG)
+			'content-type': shot.mime,
 			'x-content-type-options': 'nosniff',
 			'content-security-policy': "default-src 'none'; img-src 'self' data:; sandbox",
 			// Every request is checked again; the ETag makes an unchanged picture a cheap 304

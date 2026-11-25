@@ -147,6 +147,19 @@ describe('screen tools', () => {
 			}
 		});
 		expect(badName.isError).toBe(true);
+		// The picture comes under one name: none or both are refused, and each name alone works
+		const base = { sessionId, item: ref, screen: 'names', mode: 'light', width: 1440 };
+		expect((await call(member, 'screen_add', base)).error?.code).toBe('INVALID');
+		expect(
+			(await call(member, 'screen_add', { ...base, imageBase64: b64(5), pngBase64: b64(5) })).error
+				?.code
+		).toBe('INVALID');
+		expect(
+			(await call(member, 'screen_add', { ...base, imageBase64: b64(6) })).error
+		).toBeUndefined();
+		expect(
+			(await call(member, 'screen_add', { ...base, pngBase64: b64(7) })).error
+		).toBeUndefined();
 		const denied = await call(reader, 'screen_add', {
 			item: ref,
 			screen: 'other',

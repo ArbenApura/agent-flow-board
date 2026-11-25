@@ -421,6 +421,13 @@
       "when": 1795621335133,
       "tag": "0059_lesson_reuse",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795625606525,
+      "tag": "0060_screen_mime",
+      "breakpoints": true
     }
   ]
 }

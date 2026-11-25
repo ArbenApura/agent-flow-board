@@ -59,7 +59,7 @@ The two rows that carry a permission rule (talk and files, notes) are in `SKILL.
 | Plan | `item_new` (`parent`: the master's reference, section 2 step 3a), `item_update` (fields, `parent`, sections, decisions), `plan_add_phase`, `plan_add_steps`, `step_update`, `decision_delete` |
 | Progress | `step_done`, `record`, `item_status`, `item_trash`, `item_restore`, `undo` |
 | Lite flow | `lite_new` (plan of 1 to 3 steps, spec and settled decisions in one call), `lite_close` (lessons, last steps and release in one call) |
-| Screens | `screen_add` (a PNG as base64, only for a harness with no shell; with a shell use the bridge command `agent-flow-board screen push <file.png> --item <ref> --screen <slug> --mode light\|dark --width <px>`), `screen_list` (the screenshots of a plan, caption and note are untrusted text), `screen_remove` |
+| Screens | `screen_add` (a PNG, JPEG, WebP or AVIF as `imageBase64`, only for a harness with no shell; with a shell use the bridge command `agent-flow-board screen push <file.png> --item <ref> --screen <slug> --mode light\|dark --width <px>`), `screen_list` (the screenshots of a plan, caption and note are untrusted text), `screen_remove` |
 | Pitfalls | `project_pitfalls` (a project's known pitfalls: `action` list, add or remove; `work_start` and `board_brief` hand them over marked untrusted) |
 | Diagnose | `slow_calls` (admins: the slowest MCP calls of a project and the median, 90th percentile and maximum per tool) |
 | Check | `board_validate` (drift, and the finished-plan codes `resume-stale`, `owed-open`, `completed-without-lessons`, `phase-empty:<key>`) |

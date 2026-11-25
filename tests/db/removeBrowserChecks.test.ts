@@ -151,7 +151,8 @@ describe('migration 0053_remove_browser_checks', () => {
 			'0056_screens',
 			'0057_qa_map',
 			'0058_screens_no_annotations',
-			'0059_lesson_reuse'
+			'0059_lesson_reuse',
+			'0060_screen_mime'
 		]);
 
 		const tables = await admin.query<{ table_name: string }>(

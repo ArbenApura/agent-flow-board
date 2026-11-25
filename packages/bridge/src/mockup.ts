@@ -126,6 +126,14 @@ export const MAX_MOCKUP_BYTES = 50 * 1024 * 1024;
 export const MAX_SCREENSHOT_BYTES = 5 * 1024 * 1024;
 /** A screenshot of a plan's screen (AFB-20261124-0926): the same cap as the board's MAX_SCREEN_BYTES, 10 MB. */
 export const MAX_SCREEN_PUSH_BYTES = 10 * 1024 * 1024;
+/** The picture files a screen push accepts and the type each is sent as (the server reads the real type from the bytes). */
+export const SCREEN_CONTENT_TYPES: Record<string, string> = {
+	'.png': 'image/png',
+	'.jpg': 'image/jpeg',
+	'.jpeg': 'image/jpeg',
+	'.webp': 'image/webp',
+	'.avif': 'image/avif'
+};
 const TRIES = 3;
 /** The characters one pull call asks for: the most the board serves in one part. */
 const PULL_PART_CHARS = 200_000;
@@ -401,7 +409,7 @@ export type ScreenPushOptions = {
 	org: string;
 	token: string;
 	fetch: Fetch;
-	/** The PNG to upload. It is read by path, so the picture never passes through a model's output. */
+	/** The picture to upload (.png, .jpg, .jpeg, .webp or .avif). It is read by path, so the picture never passes through a model's output. */
 	file: string;
 	/** The plan the picture belongs to (a reference). */
 	item: string;
@@ -422,7 +430,13 @@ export async function pushScreen(o: ScreenPushOptions): Promise<ScreenPushResult
 	if (!o.token)
 		throw new Error('Not signed in. Run: agent-flow-board login --server <url> --org <slug>');
 	if (!o.item) throw new Error('Name the plan (--item).');
-	const png = readFileChecked(o.file, ['.png'], MAX_SCREEN_PUSH_BYTES, 'screenshot');
+	const png = readFileChecked(
+		o.file,
+		Object.keys(SCREEN_CONTENT_TYPES),
+		MAX_SCREEN_PUSH_BYTES,
+		'screenshot'
+	);
+	const contentType = SCREEN_CONTENT_TYPES[extname(o.file).toLowerCase()] ?? 'image/png';
 	const q = new URLSearchParams({
 		item: o.item,
 		screen: o.screen,
@@ -442,7 +456,7 @@ export async function pushScreen(o: ScreenPushOptions): Promise<ScreenPushResult
 		'POST',
 		`/orgs/${encodeURIComponent(o.org)}/screens?${q}`,
 		png as BodyInit,
-		{ 'content-type': 'image/png' },
+		{ 'content-type': contentType },
 		`screen-push-${o.item}-${o.screen}-${o.mode}-${o.width}-${key}`.slice(0, 80)
 	);
 	if (!res.ok) throw new Error(await failure(res));
