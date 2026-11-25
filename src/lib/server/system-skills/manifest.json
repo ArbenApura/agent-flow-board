@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.22.0",
-		"releasedAt": "2026-11-24"
+		"version": "1.23.0",
+		"releasedAt": "2026-11-25"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.13.0",
+			"version": "1.14.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -170,6 +170,10 @@
 				{
 					"version": "1.13.0",
 					"hash": "493480b8b8bcc5ef53509c7c88f5ff6ff6787d4554a4280079e0c080d1f43479"
+				},
+				{
+					"version": "1.14.0",
+					"hash": "fd6618def62a3af40386535037d13e3ee838e8861df59edc67d1c3e1a8a212f2"
 				}
 			]
 		},
@@ -434,7 +438,7 @@
 			]
 		},
 		"flow-align": {
-			"version": "1.6.1",
+			"version": "1.6.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -467,6 +471,10 @@
 				{
 					"version": "1.6.1",
 					"hash": "3ec101934af15185daeea7f34ea056ea16320198d950dea1b17e7108814be5da"
+				},
+				{
+					"version": "1.6.2",
+					"hash": "4f3a5a63bac80a1ffd0b428434e1822d98253a06deb6695ec0e4735f9242f3cd"
 				}
 			]
 		},
@@ -568,9 +576,43 @@
 					"hash": "f00ab371789d5ee9605b5d83310ec40513d651a060b56fd9725d48cd50e32d45"
 				}
 			]
+		},
+		"flow-qa": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "a524b784d80807fb12585979794e67ff9f5a254995783c758919a87a2694e34e"
+				}
+			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.23.0",
+			"date": "2026-11-25",
+			"notes": [
+				"New flow-qa skill (AFB-20261125-0442): the agent maps the app's features, tests them like a person in its own browser at the project's screen sizes, records every result with proof on the board's Testing page and files one bug per cause. It reports and never fixes, never writes to an address that keeps real data and never types a password.",
+				"flow 1.14.0: a plan links the QA features it touches (qa_plan_link), keeps their map in sync while it builds, offers one QA rerun in the final message after the build, and cannot close while a touched feature broke since it started (COMPLETED_REFUSED, reason qa-broken).",
+				"flow-align 1.6.2: the repair of a hidden flow skill also covers flow-qa."
+			],
+			"skills": {
+				"flow": "1.14.0",
+				"flow-audit": "1.3.6",
+				"flow-interview": "1.2.7",
+				"flow-mockup": "1.9.1",
+				"flow-qa": "1.0.0",
+				"flow-task": "1.1.4",
+				"flow-align": "1.6.2",
+				"flow-commit": "1.0.1",
+				"flow-critic-code": "1.0.2",
+				"flow-critic-mockup": "1.0.1",
+				"flow-critic-plan": "1.0.2",
+				"flow-critic-screen": "1.0.1",
+				"flow-decide": "1.0.1",
+				"flow-update-skills": "1.0.1"
+			}
+		},
 		{
 			"version": "1.22.0",
 			"date": "2026-11-24",

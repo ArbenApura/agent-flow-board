@@ -93,6 +93,12 @@ export const SKILL_INFO: Record<string, SkillInfo> = {
 		summary:
 			'Commits this session’s work with a conventional message that explains the problem, with or without a plan.'
 	},
+	'flow-qa': {
+		kind: 'Check',
+		icon: 'scan-search',
+		summary:
+			'Tests the app like a person in your own browser, maps its features and files one bug per cause on the Testing page.'
+	},
 	'flow-update-skills': {
 		kind: 'Setup',
 		icon: 'compass',

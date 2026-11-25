@@ -237,7 +237,8 @@ describe('MCP server', () => {
 			'flow-align',
 			'flow-decide',
 			'flow-commit',
-			'flow-update-skills'
+			'flow-update-skills',
+			'flow-qa'
 		]) {
 			const each = await call(client, 'workflow_get', { name });
 			expect(each.name, name).toBe(name);

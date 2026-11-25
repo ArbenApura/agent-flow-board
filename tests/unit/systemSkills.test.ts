@@ -44,6 +44,7 @@ const NAMES = [
 	'flow-decide',
 	'flow-interview',
 	'flow-mockup',
+	'flow-qa',
 	'flow-task',
 	'flow-update-skills'
 ];

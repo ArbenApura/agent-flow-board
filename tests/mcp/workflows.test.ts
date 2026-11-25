@@ -77,7 +77,8 @@ describe('workflow text', () => {
 			'flow-critic-plan',
 			'flow-critic-code',
 			'flow-critic-mockup',
-			'flow-critic-screen'
+			'flow-critic-screen',
+			'flow-qa'
 		])
 			expect(workflowByName(name), name).toBeDefined();
 		expect(SERVER_INSTRUCTIONS).toContain('flow-update-skills');
