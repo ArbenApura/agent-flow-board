@@ -91,6 +91,29 @@ describe('qa map, pure rules', () => {
 		expect(d.brokenCases).toEqual([CASE]);
 	});
 
+	it('casesWorking counts each case once, however many widths and modes it was tested at', () => {
+		const works = [390, 768, 1440].flatMap((width) =>
+			(['light', 'dark'] as const).map((mode) => r({ outcome: 'works', width, mode }))
+		);
+		// One case tested at 6 tuples is 6 works but one working case
+		const d = deriveStatus(works);
+		expect(d.counts.works).toBe(6);
+		expect(d.casesWorking).toBe(1);
+		// The same case broken at one width is no longer a working case
+		const mixed = deriveStatus([
+			...works,
+			r({
+				outcome: 'broken',
+				width: 390,
+				mode: 'dark',
+				createdAt: new Date('2026-11-25T12:00:00Z'),
+				runItemId: 'run-2'
+			})
+		]);
+		expect(mixed.casesWorking).toBe(0);
+		expect(deriveStatus([]).casesWorking).toBe(0);
+	});
+
 	it('a feature that only flickered before the plan keeps a works baseline', () => {
 		const flicker = deriveStatus([
 			r({ outcome: 'works', runItemId: 'run-1' }),

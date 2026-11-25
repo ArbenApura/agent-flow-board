@@ -523,7 +523,12 @@ export async function listRuns(ctx: Ctx, raw: z.input<typeof qaRunListInput>) {
 			.from(qaRun)
 			.innerJoin(item, eq(item.id, qaRun.itemId))
 			.where(
-				and(eq(qaRun.projectId, proj.id), isNull(item.deletedAt), visibleItemSql(ctx.actor.userId))
+				and(
+					eq(qaRun.projectId, proj.id),
+					isNull(item.deletedAt),
+					sql`${item.status} <> 'REMOVED'`,
+					visibleItemSql(ctx.actor.userId)
+				)
 			)
 			.orderBy(sql`${qaRun.runNo} desc`)
 			.limit(input.limit);

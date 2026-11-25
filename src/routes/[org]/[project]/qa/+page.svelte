@@ -64,7 +64,7 @@
 	const SORT_OPTIONS = QA_SORTS.map((s) => ({ value: s, label: QA_SORT_LABEL[s] }));
 	const SEVERITY_OPTIONS = [
 		{ value: 'all', label: 'All severities' },
-		...(['major', 'minor', 'cosmetic'] as const).map((s) => ({
+		...QA_SEVERITIES.map((s) => ({
 			value: s,
 			label: QA_SEVERITY_LABEL[s]
 		}))
@@ -146,6 +146,19 @@
 			.filter((g) => g.bugs.length > 0)
 	);
 
+	// -- REACTIVE STATEMENTS -- //
+
+	// The box follows the address when it changes under it (a link, back or forward), unless a typed change is still waiting
+	$effect(() => {
+		const fromUrl = page.url.searchParams.get('q') ?? '';
+		untrack(() => {
+			if (searchTimer === undefined && fromUrl.trim() !== q.trim()) q = fromUrl;
+		});
+	});
+
+	// A search that is still waiting is dropped when the page goes away
+	$effect(() => () => clearTimeout(searchTimer));
+
 	// -- FUNCTIONS -- //
 
 	/** Keeps the address as the one place the tab and the filters live, so a view can be shared and the back button works. */
@@ -160,7 +173,10 @@
 
 	const typed = () => {
 		clearTimeout(searchTimer);
-		searchTimer = setTimeout(() => go({ q: q.trim() || null }), 250);
+		searchTimer = setTimeout(() => {
+			searchTimer = undefined;
+			go({ q: q.trim() || null });
+		}, 250);
 	};
 
 	function clearFilters() {
@@ -212,7 +228,7 @@
 			value={data.tab}
 			options={tabOptions}
 			onchange={(v) => go({ tab: v === 'map' ? null : v })}
-			class="w-fit self-start max-sm:h-[50px] max-sm:w-full"
+			class="w-fit self-start"
 		/>
 
 		{#if data.tab === 'map'}
@@ -308,7 +324,7 @@
 									/>
 								</span>
 							</div>
-							<ul class={CARD}>
+							<ul class="{CARD} overflow-hidden">
 								{#each g.features as f (f.id)}
 									{@const st = qaStatusOf(f.status)}
 									<li
@@ -540,7 +556,7 @@
 								</h2>
 								<span class="text-xs font-semibold text-muted tabular-nums">{g.bugs.length}</span>
 							</div>
-							<ul class={CARD}>
+							<ul class="{CARD} overflow-hidden">
 								{#each g.bugs as b (b.id)}
 									<li
 										class="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-3 last:border-b-0"

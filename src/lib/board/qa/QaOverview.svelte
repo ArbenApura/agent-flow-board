@@ -42,12 +42,15 @@
 		bugsHref: string;
 	} = $props();
 
+	// -- CONSTANTS -- //
+
+	const linkClass =
+		'cursor-pointer text-sm text-accent-text hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center';
+
 	// -- REACTIVE STATES -- //
 
 	const total = $derived(QA_STATUSES.reduce((n, s) => n + counts[s], 0));
 	const attention = $derived(counts.broken + counts.needs_retest);
-	const linkClass =
-		'cursor-pointer text-sm text-accent-text hover:underline max-sm:inline-flex max-sm:min-h-11 max-sm:items-center';
 </script>
 
 <!-- THE FIRST SCREEN ANSWERS ONE QUESTION: IS IT SAFE TO SHIP. THE RING AND THE HEADLINE, THE LAST RUN AND THE OPEN BUGS, ONE HEALTH BAR, THEN THE STATUS FILTERS -->
@@ -59,7 +62,7 @@
 		<div class="flex min-w-0 items-center gap-3">
 			<ProgressRing value={percent} label="Cases passing" size={48} />
 			<div class="min-w-0">
-				<p class="text-lg font-semibold tracking-tight text-ink">{percent}% of cases pass</p>
+				<h2 class="text-lg font-semibold tracking-tight text-ink">{percent}% of cases pass</h2>
 				<p class="text-sm text-muted">
 					{counts.works} of {total}
 					{qaPlural(total, 'feature')}
@@ -125,7 +128,7 @@
 				data-testid="qa-chip"
 				class="group flex h-10 w-full cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm text-ink hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent aria-pressed:border-accent/40 aria-pressed:bg-accent-soft aria-pressed:text-accent-text max-sm:h-11 max-sm:gap-1.5 max-sm:px-2.5"
 			>
-				<QaStatusDot status={s} />
+				<QaStatusDot status={s} decorative />
 				<span class="min-w-0 flex-1 truncate text-left">{QA_STATUS_LABEL[s]}</span>
 				<span
 					class="inline-flex min-w-6 items-center justify-center rounded-full bg-raised px-1.5 text-badge font-semibold text-ink tabular-nums group-aria-pressed:bg-surface group-aria-pressed:text-accent-text"

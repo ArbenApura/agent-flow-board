@@ -10,7 +10,7 @@
 	import { api, newKey } from '#lib/board/api.js';
 	import {
 		QA_SEVERITY_LABEL,
-		QA_STATUS_RANK,
+		QA_STATUS_LABEL,
 		qaCommand,
 		qaCounts,
 		qaPercent,
@@ -99,7 +99,6 @@
 	let third = $state('');
 	// Cases a person opened or closed by hand; every other case opens when it is broken or could not be tested
 	let manual = $state<Record<string, boolean>>({});
-	let allOpen = $state(false);
 	const uid = $props.id();
 
 	// -- REACTIVE STATES -- //
@@ -117,9 +116,32 @@
 				? 'not_tested'
 				: 'all'
 	);
-	/** Every case of the feature with the status its newest result gives it. */
+	/**
+	 * Where each branch hangs: under the first journey, reached from the main ones, that has the step it branches from. A step key
+	 * is only unique inside its journey, so a branch is placed once and never twice, and a branch that points at itself is not
+	 * followed.
+	 */
+	const placement = $derived.by(() => {
+		// Plain records and arrays: they are built and read inside this one computation, never kept as reactive state
+		const children: Record<string, Journey[]> = {};
+		const seen: string[] = main.map((j) => j.key);
+		const queue = [...main];
+		while (queue.length > 0) {
+			const j = queue.shift()!;
+			for (const s of j.steps.filter((x) => !x.removedAt)) {
+				for (const b of journeys.filter((x) => x.parent === s.key && !seen.includes(x.key))) {
+					seen.push(b.key);
+					const at = `${j.key}/${s.key}`;
+					(children[at] ??= []).push(b);
+					queue.push(b);
+				}
+			}
+		}
+		return { children, shown: journeys.filter((j) => seen.includes(j.key)) };
+	});
+	/** Every case the page shows, with the status its newest result gives it. */
 	const allCases = $derived(
-		journeys.flatMap((j) =>
+		placement.shown.flatMap((j) =>
 			j.steps
 				.filter((s) => !s.removedAt)
 				.flatMap((s) =>
@@ -135,26 +157,29 @@
 				)
 		)
 	);
+	/** Every case is open, so the toggle offers to close them; with any case closed it offers to open them. */
+	const allOpen = $derived(allCases.length > 0 && allCases.every((c) => isOpen(c.id)));
 	const caseCounts = $derived(qaCounts(allCases.map((c) => c.status)));
 	const percent = $derived(qaPercent(caseCounts.works, allCases.length));
 	/** The outcomes that have at least one case, in the order the Summary lists them. */
 	const summaryStatuses = $derived(
-		(['works', 'broken', 'not_tested'] as const).filter((x) => caseCounts[x] > 0)
+		(['works', 'broken', 'could_not_test', 'not_tested'] as const).filter((x) => caseCounts[x] > 0)
 	);
-	const sizeList = $derived(
-		sizes
-			.split(/[,\s]+/)
-			.map((s) => Number(s))
-			.filter((n) => Number.isInteger(n) && n > 0)
-	);
+	// Each width once: a repeated width would also repeat the keyed chips below
+	const sizeList = $derived([
+		...new Set(
+			sizes
+				.split(/[,\s]+/)
+				.map((s) => Number(s))
+				.filter((n) => Number.isInteger(n) && n > 0)
+		)
+	]);
+	const uniqueSizes = $derived([...new Set(f?.sizes ?? [])]);
 	/** The last result at each screen width the feature is tested at: the worst of the cases tested there. */
 	const widthResults = $derived(
-		(f?.sizes ?? []).map((w) => {
-			const hits = Object.values(data.detail?.cases ?? {}).filter((r) => r.width === w);
-			const worst = hits
-				.map((r) => qaStatusOf(r.outcome))
-				.sort((a, b) => QA_STATUS_RANK[a] - QA_STATUS_RANK[b])[0];
-			return { width: w, status: worst ?? null };
+		uniqueSizes.map((w) => {
+			const outcome = data.detail?.widths[w];
+			return { width: w, status: outcome ? qaStatusOf(outcome) : null };
 		})
 	);
 	const valid = $derived.by(() => {
@@ -169,15 +194,18 @@
 
 	// -- FUNCTIONS -- //
 
-	const branches = (stepKey: string) => journeys.filter((j) => j.parent === stepKey);
+	const branches = (j: Journey, s: Step) => placement.children[`${j.key}/${s.key}`] ?? [];
 	const liveSteps = (j: Journey) => j.steps.filter((s) => !s.removedAt);
 	const liveCases = (s: Step) => s.cases.filter((c) => !c.removedAt);
 	const caseId = (j: string, s: string, c: string) => `${j}/${s}/${c}`;
-	const domId = (id: string) => `${uid}-${id.replaceAll('/', '-')}`;
+	const domId = (id: string) => `${uid}-${id.replaceAll('/', '__')}`;
 	const statusOfCase = (id: string): QaStatus =>
 		qaStatusOf(data.detail?.cases[id]?.outcome ?? 'not_tested');
 	const shownBy = (status: QaStatus) =>
-		filter === 'all' || (filter === 'broken' ? status === 'broken' : status === 'not_tested');
+		filter === 'all' ||
+		(filter === 'broken'
+			? status === 'broken'
+			: status === 'not_tested' || status === 'could_not_test');
 	/** A case opens by itself when it is broken or could not be tested, unless a person chose otherwise. */
 	const isOpen = (id: string) =>
 		id in manual ? manual[id] : ['broken', 'could_not_test'].includes(statusOfCase(id));
@@ -188,7 +216,7 @@
 	function stepHas(j: Journey, s: Step): boolean {
 		return (
 			liveCases(s).some((c) => shownBy(statusOfCase(caseId(j.key, s.key, c.key)))) ||
-			branches(s.key).some(journeyHas)
+			branches(j, s).some(journeyHas)
 		);
 	}
 	/** The health of one journey: its own cases, its branches left out. */
@@ -212,7 +240,7 @@
 		const u = new URL(page.url.href);
 		if (next === 'all') u.searchParams.delete('cases');
 		else u.searchParams.set('cases', next);
-		void goto(u, { replaceState: true, reset: false, noScroll: true });
+		void goto(u, { replaceState: true, reset: false });
 	}
 
 	function toggleCase(id: string) {
@@ -220,8 +248,8 @@
 	}
 
 	function toggleAll() {
-		allOpen = !allOpen;
-		manual = Object.fromEntries(allCases.map((c) => [c.id, allOpen]));
+		const next = !allOpen;
+		manual = Object.fromEntries(allCases.map((c) => [c.id, next]));
 	}
 
 	/** A short slug for a new step or case, unique among its siblings. */
@@ -363,7 +391,7 @@
 					onclick={() => toggleCase(id)}
 					class="flex min-h-11 min-w-0 flex-1 cursor-pointer items-start gap-3 px-3 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-accent"
 				>
-					<QaStatusDot status={st} class="mt-2" />
+					<QaStatusDot status={st} decorative class="mt-2 size-2" />
 					<span class="min-w-0 flex-1">
 						<span class="flex flex-wrap items-center gap-x-2 gap-y-1">
 							<span class="text-sm font-medium [overflow-wrap:anywhere] text-ink"
@@ -499,7 +527,7 @@
 						</div>
 					{/if}
 				</div>
-				{#each branches(s.key) as b (b.key)}
+				{#each branches(j, s) as b (b.key)}
 					<!-- AN ALTERNATIVE PATH SITS UNDER THE STEP IT BRANCHES FROM -->
 					{#if filter === 'all' || journeyHas(b)}
 						<div class="ml-1 border-l-2 border-line pl-4" data-testid="qa-branch">
@@ -526,7 +554,7 @@
 				? ''
 				: 'border-b border-line px-4 py-3'}"
 		>
-			<h2 class="min-w-0 {nested ? 'text-sm' : 'text-base'} font-semibold tracking-tight text-ink">
+			<h2 class="min-w-0 {nested ? 'text-sm' : 'text-lg'} font-semibold tracking-tight text-ink">
 				{nested ? `Or: ${j.name}` : j.name}
 			</h2>
 			<span class="text-xs text-muted tabular-nums"
@@ -566,7 +594,7 @@
 					<QaStatusPill status={f.status} flaky={f.flaky} />
 					<span>{f.area || 'Other'}</span>
 					<span class="font-mono text-xs">{f.key}</span>
-					{#each f.sizes as w (w)}
+					{#each uniqueSizes as w (w)}
 						<span class="rounded-md bg-raised px-2 py-0.5 font-mono text-xs text-muted tabular-nums"
 							>{w}</span
 						>
@@ -608,7 +636,7 @@
 			<Notice tone="info">
 				The last discovery found something different on a part you edited, and kept your text:
 				<ul class="mt-1 list-disc pl-5">
-					{#each f.conflicts.slice(-5) as c, i (i)}<li class="[overflow-wrap:anywhere]">
+					{#each f.conflicts.slice(-5) as c, i (`${i}-${c}`)}<li class="[overflow-wrap:anywhere]">
 							{c}
 						</li>{/each}
 				</ul>
@@ -645,10 +673,8 @@
 					<div class="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
 						{#each summaryStatuses as x (x)}
 							<span class="inline-flex items-center gap-2">
-								<QaStatusDot status={x} />
-								<span class="text-ink"
-									>{x === 'works' ? 'Works' : x === 'broken' ? 'Broken' : 'Not tested yet'}</span
-								>
+								<QaStatusDot status={x} decorative />
+								<span class="text-ink">{QA_STATUS_LABEL[x]}</span>
 								<span class="text-muted tabular-nums">{caseCounts[x]}</span>
 							</span>
 						{/each}
@@ -697,7 +723,7 @@
 
 				{#if f.bugs.length > 0}
 					<section class="{CARD} flex flex-col gap-2 p-4 max-lg:order-3 max-sm:p-3.5">
-						<h2 class="text-base font-semibold tracking-tight text-ink">Open bugs</h2>
+						<h2 class="text-lg font-semibold tracking-tight text-ink">Open bugs</h2>
 						<ul class="flex flex-col">
 							{#each f.bugs as b (b.id)}
 								<li class="flex flex-col gap-1 py-1">
@@ -714,7 +740,7 @@
 				{/if}
 
 				<section class="{CARD} flex flex-col gap-2 p-4 max-lg:order-4 max-sm:p-3.5">
-					<h2 class="text-base font-semibold tracking-tight text-ink">Runs</h2>
+					<h2 class="text-lg font-semibold tracking-tight text-ink">Runs</h2>
 					{#if (data.detail?.runs.length ?? 0) === 0}
 						<p class="text-sm text-muted">No run has tested this feature yet.</p>
 					{:else}
@@ -788,7 +814,7 @@
 								aria-pressed={filter === 'broken'}
 								onclick={() => setFilter('broken')}
 							>
-								<QaStatusDot status="broken" class="max-sm:hidden" />
+								<QaStatusDot status="broken" decorative class="size-2 max-sm:hidden" />
 								<span>Broken</span>
 								<span class={COUNT}>{caseCounts.broken}</span>
 							</button>
@@ -798,12 +824,12 @@
 								aria-pressed={filter === 'not_tested'}
 								onclick={() => setFilter('not_tested')}
 							>
-								<QaStatusDot status="not_tested" class="max-sm:hidden" />
+								<QaStatusDot status="not_tested" decorative class="size-2 max-sm:hidden" />
 								<span class="max-sm:hidden">Not tested</span><span class="sm:hidden">Untested</span>
-								<span class={COUNT}>{caseCounts.not_tested}</span>
+								<span class={COUNT}>{caseCounts.not_tested + caseCounts.could_not_test}</span>
 							</button>
 						</div>
-						<Button class="max-sm:w-full" onclick={toggleAll} aria-pressed={allOpen}>
+						<Button class="max-sm:w-full" onclick={toggleAll}>
 							<ChevronsUpDown size={16} class="text-muted" />
 							{allOpen ? 'Collapse all' : 'Expand all'}
 						</Button>
@@ -816,9 +842,7 @@
 					{/each}
 					{#if filter !== 'all' && !main.some(journeyHas)}
 						<p class="px-1 text-sm text-muted">
-							{filter === 'broken'
-								? 'No broken cases. Everything tested here works.'
-								: 'Every case has been tested.'}
+							{filter === 'broken' ? 'No broken cases.' : 'No cases are waiting to be tested.'}
 						</p>
 					{/if}
 				{/if}

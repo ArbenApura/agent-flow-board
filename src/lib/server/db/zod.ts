@@ -174,7 +174,10 @@ export const qaMapSchema = z
 			}
 		}
 	});
-const qaSizes = z.array(z.number().int().min(200).max(4000)).max(6);
+const qaSizes = z
+	.array(z.number().int().min(200).max(4000))
+	.max(6)
+	.refine((a) => new Set(a).size === a.length, 'Use each screen width once.');
 export const qaFeatureInput = createInsertSchema(qaFeature, {
 	key: () => qaKey,
 	area: (s) => s.max(80).optional(),

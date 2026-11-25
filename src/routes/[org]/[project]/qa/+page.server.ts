@@ -3,7 +3,7 @@ import type { PageServerLoad } from './$types';
 // IMPORTED MODULES
 import { qaBugIsOpen, qaTabOf } from '#lib/board/qa/status.js';
 import { OpError } from '#lib/server/ops/context.js';
-import { getMap } from '#lib/server/ops/qa.js';
+import { getMap, liveCaseKeys } from '#lib/server/ops/qa.js';
 import { listBugs, listRuns } from '#lib/server/ops/qaRuns.js';
 import { childContext, pageError } from '#lib/server/web/ctx.js';
 
@@ -47,20 +47,14 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 			tab,
 			features: map.features.map((f) => {
 				const journeys = f.map.journeys.filter((j) => !j.removedAt);
-				const cases = journeys.reduce(
-					(n, j) =>
-						n +
-						j.steps
-							.filter((s) => !s.removedAt)
-							.reduce((m, s) => m + s.cases.filter((c) => !c.removedAt).length, 0),
-					0
-				);
+				// The same live case keys the status is derived from, so a duplicate key never counts twice
+				const cases = liveCaseKeys(f.map).size;
 				return {
 					id: f.id,
 					key: f.key,
 					area: f.area,
 					name: f.name,
-					sizes: f.sizes,
+					sizes: [...new Set(f.sizes)],
 					status: f.status,
 					flaky: f.flaky,
 					openBugs: f.bugs.length,
@@ -68,10 +62,10 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 					lastCommit: f.lastCommit,
 					journeys: journeys.length,
 					cases,
-					works: f.counts.works
+					works: f.casesWorking
 				};
 			}),
-			runs: tab === 'runs' ? runs.slice(0, 30) : null,
+			runs: tab === 'runs' ? runs : null,
 			runCount: runs.length,
 			bugs: tab === 'bugs' ? bugs : null,
 			lastRun: runs[0]

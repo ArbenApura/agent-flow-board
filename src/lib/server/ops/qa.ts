@@ -76,6 +76,8 @@ export type QaDerived = {
 	lastTestedAt: Date | null;
 	lastCommit: string;
 	counts: { works: number; broken: number; could_not_test: number };
+	/** How many cases pass: the cases with a latest works and no latest broken or could-not-test, whatever their widths and modes. */
+	casesWorking: number;
 };
 export type QaMergeDiff = { added: string[]; changed: string[]; removed: string[]; kept: string[] };
 
@@ -142,6 +144,11 @@ export function deriveStatus(results: QaResultLite[], finishedAt: (Date | null)[
 		if (r.outcome === 'broken' && isFlaky) flakyBroken = true;
 		if (r.outcome === 'broken' && !isFlaky) brokenCases.push(r.caseKey);
 	}
+	// A case passes when every tuple it was last tested on works, so one case at three widths counts once
+	const passing = new Set<string>();
+	const failing = new Set<string>();
+	for (const r of latest.values()) (r.outcome === 'works' ? passing : failing).add(r.caseKey);
+	const casesWorking = [...passing].filter((k) => !failing.has(k)).length;
 	const lastAt = last ? last.createdAt : null;
 	let status: QaStatus;
 	if (latest.size === 0) status = 'not_tested';
@@ -156,7 +163,8 @@ export function deriveStatus(results: QaResultLite[], finishedAt: (Date | null)[
 		brokenCases: [...new Set(brokenCases)],
 		lastTestedAt: lastAt,
 		lastCommit: last?.commit ?? '',
-		counts
+		counts,
+		casesWorking
 	};
 }
 
@@ -606,6 +614,7 @@ export async function getMap(ctx: Ctx, raw: z.input<typeof qaMapGetInput>) {
 					lastTestedAt: d.lastTestedAt,
 					lastCommit: d.lastCommit,
 					counts: d.counts,
+					casesWorking: d.casesWorking,
 					bugs: bugs.get(f.id) ?? []
 				};
 			})
@@ -1383,6 +1392,17 @@ export async function featureDetail(ctx: Ctx, raw: z.input<typeof qaFeatureDetai
 					: null
 			};
 		}
+		// The last result at each screen width: the newest result of every case, width and colour mode still on the map, and the
+		// worst of them for the width (broken, then couldn't test, then works)
+		const liveKeys = liveCaseKeys(f.map);
+		const lastOfTuple = new Map<string, (typeof rows)[number]>();
+		for (const r of rows)
+			if (liveKeys.has(r.caseKey)) lastOfTuple.set(`${r.caseKey}|${r.width}|${r.mode}`, r);
+		const weight: Record<string, number> = { works: 0, could_not_test: 1, broken: 2 };
+		const widths: Record<number, string> = {};
+		for (const r of lastOfTuple.values())
+			if (!(r.width in widths) || (weight[r.outcome] ?? 0) > (weight[widths[r.width]] ?? 0))
+				widths[r.width] = r.outcome;
 		// The runs that tested this feature, newest first, a page at a time
 		const runRows = await tx.execute(sql`
 			select i.ref as ref, qr.run_no as "runNo", max(r.created_at) as at,
@@ -1416,6 +1436,7 @@ export async function featureDetail(ctx: Ctx, raw: z.input<typeof qaFeatureDetai
 		return {
 			feature: f,
 			cases,
+			widths,
 			runs: runs.slice(0, input.runsLimit),
 			moreRuns: runs.length > input.runsLimit,
 			runsOffset: input.runsOffset

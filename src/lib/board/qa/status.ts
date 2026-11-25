@@ -116,7 +116,7 @@ export function qaCounts(statuses: QaStatus[]): Record<QaStatus, number> {
 
 /** The share of cases that pass, a whole number from 0 to 100. Nothing tested yet is 0. */
 export const qaPercent = (pass: number, total: number) =>
-	total > 0 ? Math.round((pass / total) * 100) : 0;
+	total > 0 ? Math.min(100, Math.round((pass / total) * 100)) : 0;
 
 /** Sorts a copy of the features: broken first by default, then by name, or the most recently tested first. */
 export function qaSortFeatures<
