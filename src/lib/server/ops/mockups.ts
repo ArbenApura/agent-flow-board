@@ -10,13 +10,14 @@ import { createHash, randomBytes } from 'node:crypto';
 import { and, desc, eq, ilike, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 // IMPORTED MODULES
+import { normaliseFidelity } from '../../board/mockups';
 import { extractMockupScreensFromHtml } from '../../shared/mockupScreens';
 import { appendEvent } from '../db/events';
 import { syncMockupsOfItem } from '../db/mockupSync';
 import { item, mockup, mockupPart, mockupPin, mockupVersion, project, user } from '../db/schema';
 import { KIT_MARKER, loadKit, wantsKit, type LoadedKit } from '../mockups/kitHead';
 import { mockupKey } from '../mockups/keys';
-import { lintMockupHooks, lintMockupHtml } from '../mockups/lint';
+import { lintMockupHooks, lintMockupHtml, readFidelity } from '../mockups/lint';
 import { buildMockupUrl, mockupOriginStatus } from '../mockups/origin';
 import { extractMockupDerived, type MockupDerivedAssets } from '../mockups/derived';
 import { lintMockupBudgets, readCostOf } from '../mockups/budgets';
@@ -142,10 +143,12 @@ export function checkLength(label: string, text: string | undefined, max: number
 /** The warnings of the faithful rendering check for a page, with the marker notes. Only the start of a very large page is read. */
 function warningsFor(bytes: Uint8Array, kit: LoadedKit | null): string[] {
 	const html = new TextDecoder().decode(bytes.subarray(0, LINT_BYTES));
+	const fidelity = readFidelity(html);
 	const warnings = [
 		...lintMockupHtml(html, kit?.facts),
-		...lintMockupHooks(html),
-		...lintMockupBudgets(html, kit !== null && kit.head !== null)
+		// A screenshot page is one picture with callouts: it has no screens or states for a hook to reach
+		...(fidelity === 'screenshot' ? [] : lintMockupHooks(html)),
+		...lintMockupBudgets(html, kit !== null && kit.head !== null, fidelity)
 	];
 	if (bytes.byteLength > LINT_BYTES)
 		warnings.push(
@@ -424,8 +427,10 @@ export function publicMockup(m: MockupRow) {
 
 /** A version row without its storage keys or heavy derived payload. */
 export function publicVersion(v: typeof mockupVersion.$inferSelect) {
-	const { storageKey: _storageKey, screenshotKey, derived: _derived, ...rest } = v;
-	return { ...rest, hasScreenshot: screenshotKey !== null };
+	const { storageKey: _storageKey, screenshotKey, derived, ...rest } = v;
+	// Only the tier leaves the derived payload; a version with none is an older one, which is high
+	const fidelity = normaliseFidelity((derived as { fidelity?: unknown } | null)?.fidelity);
+	return { ...rest, hasScreenshot: screenshotKey !== null, fidelity };
 }
 
 /** A version in a list: no notes (read one version's notes with the version number), only how long they are. */
@@ -704,6 +709,34 @@ export async function listMockups(ctx: Ctx, raw: z.input<typeof listInput>) {
 					)
 			: [];
 		const hasShot = new Set(shots.map((s) => `${s.mockupId}:${s.number}`));
+		// The tier of each version, read as one text field so the heavy derived payload is never loaded for a list. A version with no
+		// derived assets yet is an older one, which is high.
+		const tiers = visible.length
+			? await tx
+					.select({
+						mockupId: mockupVersion.mockupId,
+						number: mockupVersion.number,
+						fidelity: sql<string | null>`${mockupVersion.derived}->>'fidelity'`
+					})
+					.from(mockupVersion)
+					// Only the current version of each mockup is read, so older versions' derived payloads are never touched
+					.innerJoin(
+						mockup,
+						and(
+							eq(mockup.id, mockupVersion.mockupId),
+							eq(mockupVersion.number, mockup.currentVersion)
+						)
+					)
+					.where(
+						inArray(
+							mockupVersion.mockupId,
+							visible.map((m) => m.id)
+						)
+					)
+			: [];
+		const fidelityOf = new Map(
+			tiers.map((t) => [`${t.mockupId}:${t.number}`, normaliseFidelity(t.fidelity)])
+		);
 		// The mockups of one plan carry how much of each was read, for the audit and a build that asks (AFB-20261110-2331)
 		const read = itemId ? await readStateOf(tx, visible) : null;
 		return {
@@ -714,6 +747,7 @@ export async function listMockups(ctx: Ctx, raw: z.input<typeof listInput>) {
 					...publicMockup(m),
 					versions: byId.get(m.id) ?? 1,
 					hasShot: hasShot.has(`${m.id}:${m.currentVersion}`),
+					fidelity: fidelityOf.get(`${m.id}:${m.currentVersion}`) ?? 'high',
 					plan: plan ? { ref: plan.ref, title: plan.title } : null,
 					...(state
 						? {

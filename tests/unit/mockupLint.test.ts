@@ -8,7 +8,8 @@ import {
 	kitFacts,
 	lintKitHtml,
 	lintMockupHooks,
-	lintMockupHtml
+	lintMockupHtml,
+	readFidelity
 } from '../../src/lib/server/mockups/lint';
 
 // -- CONSTANTS -- //
@@ -374,5 +375,49 @@ describe('the options and screens a page declares', () => {
 		expect(
 			lintMockupHooks('<main data-screen="a" data-state="default"><i data-ref="x"></i></main>')
 		).toEqual([]);
+	});
+});
+
+// -- THE FIDELITY TIER A PAGE DECLARES -- //
+
+describe('the fidelity a page declares', () => {
+	const page = (config: string) =>
+		`<!doctype html><html><head><meta name="afb-config" content='${config}'></head><body></body></html>`;
+	const starter = (file: string) => {
+		const md = readFileSync(`src/lib/server/system-skills/skills/flow-mockup/${file}`, 'utf8');
+		return /```html\r?\n([\s\S]*?)```/.exec(md)?.[1] ?? '';
+	};
+
+	it('reads the three tiers and nothing else', () => {
+		expect(readFidelity(page('{"fidelity":"wireframe"}'))).toBe('wireframe');
+		expect(readFidelity(page('{"fidelity":"screenshot"}'))).toBe('screenshot');
+		expect(readFidelity(page('{"fidelity":"high"}'))).toBe('high');
+	});
+
+	it('reads a page that declares none, a wrong type, a wrong case or a long value as high', () => {
+		expect(readFidelity('<html><body>no tag</body></html>')).toBe('high');
+		expect(readFidelity(page('{"screens":[["a","A"]]}'))).toBe('high');
+		expect(readFidelity(page('{"fidelity":42}'))).toBe('high');
+		expect(readFidelity(page('{"fidelity":["wireframe"]}'))).toBe('high');
+		expect(readFidelity(page('{"fidelity":"Wireframe"}'))).toBe('high');
+		expect(readFidelity(page(`{"fidelity":"${'wireframe'.repeat(500)}"}`))).toBe('high');
+		expect(readFidelity(page('not json'))).toBe('high');
+		expect(readFidelity(page('[]'))).toBe('high');
+	});
+
+	it('is read by the starters of each tier, so a starter cannot drift off its tier', () => {
+		expect(readFidelity(starter('starter.md'))).toBe('high');
+		expect(readFidelity(starter('starter-wireframe.md'))).toBe('wireframe');
+		expect(readFidelity(starter('starter-screenshot.md'))).toBe('screenshot');
+	});
+
+	it('stays fast and never throws on a hostile page', () => {
+		const started = Date.now();
+		for (const hostile of [
+			'<meta name="afb-config" content='.repeat(200_000),
+			'afb-config'.repeat(300_000)
+		])
+			expect(readFidelity(hostile)).toBe('high');
+		expect(Date.now() - started).toBeLessThan(2000);
 	});
 });

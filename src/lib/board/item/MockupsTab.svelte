@@ -7,7 +7,7 @@
 	import { page } from '$app/state';
 	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
-	import { mockupPrompt, screensOf } from '#lib/board/mockups.js';
+	import { FIDELITY_BADGE, mockupPrompt, screensOf } from '#lib/board/mockups.js';
 	import { ago } from '#lib/board/status.js';
 	import MockupHistoryDrawer from '#lib/board/MockupHistoryDrawer.svelte';
 	import MockupPreview from '#lib/board/MockupPreview.svelte';
@@ -160,6 +160,10 @@
 						</span>
 					{/if}
 					{#if current.publicLinkOn}<Badge tone="info">Public link on</Badge>{/if}
+					<!-- THE TIER OF THE VERSION ON SHOW. HIGH SHOWS NOTHING -->
+					{#if FIDELITY_BADGE[stamp?.fidelity ?? 'high']}
+						<Badge>{FIDELITY_BADGE[stamp?.fidelity ?? 'high']}</Badge>
+					{/if}
 				</span>
 			{/snippet}
 			{#snippet actions()}

@@ -2,6 +2,7 @@
 	// IMPORTED TYPES
 	import type { MockupRow } from '#lib/board/mockups.js';
 	// IMPORTED MODULES
+	import { FIDELITY_BADGE } from '#lib/board/mockups.js';
 	import { ago } from '#lib/board/status.js';
 	import MockupThumb from '#lib/board/MockupThumb.svelte';
 	import Badge from '#lib/ui/Badge.svelte';
@@ -50,6 +51,10 @@
 				<Badge tone="info"><Globe size={12} aria-hidden="true" /> Public</Badge>
 			{:else if mockup.visibility === 'private'}
 				<Badge><Lock size={12} aria-hidden="true" /> Private</Badge>
+			{/if}
+			<!-- THE TIER OF THE CURRENT VERSION. HIGH SHOWS NOTHING, SO ONLY THE LIGHTER TIERS ARE NAMED -->
+			{#if FIDELITY_BADGE[mockup.fidelity ?? 'high']}
+				<Badge>{FIDELITY_BADGE[mockup.fidelity ?? 'high']}</Badge>
 			{/if}
 		</span>
 	</span>

@@ -3,6 +3,8 @@
 // authored characters there are, and warns about the things that make it big without carrying design: pictures embedded in the
 // page, hand-written CSS next to a kit, heavy script, markup repeated again and again, keyframes buried in generated CSS.
 
+// IMPORTED TYPES
+import type { MockupFidelity } from '../../board/mockups';
 // IMPORTED MODULES
 import { rangeChars, segmentMockupHtml } from './segments';
 
@@ -48,10 +50,18 @@ export function readCostOf(html: string): MockupReadCost {
 
 const sizeOf = (blocks: RegExpMatchArray[]) => blocks.reduce((n, m) => n + m[0].length, 0);
 
-/** Warnings about what makes a page big without carrying design. `hasKit` is true when the project has a saved kit. */
-export function lintMockupBudgets(html: string, hasKit: boolean): string[] {
+/**
+ * Warnings about what makes a page big without carrying design. `hasKit` is true when the project has a saved kit. A wireframe
+ * or screenshot page has no kit to move its pictures into (a screenshot page is made of them), so the picture warning is for high only.
+ */
+export function lintMockupBudgets(
+	html: string,
+	hasKit: boolean,
+	fidelity: MockupFidelity = 'high'
+): string[] {
 	const out: string[] = [];
-	const pictures = [...html.matchAll(/<img\b[^>]*\bsrc\s*=\s*"data:[^"]{400,}"/gi)];
+	const pictures =
+		fidelity === 'high' ? [...html.matchAll(/<img\b[^>]*\bsrc\s*=\s*"data:[^"]{400,}"/gi)] : [];
 	if (pictures.length)
 		out.push(
 			`${pictures.length} picture${pictures.length === 1 ? ' is' : 's are'} embedded in the page (${pictures.reduce((n, m) => n + m[0].length, 0).toLocaleString('en-US')} characters of picture data). Put them in the project kit as img.k-<name>{content:url(...)} rules and keep the img tags, so the page stays small.`

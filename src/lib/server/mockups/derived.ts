@@ -1,7 +1,10 @@
 // DERIVED MOCKUP ASSETS (OUTLINE, HOOKS, TOKENS, SNAPSHOT, SHOTS) AND DESIGN-BRIEF HOOK VERIFICATION (D.1, D.2, D.3)
 
+// IMPORTED TYPES
+import type { MockupFidelity } from '../../board/mockups';
 // IMPORTED MODULES
 import { extractMockupScreensFromHtml, type NamedMockupScreen } from '../../shared/mockupScreens';
+import { readFidelity } from './lint';
 import { segmentMockupHtml, type CharRange, type MockupSegment } from './segments';
 
 // -- TYPES -- //
@@ -44,6 +47,8 @@ export type MockupTreeAsset = {
 
 export type MockupDerivedAssets = {
 	schema: 1;
+	/** The tier the page declared in its afb-config. Missing on a version stored before tiers existed, which reads as high. */
+	fidelity?: MockupFidelity;
 	outline: MockupOutline;
 	shots: MockupShotAsset[];
 	/** Rendered trees (data-ref, role, text, box, computed styles) made by the bridge in a browser, which also sees markup built by script. */
@@ -174,6 +179,7 @@ export function extractMockupDerived(
 
 	return {
 		schema: 1,
+		fidelity: readFidelity(html),
 		segments: cut.segments,
 		excluded: cut.excluded,
 		totals: {

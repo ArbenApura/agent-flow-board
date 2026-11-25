@@ -1,6 +1,6 @@
 # Mockup starter
 
-The starter page for `flow-mockup`. Copy the fenced block into a file in a temporary folder of your tool (never the repo), then replace every placeholder with the project's real markup: copy the shell and the components from the project's own templates, with their real class names. The classes below are only a shape to show where things go (example: utility classes from a Tailwind project; a Bootstrap or Sass project uses its own).
+The starter page for the `high` tier of `flow-mockup` (the wireframe and screenshot tiers have `starter-wireframe.md` and `starter-screenshot.md`). Copy the fenced block into a file in a temporary folder of your tool (never the repo), then replace every placeholder with the project's real markup: copy the shell and the components from the project's own templates, with their real class names. The classes below are only a shape to show where things go (example: utility classes from a Tailwind project; a Bootstrap or Sass project uses its own).
 
 What the starter gives you:
 
@@ -24,7 +24,7 @@ Icons are copied inline as vector markup (SVG) exactly as the project's own comp
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PLACEHOLDER: the screen this mockup shows</title>
-<meta name="afb-config" content='{"options":[{"key":"mode","label":"Mode","values":[["light","Light"],["dark","Dark"]]}]}'>
+<meta name="afb-config" content='{"fidelity":"high","options":[{"key":"mode","label":"Mode","values":[["light","Light"],["dark","Dark"]]}]}'>
 <!--afb-kit-->
 <style>
 /* ONLY THE CLASSES THE KIT LACKS GO HERE, COMPILED WITH THE PROJECT'S OWN TOOL. NO LITERAL COLOUR AND NO FONT NAME OF YOUR OWN */

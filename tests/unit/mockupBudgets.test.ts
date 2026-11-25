@@ -38,6 +38,14 @@ describe('mockup read cost and budgets', () => {
 		expect(lintMockupBudgets(html, false).join('\n')).not.toMatch(/its own CSS/);
 	});
 
+	it('warns about embedded pictures only for a high page, because a screenshot page is made of them and a wireframe has no kit', () => {
+		const html = `<html><body>${PICTURE}<main>Hello</main></body></html>`;
+		expect(lintMockupBudgets(html, true).join('\n')).toMatch(/picture is embedded/);
+		expect(lintMockupBudgets(html, true, 'high').join('\n')).toMatch(/picture is embedded/);
+		expect(lintMockupBudgets(html, false, 'screenshot')).toEqual([]);
+		expect(lintMockupBudgets(html, false, 'wireframe')).toEqual([]);
+	});
+
 	it('has nothing to say about a small, clean page', () => {
 		expect(
 			lintMockupBudgets(

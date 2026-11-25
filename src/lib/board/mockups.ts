@@ -17,6 +17,8 @@ export type MockupRow = {
 	thumb?: string | null;
 	/** True when `thumb` is a page to show in a frame, false when it is a screenshot. */
 	live?: boolean;
+	/** The tier of the current version. Missing reads as high. */
+	fidelity?: MockupFidelity;
 };
 /** Where a click or a drag landed: percent of the page, and the point in the frame with the frame's own size, so the board can place its box. */
 export type PinPoint = {
@@ -218,6 +220,22 @@ const CONFIG_KEY = /^[a-z0-9][a-z0-9-]{0,23}$/;
 export const MAX_CONFIG_SCREENS = 12;
 export const MAX_CONFIG_OPTIONS = 6;
 export const MAX_CONFIG_VALUES = 12;
+
+// -- FIDELITY OF A MOCKUP -- //
+
+/** The tier a mockup declares as fidelity in its afb-config. A page that declares nothing, or anything else, is high. */
+export const MOCKUP_FIDELITIES = ['wireframe', 'screenshot', 'high'] as const;
+export type MockupFidelity = (typeof MOCKUP_FIDELITIES)[number];
+/** The text of the badge. High shows no badge, so it has no entry. */
+export const FIDELITY_BADGE: Partial<Record<MockupFidelity, string>> = {
+	wireframe: 'Wireframe',
+	screenshot: 'Screenshot'
+};
+/** Only the three known values pass; anything else (wrong type, wrong case, over-long) reads as high and is never echoed. */
+export const normaliseFidelity = (value: unknown): MockupFidelity =>
+	typeof value === 'string' && (MOCKUP_FIDELITIES as readonly string[]).includes(value)
+		? (value as MockupFidelity)
+		: 'high';
 /** The key of the screen list in a choice. An option may not use it. */
 export const SCREEN_OPTION = 'screen';
 

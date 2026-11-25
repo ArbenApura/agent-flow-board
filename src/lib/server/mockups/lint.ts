@@ -3,7 +3,13 @@
 // picture loaded by address silently becomes the system font or nothing. Each warning says what and what to do about it.
 
 // IMPORTED CONSTANTS
-import { MAX_CONFIG_OPTIONS, MAX_CONFIG_SCREENS, MAX_CONFIG_VALUES } from '../../board/mockups';
+import {
+	MAX_CONFIG_OPTIONS,
+	MAX_CONFIG_SCREENS,
+	MAX_CONFIG_VALUES,
+	normaliseFidelity,
+	type MockupFidelity
+} from '../../board/mockups';
 
 // -- TYPES -- //
 
@@ -353,6 +359,22 @@ function configContent(text: string): { raw: string; from: number; to: number } 
 		};
 	}
 	return null;
+}
+
+/**
+ * The fidelity tier the page declared in its afb-config tag. Absent, unreadable or any value other than wireframe, screenshot or
+ * high is high, so every older mockup keeps the strict rules. The value is never echoed. Never throws.
+ */
+export function readFidelity(text: string): MockupFidelity {
+	try {
+		const tag = configContent(text);
+		if (!tag) return 'high';
+		const parsed: unknown = JSON.parse(decodeEntities(tag.raw));
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return 'high';
+		return normaliseFidelity((parsed as { fidelity?: unknown }).fidelity);
+	} catch {
+		return 'high';
+	}
 }
 
 /** What the page declared in its afb-config tag, or null when it declares nothing or the content cannot be read. Never throws. */

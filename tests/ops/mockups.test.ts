@@ -139,6 +139,35 @@ describe('mockups', () => {
 		).toHaveLength(2);
 	});
 
+	it('a version carries the fidelity its page declares, in a list and in a read, and a page that declares none or garbage is high', async () => {
+		const tier = (value: string) =>
+			new TextEncoder().encode(
+				`<html><head><meta name="afb-config" content='{"fidelity":${value}}'></head><body>tier</body></html>`
+			);
+		const p = await plan('Fidelity plan');
+		const wire = await publishMockup(as('member'), { item: p.ref }, tier('"wireframe"'));
+		const shot = await publishMockup(
+			as('member'),
+			{ item: p.ref, another: true },
+			tier('"screenshot"')
+		);
+		const plain = await publishMockup(as('member'), { item: p.ref, another: true }, html(1));
+		const junk = await publishMockup(as('member'), { item: p.ref, another: true }, tier('42'));
+		const listed = (await listMockups(as('member'), { project: w.projectKey, item: p.ref }))
+			.mockups;
+		const tierOf = (id: string) => listed.find((m) => m.id === id)?.fidelity;
+		expect(tierOf(wire.mockup.id)).toBe('wireframe');
+		expect(tierOf(shot.mockup.id)).toBe('screenshot');
+		expect(tierOf(plain.mockup.id)).toBe('high');
+		expect(tierOf(junk.mockup.id)).toBe('high');
+		const read = await getMockup(as('member'), wire.mockup.id);
+		expect(read.versions[0]?.fidelity).toBe('wireframe');
+		// "Make it high fidelity" is a new version of the same mockup, so the newest version decides the badge
+		await publishMockup(as('member'), { mockup: wire.mockup.id }, tier('"high"'));
+		const again = (await listMockups(as('member'), { project: w.projectKey, item: p.ref })).mockups;
+		expect(again.find((m) => m.id === wire.mockup.id)?.fidelity).toBe('high');
+	});
+
 	it('a retry with the same request id writes once, and a restore keeps both stored files', async () => {
 		const p = await plan('Retry plan');
 		const a = await publishMockup(as('member', 'publish-retry-0001'), { item: p.ref }, html(1));

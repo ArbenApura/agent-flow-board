@@ -25,6 +25,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends }) 
 			currentVersion: m.currentVersion,
 			versions: m.versions,
 			hasShot: m.hasShot,
+			fidelity: m.fidelity,
 			visibility: m.visibility,
 			publicLinkOn: m.publicLinkOn,
 			updatedAt: m.updatedAt,

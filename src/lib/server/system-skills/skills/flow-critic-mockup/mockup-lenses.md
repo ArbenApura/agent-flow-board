@@ -2,6 +2,8 @@
 
 Used by mockup mode (`SKILL.md` section 4a). The lead prepares the evidence, fills the template once per subagent and dispatches them in one message. A critic judges the mockup as a person would see it next to the real product, and must point at what it saw: a picture, a line of the mockup's HTML, a file of the repo.
 
+**Tier.** A mockup declares `fidelity` in its `afb-config` (none means `high`). The shell, brand, measuring and "real component" checks below are for `high` only. A `wireframe` is judged on structure, order, text, states and interactions against the plan, on every declared screen, state and option really changing the page, and on both modes working; a grey look, a missing kit and an invented-looking icon box are not findings. A `screenshot` is judged on whether each numbered callout is concrete, matches a pin and says what changes where, whether the picture is the real screen with no secret or real person's data, and whether pins hold at both widths. In either tier, a mockup that claims `high` in its notes or is not honest about its tier is a `HIGH`.
+
 ---
 
 ## Placeholders
@@ -70,7 +72,7 @@ Your sole directive is to find where the mockup differs from the real product, b
 ### Severity
 - `BLOCKER`: the shell is not the product's own root layout (redrawn, the starter's placeholder, a missing or reordered part); the page loads anything from a network address; it holds a secret or a real person's data; it does not render at a declared width, mode or screen.
 - `HIGH`: a font that is not the product's or fell back; a colour that is not a token of the product; an icon that is not the product's (an emoji, a lookalike); an invented component where a real one exists; a size, radius or spacing that differs from the real component or sibling screen; a state, screen or behaviour the plan names that is missing; a feature or behaviour the plan does not contain; sideways scroll or cut text at a declared width; a viewer tool or a device frame drawn in the page; a second primary action.
-- `MEDIUM`: a measured polish defect: edges or baselines that do not line up, unequal gaps between equal things, a missing hover, focus, pressed or disabled state, wording not in the product's voice, a vague or untrue Keep or Free note, a missing Fidelity line.
+- `MEDIUM`: a measured polish defect: edges or baselines that do not line up, unequal gaps between equal things, a missing hover, focus, pressed or disabled state, wording not in the product's voice, a vague or untrue Keep or Free note, a missing Fidelity line (`high` only).
 - `LOW`: taste with no source.
 
 ### Output Format
@@ -147,4 +149,4 @@ Six lenses. By default three subagents split them M1 + M2, M3 + M4 and M5 + M6 (
 - [ ] **Nothing from a network address**: no script, style, font, image or frame loaded by address, and `{PUBLISH_WARNINGS}` is empty or each warning is explained.
 - [ ] **The declaration is right.** The config tag declares exactly the screens and options the real app offers, within the limits, and every declared value is drawn. An option that does not apply to every screen carries `screens`, and each declared option and screen really changes the page when switched (the page reads `data-<key>` on the root element, or defines `window.afbSet`): switch each one and look, because a control that does nothing is a defect.
 - [ ] **No viewer tools and no device.** No theme or device switch, screen pills, step bar, browser window or phone body.
-- [ ] **The notes are useful.** Keep and Free are concrete, and the Free notes hold the `Fidelity:` line with no unexplained difference left.
+- [ ] **The notes are useful.** Keep and Free are concrete, and, for a `high` mockup, the Free notes hold the `Fidelity:` line with no unexplained difference left.

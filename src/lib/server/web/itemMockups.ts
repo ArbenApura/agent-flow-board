@@ -1,6 +1,7 @@
 // THE MOCKUPS OF ONE PLAN FOR ITS PAGE: A COUNT AND A LIST ON EVERY LOAD, AND THE PREVIEW AND BUILD NOTES ONLY WHEN THE MOCKUPS TAB IS OPEN
 
 // IMPORTED TYPES
+import type { MockupFidelity } from '../../board/mockups';
 import type { Ctx } from '../ops/context';
 // IMPORTED MODULES
 import { ALL_SCREENS } from '../../board/mockups';
@@ -22,6 +23,8 @@ export type ItemMockups = {
 		live: boolean;
 		updatedAt: Date;
 		publicLinkOn: boolean;
+		/** The tier of the current version, for the badge. */
+		fidelity: MockupFidelity;
 	}[];
 	/** The newest mockup of the plan with its preview address and notes, only when the tab is open. */
 	open: {
@@ -38,6 +41,7 @@ export type ItemMockups = {
 			createdAt: Date | string;
 			restoredFrom: number | null;
 			hasScreenshot: boolean;
+			fidelity: MockupFidelity;
 		}[];
 		canWrite: boolean;
 	} | null;
@@ -64,7 +68,8 @@ export async function itemMockups(
 		hasShot: m.hasShot,
 		...cardThumb(ctx.orgId, m),
 		updatedAt: m.updatedAt,
-		publicLinkOn: m.publicLinkOn
+		publicLinkOn: m.publicLinkOn,
+		fidelity: m.fidelity
 	}));
 	if (!withPreview || list.length === 0) return { list, open: null };
 	// Only a mockup of this plan can be chosen: the id is looked up in the plan's own list
@@ -97,7 +102,8 @@ export async function itemMockups(
 				size: v.size,
 				createdAt: v.createdAt,
 				restoredFrom: v.restoredFrom,
-				hasScreenshot: v.hasScreenshot
+				hasScreenshot: v.hasScreenshot,
+				fidelity: v.fidelity
 			})),
 			canWrite: first.canWrite
 		}

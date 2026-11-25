@@ -19,6 +19,8 @@ In a call of its own (a refused `step_done` saves none of the sections sent with
 
 ## Follow it
 
+The mockup's tier is the `fidelity` of its `afb-config` (`mockup_get` and `mockup_list` return it; none means `high`). **`wireframe`:** structure, layout order, text, states and interactions are binding; every colour, spacing, size, type, icon and component choice is free, so build with the project's real components and tokens and never copy the grey boxes. **`screenshot`:** only the numbered callouts in the page body are binding (what changes, where); the rest of the picture is the real screen as it is today. The inventory lists the callouts and the read gate counts them. **`high`:** as follows.
+
 The mockup is the spec for what a person sees: its structure, layout order, text, states and interactions are binding, whatever the notes say. Build it with the project's real components and tokens, never by copying the mockup's own markup. Always free, with or without notes: colours, spacing, sizes and type that resolve to the project's tokens and scale (the repo's design rules and the user's saved preferences win on those), and a real component standing in for a drawn one that does the same job. The Free notes add to what is free; the Keep notes point at what matters most and never make anything else optional.
 
 ## Check it at the end of the phase

@@ -10,7 +10,14 @@
 	import { tick, untrack } from 'svelte';
 	// IMPORTED MODULES
 	import { ApiError, api, newKey } from '#lib/board/api.js';
-	import { ALL_SCREENS, SCREEN_LABEL, inPinFilter, onDevice, pinsOf } from '#lib/board/mockups.js';
+	import {
+		ALL_SCREENS,
+		FIDELITY_BADGE,
+		SCREEN_LABEL,
+		inPinFilter,
+		onDevice,
+		pinsOf
+	} from '#lib/board/mockups.js';
 	import MockupComments from '#lib/board/MockupComments.svelte';
 	import MockupHistoryDrawer from '#lib/board/MockupHistoryDrawer.svelte';
 	import MockupLinkDialog from '#lib/board/MockupLinkDialog.svelte';
@@ -73,6 +80,10 @@
 	const m = $derived(data.detail.mockup);
 	const newest = $derived(m.currentVersion);
 	const viewing = $derived(data.version);
+	// The tier of the version on show: high has no badge text
+	const tierLabel = $derived(
+		FIDELITY_BADGE[data.detail.versions.find((v) => v.number === viewing)?.fidelity ?? 'high']
+	);
 	const siblings = $derived(data.siblings);
 	const canWrite = $derived(data.detail.canWrite);
 	const canManage = $derived(data.detail.canManage);
@@ -405,6 +416,7 @@
 				<h2 class="flex items-center gap-2 text-lg leading-6 font-semibold">
 					Preview
 					<Badge tone={viewing === newest ? 'success' : 'neutral'}>v{viewing}</Badge>
+					{#if tierLabel}<Badge>{tierLabel}</Badge>{/if}
 				</h2>
 				<p class="text-xs text-muted max-sm:hidden">
 					Sandboxed: it cannot reach the board or your sign in.
