@@ -231,24 +231,25 @@ describe('MCP server', () => {
 			'flow-critic-plan',
 			'flow-critic-code',
 			'flow-critic-mockup',
-			'flow-critic-screen',
+			'flow-critic-screens',
 			'flow-audit',
 			'flow-mockup',
 			'flow-align',
 			'flow-decide',
 			'flow-commit',
 			'flow-update-skills',
-			'flow-qa'
+			'flow-qa',
+			'flow-screens'
 		]) {
 			const each = await call(client, 'workflow_get', { name });
 			expect(each.name, name).toBe(name);
 			expect(String(each.text).length, name).toBeGreaterThan(500);
 		}
 		const brief = await call(client, 'workflow_get', {
-			name: 'flow-critic-screen',
+			name: 'flow-critic-screens',
 			file: 'critic-brief'
 		});
-		expect(brief.name).toBe('flow-critic-screen/critic-brief');
+		expect(brief.name).toBe('flow-critic-screens/critic-brief');
 		const wf = await call(client, 'workflow_get', { name: 'flow-critic-plan' });
 		expect(String(wf.text).toLowerCase()).toContain('design fit');
 		// flow-critic is retired: it is no workflow name any more, and its reviews carry the shared rules

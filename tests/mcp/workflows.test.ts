@@ -56,7 +56,7 @@ describe('workflow text', () => {
 			'flow-critic-code',
 			'flow-critic-mockup',
 			'flow-critic-plan',
-			'flow-critic-screen'
+			'flow-critic-screens'
 		]);
 		for (const [name, files] of modules)
 			for (const f of files)
@@ -77,8 +77,9 @@ describe('workflow text', () => {
 			'flow-critic-plan',
 			'flow-critic-code',
 			'flow-critic-mockup',
-			'flow-critic-screen',
-			'flow-qa'
+			'flow-critic-screens',
+			'flow-qa',
+			'flow-screens'
 		])
 			expect(workflowByName(name), name).toBeDefined();
 		expect(SERVER_INSTRUCTIONS).toContain('flow-update-skills');
@@ -148,7 +149,7 @@ describe('workflow text', () => {
 			'flow-critic-plan': ['critic-rules', 'plan-template', 'plan-lenses'],
 			'flow-critic-code': ['critic-rules', 'code-template', 'code-lenses', 'checklists'],
 			'flow-critic-mockup': ['critic-rules', 'mockup-lenses'],
-			'flow-critic-screen': ['critic-rules', 'critic-brief']
+			'flow-critic-screens': ['critic-rules', 'critic-brief']
 		};
 		for (const [name, files] of Object.entries(modules)) {
 			const body = workflowByName(name)!.body;

@@ -58,7 +58,7 @@ Use its tools first. \`flow_skills\` takes your tool name, the scope and what yo
 
 Folder names can change between tool versions. If the folder in this table does not exist and the tool's documentation names another, follow the documentation and tell the person.
 
-When a tool has no skills folder at all, the same texts can be read with the \`workflow_get\` tool of the Agent Flow Board connection (name \`flow\`, \`flow-task\`, \`flow-interview\`, \`flow-critic-plan\`, \`flow-critic-code\`, \`flow-critic-mockup\`, \`flow-critic-screen\`, \`flow-audit\`, \`flow-mockup\`, \`flow-align\`, \`flow-decide\`, \`flow-commit\`, \`flow-update-skills\` or \`flow-qa\`; \`flow\` also has the file \`reference\`, the lite flow, model rows, tool table and error codes). Say so to the person instead of inventing a folder.
+When a tool has no skills folder at all, the same texts can be read with the \`workflow_get\` tool of the Agent Flow Board connection (name \`flow\`, \`flow-task\`, \`flow-interview\`, \`flow-critic-plan\`, \`flow-critic-code\`, \`flow-critic-mockup\`, \`flow-critic-screens\`, \`flow-audit\`, \`flow-mockup\`, \`flow-align\`, \`flow-decide\`, \`flow-commit\`, \`flow-update-skills\`, \`flow-qa\` or \`flow-screens\`; \`flow\` also has the file \`reference\`, the lite flow, model rows, tool table and error codes). Say so to the person instead of inventing a folder.
 
 ## Never
 

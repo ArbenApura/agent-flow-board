@@ -26,8 +26,18 @@ import { makeWorld, PLAN, type World } from '../support/ops';
 // -- CONSTANTS -- //
 
 const SIG = [137, 80, 78, 71, 13, 10, 26, 10];
-/** A small PNG-looking file, made different by its last bytes. */
-const png = (n: number) => Uint8Array.from([...SIG, 0, 0, n % 256, Math.floor(n / 256)]);
+/** A small PNG-looking file with a real header (its width), made different by its last bytes. */
+const png = (n: number, width = 1440) => {
+	const b = new Uint8Array(33);
+	b.set(SIG);
+	b[11] = 13;
+	b.set([0x49, 0x48, 0x44, 0x52], 12);
+	new DataView(b.buffer).setUint32(16, width);
+	new DataView(b.buffer).setUint32(20, 900);
+	b[29] = Math.floor(n / 256);
+	b[30] = n % 256;
+	return b;
+};
 const base = (screenKey = 'settings-members') => ({
 	screenKey,
 	mode: 'light' as const,
@@ -123,10 +133,17 @@ describe('screens', () => {
 		const big = new Uint8Array(MAX_SCREEN_BYTES + 1);
 		big.set(SIG);
 		await expect(bad(big)).rejects.toMatchObject({ code: 'INVALID' });
+		// A picture narrower than its declared width was scaled down: refused. A wider one (pixel ratio 2) is welcome
+		await expect(bad(png(1, 1000))).rejects.toMatchObject({ code: 'INVALID' });
+		await expect(bad(Uint8Array.from([...SIG, 0, 0, 1, 2]))).rejects.toMatchObject({
+			code: 'INVALID'
+		});
+		await expect(bad(png(2, 2880))).resolves.toBeTruthy();
 		await expect(bad(png(1), { screenKey: 'Has Spaces' })).rejects.toThrow();
 		await expect(bad(png(1), { width: 20 })).rejects.toThrow();
 		await expect(bad(png(1), { mode: 'sepia' })).rejects.toThrow();
-		expect((await listScreens(as('member'), p.ref)).screens).toHaveLength(0);
+		// Only the wide picture (pixel ratio 2) was stored
+		expect((await listScreens(as('member'), p.ref)).screens).toHaveLength(1);
 	});
 
 	it('stops a plan at the most screenshots it can hold', async () => {

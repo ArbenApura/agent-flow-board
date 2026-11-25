@@ -1,11 +1,11 @@
 ---
-name: flow-critic-screen
-description: Use only when the user asks for a per-screen visual critique of a design mockup or a built UI ("one critic for each screen", "check desktop, tablet and mobile", "render the pictures, do not just read the code"), on Agent Flow Board (the screen review). The lead takes real pictures of every screen at phone, tablet and desktop widths in the harness browser, gives each screen its own read-only critic that LOOKS at the pictures, then verifies, fixes and republishes. Usable when the user types /flow-critic-screen or asks for this review.
+name: flow-critic-screens
+description: Use only when the user asks for a per-screen visual critique of a design mockup or a built UI ("one critic for each screen", "check desktop, tablet and mobile", "render the pictures, do not just read the code"), on Agent Flow Board (the screen review). The lead takes real pictures of every screen at phone, tablet and desktop widths in the harness browser, gives each screen its own read-only critic that LOOKS at the pictures, then verifies, fixes and republishes. Usable when the user types /flow-critic-screens or asks for this review.
 ---
 
 # Flow Critic: one critic for each screen
 
-> **Shared rules first.** This skill is one of the four critic reviews. Before you dispatch anything, read `critic-rules.md` next to this file (in a tool with no skills: `workflow_get` name `flow-critic-screen` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this skill. **One exception to its section 2: the subagent count is one critic for each screen, not 3.**
+> **Shared rules first.** This skill is one of the four critic reviews. Before you dispatch anything, read `critic-rules.md` next to this file (in a tool with no skills: `workflow_get` name `flow-critic-screens` file `critic-rules`): the session and project key, the repo rulebook, how a review starts and ends, the shared rules in its section 2 (subagent count, convergence, dispatch), the verify, triage and resolve rules in its section 5 and the red flags in its section 6. Sections 1, 2, 5 and 6 named below refer to that file; any other section number refers to this skill. **One exception to its section 2: the subagent count is one critic for each screen, not 3.**
 
 `/flow-critic-mockup` reviews a mockup with 3 critics split by lens. This is the **per-screen** variant: every screen (with its sheets) gets its own critic, and each judges **rendered pictures** at phone, tablet and desktop and the **consistency between them**. A critic never drives a browser: **the lead takes the pictures, the critics look at the files.**
 

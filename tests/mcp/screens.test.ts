@@ -14,8 +14,17 @@ import { PLAN, makeWorld, type World } from '../support/ops';
 
 const BASE = 'http://localhost:5180';
 const ALL = ['read', 'comment', 'write', 'complete', 'delete', 'manage'] as const;
-const b64 = (n: number) =>
-	Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0, 0, n % 256]).toString('base64');
+/** A small PNG-looking file with a real header, 1440 px wide, made different by its last byte. */
+const b64 = (n: number) => {
+	const b = Buffer.alloc(33);
+	Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(b);
+	b[11] = 13;
+	b.write('IHDR', 12, 'ascii');
+	b.writeUInt32BE(1440, 16);
+	b.writeUInt32BE(900, 20);
+	b[30] = n % 256;
+	return b.toString('base64');
+};
 
 // -- FUNCTIONS -- //
 

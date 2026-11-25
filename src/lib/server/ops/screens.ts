@@ -63,6 +63,18 @@ export function checkScreenPicture(bytes: Uint8Array | undefined, maxBytes = MAX
 		throw new OpError('INVALID', 'The picture must be a PNG image.');
 }
 
+/**
+ * The width in pixels of a PNG, read from its first chunk (IHDR), or null when the header is not there.
+ * Nothing else is decoded, so a picture is never opened or resized on the server.
+ */
+export function pngWidth(bytes: Uint8Array): number | null {
+	// 8 bytes of signature, then 4 of length and 4 of the chunk name (IHDR), then the width as 4 big-endian bytes
+	if (bytes.byteLength < 24) return null;
+	const name = String.fromCharCode(bytes[12], bytes[13], bytes[14], bytes[15]);
+	if (name !== 'IHDR') return null;
+	return ((bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19]) >>> 0;
+}
+
 /** The address a member's browser asks for the picture, with the row's own id. The route checks the caller's access. */
 export const screenImagePath = (id: string) => `/pictures/screen/${id}`;
 
@@ -78,6 +90,15 @@ export async function addScreen(
 ) {
 	const input = screenAddInput.parse(raw);
 	checkScreenPicture(bytes, options.maxBytes);
+	// A picture narrower than the width it claims was scaled down and would be blurred when it is zoomed: it is refused
+	// (a pixel ratio of 2 gives a wider picture and is welcome)
+	const pixels = pngWidth(bytes);
+	if (pixels === null) throw new OpError('INVALID', 'The picture has no readable PNG header.');
+	if (pixels < input.width)
+		throw new OpError(
+			'INVALID',
+			`The picture is only ${pixels} px wide but the capture says ${input.width} px. Take it again at full size (a device pixel ratio of 2 is fine), not a reduced picture.`
+		);
 	const store = storage(ctx);
 	const checksum = sha256(bytes);
 	const caption = plain(input.caption ?? '');

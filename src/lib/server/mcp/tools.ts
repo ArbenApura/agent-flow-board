@@ -844,7 +844,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 
 	tool(
 		'workflow_get',
-		'Read a workflow: flow, flow-task, flow-interview, flow-critic-plan, -code, -mockup, -screen, flow-audit, flow-mockup, flow-align, flow-decide, flow-commit, flow-update-skills, flow-qa. Files: flow has design, mockup-read, reference, screens; critics have rules and lenses. Long texts come in parts: pass next as offset.',
+		'Read a workflow: flow, flow-task, flow-interview, flow-critic-plan, -code, -mockup, -screens, flow-audit, flow-mockup, flow-align, flow-decide, flow-commit, flow-update-skills, flow-qa, flow-screens. Files: flow has design, mockup-read, reference, screens; critics have rules and lenses. Long texts: pass next as offset.',
 		{
 			name: z.enum([
 				'flow',
@@ -853,14 +853,15 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 				'flow-critic-plan',
 				'flow-critic-code',
 				'flow-critic-mockup',
-				'flow-critic-screen',
+				'flow-critic-screens',
 				'flow-audit',
 				'flow-mockup',
 				'flow-align',
 				'flow-decide',
 				'flow-commit',
 				'flow-update-skills',
-				'flow-qa'
+				'flow-qa',
+				'flow-screens'
 			]),
 			file: z.enum(WORKFLOW_FILE_ARGS).optional(),
 			offset: z.number().int().min(0).optional()
@@ -871,7 +872,7 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 			if (a.file && !(WORKFLOW_FILES[a.name] ?? []).includes(a.file))
 				throw new OpError(
 					'INVALID',
-					'Only the critic reviews (flow-critic-plan, flow-critic-code, flow-critic-mockup and flow-critic-screen: their rules, lens, template and brief files) and flow (design, mockup-read, reference and screens) have supporting files.'
+					'Only the critic reviews (flow-critic-plan, flow-critic-code, flow-critic-mockup and flow-critic-screens: their rules, lens, template and brief files) and flow (design, mockup-read, reference and screens) have supporting files.'
 				);
 			const full = a.file ? workflowFile(a.name, a.file) : w.body;
 			const off = a.offset ?? 0;

@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.26.0",
+		"version": "1.27.0",
 		"releasedAt": "2026-11-25"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.16.0",
+			"version": "1.17.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -181,12 +181,16 @@
 				},
 				{
 					"version": "1.16.0",
-					"hash": "fb395654a7a668d1edca105c89cb95d9795e2af31464d8f895962b3dc9afe912"
+					"hash": "d6739e87b9102b31750fc46effd4e5eb6de1ed65a94c52d6bae64b58347c400f"
+				},
+				{
+					"version": "1.17.0",
+					"hash": "3e489b859b49887469ec14d43b32fb49f00316e927c3f2c791a7f0625362a639"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.3.7",
+			"version": "1.3.8",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -255,6 +259,10 @@
 				{
 					"version": "1.3.7",
 					"hash": "d40e67706dffa1ad670e0bd9f17c77b7ab8306a0ad0ae98cb801c1e718287926"
+				},
+				{
+					"version": "1.3.8",
+					"hash": "710fe65f3bf8246b7af95a7f711afaf8ed8de0792c76167e5e1a3d82b131800e"
 				}
 			]
 		},
@@ -458,7 +466,7 @@
 			]
 		},
 		"flow-align": {
-			"version": "1.6.2",
+			"version": "1.6.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -495,6 +503,10 @@
 				{
 					"version": "1.6.2",
 					"hash": "4f3a5a63bac80a1ffd0b428434e1822d98253a06deb6695ec0e4735f9242f3cd"
+				},
+				{
+					"version": "1.6.3",
+					"hash": "5280ef91bfe44641bce84c5c4f6a61ab7fa4c99a98cae6803a0d285478702ec3"
 				}
 			]
 		},
@@ -512,7 +524,7 @@
 			]
 		},
 		"flow-critic-code": {
-			"version": "1.0.2",
+			"version": "1.0.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -525,11 +537,15 @@
 				{
 					"version": "1.0.2",
 					"hash": "82fb4bddb43ba38e05cfad69797bdae95a42c3d0452183aa8221fc74e2b4ea54"
+				},
+				{
+					"version": "1.0.3",
+					"hash": "bc65feba7a5afa75318425efae3dff9ca4a075e6ebbca5bf74d61b0c3e6a4734"
 				}
 			]
 		},
 		"flow-critic-mockup": {
-			"version": "1.1.1",
+			"version": "1.1.2",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -546,11 +562,15 @@
 				{
 					"version": "1.1.1",
 					"hash": "472ab225ca1e8ba43b28a439598d5a0592461e99c05443a442ca8203e7b09fd6"
+				},
+				{
+					"version": "1.1.2",
+					"hash": "c3b516159beed5a86cb888b963d7866c7054343a024653155022da0074fee11d"
 				}
 			]
 		},
 		"flow-critic-plan": {
-			"version": "1.0.2",
+			"version": "1.0.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -563,11 +583,15 @@
 				{
 					"version": "1.0.2",
 					"hash": "0e6f9cb196ae7a939c71c446376c1db00f24a1f2e2d73fe1289b1c44f491d6e5"
+				},
+				{
+					"version": "1.0.3",
+					"hash": "a1c3b9bb79de320f5324134dfacf016057cacac1df06603bf3d94074564ff46d"
 				}
 			]
 		},
-		"flow-critic-screen": {
-			"version": "1.0.1",
+		"flow-critic-screens": {
+			"version": "1.1.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -576,6 +600,10 @@
 				{
 					"version": "1.0.1",
 					"hash": "9caf7c92eb086bad6f47b6b02f5bab847e163980c6355def04c8b051d4d0a310"
+				},
+				{
+					"version": "1.1.0",
+					"hash": "e76dd3e465c98a1230fc7d2169a3cca3601e8790afee158c8401fcd5acc1a2d4"
 				}
 			]
 		},
@@ -617,9 +645,43 @@
 					"hash": "2807dd6bdf2f4cd8dc5e05a8bc4c9278c92ace5392f0385c6fa5ef71b8c12d94"
 				}
 			]
+		},
+		"flow-screens": {
+			"version": "1.0.0",
+			"history": [
+				{
+					"version": "1.0.0",
+					"hash": "8f9ad3021fbbf77159971327cfe0bad2130f35db69b52b23b917e1235300bff0"
+				}
+			]
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.27.0",
+			"date": "2026-11-25",
+			"notes": [
+				"New flow-screens skill (AFB-20261125-0625): type /flow-screens to capture the finished screens of a plan on its own. The agent reads the design brief's Screens to capture line, opens the running app in its own browser (the person signs in once), captures each screen in light and dark at the repo's two widths sharp and whole (pixel ratio 2, full page, no reduced pictures), checks every picture, pushes it with a caption and a note, and removes the screens waiver. flow 1.17.0 and flow-audit point at it.",
+				"flow-critic-screen is renamed flow-critic-screens (the review gives every screen its own critic): the folder, the workflow name, the Connect page entry and every list that named it. The old name is retired, so tools that still have the old skill folder are offered its removal. The four critic-rules copies, flow-align and flow follow the new name."
+			],
+			"skills": {
+				"flow": "1.17.0",
+				"flow-audit": "1.3.8",
+				"flow-interview": "1.2.7",
+				"flow-mockup": "1.10.1",
+				"flow-qa": "1.0.1",
+				"flow-screens": "1.0.0",
+				"flow-task": "1.1.4",
+				"flow-align": "1.6.3",
+				"flow-commit": "1.0.1",
+				"flow-critic-code": "1.0.3",
+				"flow-critic-mockup": "1.1.2",
+				"flow-critic-plan": "1.0.3",
+				"flow-critic-screens": "1.1.0",
+				"flow-decide": "1.0.1",
+				"flow-update-skills": "1.0.1"
+			}
+		},
 		{
 			"version": "1.26.0",
 			"date": "2026-11-25",
@@ -1644,6 +1706,7 @@
 	"retired": [
 		"flow-check",
 		"flow-verify",
-		"flow-critic"
+		"flow-critic",
+		"flow-critic-screen"
 	]
 }

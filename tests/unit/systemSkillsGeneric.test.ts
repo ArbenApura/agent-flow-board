@@ -310,7 +310,7 @@ const RETAINED: Record<string, { rule: string; pattern: RegExp }[]> = {
 		{ rule: 'runs only when the user asks', pattern: /It runs only when the user asks for it/ },
 		{ rule: 'reads the shared rules first', pattern: /Shared rules first\./ }
 	],
-	'flow-critic-screen': [
+	'flow-critic-screens': [
 		{ rule: 'never a critic without pictures', pattern: /Dispatch a critic without pictures/ },
 		{ rule: 'a critic never drives a browser', pattern: /A critic never drives a browser/ },
 		{ rule: 'reads the shared rules first', pattern: /Shared rules first\./ }
@@ -692,7 +692,7 @@ describe('the modules and the new skills keep their own rules', () => {
 			'flow-critic-plan',
 			'flow-critic-code',
 			'flow-critic-mockup',
-			'flow-critic-screen'
+			'flow-critic-screens'
 		]) {
 			expect(skill(name), name).toContain('Shared rules first.');
 			expect(skill(name), name).toContain('`critic-rules.md`');

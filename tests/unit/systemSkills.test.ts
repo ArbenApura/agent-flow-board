@@ -40,11 +40,12 @@ const NAMES = [
 	'flow-critic-code',
 	'flow-critic-mockup',
 	'flow-critic-plan',
-	'flow-critic-screen',
+	'flow-critic-screens',
 	'flow-decide',
 	'flow-interview',
 	'flow-mockup',
 	'flow-qa',
+	'flow-screens',
 	'flow-task',
 	'flow-update-skills'
 ];
@@ -75,9 +76,11 @@ describe('the system skills manifest', () => {
 	it('lists the thirteen flow skills, each with a semver version, and the retired ones apart (AFB-20261116-1457)', () => {
 		expect(Object.keys(MANIFEST.skills).sort()).toEqual(NAMES);
 		// flow-critic is gone for good: its four reviews stand alone, and an installed copy is deleted by /flow-update-skills (AFB-20261123-1205)
+		// flow-critic-screen was renamed flow-critic-screens in bundle 1.27.0, so the old folder name is retired too
 		expect([...(MANIFEST.retired ?? [])].sort()).toEqual([
 			'flow-check',
 			'flow-critic',
+			'flow-critic-screen',
 			'flow-verify'
 		]);
 		expect(MANIFEST.removedFiles ?? {}).toEqual({});
@@ -194,7 +197,7 @@ describe('workflow_get and the bundle', () => {
 		}
 		expect(systemSkills().find((s) => s.name === 'flow-critic')).toBeUndefined();
 		// The shared rules are one text in four places, so a review never reads a different copy from its sibling
-		const rules = ['plan', 'code', 'mockup', 'screen'].map((m) =>
+		const rules = ['plan', 'code', 'mockup', 'screens'].map((m) =>
 			systemSkills()
 				.find((s) => s.name === `flow-critic-${m}`)!
 				.files.find((f) => f.path === 'critic-rules.md')!

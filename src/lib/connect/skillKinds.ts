@@ -75,7 +75,7 @@ export const SKILL_INFO: Record<string, SkillInfo> = {
 		icon: 'scan-search',
 		summary: 'Sends independent reviewers to attack a design mockup against the real product.'
 	},
-	'flow-critic-screen': {
+	'flow-critic-screens': {
 		kind: 'Check',
 		icon: 'scan-search',
 		summary:
@@ -98,6 +98,12 @@ export const SKILL_INFO: Record<string, SkillInfo> = {
 		icon: 'scan-search',
 		summary:
 			'Tests the app like a person in your own browser, maps its features and files one bug per cause on the Testing page.'
+	},
+	'flow-screens': {
+		kind: 'Check',
+		icon: 'scan-search',
+		summary:
+			'Opens your running app, captures the screens a plan changed sharp and whole, and shows them on the plan’s Screens tab.'
 	},
 	'flow-update-skills': {
 		kind: 'Setup',
