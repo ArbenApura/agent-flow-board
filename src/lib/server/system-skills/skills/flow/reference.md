@@ -70,4 +70,4 @@ Register the hooks with `agent-flow-board hooks print claude|antigravity|gemini|
 
 ### Errors
 
-`INVALID` (bad input, the message says which field), `NOT_FOUND`, `FORBIDDEN` (the live role or token cannot do it), `CONFLICT`, `STALE_VERSION`, `CONFIRM_REQUIRED`, `COMPLETED_REFUSED` (`open-steps`, `people-only`, `screens-missing` for an agent only, or `qa-broken`), `MOCKUP_UNREAD` (the plan's mockup is not read to the end: read it with `mockup_get` and send the call again, with its sections), `RATE_LIMITED` (wait and retry), `INTERNAL`.
+`INVALID` (bad input, the message says which field), `NOT_FOUND`, `FORBIDDEN` (the live role or token cannot do it), `CONFLICT`, `STALE_VERSION`, `CONFIRM_REQUIRED`, `COMPLETED_REFUSED` (`open-steps`, `people-only`, `screens-missing` for an agent only, or for an agent only `tests-missing`, `tests-not-run`, `tests-failed` or `tests-regression`, each with the cases it names), `MOCKUP_UNREAD` (the plan's mockup is not read to the end: read it with `mockup_get` and send the call again, with its sections), `RATE_LIMITED` (wait and retry), `INTERNAL`.

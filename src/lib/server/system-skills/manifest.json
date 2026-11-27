@@ -1,11 +1,11 @@
 {
 	"bundle": {
-		"version": "1.34.0",
-		"releasedAt": "2026-11-26"
+		"version": "1.35.0",
+		"releasedAt": "2026-11-27"
 	},
 	"skills": {
 		"flow": {
-			"version": "1.23.0",
+			"version": "1.24.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -210,11 +210,15 @@
 				{
 					"version": "1.23.0",
 					"hash": "8dc75efea8b7927fa6419286a8192e1b66ef158adbaeb02437815287b01805eb"
+				},
+				{
+					"version": "1.24.0",
+					"hash": "302d66971795af3733ae1e95f0d4858be149c0fcbff9a92e5664149ffe135fa8"
 				}
 			]
 		},
 		"flow-audit": {
-			"version": "1.3.11",
+			"version": "1.3.12",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -299,6 +303,10 @@
 				{
 					"version": "1.3.11",
 					"hash": "aa921687233c8afff95625ba4f6ad4cad6779845fc69afbaf8e68ec8f808d33d"
+				},
+				{
+					"version": "1.3.12",
+					"hash": "5788a22a61a18a8b57726c32558b44bee1bc269a7ad7a1b280c0d649fa2ad911"
 				}
 			]
 		},
@@ -634,7 +642,7 @@
 			]
 		},
 		"flow-qa": {
-			"version": "1.1.0",
+			"version": "2.0.0",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -651,11 +659,15 @@
 				{
 					"version": "1.1.0",
 					"hash": "2640981727e555d39e4dd59358a2d68c023dfb7b56bcb88f116f6a789e2ad0a3"
+				},
+				{
+					"version": "2.0.0",
+					"hash": "51a3645777fad72a62a8b9ac8b1f1c158cb1634054326374c798f9d3bdc9817f"
 				}
 			]
 		},
 		"flow-screens": {
-			"version": "1.0.4",
+			"version": "1.0.5",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -676,11 +688,15 @@
 				{
 					"version": "1.0.4",
 					"hash": "01c06f766e9be64694560567d18e721990a5eed0bd97217ba01b4e1cabcc686d"
+				},
+				{
+					"version": "1.0.5",
+					"hash": "3efa405c4c8aa3e1e6f60275a59e856fa02649bbe6f4af69bfca9c6cf10f3689"
 				}
 			]
 		},
 		"flow-autopilot": {
-			"version": "1.0.2",
+			"version": "1.0.3",
 			"history": [
 				{
 					"version": "1.0.0",
@@ -693,6 +709,10 @@
 				{
 					"version": "1.0.2",
 					"hash": "eaae4163682b145eb0e7b3c3e0c0296c6a542893168e88d01705de43dc5c3003"
+				},
+				{
+					"version": "1.0.3",
+					"hash": "6fb52f6a9b6d2e0057d65bebc0ed4474cd4f04aa6612462dd70418432cf3f2c1"
 				}
 			]
 		},
@@ -711,6 +731,29 @@
 		}
 	},
 	"changelog": [
+		{
+			"version": "1.35.0",
+			"date": "2026-11-27",
+			"notes": [
+				"flow-qa 2.0.0: the QA map is gone (AFB-20261127-0438). Testing is a sheet of test cases (TC-<CODE>-<NN>, versioned, grouped by area path) written and run by agents with the tools testcase_list, testcase_save, testcase_retire, test_plan_cases, test_run_start, test_result, test_run_finish and test_surfaces. One result per case and device (wide, laptop, tablet, phone or custom) with strict screenshot proof, one defect task per failing case, a sweep through agent-flow-board test surfaces, qa-default modes auto, owed and all.",
+				"flow: step 3b adopts, updates, retires or writes the plan's test cases (a test-cases section, or a tests-waiver); step 10a is the test run sized to the plan, after the gates, the code review and the audit and before Screens, in one browser session; owed lines take the kind test; COMPLETED_REFUSED reasons tests-missing, tests-not-run, tests-failed and tests-regression replace qa-broken. flow-audit checks changed files against the adopted areas, flow-screens reuses the test run's session, flow-autopilot reports the owed test lines."
+			],
+			"skills": {
+				"flow": "1.24.0",
+				"flow-audit": "1.3.12",
+				"flow-interview": "1.2.9",
+				"flow-mockup": "1.11.1",
+				"flow-qa": "2.0.0",
+				"flow-screens": "1.0.5",
+				"flow-task": "1.1.5",
+				"flow-align": "1.8.1",
+				"flow-commit": "1.0.3",
+				"flow-critic": "2.1.0",
+				"flow-decide": "1.0.2",
+				"flow-autopilot": "1.0.3",
+				"flow-update-skills": "1.0.2"
+			}
+		},
 		{
 			"version": "1.34.0",
 			"date": "2026-11-26",

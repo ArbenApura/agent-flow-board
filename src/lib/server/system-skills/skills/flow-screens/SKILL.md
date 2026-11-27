@@ -23,7 +23,7 @@ Start as `/flow` section 0 says: `session_start` (keep the `sessionId`; a hook b
 ## 2. Reach the running app
 
 1. Use the address the repo rulebook names (never another port). When nothing answers, the reason is one of the fixed list of `screens.md` (the app is not running where the rulebook allows): record or keep the `screens-waiver` section with it (`item_update`, one line: the reason and the screens skipped), say in one plain line what the person must start, and stop. Never start, stop or restart a server the person started; a preview you started yourself, as the rulebook allows, you stop again.
-2. Use the harness's browser (Claude Browser, Claude in Chrome, a Playwright tool). Read only: no form is submitted, no `.env` database is used, a live site takes no write.
+2. Use the harness's browser (Claude Browser, Claude in Chrome, a Playwright tool). Read only: no form is submitted, no `.env` database is used, a live site takes no write. When the test run of `/flow` step 10a ran just before, reuse its tab and its sign-in: one browser session serves both, and no second sign-in is asked for.
 3. When the app asks for a sign-in and the rulebook does not forbid asking, ask the person once, in one line, to sign in in that browser window (name the address by the host the tool reports), call `work_waiting` with kind `sign-in`, and after their word call `work_waiting` with `clear: true` and drive the app yourself. Never type a password, a token or a code, never solve a CAPTCHA. When the rulebook forbids asking, skip that screen and name the reason in the waiver.
 
 ## 3. Capture, sharp and whole

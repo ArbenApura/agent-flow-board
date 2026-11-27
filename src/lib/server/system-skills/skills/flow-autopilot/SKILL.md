@@ -70,7 +70,7 @@ A review or audit finding inside the approved scope gets its step and is built, 
 Autopilot: <item reference and title>, status and percent, <n> steps done, <n> added for fixes
 Stops: <none> | <reason number: one line, what is waiting for the user>
 Decided (no questions asked): <only choices the user could have wanted a say in, each with its source>
-Left open for you: <lines marked "not built until you answer", new scope as one line the user can say yes to, the QA rerun line of /flow step 10a when it applies>
+Left open for you: <lines marked "not built until you answer", new scope as one line the user can say yes to, the owed test lines of /flow step 10a when it wrote any>
 Screens: <the line of /flow step 5b; left out when nothing a person sees changed>
 ```
 
