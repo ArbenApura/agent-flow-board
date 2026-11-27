@@ -27,7 +27,8 @@
 		open,
 		onclose,
 		org,
-		pages
+		pages,
+		orgs = []
 	}: {
 		open: boolean;
 		onclose: () => void;
@@ -35,6 +36,8 @@
 		org: string;
 		/** Pages of the current project, shown before anything is typed. */
 		pages: { href: string; label: string }[];
+		/** The person's other organisations in switcher order, each with where a switch lands. */
+		orgs?: { id: string; name: string; href: string }[];
 	} = $props();
 
 	// -- CONSTANTS -- //
@@ -59,7 +62,14 @@
 
 	// -- REACTIVE STATES -- //
 
-	const entries = $derived<Entry[]>(
+	// The other organisations: all of them before anything is typed, the ones whose name matches once a word is typed
+	const orgEntries = $derived.by<Entry[]>(() => {
+		const term = q.trim().toLowerCase();
+		return orgs
+			.filter((o) => !term || o.name.toLowerCase().includes(term))
+			.map((o) => ({ key: `org-${o.id}`, label: o.name, hint: 'Organisation', href: o.href }));
+	});
+	const searchEntries = $derived<Entry[]>(
 		q.trim()
 			? hits.map((h) => ({
 					key: h.kind + h.id,
@@ -76,12 +86,18 @@
 				}))
 			: pages.map((p) => ({ key: p.href, label: p.label, hint: 'Page', href: p.href }))
 	);
+	// One flat list with one active row: an organisation that matches comes before the search hits, and after the pages
+	const entries = $derived<Entry[]>(
+		q.trim() ? [...orgEntries, ...searchEntries] : [...searchEntries, ...orgEntries]
+	);
 
 	// -- FUNCTIONS -- //
 
 	function search() {
 		clearTimeout(timer);
 		failed = false;
+		// The list changes with every keystroke (organisations match at once), so the highlight starts again at the top
+		active = 0;
 		const term = q.trim();
 		if (!term) {
 			hits = [];

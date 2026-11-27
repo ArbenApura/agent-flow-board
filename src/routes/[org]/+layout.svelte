@@ -6,14 +6,15 @@
 	// IMPORTED MODULES
 	import { itemTabsBar } from '#lib/board/item/itemTabsBar.svelte.js';
 	import { ITEM_ROUTE, itemTabsFrom } from '#lib/board/item/itemTabs.js';
+	import { orderOrgs, readMemory, rememberVisit, switchTarget } from '#lib/board/orgSwitch.js';
 	import { projectTabs } from '#lib/board/projectTabs.js';
 	import { cn } from '#lib/ui/cn.js';
 	import Button from '#lib/ui/Button.svelte';
 	import ProjectTile from '#lib/board/ProjectTile.svelte';
 	import AppSidebar from '#lib/board/AppSidebar.svelte';
+	import OrgSwitcher from '#lib/board/OrgSwitcher.svelte';
 	import ItemTabs from '#lib/board/item/ItemTabs.svelte';
 	import Avatar from '#lib/ui/Avatar.svelte';
-	import Mark from '#lib/ui/Mark.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
 	import Popover from '#lib/ui/Popover.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
@@ -48,6 +49,8 @@
 	/** A quiet shadow under the bar once the page has scrolled. */
 	let scrolled = $state(false);
 	let account = $state(false);
+	/** The organisation switcher at the start of the bar, also opened with the O key. */
+	let switcher = $state(false);
 	let palette = $state(false);
 	/** The palette is loaded the first time it opens, so it is not in the first load of every page. */
 	let Palette = $state<(typeof import('#lib/board/CommandPalette.svelte'))['default'] | null>(null);
@@ -83,9 +86,8 @@
 			// A child plan's page names its master next, so the way back up is in the bar
 			const detail = page.route.id === ITEM_ROUTE ? (page.data as ItemCrumbData).detail : null;
 			const master = detail ? detail.family?.parents?.[detail.item.id] : undefined;
-			// The organisation comes first, so a project page never shows one lone word in the bar
+			// The organisation comes first, so a project page never shows one lone word in the bar. It is the switcher, drawn before these crumbs
 			return [
-				{ label: data.org.name, href: base },
 				{ label: current.name, href: `${base}/${current.key}` },
 				...(tab && !tab.exact ? [{ label: tab.label, href: tab.href }] : []),
 				...(master ? [{ label: master.title, href: `${base}/${current.key}/${master.ref}` }] : [])
@@ -95,7 +97,30 @@
 		if (path.startsWith(`${base}/settings`))
 			return [{ label: 'Organisation settings', href: path }];
 		if (path.startsWith(`${base}/search`)) return [{ label: 'Search', href: path }];
-		return [{ label: data.org.name, href: base }];
+		// Any other page of the organisation: the switcher alone names where the person is
+		return [];
+	});
+	// The other organisations for the command palette, in switcher order, read again when the palette opens. The list stays
+	// filled while it closes, so its rows do not vanish during the close transition
+	const paletteOrgs = $derived.by(() => {
+		void palette;
+		const memory = readMemory(data.me.id);
+		return orderOrgs(
+			data.orgs.filter((o) => o.slug !== data.org.slug),
+			data.org.slug,
+			memory.recent
+		).map((o) => ({
+			id: o.id,
+			name: o.name,
+			href: switchTarget(o.slug, data.org.slug, memory.last)
+		}));
+	});
+
+	// -- REACTIVE STATEMENTS -- //
+
+	// This browser remembers the organisation and its open project, so a switch back lands where the person left it
+	$effect(() => {
+		rememberVisit(data.me.id, data.org.slug, current?.key);
 	});
 
 	// -- FUNCTIONS -- //
@@ -115,6 +140,25 @@
 		) {
 			e.preventDefault();
 			void openPalette();
+			return;
+		}
+		// O opens the organisation switcher. A plain letter must never steal typing, so any editable field, a modifier,
+		// a held key or an open dialog leaves it alone
+		if (
+			(e.key === 'o' || e.key === 'O') &&
+			!e.ctrlKey &&
+			!e.metaKey &&
+			!e.altKey &&
+			!e.repeat &&
+			!e.defaultPrevented &&
+			!target?.isContentEditable &&
+			!target?.closest('input, textarea, select, [contenteditable], [role="textbox"]') &&
+			!document.querySelector('[aria-modal="true"]') &&
+			!switcher &&
+			!account
+		) {
+			e.preventDefault();
+			switcher = true;
 		}
 	}
 
@@ -148,28 +192,22 @@
 					>
 						<Menu size={20} />
 					</Button>
-					<a
-						href={base}
-						class="flex min-w-0 items-center gap-2.5 text-base font-semibold text-ink md:hidden"
-					>
-						{#if data.org.logo}
-							<img src={data.org.logo} alt="" class="size-6 rounded-md object-contain" />
-						{:else}
-							<Mark size={24} />
-						{/if}
-						<span class="truncate max-sm:max-w-[34vw]">{data.org.name}</span>
-					</a>
-					<nav
-						class="flex min-w-0 items-center gap-2 text-sm max-md:hidden"
-						aria-label="Breadcrumb"
-					>
+					<!-- THE ORGANISATION SWITCHER LEADS THE BREADCRUMB AT EVERY WIDTH. ON A PHONE IT STANDS ALONE, AS THE ORG NAME DID -->
+					<nav class="flex min-w-0 items-center gap-2 text-sm" aria-label="Breadcrumb">
+						<OrgSwitcher
+							orgs={data.orgs}
+							current={data.org.slug}
+							userId={data.me.id}
+							last={crumbs.length === 0}
+							bind:open={switcher}
+						/>
 						{#each crumbs as c, i (c.href)}
-							{#if i > 0}<span class="text-muted" aria-hidden="true">/</span>{/if}
+							<span class="text-muted max-md:hidden" aria-hidden="true">/</span>
 							<a
 								href={c.href}
 								aria-current={i === crumbs.length - 1 ? 'page' : undefined}
 								class={cn(
-									'truncate',
+									'truncate max-md:hidden',
 									i === crumbs.length - 1 ? 'font-semibold text-ink' : 'text-muted hover:text-ink'
 								)}>{c.label}</a
 							>
@@ -381,5 +419,11 @@
 </ResponsiveModal>
 
 {#if Palette}
-	<Palette open={palette} onclose={() => (palette = false)} org={data.org.slug} pages={tabs} />
+	<Palette
+		open={palette}
+		onclose={() => (palette = false)}
+		org={data.org.slug}
+		pages={tabs}
+		orgs={paletteOrgs}
+	/>
 {/if}
