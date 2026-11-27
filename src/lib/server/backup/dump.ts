@@ -202,7 +202,9 @@ export async function exportOrgTo<T>(
 			// Mockup files (versions, the version screenshot, kits, parts) are stored files too. Screenshots and kits carry no saved
 			// checksum, so one is taken now. The drawn shots and rendered trees of a version (derived.shots and derived.trees) are
 			// left out on purpose: the bridge draws them from the version HTML, they grew 100 to 200 MB a day and made every nightly
-			// archive larger (2026-11-20), and a read that finds one missing already skips it
+			// archive larger (2026-11-20), and a read that finds one missing already skips it. The screenshots of plans and the proof
+			// pictures of test results (test_proof, AFB-20261127-0438, the owner's rule) are never listed either: the backup holds
+			// their rows only, and a restored proof whose file is absent reads as gone on the board
 			const mockupFiles = await q.query<{
 				storage_key: string;
 				mime: string;

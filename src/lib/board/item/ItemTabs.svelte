@@ -49,7 +49,7 @@
 		docs: FileText,
 		mockups: PanelsTopLeft,
 		screens: GalleryThumbnails,
-		qa: FlaskConical,
+		testing: FlaskConical,
 		activity: Activity,
 		files: Paperclip,
 		discussion: MessagesSquare

@@ -6,6 +6,7 @@ import { error } from '@sveltejs/kit';
 import { BETTER_AUTH_SECRET } from '$app/env/private';
 // IMPORTED CONSTANTS
 import { SCREEN_KEY_PREFIX } from '#lib/server/db/schema/screens.js';
+import { TEST_PROOF_KEY_PREFIX } from '#lib/server/db/schema/testing.js';
 // IMPORTED MODULES
 import { getStorage } from '#lib/server/adapters/index.js';
 import { verifySignedFile } from '#lib/server/adapters/storage.js';
@@ -16,8 +17,10 @@ import { isMockupKey } from '#lib/server/mockups/keys.js';
 /** Serves one stored file for a valid signed link and nothing else. Wrong, changed or expired links answer 404. */
 export const GET: RequestHandler = async ({ params, url }) => {
 	const store = getStorage();
-	// Mockup files are served only by the mockup routes, which send the isolating headers
-	if (isMockupKey(params.key) || params.key.split('/')[0] === SCREEN_KEY_PREFIX)
+	// Mockup files are served only by the mockup routes, which send the isolating headers. Screenshots and test proofs only by
+	// the pictures route, which checks the plan's visibility
+	const prefix = params.key.split('/')[0];
+	if (isMockupKey(params.key) || prefix === SCREEN_KEY_PREFIX || prefix === TEST_PROOF_KEY_PREFIX)
 		error(404, 'Not found');
 	const exp = Number(url.searchParams.get('exp'));
 	const sig = url.searchParams.get('sig') ?? '';

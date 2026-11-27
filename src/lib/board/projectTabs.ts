@@ -1,6 +1,6 @@
 // THE PAGES OF A PROJECT, IN THE ORDER THE SIDEBAR, THE PHONE MENU AND THE COMMAND PALETTE SHOW THEM
 // One list, read by all three, so they always agree. Five main pages, then Project settings (DESIGN.md, App shell).
-// Testing is the QA map, runs and bugs (AFB-20261125-0442); like Notes, it is not shared with guests.
+// Testing is the sheet of test cases, runs and proof (AFB-20261127-0438, which replaced the QA map of AFB-20261125-0442); like Notes, it is not shared with guests.
 // Activity and Trash live inside Project settings as sections (AFB-20261115-1355).
 
 // -- TYPES -- //
@@ -36,7 +36,7 @@ export function projectTabs(
 		{ href: at('/tasks'), label: 'Tasks' },
 		{ href: at('/notes'), label: 'Notes' },
 		{ href: at('/mockups'), label: 'Mockups' },
-		{ href: at('/qa'), label: 'Testing' }
+		{ href: at('/testing'), label: 'Testing' }
 	];
 	return {
 		primary:

@@ -7,6 +7,7 @@ import { getStorage } from '#lib/server/adapters/index.js';
 import { getDb } from '#lib/server/db/index.js';
 import { readProjectPicture, readUserPicture } from '#lib/server/ops/pictures.js';
 import { readScreenImage } from '#lib/server/ops/screens.js';
+import { readProofImage } from '#lib/server/ops/testing.js';
 
 // -- CONSTANTS -- //
 
@@ -21,11 +22,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const GET: RequestHandler = async ({ params, url, locals, request }) => {
 	if (!locals.user) error(401, 'Sign in first');
 	const handle = await getDb();
-	// A plan's screenshot (AFB-20261124-0926): a picture read through the plan's own visibility, with the isolating headers
-	if (params.kind === 'screen') {
+	// A plan's screenshot (AFB-20261124-0926) or a test proof (AFB-20261127-0438): a picture read through the plan's own
+	// visibility, with the isolating headers. A guest never sees a test proof
+	if (params.kind === 'screen' || params.kind === 'test-proof') {
 		const store = getStorage();
 		if (!store || !UUID.test(params.id)) error(404, 'Not found');
-		const shot = await readScreenImage(handle, store, locals.user.id, params.id);
+		const shot =
+			params.kind === 'screen'
+				? await readScreenImage(handle, store, locals.user.id, params.id)
+				: await readProofImage(handle, store, locals.user.id, params.id);
 		if (!shot) error(404, 'Not found');
 		const tag = `"${shot.checksum}"`;
 		const shotHeaders = {

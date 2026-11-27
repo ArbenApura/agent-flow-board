@@ -14,7 +14,7 @@ export const ITEM_TABS = [
 	'docs',
 	'mockups',
 	'screens',
-	'qa',
+	'testing',
 	'activity',
 	'files',
 	'discussion'
@@ -32,7 +32,7 @@ export const ITEM_TAB_LABEL: Record<ItemTab, string> = {
 	docs: 'Documents',
 	mockups: 'Mockups',
 	screens: 'Screens',
-	qa: 'Testing',
+	testing: 'Testing',
 	activity: 'Activity',
 	files: 'Files',
 	discussion: 'Discussion'
@@ -71,16 +71,18 @@ export function itemTabsFrom(
 	if (!item) return null;
 	const mockups = isRecord(data.mockups) ? data.mockups : null;
 	const screens = isRecord(data.screens) ? data.screens : null;
-	// The Testing tab shows only on a plan that touches QA features, so a project with no QA map sees no empty tab
-	const qa = isRecord(data.qa) ? data.qa : null;
-	const qaCount = typeof qa?.count === 'number' ? qa.count : 0;
+	// The Testing tab shows on a plan that adopted test cases or recorded a tests waiver (AFB-20261127-0438), so an older plan
+	// with neither shows no empty tab
+	const testing = isRecord(data.testing) ? data.testing : null;
+	const testingShown = testing?.shown === true;
+	const testingCount = typeof testing?.count === 'number' ? testing.count : 0;
 	// The Children tab belongs to a master only: it is the plan's own id that holds a list of child plans
 	const family = isRecord(detail.family) ? detail.family : null;
 	const kids =
 		family && isRecord(family.kids) && typeof item.id === 'string' ? family.kids[item.id] : null;
 	const kidCount = length(kids);
 	const tabs = ITEM_TABS.filter(
-		(t) => (t !== 'children' || kidCount > 0) && (t !== 'qa' || qaCount > 0)
+		(t) => (t !== 'children' || kidCount > 0) && (t !== 'testing' || testingShown)
 	);
 	const asked = parseItemTab(params.get('tab'));
 	return {
@@ -92,9 +94,9 @@ export function itemTabsFrom(
 			docs: length(detail.sections),
 			mockups: length(mockups?.list),
 			screens: typeof screens?.count === 'number' ? screens.count : 0,
-			qa: qaCount
+			testing: testingCount
 		},
-		// A hidden tab in the address (Testing on a plan with no QA features) shows the plan
-		active: asked === 'qa' && qaCount === 0 ? 'plan' : asked
+		// A hidden tab in the address (Testing on a plan with no cases and no waiver) shows the plan
+		active: asked === 'testing' && !testingShown ? 'plan' : asked
 	};
 }

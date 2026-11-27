@@ -19,7 +19,7 @@ import { tabNameSchema } from '../db/zod';
 import { tabNameFromTitle } from '../../shared/tabName';
 import { OpError, idempotent, rateLimit, requireCap, requireOrgMember, run } from './context';
 import { enforcePlanRules } from './planRules';
-import { canSeeItem, findItem, findProject, notQaRunSql, visibleItemSql } from './resolve';
+import { canSeeItem, findItem, findProject, visibleItemSql } from './resolve';
 import { releaseOthersClaimsOn, requireCloseConfirmation } from './tracking';
 
 // -- TYPES -- //
@@ -626,9 +626,7 @@ export async function listItems(ctx: Ctx, raw: z.input<typeof listItemsInput>) {
 			...personFilters(input, ctx.actor.userId),
 			input.children === 'hide' ? sql`not ${visibleChildSql(ctx.actor.userId)}` : undefined,
 			input.changedSince ? gte(item.lastActivityAt, input.changedSince) : undefined,
-			visibleItemSql(ctx.actor.userId),
-			// QA runs stay out of the list unless someone searches for one by its reference or title
-			input.q?.trim() ? undefined : notQaRunSql
+			visibleItemSql(ctx.actor.userId)
 		);
 		const where = and(
 			filter,

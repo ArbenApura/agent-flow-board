@@ -19,7 +19,8 @@ import {
 	noteFile,
 	org,
 	orgDeletionLog,
-	screen
+	screen,
+	testProof
 } from '../db/schema';
 import { withTenant } from '../db/tenant';
 import { ORG_DELETE_GRACE_DAYS, purgeAt } from './deletion';
@@ -98,6 +99,11 @@ export async function purgeOrg(
 		const pictures = await tx.select({ key: noteFile.storageKey }).from(noteFile);
 		// The screenshots of plans (AFB-20261124-0926): the nightly backup keeps their rows only, so purge is where the files go
 		const screenFiles = await tx.select({ key: screen.storageKey }).from(screen);
+		// The proof pictures of test results (AFB-20261127-0438): rows only in the backup too, and a gone proof has no file left
+		const proofFiles = await tx
+			.select({ key: testProof.storageKey })
+			.from(testProof)
+			.where(isNotNull(testProof.storageKey));
 		const archives = await tx
 			.select({ key: backupRun.location })
 			.from(backupRun)
@@ -115,7 +121,8 @@ export async function purgeOrg(
 						.filter((k): k is string => typeof k === 'string')
 				),
 				...pictures.map((f) => f.key),
-				...screenFiles.map((f) => f.key)
+				...screenFiles.map((f) => f.key),
+				...proofFiles.map((f) => f.key).filter((k): k is string => !!k)
 			],
 			archives: archives.map((a) => a.key!).filter(Boolean)
 		};

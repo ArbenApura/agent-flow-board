@@ -18,6 +18,9 @@ import {
 	noteFile,
 	noteFolder,
 	screen,
+	testProof,
+	testResult,
+	testRun,
 	task
 } from '../db/schema';
 import { mockupUnreadError, planWorked, unreadForGate } from './mockupReads';
@@ -488,6 +491,22 @@ async function purgeTrashRows(ctx: Ctx, days: number, checkRole: boolean) {
 					sql`${screen.itemId} in (select ${item.id} from ${item} where ${item.deletedAt} is not null and ${item.deletedAt} < ${cutoff})`
 				)
 		).map((s) => s.key);
+		// The proof pictures of the test runs of those plans go with them too (cascade, AFB-20261127-0438); a gone proof has no file
+		const proofKeys = (
+			await tx
+				.select({ key: testProof.storageKey })
+				.from(testProof)
+				.innerJoin(testResult, eq(testResult.id, testProof.resultId))
+				.innerJoin(testRun, eq(testRun.id, testResult.runId))
+				.where(
+					and(
+						isNotNull(testProof.storageKey),
+						sql`${testRun.planItemId} in (select ${item.id} from ${item} where ${item.deletedAt} is not null and ${item.deletedAt} < ${cutoff})`
+					)
+				)
+		)
+			.map((s) => s.key)
+			.filter((k): k is string => !!k);
 		const delItems = await tx
 			.delete(item)
 			.where(and(isNotNull(item.deletedAt), lt(item.deletedAt, cutoff)))
@@ -566,7 +585,7 @@ async function purgeTrashRows(ctx: Ctx, days: number, checkRole: boolean) {
 			items: delItems.length,
 			tasks: delTasks.length,
 			notes: oldNotes.length,
-			keys: [...keys.map((k) => k.key), ...mockupKeys, ...noteKeys, ...screenKeys]
+			keys: [...keys.map((k) => k.key), ...mockupKeys, ...noteKeys, ...screenKeys, ...proofKeys]
 		};
 	});
 	// Files go after the rows, so a failure leaves a stray file and never a row pointing at nothing

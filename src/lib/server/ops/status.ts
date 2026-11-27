@@ -12,9 +12,9 @@ import { appendEvent } from '../db/events';
 import { event, item, step, task } from '../db/schema';
 import { OpError, idempotent, rateLimit, requireCap, run } from './context';
 import { actorFields, checkVersion, type ItemRow } from './items';
-import { closeBlock, markPlanFinished } from './qa';
 import { findItem, visibleItemSql } from './resolve';
 import { screensMissing } from './screens';
+import { testingBlock } from './testing';
 import { releaseClaimsOn, requireCloseConfirmation } from './tracking';
 
 // -- TYPES -- //
@@ -23,7 +23,11 @@ export type Status = 'PLANNED' | 'IN PROGRESS' | 'IN REVIEW' | 'ON HOLD' | 'COMP
 export type StatusChange = { from: Status; to: Status; note: string };
 /** A child plan that followed its master, and one that stayed where it was with the reason. */
 export type FollowedChild = { ref: string; from: Status; to: Status };
-export type SkippedChild = { ref: string; reason: 'screens-missing' | 'qa-broken' };
+export type SkippedChild = {
+	ref: string;
+	reason:
+		'screens-missing' | 'tests-missing' | 'tests-not-run' | 'tests-failed' | 'tests-regression';
+};
 export type CascadeResult = { followed: FollowedChild[]; skipped: SkippedChild[] };
 
 // -- CONSTANTS -- //
@@ -119,8 +123,6 @@ export async function applyStatus(
 		undoable: false
 	});
 	await syncLinkedTasks(tx, it.id, to);
-	// The first move to IN REVIEW marks the QA features the plan touched as finished, so an older result means Needs retest
-	if (to === 'IN REVIEW') await markPlanFinished(tx, it.id);
 	// A closed item lets go of every claim on it in this same transaction (SPEC 9.2)
 	if (CLOSING.includes(to)) {
 		const ref =
@@ -163,7 +165,7 @@ async function statusBeforeFollowedHold(
 /**
  * A master plan's manual status change carries to its suitable child plans in the same transaction (AFB-20261125-0906).
  * The children are locked in id order and read under the lock. A person's cascade skips the per-plan refusals; an agent's runs
- * the Screens and QA checks per child, skips the ones that fail and must confirm a COMPLETED cascade, because closing a child
+ * the Screens and Testing checks per child, skips the ones that fail and must confirm a COMPLETED cascade, because closing a child
  * releases the claims on it. A child's own change never moves its master, and a master's automatic moves do not cascade.
  */
 export async function followMaster(
@@ -171,8 +173,7 @@ export async function followMaster(
 	ctx: Ctx,
 	master: { id: string; ref: string; projectId: string; parentId: string | null },
 	to: Status,
-	confirmed: boolean | undefined,
-	ownerPerson: boolean
+	confirmed: boolean | undefined
 ): Promise<CascadeResult> {
 	const result: CascadeResult = { followed: [], skipped: [] };
 	// Plans nest one level only, so a child plan has no children of its own
@@ -210,14 +211,17 @@ export async function followMaster(
 		}
 		if (!target) continue;
 		if (target === 'COMPLETED') {
-			// The Screens rule is for agents. A broken QA feature still blocks everyone but the owner at the board, who may close anyway
-			if (ctx.actor.kind !== 'person' && (await screensMissing(tx, kid.id))) {
-				result.skipped.push({ ref: kid.ref, reason: 'screens-missing' });
-				continue;
-			}
-			if (!ownerPerson && (await closeBlock(tx, ctx, kid.id, kid.projectId))) {
-				result.skipped.push({ ref: kid.ref, reason: 'qa-broken' });
-				continue;
+			// The Screens and Testing rules are for agents, and they run per child as on a plan of its own (AFB-20261125-0906)
+			if (ctx.actor.kind !== 'person') {
+				if (await screensMissing(tx, kid.id)) {
+					result.skipped.push({ ref: kid.ref, reason: 'screens-missing' });
+					continue;
+				}
+				const tests = await testingBlock(tx, ctx, kid.id);
+				if (tests) {
+					result.skipped.push({ ref: kid.ref, reason: tests.reason });
+					continue;
+				}
 			}
 		}
 		movers.push({ kid, target });
@@ -248,9 +252,7 @@ export const setStatusInput = z.object({
 	note: z.string().min(3).max(160),
 	expectVersion: z.number().int().optional(),
 	/** Closing an item the session is not bound to asks first (Phase 9). */
-	confirmed: z.boolean().optional(),
-	/** The owner's reason for closing while a QA feature the plan touched is broken (AFB-20261125-0442). A person only. */
-	override: z.object({ reason: z.string().trim().min(3).max(160) }).optional()
+	confirmed: z.boolean().optional()
 });
 
 /**
@@ -262,7 +264,7 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 	return run(ctx, async (tx) =>
 		idempotent(ctx, tx, async () => {
 			const it = await findItem(tx, ctx, input.item, { lock: true });
-			const { role } = await requireCap(
+			await requireCap(
 				tx,
 				ctx,
 				CLOSING.includes(input.status) ? 'complete' : 'write',
@@ -270,22 +272,9 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 			);
 			await rateLimit(tx, ctx, 'write');
 			checkVersion(it, input.expectVersion);
-			// Closing anyway is the owner's word at the web app, never an agent's: an agent that sends it is refused, not ignored
-			if (input.override && (ctx.actor.kind !== 'person' || role !== 'owner'))
-				throw new OpError(
-					'FORBIDDEN',
-					'Only the owner, at the board, can close a plan while a feature it touched is broken.'
-				);
 			// The same status again still catches up the children of a master (one that was hidden, added or restored since)
 			if (it.status === input.status) {
-				const cascade = await followMaster(
-					tx,
-					ctx,
-					it,
-					input.status,
-					input.confirmed,
-					ctx.actor.kind === 'person' && role === 'owner'
-				);
+				const cascade = await followMaster(tx, ctx, it, input.status, input.confirmed);
 				return { item: it, statusChanges: [] as StatusChange[], already: true, ...cascade };
 			}
 			if (input.status === 'COMPLETED') {
@@ -308,38 +297,16 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 						"This plan changes what a person sees but its Screens tab is empty. Capture the finished screens first, or record a screens waiver that names why they can't be captured.",
 						{ reason: 'screens-missing' }
 					);
-				// A plan cannot close while a feature it touched broke since it started (the owner's rule, 2026-11-25)
-				const block = await closeBlock(tx, ctx, it.id, it.projectId);
-				if (block && !input.override) {
-					const names = block.features.map((f) => f.name);
-					const what =
-						names.length > 0
-							? `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} broken`
-							: 'a feature it touched is broken';
-					const more =
-						block.hidden > 0 && names.length > 0 ? `, and ${block.hidden} more you can't see` : '';
-					throw new OpError(
-						'COMPLETED_REFUSED',
-						`This plan can't close: ${what}${more}. Fix it and rerun QA first.`,
-						{ reason: 'qa-broken', ...block }
-					);
+				// A plan made since its project's Testing started has its test cases run and passing before an agent closes it
+				// (the owner's rule, 2026-11-27, AFB-20261127-0438). A person closing by hand is never refused for it
+				if (ctx.actor.kind !== 'person') {
+					const tests = await testingBlock(tx, ctx, it.id);
+					if (tests)
+						throw new OpError('COMPLETED_REFUSED', tests.message, {
+							reason: tests.reason,
+							cases: tests.cases
+						});
 				}
-				if (block && input.override)
-					await appendEvent(tx, {
-						orgId: ctx.orgId,
-						projectId: it.projectId,
-						itemId: it.id,
-						...actorFields(ctx),
-						verb: 'qa.close.override',
-						targetType: 'item',
-						targetId: it.id,
-						after: {
-							reason: input.override.reason,
-							features: block.features.map((f) => f.key),
-							hidden: block.hidden
-						} as never,
-						undoable: false
-					});
 			}
 			// An agent closing an item its session is not bound to is asked first, never refused (ADR-029). The refusals above come
 			// first, so nobody is asked to confirm something that would be refused anyway.
@@ -347,14 +314,7 @@ export async function setStatus(ctx: Ctx, raw: z.input<typeof setStatusInput>) {
 				await requireCloseConfirmation(tx, ctx, it, input.confirmed);
 			const change = await applyStatus(tx, ctx, it, input.status, input.note);
 			// The master's children follow in this same transaction; an agent's confirmation comes before any child closes
-			const cascade = await followMaster(
-				tx,
-				ctx,
-				it,
-				input.status,
-				input.confirmed,
-				ctx.actor.kind === 'person' && role === 'owner'
-			);
+			const cascade = await followMaster(tx, ctx, it, input.status, input.confirmed);
 			const [updated] = await tx.select().from(item).where(eq(item.id, it.id));
 			return { item: updated, statusChanges: [change], already: false, ...cascade };
 		})

@@ -58,6 +58,8 @@ describe('operations', () => {
 	beforeAll(async () => {
 		db = await make();
 		w = await makeWorld(db);
+		// These plans predate Testing, so the testing rules of COMPLETED (tests/ops/testingStatus.test.ts) stay out of the way
+		await db.admin.exec(`update project set testing_since = now() + interval '100 years'`);
 	}, 180_000);
 	afterAll(async () => {
 		await db?.stop();

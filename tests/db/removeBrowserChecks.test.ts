@@ -102,23 +102,27 @@ describe('migration 0053_remove_browser_checks', () => {
 		// stood in for while the old database is built, and removed again before the real run creates it
 		await owner.query(`CREATE TABLE IF NOT EXISTS auth_method_setting (id text PRIMARY KEY)`);
 		// The same for the screenshot tables of 0056 (AFB-20261124-0926): tenant tables, so they carry the org and project columns
-		// And for the QA Map tables of 0057 (AFB-20261125-0442)
-		const qaTables = [
-			'qa_feature',
-			'qa_settings',
-			'qa_run',
-			'qa_result',
-			'qa_plan_feature',
-			'qa_bug'
+		// The QA Map tables of 0057 (AFB-20261125-0442) left the registry with 0061 (AFB-20261127-0438), so they need no stand-in;
+		// the Testing tables of 0062 took their place
+		const testingTables = [
+			'test_case',
+			'test_case_version',
+			'test_counter',
+			'test_run',
+			'test_result',
+			'test_proof',
+			'test_plan_case',
+			'test_surface'
 		];
 		// And for the pitfall and session file tables of 0059 (AFB-20261125-1527)
 		const lessonTables = ['project_pitfall', 'session_file'];
-		for (const t of ['screen', ...qaTables, ...lessonTables])
+		for (const t of ['screen', ...testingTables, ...lessonTables])
 			await owner.query(
 				`CREATE TABLE IF NOT EXISTS ${t} (id text PRIMARY KEY, org_id uuid, project_id uuid)`
 			);
 		await run(oldDir);
-		for (const t of [...qaTables, ...lessonTables].reverse()) await owner.query(`DROP TABLE ${t}`);
+		for (const t of [...testingTables, ...lessonTables].reverse())
+			await owner.query(`DROP TABLE ${t}`);
 		await owner.query(`DROP TABLE auth_method_setting`);
 		await owner.query(`DROP TABLE screen`);
 		const org = '00000000-0000-4000-8000-000000000001';
@@ -152,7 +156,9 @@ describe('migration 0053_remove_browser_checks', () => {
 			'0057_qa_map',
 			'0058_screens_no_annotations',
 			'0059_lesson_reuse',
-			'0060_screen_mime'
+			'0060_screen_mime',
+			'0061_remove_qa_map',
+			'0062_testing'
 		]);
 
 		const tables = await admin.query<{ table_name: string }>(

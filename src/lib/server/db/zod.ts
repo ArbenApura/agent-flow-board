@@ -38,20 +38,19 @@ import {
 	PITFALL_PATH_MAX,
 	PITFALL_TEXT_MAX,
 	projectPitfall,
-	QA_MODES,
-	QA_OUTCOMES,
-	QA_PRIORITIES,
-	QA_SEVERITIES,
-	qaFeature,
-	qaResult,
-	qaRun,
 	screen,
 	SETUP_KEYS,
 	SETUP_STATES,
 	section,
 	session,
 	step,
-	task
+	task,
+	TEST_DEVICES,
+	TEST_SURFACE_KINDS,
+	testCase,
+	testCaseVersion,
+	testResult,
+	testRun
 } from './schema';
 
 // -- CONSTANTS -- //
@@ -126,202 +125,160 @@ export const pitfallRemoveInput = z.object({
 	id: z.string().uuid()
 });
 
-// -- QA MAP (AFB-20261125-0442): THE ONE INPUT SCHEMA OF THE UI, /api/v1 AND MCP -- //
+// -- TESTING (AFB-20261127-0438): THE ONE INPUT SCHEMA OF THE UI, /api/v1 AND MCP -- //
 
-/** A stable slug for a feature, journey, step or case. */
-export const QA_KEY = /^[a-z0-9][a-z0-9._-]{0,59}$/;
-/** A place a run may target: scheme, host and port only, never sign in details or a path. */
-export const QA_ORIGIN = /^https?:\/\/(?:[a-z0-9-]+\.)*[a-z0-9-]+(?::\d{1,5})?$/;
-/** The largest map one feature may hold, so one document never grows without bound. */
-export const QA_MAP_MAX_CHARS = 200_000;
-const qaKey = z
-	.string()
-	.regex(QA_KEY, 'Use a short slug of lowercase letters, digits, dots, dashes');
-const qaText = (max: number) => z.string().max(max);
-const qaCase = z.object({
-	key: qaKey,
-	input: qaText(400),
-	technique: qaText(60).optional(),
-	expected: qaText(1000),
-	regression: z.boolean().optional()
-});
-const qaExpected = z.object({
-	screen: qaText(1000).optional(),
-	saved: qaText(1000).optional(),
-	sent: qaText(1000).optional(),
-	logged: qaText(1000).optional()
-});
-const qaStep = z.object({
-	key: qaKey,
-	page: qaText(300),
-	action: qaText(300),
-	control: qaText(200).optional(),
-	expected: qaExpected,
-	cases: z.array(qaCase).max(60).default([])
-});
-const qaJourney = z.object({
-	key: qaKey,
-	name: z.string().min(1).max(160),
-	parent: qaKey.optional(),
-	steps: z.array(qaStep).max(60)
-});
-export const qaMapSchema = z
-	.object({ journeys: z.array(qaJourney).max(50) })
-	.superRefine((m, ctx) => {
-		if (JSON.stringify(m).length > QA_MAP_MAX_CHARS)
-			ctx.addIssue({
-				code: 'custom',
-				message: 'This feature map is too large. Split the feature.'
-			});
-		const journeys = new Set<string>();
-		for (const j of m.journeys) {
-			if (journeys.has(j.key))
-				ctx.addIssue({ code: 'custom', message: `Journey ${j.key} appears twice.` });
-			journeys.add(j.key);
-			const steps = new Set<string>();
-			for (const s of j.steps) {
-				if (steps.has(s.key))
-					ctx.addIssue({ code: 'custom', message: `Step ${j.key}/${s.key} appears twice.` });
-				steps.add(s.key);
-				const cases = new Set<string>();
-				for (const c of s.cases) {
-					if (cases.has(c.key))
-						ctx.addIssue({
-							code: 'custom',
-							message: `Case ${j.key}/${s.key}/${c.key} appears twice.`
-						});
-					cases.add(c.key);
-				}
-			}
-		}
-	});
-const qaSizes = z
-	.array(z.number().int().min(200).max(4000))
-	.max(6)
-	.refine((a) => new Set(a).size === a.length, 'Use each screen width once.');
-export const qaFeatureInput = createInsertSchema(qaFeature, {
-	key: () => qaKey,
-	// An area is a path of up to four levels split by /, such as apps/centers/queue; a flat word still works
-	area: (s) => s.max(80).optional(),
-	name: (s) => s.min(1).max(120),
-	description: (s) => s.max(2000).optional(),
-	codeGlobs: () => z.array(z.string().min(1).max(200)).max(50).optional(),
-	sizes: () => qaSizes.optional(),
-	map: () => qaMapSchema
-})
-	.pick({
-		key: true,
-		area: true,
-		name: true,
-		description: true,
-		codeGlobs: true,
-		sizes: true,
-		map: true
+/** A case key as the server gives it: TC-<CODE>-<NN>. */
+export const TEST_CASE_KEY = /^TC-[A-Z0-9]{1,12}-\d{2,4}$/;
+/** An area: up to four levels of lowercase words or UPPERCASE codes split by /. */
+export const TEST_AREA =
+	/^[A-Za-z0-9][A-Za-z0-9_-]{0,39}(?:\/[A-Za-z0-9][A-Za-z0-9_-]{0,39}){0,3}$/;
+/** The largest proof picture, in bytes, and the most proofs one result may carry. */
+export const TEST_PROOF_MAX_BYTES = 5 * 1024 * 1024;
+export const TEST_PROOFS_PER_RESULT = 2;
+const testCaseKey = z.string().regex(TEST_CASE_KEY, 'Use a case key like TC-AUTH-01');
+const testDeviceSpec = z
+	.object({
+		device: z.enum(TEST_DEVICES),
+		width: z.number().int().min(200).max(4000),
+		height: z.number().int().min(200).max(4000)
 	})
-	.extend({ expectVersion: z.number().int().positive().optional() });
-export const qaMapMergeInput = z.object({
-	project: z.string().min(1),
-	features: z.array(qaFeatureInput).min(1).max(40),
-	/** Feature keys the agent no longer finds in the app; they are flagged removed, never deleted. */
-	missing: z.array(qaKey).max(200).optional()
-});
-export const qaFeatureEditInput = z.object({
-	project: z.string().min(1),
-	feature: qaKey,
-	expectVersion: z.number().int().positive(),
-	name: z.string().min(1).max(120).optional(),
-	area: z.string().max(80).optional(),
-	description: z.string().max(2000).optional(),
-	priority: z.enum(QA_PRIORITIES).nullable().optional(),
-	sizes: qaSizes.optional(),
-	/** A whole new map from the page's editor; every path that differs from the stored map counts as edited. */
-	map: qaMapSchema.optional()
-});
-export const qaFeatureMergeInput = z.object({
-	project: z.string().min(1),
-	from: qaKey,
-	into: qaKey
-});
-export const qaFeatureSplitInput = z.object({
-	project: z.string().min(1),
-	feature: qaKey,
-	journeys: z.array(qaKey).min(1).max(50),
-	key: qaKey,
-	name: z.string().min(1).max(120)
-});
-export const qaTargetsInput = z.object({
-	project: z.string().min(1),
-	targets: z
-		.array(
-			z.object({
-				origin: z
-					.string()
-					.max(200)
-					.transform((v) => v.trim().toLowerCase().replace(/\/$/, ''))
-					.pipe(
-						z.string().regex(QA_ORIGIN, 'Use an address like https://staging.example.com:8443')
-					),
-				writes: z.boolean()
-			})
-		)
-		.max(20)
-});
-export const qaRunStartInput = createInsertSchema(qaRun, {
-	scope: (s) => s.max(120).optional(),
-	commit: (s) => s.max(80).optional(),
-	sizes: () => qaSizes.optional()
-})
-	.pick({ scope: true, commit: true, sizes: true })
-	.extend({
-		project: z.string().min(1),
-		/** The address of the app under test; only its origin is kept. */
-		target: z.string().url().max(500),
-		/** Feature keys to test; none means smoke and changed features first, then the rest. */
-		features: z.array(qaKey).max(200).optional()
-	});
-export const qaResultRow = createInsertSchema(qaResult, {
-	caseKey: (s) => s.min(1).max(200),
-	width: (s) => s.int().min(200).max(4000),
-	role: (s) => s.max(40).optional(),
-	observed: (s) => s.max(2000).optional(),
-	dataEntered: () =>
+	.strict();
+const testCaseBase = createInsertSchema(testCase, {
+	area: (s) => s.regex(TEST_AREA, 'Use an area like AUTH or apps/centers/queue'),
+	title: (s) => s.trim().min(3).max(200)
+}).pick({ area: true, kind: true, title: true, priority: true });
+const testVersionBase = createInsertSchema(testCaseVersion, {
+	steps: () => z.array(z.object({ action: z.string().trim().min(1).max(400) }).strict()).max(30),
+	inputData: (s) => s.max(2000).optional(),
+	checks: () =>
 		z
-			.array(z.object({ field: z.string().min(1).max(80), value: z.string().max(400) }))
-			.max(40)
-			.optional()
-})
-	.pick({
-		caseKey: true,
-		outcome: true,
-		width: true,
-		mode: true,
-		role: true,
-		observed: true,
-		dataEntered: true
-	})
+			.array(
+				z
+					.object({
+						kind: z.enum(['text', 'url', 'element', 'count', 'clean', 'visual']),
+						expect: z.string().trim().min(1).max(400)
+					})
+					.strict()
+			)
+			.min(1)
+			.max(20),
+	unitRef: (s) => s.max(300).nullish(),
+	devices: () => z.array(testDeviceSpec).max(8),
+	surfaces: () => z.array(z.string().min(3).max(200)).max(40).optional()
+}).pick({
+	steps: true,
+	inputData: true,
+	checks: true,
+	unitRef: true,
+	devices: true,
+	mode: true,
+	surfaces: true
+});
+/** Write a case: with no key a new case (TC key given by the server), with a key a new version of that case. */
+export const testCaseSaveInput = testCaseBase
+	.partial({ priority: true })
+	.extend(testVersionBase.shape)
 	.extend({
-		outcome: z.enum(QA_OUTCOMES),
-		mode: z.enum(QA_MODES),
-		severity: z.enum(QA_SEVERITIES).optional(),
-		feature: qaKey,
-		/** The page the case ran on, part of the bug's cause. */
-		page: z.string().max(300).optional(),
-		screen: z.string().uuid().optional()
+		project: z.string().min(1).max(40),
+		key: testCaseKey.optional(),
+		/** The short code in the key (AUTH, QUEUE); taken from the area when left out. */
+		code: z
+			.string()
+			.regex(/^[A-Z0-9]{1,12}$/)
+			.optional(),
+		/** The plan writing it; the case is adopted as New (no key) or Update (a key). */
+		plan: z.string().min(1).max(80).optional()
+	})
+	.superRefine((v, ctx) => {
+		if (v.kind === 'ui' && v.devices.length === 0)
+			ctx.addIssue({ code: 'custom', message: 'A UI case names at least one device.' });
+		if (v.kind === 'unit' && !v.unitRef)
+			ctx.addIssue({ code: 'custom', message: 'A unit case names the test it reads (unitRef).' });
 	});
-export const qaResultInput = z.object({
-	run: z.string().min(1),
-	results: z.array(qaResultRow).min(1).max(60)
+export const testCaseRetireInput = z.object({
+	project: z.string().min(1).max(40),
+	key: testCaseKey,
+	plan: z.string().min(1).max(80).optional()
 });
-export const qaPlanLinkInput = z.object({
-	item: z.string().min(1),
-	files: z.array(z.string().min(1).max(300)).max(200).optional()
+export const testPlanCasesInput = z.object({
+	item: z.string().min(1).max(80),
+	cases: z
+		.array(z.object({ key: testCaseKey, role: z.enum(['reuse', 'update', 'retire']) }).strict())
+		.max(200)
 });
-export const qaRedactInput = z.object({ result: z.string().uuid() });
-/** The owner's reason for closing a plan while a feature it touched is broken. */
-export const qaOverrideInput = z.object({ reason: z.string().trim().min(3).max(160) });
-export const qaFeatureSelect = createSelectSchema(qaFeature);
-export const qaRunSelect = createSelectSchema(qaRun);
-export const qaResultSelect = createSelectSchema(qaResult);
+export const testRunStartInput = createInsertSchema(testRun, {
+	objective: (s) => s.max(300).optional(),
+	commit: (s) => s.max(80).optional(),
+	harness: (s) => s.max(60).optional(),
+	browser: (s) => s.max(60).optional(),
+	reviewer: (s) => s.max(80).optional(),
+	tier: (s) => s.max(20).optional()
+})
+	.pick({ objective: true, commit: true, harness: true, browser: true, reviewer: true, tier: true })
+	.extend({ project: z.string().min(1).max(40), item: z.string().min(1).max(80).optional() });
+const testProofInput = z
+	.object({
+		/** The step it shows; left out for the end state. */
+		step: z.number().int().min(1).max(30).optional(),
+		/** The picture as base64 (PNG, JPEG, WebP or AVIF, read from the bytes). */
+		data: z
+			.string()
+			.min(16)
+			.max(Math.ceil((TEST_PROOF_MAX_BYTES * 4) / 3) + 8)
+	})
+	.strict();
+const testResultBase = createInsertSchema(testResult, {
+	reason: (s) => s.max(120).optional(),
+	failedStep: (s) => s.int().min(1).max(30).nullish(),
+	actual: (s) => s.max(2000).optional(),
+	output: (s) => s.max(4000).optional(),
+	consoleLines: () => z.array(z.string().max(2000)).max(20).optional(),
+	browser: (s) => s.max(60).optional(),
+	// Light unless the case is a dark-mode case, so a plain result needs no mode
+	mode: (s) => s.default('light')
+}).pick({
+	device: true,
+	mode: true,
+	status: true,
+	reason: true,
+	failedStep: true,
+	actual: true,
+	output: true,
+	consoleLines: true,
+	browser: true,
+	severity: true,
+	bugPriority: true
+});
+export const testResultRow = testResultBase
+	.extend({
+		case: testCaseKey,
+		/** The size it ran at; taken from the case's device when left out. */
+		width: z.number().int().min(200).max(4000).optional(),
+		height: z.number().int().min(200).max(4000).optional(),
+		proofs: z.array(testProofInput).max(TEST_PROOFS_PER_RESULT).optional()
+	})
+	.strict();
+/** All the pictures of one call together, as base64: about 15 MB decoded, so a call cannot fill memory or disk at once. */
+export const TEST_PROOF_CALL_MAX_CHARS = 20_000_000;
+// The cap is checked by recordResults, not refined here: the API route omits `run` from this schema, and a refined object cannot be omitted
+export const testResultInput = z.object({
+	run: z.string().uuid(),
+	results: z.array(testResultRow).min(1).max(10)
+});
+export const testRunFinishInput = z.object({ run: z.string().uuid() });
+export const testSurfacesInput = z.object({
+	project: z.string().min(1).max(40),
+	surfaces: z
+		.array(
+			z
+				.object({ kind: z.enum(TEST_SURFACE_KINDS), key: z.string().trim().min(1).max(200) })
+				.strict()
+		)
+		.max(3000)
+});
+export const testCaseSelect = createSelectSchema(testCase);
+export const testRunSelect = createSelectSchema(testRun);
+export const testResultSelect = createSelectSchema(testResult);
 export const noteSelect = createSelectSchema(note);
 export const noteFolderSelect = createSelectSchema(noteFolder);
 export const noteVersionSelect = createSelectSchema(noteVersion);

@@ -137,6 +137,8 @@ export const project = tenantTable(
 			.notNull()
 			.default(sql`'[]'::jsonb`),
 		staleDays: integer('stale_days').notNull().default(3),
+		/** When the Testing rules started for the project (AFB-20261127-0438): only plans created from then on are refused Completed for tests. Existing projects get the migration time. */
+		testingSince: timestamp('testing_since', { withTimezone: true }).notNull().defaultNow(),
 		...stamps(),
 		version: version()
 	},

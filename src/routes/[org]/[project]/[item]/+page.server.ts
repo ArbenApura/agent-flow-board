@@ -8,8 +8,8 @@ import { itemCore, itemExtras } from '#lib/server/ops/board.js';
 import { OpError } from '#lib/server/ops/context.js';
 import { childContext, pageError } from '#lib/server/web/ctx.js';
 import { itemMockups } from '#lib/server/web/itemMockups.js';
-import { itemQa } from '#lib/server/web/itemQa.js';
 import { itemScreens } from '#lib/server/web/itemScreens.js';
+import { itemTesting } from '#lib/server/web/itemTesting.js';
 
 // -- FUNCTIONS -- //
 
@@ -18,7 +18,14 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 	depends('afb:project');
 	const { org, summary } = await parent();
 	if (!summary)
-		return { detail: null, extras: null, denied: null, mockups: null, screens: null, qa: null };
+		return {
+			detail: null,
+			extras: null,
+			denied: null,
+			mockups: null,
+			screens: null,
+			testing: null
+		};
 	const ctx = await childContext(locals, org.id);
 	try {
 		const d = await itemCore(ctx, params.item);
@@ -38,8 +45,8 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 		);
 		// The screenshots of this plan: a count always, the list when their tab is open
 		const screens = await itemScreens(ctx, d.item.ref, url.searchParams.get('tab') === 'screens');
-		// The QA features this plan touches: a count always, the list when the Testing tab is open (AFB-20261125-0442)
-		const qa = await itemQa(ctx, d.item.ref, url.searchParams.get('tab') === 'qa');
+		// The test cases this plan adopted: a count always, the cases when the Testing tab is open (AFB-20261127-0438)
+		const testing = await itemTesting(ctx, d.item.ref, url.searchParams.get('tab') === 'testing');
 		// Discussion, files and activity are not on the first tab, so they stream in after the page is sent
 		const extras = itemExtras(ctx, d.item).then((x) => ({
 			...x,
@@ -54,7 +61,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 			denied: null,
 			mockups,
 			screens,
-			qa,
+			testing,
 			extras,
 			detail: {
 				...d,
@@ -79,7 +86,7 @@ export const load: PageServerLoad = async ({ params, parent, locals, depends, ur
 				extras: null,
 				mockups: null,
 				screens: null,
-				qa: null,
+				testing: null,
 				...pageError(e)
 			};
 		}

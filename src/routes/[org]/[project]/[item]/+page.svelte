@@ -30,7 +30,6 @@
 	import Button from '#lib/ui/Button.svelte';
 	import ConfirmDialog from '#lib/ui/ConfirmDialog.svelte';
 	import ErrorState from '#lib/ui/ErrorState.svelte';
-	import Notice from '#lib/ui/Notice.svelte';
 	import Skeleton from '#lib/ui/Skeleton.svelte';
 	import PermissionDenied from '#lib/ui/PermissionDenied.svelte';
 	import PageFrame from '#lib/ui/PageFrame.svelte';
@@ -39,7 +38,6 @@
 	import ProgressRing from '#lib/ui/ProgressRing.svelte';
 	import ResponsiveModal from '#lib/ui/ResponsiveModal.svelte';
 	import StaleWriteDialog from '#lib/ui/StaleWriteDialog.svelte';
-	import TextArea from '#lib/ui/TextArea.svelte';
 	import TextField from '#lib/ui/TextField.svelte';
 	import { cn } from '#lib/ui/cn.js';
 	import { toast } from '#lib/ui/toast.svelte.js';
@@ -76,15 +74,6 @@
 	let trashing = $state(false);
 	let busy = $state(false);
 	let stale = $state<string | null>(null);
-	// The QA refusal of a close, kept for the item it was about, so it never shows on another item (AFB-20261125-0442)
-	let qaBlock = $state<{
-		features: { key: string; name: string }[];
-		bugs: string[];
-		hidden: number;
-	} | null>(null);
-	let qaBlockFor = $state<string | null>(null);
-	let closeAnywayOpen = $state(false);
-	let closeReason = $state('');
 
 	// -- REACTIVE STATES -- //
 
@@ -160,10 +149,10 @@
 		};
 	});
 	const org = $derived(page.params.org ?? '');
-	// A Testing tab link on a plan that touches no QA feature opens the plan, as the tab itself is hidden there
+	// A Testing tab link on a plan with no test cases and no waiver opens the plan, as the tab itself is hidden there
 	const tab = $derived.by(() => {
 		const t = parseItemTab(page.url.searchParams.get('tab'));
-		return t === 'qa' && !(data.qa?.count ?? 0) ? 'plan' : t;
+		return t === 'testing' && !data.testing?.shown ? 'plan' : t;
 	});
 	const env = $derived<TabEnv>({
 		org,
@@ -214,17 +203,14 @@
 	}
 
 	// The API needs a note of 3 characters or more, so the page sends a fixed one, as the plan board does
-	async function changeStatus(next: Status, override?: { reason: string }) {
+	async function changeStatus(next: Status) {
 		if (!d || next === d.item.status) return;
 		busy = true;
-		const id = d.item.id;
 		try {
 			const res = await api<{ followed?: unknown[] }>(org, `/items/${d.item.ref}/status`, {
-				body: { status: next, note: 'Changed on the item page', ...(override ? { override } : {}) },
+				body: { status: next, note: 'Changed on the item page' },
 				key: newKey()
 			});
-			qaBlock = null;
-			closeAnywayOpen = false;
 			// A master plan carries its status to its child plans, so the person is told how many followed
 			const followed = res?.followed?.length ?? 0;
 			toast.success(
@@ -234,26 +220,10 @@
 			);
 			await invalidate('afb:project');
 		} catch (e) {
-			// A QA refusal is shown on the page with what broke, never only as a toast that fades
-			const details =
-				e instanceof ApiError ? (e.details as Record<string, unknown> | undefined) : undefined;
-			if (details?.reason === 'qa-broken') {
-				qaBlock = {
-					features: (details.features as { key: string; name: string }[] | undefined) ?? [],
-					bugs: (details.bugs as string[] | undefined) ?? [],
-					hidden: typeof details.hidden === 'number' ? details.hidden : 0
-				};
-				qaBlockFor = id;
-			} else toast.error(e instanceof ApiError ? e.message : 'The status was not changed.');
+			toast.error(e instanceof ApiError ? e.message : 'The status was not changed.');
 		} finally {
 			busy = false;
 		}
-	}
-
-	async function closeAnyway() {
-		const reason = closeReason.trim();
-		if (reason.length < 3 || reason.length > 160) return;
-		await changeStatus('COMPLETED', { reason });
 	}
 
 	async function rename() {
@@ -646,33 +616,6 @@
 			</ul>
 		{/if}
 
-		{#if qaBlock && qaBlockFor === d.item.id}
-			<!-- THE PLAN CANNOT CLOSE WHILE A QA FEATURE IT TOUCHED BROKE SINCE IT STARTED (AFB-20261125-0442) -->
-			<Notice tone="danger" data-testid="qa-blocked">
-				<p>
-					This plan can't close: {qaBlock.features.length > 0
-						? `${qaBlock.features.map((f) => f.name).join(', ')} ${qaBlock.features.length === 1 ? 'is' : 'are'} broken`
-						: 'a feature it touched is broken'}{qaBlock.hidden > 0 && qaBlock.features.length > 0
-						? `, and ${qaBlock.hidden} more you can't see`
-						: ''}.
-					{#if qaBlock.bugs.length > 0}Bugs: <span class="font-mono">{qaBlock.bugs.join(', ')}</span
-						>.{/if}
-					Fix it and rerun QA first.
-				</p>
-				<div class="mt-2 flex flex-wrap gap-2">
-					<Button size="sm" href="?tab=qa">See the Testing tab</Button>
-					{#if d.role === 'owner'}
-						<Button
-							size="sm"
-							tone="danger"
-							onclick={() => (closeAnywayOpen = true)}
-							data-testid="qa-close-anyway">Close anyway</Button
-						>
-					{/if}
-				</div>
-			</Notice>
-		{/if}
-
 		<!-- THE TAB BAR. A CARD THE SAME WIDTH AS THE HEADER ABOVE IT, STICKING JUST UNDER THE TOP BAR (56 PX PLUS ITS LINE, 64 PX PLUS ITS LINE FROM MD) WITH A GAP. THE GAP IS FILLED WITH THE PAGE COLOUR SO SCROLLED TEXT DOES NOT SHOW THROUGH THE TRANSLUCENT TOP BAR -->
 		<!-- A MATCHING STRIP UNDER THE BAR (AFTER:) KEEPS THE 8 PX BELOW IT CLEAN TOO, WHERE THE STICKY BLOCKS OF A TAB STOP (131 PX). BOTH STRIPS ARE 9 PX SO THEY ALSO COVER THE BAR'S 1 PX BORDER -->
 		<nav
@@ -722,8 +665,10 @@
 					{env}
 					screens={data.screens}
 				/>{/await}
-		{:else if tab === 'qa' && data.qa}
-			{#await import('#lib/board/item/QaTab.svelte') then m}<m.default qa={data.qa} />{/await}
+		{:else if tab === 'testing' && data.testing}
+			{#await import('#lib/board/item/TestingTab.svelte') then m}<m.default
+					testing={data.testing}
+				/>{/await}
 		{:else}
 			<!-- Discussion, files and activity arrive after the first paint, so a skeleton holds their place -->
 			{#if extrasShown && extrasFor === d.item.id}
@@ -782,45 +727,6 @@
 			<div class="flex justify-end gap-2">
 				<Button onclick={() => (renaming = false)} disabled={busy}>Cancel</Button>
 				<Button type="submit" variant="primary" loading={busy}>Save</Button>
-			</div>
-		</form>
-	</ResponsiveModal>
-
-	<!-- CLOSING ANYWAY WHILE A QA FEATURE THE PLAN TOUCHED IS BROKEN: THE OWNER'S CALL, WITH A REASON KEPT IN THE HISTORY -->
-	<ResponsiveModal
-		open={closeAnywayOpen}
-		onclose={() => (closeAnywayOpen = false)}
-		title="Close this plan while a feature is broken?"
-		size="sm"
-		{busy}
-	>
-		<form
-			class="flex flex-col gap-3 text-sm"
-			onsubmit={(e) => {
-				e.preventDefault();
-				void closeAnyway();
-			}}
-		>
-			<p class="text-sm text-muted">
-				The plan moves to completed and the broken feature stays broken on the Testing page. Your
-				reason is saved in the plan's history.
-			</p>
-			<TextArea
-				label="Why close it now?"
-				bind:value={closeReason}
-				rows={3}
-				maxlength={160}
-				hint="3 to 160 characters"
-			/>
-			<div class="flex justify-end gap-2">
-				<Button onclick={() => (closeAnywayOpen = false)} disabled={busy}>Cancel</Button>
-				<Button
-					type="submit"
-					variant="danger"
-					loading={busy}
-					disabled={busy || closeReason.trim().length < 3 || closeReason.trim().length > 160}
-					>Close anyway</Button
-				>
 			</div>
 		</form>
 	</ResponsiveModal>

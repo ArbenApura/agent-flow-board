@@ -39,6 +39,7 @@ import { PITFALL_KINDS, PITFALL_PATH_MAX, PITFALL_TEXT_MAX } from '../db/schema/
 import { sharedFilesNote } from '../ops/sharedFiles';
 import { OWED_SLUG, childrenOwed, parseOwed } from '../ops/owed';
 import { screensMissing } from '../ops/screens';
+import { testingBlock } from '../ops/testing';
 import { recordCallTiming } from './timing';
 import { slowCallsInput, slowestCalls } from '../ops/timing';
 import { OpError, fingerprintOf, run, runCall, subRequest } from '../ops/context';
@@ -563,27 +564,37 @@ export function registerTools(server: McpServer, deps: McpDeps, auth: TokenAuth)
 		{},
 		{ session: true },
 		async (a, { ctx, claimed }) => {
-			// A plan in review that changes what a person sees and has no screens yet is said out loud before the claim goes
+			// A plan in review that changes what a person sees and has no screens yet, or whose tests are not done, is said out
+			// loud before the claim goes
 			let screensNotice: string | undefined;
+			let testsNotice: string | undefined;
 			if (claimed) {
 				// A failed look never keeps the claim from being released
-				const missing = await run(ctx, async (tx) => {
+				const found = await run(ctx, async (tx) => {
 					const [row] = await tx
 						.select({ id: item.id, ref: item.ref, status: item.status })
 						.from(item)
 						.where(
 							and(eq(item.orgId, ctx.orgId), eq(item.id, claimed), sql`${item.deletedAt} is null`)
 						);
-					return row?.status === 'IN REVIEW' && (await screensMissing(tx, row.id)) ? row.ref : null;
+					if (row?.status !== 'IN REVIEW') return null;
+					return {
+						ref: row.ref,
+						screens: await screensMissing(tx, row.id),
+						tests: await testingBlock(tx, ctx, row.id)
+					};
 				}).catch(() => null);
-				if (missing)
-					screensNotice = `${missing} changes what a person sees but its Screens tab is empty: capture the finished screens (flow step 5b) or record a screens-waiver section before you end.`;
+				if (found?.screens)
+					screensNotice = `${found.ref} changes what a person sees but its Screens tab is empty: capture the finished screens (flow step 5b) or record a screens-waiver section before you end.`;
+				if (found?.tests)
+					testsNotice = `${found.ref}: ${found.tests.message} (${found.tests.reason})`;
 			}
 			const c = await claim(ctx, ctx.actor.sessionId ?? a.sessionId!, null);
 			return {
 				released: true,
 				displayTitle: c.displayTitle,
-				...(screensNotice ? { screensNotice } : {})
+				...(screensNotice ? { screensNotice } : {}),
+				...(testsNotice ? { testsNotice } : {})
 			};
 		}
 	);

@@ -42,7 +42,6 @@ import {
 	findProject,
 	isUuid,
 	noteRoleOf,
-	notQaRunSql,
 	visibleItemSql,
 	visibleNoteSql
 } from './resolve';
@@ -170,7 +169,7 @@ export async function boardBrief(ctx: Ctx, options: { openStatuses: readonly str
 						row_number() over (partition by ${item.projectId} order by ${item.number} desc) as rn
 					from ${item}
 					where ${inArray(item.projectId, ids)} and ${isNull(item.deletedAt)}
-						and ${item.status} in (${statuses}) and ${visibleItemSql(ctx.actor.userId)} and ${notQaRunSql}
+						and ${item.status} in (${statuses}) and ${visibleItemSql(ctx.actor.userId)}
 				) x where rn <= 25`)) as unknown as {
 				rows: { ref: string; title: string; status: string; percent: number; projectId: string }[];
 			}
@@ -217,8 +216,7 @@ export async function projectSummary(ctx: Ctx, projectKey: string) {
 		const base = and(
 			eq(item.projectId, proj.id),
 			isNull(item.deletedAt),
-			visibleItemSql(ctx.actor.userId),
-			notQaRunSql
+			visibleItemSql(ctx.actor.userId)
 		);
 		const byStatusRows = await tx
 			.select({ status: item.status, n: sql<number>`count(*)::int` })
@@ -340,7 +338,7 @@ export async function orgOverview(ctx: Ctx) {
 				lastChange: sql<Date | null>`max(${item.updatedAt})`
 			})
 			.from(item)
-			.where(and(inArray(item.projectId, ids), isNull(item.deletedAt), notQaRunSql))
+			.where(and(inArray(item.projectId, ids), isNull(item.deletedAt)))
 			.groupBy(item.projectId, item.status, item.visibility, item.createdBy);
 		const out = [];
 		for (const { p, role } of visible) {

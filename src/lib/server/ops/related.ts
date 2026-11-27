@@ -8,7 +8,16 @@ import type { Ctx } from './context';
 // IMPORTED DEP-MODULES
 import { and, eq, inArray, sql } from 'drizzle-orm';
 // IMPORTED MODULES
-import { decision, event, item, project, section, step } from '../db/schema';
+import {
+	decision,
+	event,
+	item,
+	project,
+	section,
+	step,
+	testCase,
+	testPlanCase
+} from '../db/schema';
 import { relatedTokens, searchRelated } from '../db/search';
 import { OpError, requireCap, run } from './context';
 import { readNotesLinkedTo } from './noteLinks';
@@ -21,7 +30,7 @@ import {
 	readableProjectIds,
 	type RelatedNote
 } from './relatedNotes';
-import { findItem, findProject, noteRoleOf, notQaRunSql } from './resolve';
+import { findItem, findProject, noteRoleOf } from './resolve';
 
 // -- RE-EXPORTS -- //
 
@@ -74,6 +83,8 @@ export type RelatedPlan = {
 	waived: number;
 	superseded: number;
 	reopened: number;
+	/** The test cases the plan adopted (AFB-20261127-0438), so a new plan in the same area can re-run or update them. */
+	cases: { key: string; title: string; area: string; role: string; retired: boolean }[];
 };
 
 // -- FUNCTIONS -- //
@@ -242,7 +253,7 @@ export async function relatedPlans(
 		);
 
 		// One query each over the items that survived the visibility filter
-		const [items, sections, decisions, stepCounts, reopens] = await Promise.all([
+		const [items, sections, decisions, stepCounts, reopens, planCases] = await Promise.all([
 			tx
 				.select({
 					id: item.id,
@@ -255,8 +266,7 @@ export async function relatedPlans(
 					projectId: item.projectId
 				})
 				.from(item)
-				// A QA run is never an earlier plan to learn from
-				.where(and(inArray(item.id, ids), notQaRunSql)),
+				.where(inArray(item.id, ids)),
 			tx
 				.select({
 					id: section.id,
@@ -306,8 +316,28 @@ export async function relatedPlans(
 						sql`${event.before}->>'state' = 'done' and ${event.after}->>'state' = 'open'`
 					)
 				)
-				.groupBy(event.itemId)
+				.groupBy(event.itemId),
+			// The cases of plans that survived the visibility filter (a guest's role reads none of them: Testing is not shared with guests)
+			tx
+				.select({
+					itemId: testPlanCase.planItemId,
+					key: testCase.key,
+					title: testCase.title,
+					area: testCase.area,
+					role: testPlanCase.role,
+					retiredAt: testCase.retiredAt
+				})
+				.from(testPlanCase)
+				.innerJoin(testCase, eq(testCase.id, testPlanCase.caseId))
+				.where(inArray(testPlanCase.planItemId, ids))
+				.orderBy(testCase.key)
 		]);
+		// Testing is not shared with guests, so a guest's precedents carry no cases
+		const guestOn = new Set<string>();
+		for (const pid of new Set(items.map((i) => i.projectId))) {
+			const { role } = await requireCap(tx, ctx, 'read', pid);
+			if (role === 'guest') guestOn.add(pid);
+		}
 		const projectKeys = new Map(
 			(
 				await tx
@@ -405,7 +435,19 @@ export async function relatedPlans(
 				learnedFrom: note('learned-from'),
 				waived: counts('waived'),
 				superseded: counts('superseded'),
-				reopened: reopens.find((r) => r.itemId === it.id)?.n ?? 0
+				reopened: reopens.find((r) => r.itemId === it.id)?.n ?? 0,
+				cases: guestOn.has(it.projectId)
+					? []
+					: planCases
+							.filter((c) => c.itemId === it.id)
+							.slice(0, 20)
+							.map((c) => ({
+								key: c.key,
+								title: plainSnippet(c.title, 120),
+								area: c.area,
+								role: c.role,
+								retired: !!c.retiredAt
+							}))
 			});
 		}
 		plans.sort((a, b) => b.score - a.score);

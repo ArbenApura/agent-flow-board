@@ -19,6 +19,7 @@ import { claimMockups } from '../ops/mockups';
 import { briefPitfalls } from '../ops/pitfalls';
 import { driftWarnings, recentCompleted } from '../ops/drift';
 import { screensMissing } from '../ops/screens';
+import { testingBlock } from '../ops/testing';
 import { listProjects } from '../ops/projects';
 import { recordSteps } from '../ops/steps';
 import { setStatus } from '../ops/status';
@@ -156,6 +157,11 @@ export function registerCompat({ tool }: ToolBuilder) {
 				for (const i of inReview)
 					if (await run(ctx, (tx) => screensMissing(tx, i.id)))
 						out.push({ ref: i.ref, warning: 'in-review-without-screens' });
+				// A plan made since its project's Testing started has its cases run and passing before it is signed off (AFB-20261127-0438)
+				for (const i of inReview) {
+					const block = await run(ctx, (tx) => testingBlock(tx, ctx, i.id));
+					if (block) out.push({ ref: i.ref, warning: block.reason });
+				}
 			}
 			// A claim nobody has touched for a while keeps a Running badge on the item: say so, so the session can be released
 			if (rows.length) {

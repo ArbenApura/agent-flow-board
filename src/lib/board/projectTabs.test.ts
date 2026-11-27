@@ -19,7 +19,7 @@ describe('the pages of a project', () => {
 			'/acme/AFB/tasks',
 			'/acme/AFB/notes',
 			'/acme/AFB/mockups',
-			'/acme/AFB/qa'
+			'/acme/AFB/testing'
 		]);
 		expect(primary[0].exact).toBe(true);
 		expect(secondary.map((t) => t.label)).toEqual(['Project settings']);

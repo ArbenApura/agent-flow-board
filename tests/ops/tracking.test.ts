@@ -105,6 +105,8 @@ describe('tracking', () => {
 	beforeAll(async () => {
 		db = await make();
 		w = await makeWorld(db);
+		// These plans predate Testing, so the testing rules of COMPLETED (tests/ops/testingStatus.test.ts) stay out of the way
+		await db.admin.exec(`update project set testing_since = now() + interval '100 years'`);
 	}, 240_000);
 	afterAll(() => db?.stop());
 

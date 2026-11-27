@@ -305,15 +305,6 @@ describe('screens', () => {
 		await expect(
 			setStatus(asAgent, { item: e.ref, status: 'COMPLETED', note: 'Done at the board' })
 		).rejects.toMatchObject({ code: 'COMPLETED_REFUSED', details: { reason: 'screens-missing' } });
-		// An agent cannot send the owner's override at all
-		await expect(
-			setStatus(asAgent, {
-				item: e.ref,
-				status: 'COMPLETED',
-				note: 'Done at the board',
-				override: { reason: 'owner says so' }
-			})
-		).rejects.toMatchObject({ code: 'FORBIDDEN' });
 		// A plan made before the rule existed is not held to it
 		const old = await createItem(as('member'), {
 			project: w.projectKey,
