@@ -10,6 +10,7 @@
 // agent-flow-board hooks setup codex|claude --org <slug> --server <url> [--dir <repo>] [--global]   write the hooks into the repo's .codex/hooks.json (--global: ~/.codex/hooks.json)
 // agent-flow-board git-hook install|uninstall|check          the warn-only post-commit hook
 // (the browser check commands were removed: agent-flow-board check ... prints one line and exits 1)
+// agent-flow-board test surfaces --server <url> --org <slug> --project <key> [--dir <repo>] [--print]   send the pages, MCP tools and API endpoints of a SvelteKit repo to the Testing coverage view
 // agent-flow-board screen push <file> --server <url> --org <slug> --item <ref> --screen <slug> --mode light|dark --width <px>   upload one screenshot of a changed screen (never queued)
 // agent-flow-board mockup push <file.html> --server <url> --org <slug> --item <ref>   upload one mockup file (never queued)
 // agent-flow-board mockup kit <file.html> --server <url> --org <slug> --project <key>   upload the project's kit (its built stylesheet and fonts)
@@ -38,6 +39,7 @@ import { applyStatusFile, readDue } from './hooks/statusFile.js';
 import { deviceLogin, type Fetch } from './device.js';
 import { checkOrgAccess } from './orgAccess.js';
 import { listParts, pullParts, pushBundle, pushShell } from './bundle.js';
+import { isSupported, scanSurfaces } from './surfaces.js';
 import { mintMockupUrlCli, pullMockup, pushKit, pushMockup, pushScreen } from './mockup.js';
 import { Queue } from './queue.js';
 import {
@@ -215,6 +217,55 @@ async function main() {
 			log('Usage: agent-flow-board git-hook install|uninstall|check [--dir <repo>]');
 			process.exit(2);
 		}
+		return;
+	}
+	if (cmd === 'test') {
+		// The surfaces of the repo for the Testing coverage view (AFB-20261127-0438): read from the files, pushed over /api/v1
+		if (args[1] !== 'surfaces') {
+			log(
+				'Usage: agent-flow-board test surfaces --server <url> --org <slug> --project <key> [--dir <repo>] [--print]'
+			);
+			process.exit(2);
+		}
+		const dir = flag('--dir') ?? process.cwd();
+		if (!isSupported(dir)) {
+			// Not a failure: the agent lists the surfaces itself and sends them with the test_surfaces tool
+			log(
+				'unsupported: this command reads SvelteKit repos only. List the surfaces yourself and send them with test_surfaces.'
+			);
+			process.exit(3);
+		}
+		const found = scanSurfaces(dir);
+		if (args.includes('--print')) {
+			process.stdout.write(JSON.stringify({ surfaces: found }) + '\n');
+			return;
+		}
+		const server = serverUrl();
+		const org = orgFlag();
+		const projectKey = flag('--project');
+		if (!org || !projectKey) {
+			log('Say which organisation and project: --org <slug> --project <key>.');
+			process.exit(2);
+		}
+		const token = tokenFor(server, org, true);
+		if (!token) {
+			log('Not signed in. Run: agent-flow-board login --server <url> --org <slug>');
+			process.exit(1);
+		}
+		const res = await fetchImpl(
+			`${server}/api/v1/orgs/${encodeURIComponent(org)}/testing/surfaces`,
+			{
+				method: 'POST',
+				headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+				body: JSON.stringify({ project: projectKey, surfaces: found })
+			}
+		);
+		const body = await res.text();
+		if (!res.ok) {
+			log(`The board answered ${res.status}: ${body.slice(0, 300)}`);
+			process.exit(1);
+		}
+		process.stdout.write(body + '\n');
 		return;
 	}
 	if (cmd === 'screen') {
