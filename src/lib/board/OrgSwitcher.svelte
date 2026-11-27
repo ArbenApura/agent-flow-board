@@ -141,8 +141,12 @@
 			)}
 			{...props}
 		>
-			<OrgTile name={here?.name ?? current} logo={here?.logo} palette={here?.palette} />
-			<span class="truncate max-sm:max-w-[34vw]">{here?.name ?? current}</span>
+			<span class="flex shrink-0" data-testid={here?.logo ? 'org-logo' : undefined}>
+				<OrgTile name={here?.name ?? current} logo={here?.logo} palette={here?.palette} />
+			</span>
+			<span class="truncate max-sm:max-w-[34vw]" data-testid="org-name"
+				>{here?.name ?? current}</span
+			>
 			<ChevronsUpDown size={16} class="shrink-0 text-muted" />
 		</button>
 	{/snippet}

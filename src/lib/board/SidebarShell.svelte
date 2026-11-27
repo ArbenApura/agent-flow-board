@@ -61,7 +61,8 @@
 			{:else}
 				<Mark size={28} class="shrink-0" />
 			{/if}
-			<span class={LABEL} data-testid="org-name">{name}</span>
+			<!-- Only an organisation's name is the org-name; on the org pages the switcher in the top bar carries it -->
+			<span class={LABEL} data-testid={slug ? 'org-name' : undefined}>{name}</span>
 		</a>
 
 		<div

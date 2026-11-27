@@ -29,14 +29,12 @@
 	// -- REQUIRED PROPS -- //
 
 	let {
-		org,
 		projects,
 		current,
 		me,
 		tabs,
 		base
 	}: {
-		org: { name: string; logo?: string | null };
 		projects: {
 			id: string;
 			key: string;
@@ -73,7 +71,8 @@
 </script>
 
 <!-- THE SIDEBAR OF AN ORGANISATION. ITS PROJECTS WITH THE PAGES OF THE OPEN ONE UNDER IT, THEN SETTINGS -->
-<SidebarShell name={org.name} logo={org.logo} slug={base.slice(1)} href={base} {me}>
+<!-- The product mark heads it, as on the account pages: the organisation is named by the switcher in the top bar -->
+<SidebarShell name="Agent Flow Board" href="/" {me}>
 	<nav class="flex flex-col gap-1" aria-label="Organisation">
 		<SidebarRow href={base} label="Projects" icon={House} active={page.url.pathname === base} />
 	</nav>

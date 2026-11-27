@@ -170,7 +170,7 @@
 <svelte:window onkeydown={onShortcut} onscroll={() => (scrolled = window.scrollY > 4)} />
 
 <div class="min-h-dvh md:flex">
-	<AppSidebar org={data.org} projects={data.projects} {current} me={data.me} {tabs} {base} />
+	<AppSidebar projects={data.projects} {current} me={data.me} {tabs} {base} />
 
 	<div class="flex min-w-0 flex-1 flex-col">
 		<!-- THE TOP BAR. WHERE THE PERSON IS, SEARCH AND THE ACCOUNT -->
