@@ -155,7 +155,10 @@
 		<div class="w-72 max-w-[calc(100vw-32px)]" onkeydown={onKey}>
 			<div class="flex items-center justify-between px-2.5 pt-2 pb-1.5 text-xs text-muted">
 				<span>Switch organisation</span>
-				<kbd class="rounded border border-line px-1.5 font-mono max-md:hidden">O</kbd>
+				<kbd
+					class="rounded border border-line px-1.5 font-mono max-md:hidden"
+					title="Press S to open this list">S</kbd
+				>
 			</div>
 			{#if orgs.length >= FILTER_FROM}
 				<div class="px-1 pb-1">

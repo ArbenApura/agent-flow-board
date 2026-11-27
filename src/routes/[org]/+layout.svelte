@@ -49,7 +49,7 @@
 	/** A quiet shadow under the bar once the page has scrolled. */
 	let scrolled = $state(false);
 	let account = $state(false);
-	/** The organisation switcher at the start of the bar, also opened with the O key. */
+	/** The organisation switcher at the start of the bar, also opened with the S key. */
 	let switcher = $state(false);
 	let palette = $state(false);
 	/** The palette is loaded the first time it opens, so it is not in the first load of every page. */
@@ -142,10 +142,11 @@
 			void openPalette();
 			return;
 		}
-		// O opens the organisation switcher. A plain letter must never steal typing, so any editable field, a modifier,
+		// S (for switch) opens the organisation switcher. O was dropped because its hint read as a zero. A plain letter must
+		// never steal typing, so any editable field, a modifier,
 		// a held key or an open dialog leaves it alone
 		if (
-			(e.key === 'o' || e.key === 'O') &&
+			(e.key === 's' || e.key === 'S') &&
 			!e.ctrlKey &&
 			!e.metaKey &&
 			!e.altKey &&
