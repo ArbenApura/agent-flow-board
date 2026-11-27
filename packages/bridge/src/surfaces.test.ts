@@ -40,4 +40,19 @@ describe('scanSurfaces', () => {
 			{ kind: 'route', key: '/[org]/notes' }
 		]);
 	});
+
+	it('reads a SvelteKit 3 repo, which has no svelte.config, by its @sveltejs/kit dependency', () => {
+		const kit3 = mkdtempSync(join(tmpdir(), 'afb-kit3-'));
+		try {
+			mkdirSync(join(kit3, 'src', 'routes'), { recursive: true });
+			expect(isSupported(kit3)).toBe(false);
+			writeFileSync(
+				join(kit3, 'package.json'),
+				JSON.stringify({ devDependencies: { '@sveltejs/kit': '^3.0.0' } })
+			);
+			expect(isSupported(kit3)).toBe(true);
+		} finally {
+			rmSync(kit3, { recursive: true, force: true });
+		}
+	});
 });

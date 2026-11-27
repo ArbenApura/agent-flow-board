@@ -56,10 +56,19 @@ function routeOf(routesDir: string, file: string): string {
 
 /** True when the folder is a SvelteKit app this command can read. */
 export function isSupported(dir: string): boolean {
-	return (
-		existsSync(join(dir, 'src', 'routes')) &&
-		(existsSync(join(dir, 'svelte.config.js')) || existsSync(join(dir, 'svelte.config.ts')))
-	);
+	if (!existsSync(join(dir, 'src', 'routes'))) return false;
+	if (existsSync(join(dir, 'svelte.config.js')) || existsSync(join(dir, 'svelte.config.ts')))
+		return true;
+	// SvelteKit 3 keeps its config in vite.config, so the dependency itself is the sign
+	try {
+		const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
+			dependencies?: Record<string, string>;
+			devDependencies?: Record<string, string>;
+		};
+		return !!(pkg.dependencies?.['@sveltejs/kit'] ?? pkg.devDependencies?.['@sveltejs/kit']);
+	} catch {
+		return false;
+	}
 }
 
 /** Every page, MCP tool and API endpoint of a SvelteKit repo, sorted and without repeats. */
